@@ -1,0 +1,68 @@
+# backend CI：build + vet + 全量测试（含文件域 e2e 真跑 MinIO）。
+# 触发面仅 backend/**（monorepo 路径过滤，前端改动不触发）。
+# 说明：
+# - go 版本读 backend/go.mod 的 go directive（go-version-file），永不漂移。
+# - t5_file_e2e_test.go 经 BALD_ADMIN_TEST_MINIO_* env 注入真实 MinIO
+#   （本地无 env 则该组 Skip；CI 起容器全量跑，桶由 file biz ensureBucket
+#   兜底创建）。SQLite/miniredis 组天然离线。
+# - 不加 -race（与本地验证等价原则；runner 上 e2e 真跑已覆盖并发路径）。
+name: backend
+
+on:
+  push:
+    branches: [main]
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  pull_request:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      # job 级 services 不支持 command，minio/minio 镜像必须显式 `server`
+      # 才不退出——故用 step 级 docker run（runner 自带 docker）。
+      - name: Start MinIO
+        working-directory: .
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && exit 0
+            sleep 1
+          done
+          echo "minio not ready" >&2
+          exit 1
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        env:
+          BALD_ADMIN_TEST_MINIO_ENDPOINT: localhost:9000
+          BALD_ADMIN_TEST_MINIO_ACCESS_KEY: minioadmin
+          BALD_ADMIN_TEST_MINIO_SECRET_KEY: minioadmin
+          BALD_ADMIN_TEST_MINIO_USE_SSL: "false"
+        run: go test ./...

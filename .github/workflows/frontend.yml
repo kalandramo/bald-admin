@@ -1,0 +1,62 @@
+# frontend CI：eslint + vitest + vue-tsc/vite build + 契约漂移检测。
+# 触发面仅 frontend/**（monorepo 路径过滤）。
+# 说明：
+# - 不用 pnpm test（script 是 vitest watch 模式，CI 会挂死）——显式
+#   vitest run；不用 pnpm lint（带 --fix 会改文件）——显式裸 eslint。
+# - 契约漂移检测：orval 从入库 assets/openapi.yaml 重生成后
+#   git diff --exit-code——防止改了 spec 忘记 pnpm api:gen 导致
+#   src/api/generated 过期（orval 是 devDependency，零额外环境）。
+name: frontend
+
+on:
+  push:
+    branches: [main]
+    paths: ["frontend/**", ".github/workflows/frontend.yml"]
+  pull_request:
+    paths: ["frontend/**", ".github/workflows/frontend.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm exec eslint src --ext .vue,.ts
+
+      - name: Test
+        run: pnpm exec vitest run
+
+      - name: Build
+        run: pnpm build
+
+      - name: Contract drift check
+        run: |
+          pnpm exec orval --config orval.config.ts
+          git diff --exit-code -- src/api/generated || {
+            echo "::error::src/api/generated 与 openapi.yaml 契约不一致——请执行 pnpm api:gen 并提交" >&2
+            exit 1
+          }
