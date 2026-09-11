@@ -1,0 +1,23 @@
+# monorepo 根忽略（backend/frontend 各自还有局部 .gitignore）
+
+# ---- backend（Go）----
+# 真实运行配置含云端凭证，不入库（模板见 backend/configs/go-bald-admin.yaml.example）
+/backend/configs/go-bald-admin.yaml
+
+# Go
+*.exe
+*.exe~
+*.test
+*.out
+*.prof
+
+# ---- frontend（Node）----
+node_modules/
+dist/
+dist-ssr/
+*.local
+coverage/
+
+# 日志与临时
+*.log
+.DS_Store

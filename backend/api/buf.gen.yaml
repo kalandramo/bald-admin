@@ -1,0 +1,28 @@
+version: v2
+managed:
+  enabled: true
+  disable:
+    - file_option: go_package
+      module: buf.build/googleapis/googleapis
+  override:
+    # 生成物按语言分层（gen/go/...），与 go-wind-admin 的 gen/go 结构对齐——
+    # 未来若有第二语言/生成面（如 gen/typescript），语言维度即目录维度。
+    - file_option: go_package_prefix
+      value: github.com/kalandramo/bald-admin/api/gen/go
+inputs:
+  # 无 directory 显式声明（默认=workspace 全 module，module root=protos/）：
+  # 显式写 directory: protos 会与 module 路径叠加，source_relative 输出
+  # 变成 gen/go/audit/audit/v1 双重域名（实测踩坑）。
+  - directory: .
+plugins:
+  - local: protoc-gen-go
+    out: gen/go
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: gen/go
+    opt: paths=source_relative
+  - local: protoc-gen-grpc-gateway
+    out: gen/go
+    opt:
+      - paths=source_relative
+      - generate_unbound_methods=true

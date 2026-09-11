@@ -1,0 +1,23 @@
+version: v2
+# proto 源收在 protos/ 子目录（module 边界，与 go-wind-admin 分层对齐）：
+# api 根只放 buf 配置；import 路径相对 module root（protos/），
+# 如 protos/audit/v1/audit.proto 的 import 路径仍是 audit/v1/audit.proto。
+modules:
+  - name: buf.build/kalandramo/go-bald-admin
+    path: protos
+    lint:
+      use:
+        - STANDARD
+      except:
+        - FIELD_NOT_REQUIRED
+        - PACKAGE_DIRECTORY_MATCH
+        - PACKAGE_NO_IMPORT_CYCLE
+      disallow_comment_ignores: true
+    breaking:
+      use:
+        - FILE
+      except:
+        - EXTENSION_NO_DELETE
+        - FIELD_SAME_DEFAULT
+deps:
+  - buf.build/googleapis/googleapis

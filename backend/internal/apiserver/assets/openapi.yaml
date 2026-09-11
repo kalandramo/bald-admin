@@ -1,0 +1,1713 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: ""
+    version: 0.0.1
+paths:
+    /v1/audit:
+        get:
+            tags:
+                - AuditService
+            description: "ListAuditRecords 分页查询审计日志（category/subject/object/action/result/ip 过滤）。\r\n   REST: GET /v1/audit"
+            operationId: AuditService_ListAuditRecords
+            parameters:
+                - name: category
+                  in: query
+                  schema:
+                    type: string
+                - name: subject
+                  in: query
+                  schema:
+                    type: string
+                - name: object
+                  in: query
+                  schema:
+                    type: string
+                - name: action
+                  in: query
+                  schema:
+                    type: string
+                - name: result
+                  in: query
+                  schema:
+                    type: string
+                - name: ip
+                  in: query
+                  schema:
+                    type: string
+                - name: page_size
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: page_token
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAuditRecordsResponse'
+    /v1/audit/{id}:
+        get:
+            tags:
+                - AuditService
+            description: "GetAuditRecord 取单条审计日志详情。\r\n   REST: GET /v1/audit/{id}"
+            operationId: AuditService_GetAuditRecord
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetAuditRecordResponse'
+    /v1/dict_entry:
+        get:
+            tags:
+                - DictEntryService
+            description: |-
+                ListDictEntries 列出字典项（SortOrder 升序）。type_code 非空时走 Cache-Aside
+                 （键含租户，未命中回填）；空则全量直连（跨类型聚合不缓存）。
+                   REST: GET /v1/dict_entry?type_code=gender
+            operationId: DictEntryService_ListDictEntries
+            parameters:
+                - name: type_code
+                  in: query
+                  description: 非空 = 该类型下的条目（Cache-Aside）；空 = 全量直连。
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDictEntriesResponse'
+        post:
+            tags:
+                - DictEntryService
+            description: |-
+                CreateDictEntry 创建字典项（校验类型存在；type_code:value 组合唯一）。
+                   REST: POST /v1/dict_entry
+            operationId: DictEntryService_CreateDictEntry
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateDictEntryRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateDictEntryResponse'
+    /v1/dict_entry/{id}:
+        get:
+            tags:
+                - DictEntryService
+            description: |-
+                GetDictEntry 取字典项。
+                   REST: GET /v1/dict_entry/{id}
+            operationId: DictEntryService_GetDictEntry
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetDictEntryResponse'
+        put:
+            tags:
+                - DictEntryService
+            description: |-
+                UpdateDictEntry 更新字典项展示属性（type_code/value 业务键不可变）。
+                   REST: PUT /v1/dict_entry/{id}
+            operationId: DictEntryService_UpdateDictEntry
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateDictEntryRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateDictEntryResponse'
+        delete:
+            tags:
+                - DictEntryService
+            description: |-
+                DeleteDictEntry 删除字典项。
+                   REST: DELETE /v1/dict_entry/{id}
+            operationId: DictEntryService_DeleteDictEntry
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteDictEntryResponse'
+    /v1/dict_type:
+        get:
+            tags:
+                - DictTypeService
+            description: |-
+                ListDictTypes 列出调用方租户的字典类型（SortOrder 升序）。
+                   REST: GET /v1/dict_type
+            operationId: DictTypeService_ListDictTypes
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDictTypesResponse'
+        post:
+            tags:
+                - DictTypeService
+            description: |-
+                CreateDictType 创建字典类型（ID 即类型编码；默认启用）。
+                   REST: POST /v1/dict_type
+            operationId: DictTypeService_CreateDictType
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateDictTypeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateDictTypeResponse'
+    /v1/dict_type/{id}:
+        get:
+            tags:
+                - DictTypeService
+            description: |-
+                GetDictType 取字典类型。
+                   REST: GET /v1/dict_type/{id}
+                 单数路径段与 DefaultGRPCObject("DictTypeService/...")="dict_type" 同源（P9）。
+            operationId: DictTypeService_GetDictType
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetDictTypeResponse'
+        put:
+            tags:
+                - DictTypeService
+            description: |-
+                UpdateDictType 更新字典类型（空值字段不改；type_code 不可变）。
+                   REST: PUT /v1/dict_type/{id}
+            operationId: DictTypeService_UpdateDictType
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateDictTypeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateDictTypeResponse'
+        delete:
+            tags:
+                - DictTypeService
+            description: |-
+                DeleteDictType 删除字典类型（级联删除其全部条目 + 失效缓存）。
+                   REST: DELETE /v1/dict_type/{id}
+            operationId: DictTypeService_DeleteDictType
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteDictTypeResponse'
+    /v1/file:
+        get:
+            tags:
+                - FileService
+            description: "ListFiles 列出文件（租户过滤自动；原始文件名/内容类型过滤）。\r\n   REST: GET /v1/file"
+            operationId: FileService_ListFiles
+            parameters:
+                - name: file_name
+                  in: query
+                  schema:
+                    type: string
+                - name: mime_type
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListFilesResponse'
+    /v1/file/upload:
+        post:
+            tags:
+                - FileService
+            description: "UploadFile 上传文件：校验后写入 MinIO 并登记元数据。\r\n   REST(gateway): POST /v1/file/upload（JSON body，content 为 base64）\r\n   REST(gin):     POST /v1/file/upload（multipart form：file + directory）"
+            operationId: FileService_UploadFile
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UploadFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UploadFileResponse'
+    /v1/file/{id}:
+        get:
+            tags:
+                - FileService
+            description: "GetFile 取文件元数据。\r\n   REST: GET /v1/file/{id}"
+            operationId: FileService_GetFile
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetFileResponse'
+        delete:
+            tags:
+                - FileService
+            description: "DeleteFile 删除文件（先删对象，再删元数据）。\r\n   REST: DELETE /v1/file/{id}"
+            operationId: FileService_DeleteFile
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteFileResponse'
+    /v1/file/{id}/download:
+        get:
+            tags:
+                - FileService
+            description: "DownloadFile 下载文件内容（bytes）。\r\n   REST(gateway): GET /v1/file/{id}/download（JSON）\r\n   REST(gin):     GET /v1/file/{id}/download（流式，Content-Disposition）"
+            operationId: FileService_DownloadFile
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DownloadFileResponse'
+    /v1/menu:
+        get:
+            tags:
+                - MenuService
+            description: |-
+                ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过——
+                 源项目 pagination.BuildTree 同语义）。
+                   REST: GET /v1/menu
+            operationId: MenuService_ListMenus
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListMenusResponse'
+        post:
+            tags:
+                - MenuService
+            description: |-
+                CreateMenu 创建菜单节点（parent_id 空 = 根节点；源 parent_id=0 语义）。
+                   REST: POST /v1/menu
+            operationId: MenuService_CreateMenu
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateMenuRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateMenuResponse'
+    /v1/menu/{id}:
+        get:
+            tags:
+                - MenuService
+            description: |-
+                GetMenu 取菜单节点。
+                   REST: GET /v1/menu/{id}
+                 单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（P9 策略单写）。
+            operationId: MenuService_GetMenu
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetMenuResponse'
+        put:
+            tags:
+                - MenuService
+            description: |-
+                UpdateMenu 更新菜单节点（空值/UNSPECIFIED 字段不改）。
+                   REST: PUT /v1/menu/{id}
+            operationId: MenuService_UpdateMenu
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateMenuRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateMenuResponse'
+        delete:
+            tags:
+                - MenuService
+            description: |-
+                DeleteMenu 删除菜单节点（递归级联删除子树——源 QueryAllChildrenIds 语义）。
+                   REST: DELETE /v1/menu/{id}
+            operationId: MenuService_DeleteMenu
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteMenuResponse'
+    /v1/permission:
+        get:
+            tags:
+                - PermissionService
+            description: |-
+                ListPermissions 列出权限点。
+                   REST: GET /v1/permission
+            operationId: PermissionService_ListPermissions
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListPermissionsResponse'
+        post:
+            tags:
+                - PermissionService
+            description: |-
+                CreatePermission 创建权限点（ID 即权限码，如 "tenant:list"）。
+                   REST: POST /v1/permission
+            operationId: PermissionService_CreatePermission
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreatePermissionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreatePermissionResponse'
+    /v1/permission/policy:
+        get:
+            tags:
+                - PermissionService
+            description: |-
+                ListRolePolicies 列出角色策略（casbin p 行全量）。
+                   REST: GET /v1/permission/policy
+            operationId: PermissionService_ListRolePolicies
+            parameters:
+                - name: role
+                  in: query
+                  description: 可按 role 过滤（空 = 全量）。
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListRolePoliciesResponse'
+        post:
+            tags:
+                - PermissionService
+            description: |-
+                CreateRolePolicy 新增角色策略行（重启后经数据化装载生效；本子集不做运行期热重载）。
+                   REST: POST /v1/permission/policy
+            operationId: PermissionService_CreateRolePolicy
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateRolePolicyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateRolePolicyResponse'
+    /v1/permission/policy/{id}:
+        delete:
+            tags:
+                - PermissionService
+            description: |-
+                DeleteRolePolicy 删除角色策略行（同上，重启生效）。
+                   REST: DELETE /v1/permission/policy/{id}
+            operationId: PermissionService_DeleteRolePolicy
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteRolePolicyResponse'
+    /v1/permission/{id}:
+        get:
+            tags:
+                - PermissionService
+            description: |-
+                GetPermission 取权限点。
+                   REST: GET /v1/permission/{id}
+                 单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源（P9）。
+            operationId: PermissionService_GetPermission
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetPermissionResponse'
+        put:
+            tags:
+                - PermissionService
+            description: |-
+                UpdatePermission 更新权限点（空值字段不改）。
+                   REST: PUT /v1/permission/{id}
+            operationId: PermissionService_UpdatePermission
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdatePermissionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdatePermissionResponse'
+        delete:
+            tags:
+                - PermissionService
+            description: |-
+                DeletePermission 删除权限点（仅元数据；不联动 Role.Perms/RolePolicy）。
+                   REST: DELETE /v1/permission/{id}
+            operationId: PermissionService_DeletePermission
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeletePermissionResponse'
+    /v1/secrets/{id}:
+        get:
+            tags:
+                - SecretService
+            description: |-
+                GetSecret 取机密。
+                   REST: GET /v1/secrets/{id}
+            operationId: SecretService_GetSecret
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetSecretResponse'
+        delete:
+            tags:
+                - SecretService
+            description: |-
+                DeleteSecret 删机密。
+                   REST: DELETE /v1/secrets/{id}
+            operationId: SecretService_DeleteSecret
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteSecretResponse'
+    /v1/tenant:
+        get:
+            tags:
+                - TenantService
+            description: |-
+                ListTenants 列出租户（平台上下文，跨租户全量）。
+                   REST: GET /v1/tenant
+            operationId: TenantService_ListTenants
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTenantsResponse'
+        post:
+            tags:
+                - TenantService
+            description: |-
+                CreateTenant 创建租户。
+                   REST: POST /v1/tenant
+            operationId: TenantService_CreateTenant
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateTenantRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateTenantResponse'
+    /v1/tenant/{id}:
+        get:
+            tags:
+                - TenantService
+            description: |-
+                GetTenant 取租户。
+                   REST: GET /v1/tenant/{id}
+                 注意 REST 用单数段：DefaultHTTPObject 取首资源段（"tenant"），与 gRPC
+                 DefaultGRPCObject("TenantService/...")="tenant" 同源（P9 归一化，策略单写）。
+            operationId: TenantService_GetTenant
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetTenantResponse'
+        put:
+            tags:
+                - TenantService
+            description: |-
+                UpdateTenant 更新租户。
+                   REST: PUT /v1/tenant/{id}
+            operationId: TenantService_UpdateTenant
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateTenantRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateTenantResponse'
+        delete:
+            tags:
+                - TenantService
+            description: |-
+                DeleteTenant 删除租户。
+                   REST: DELETE /v1/tenant/{id}
+            operationId: TenantService_DeleteTenant
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteTenantResponse'
+    /v1/user:
+        get:
+            tags:
+                - UserService
+            description: |-
+                ListUsers 列出当前租户用户（M3 多租户隔离验证点，对象列表版本）。
+                   REST: GET /v1/user
+            operationId: UserService_ListUsers
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListUsersResponse'
+        post:
+            tags:
+                - UserService
+            description: |-
+                CreateUser 创建用户（租户内）。
+                   REST: POST /v1/user
+            operationId: UserService_CreateUser
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateUserRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateUserResponse'
+    /v1/user/{id}:
+        get:
+            tags:
+                - UserService
+            description: |-
+                GetUser 取用户。
+                   REST: GET /v1/user/{id}
+                 REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源（P9）。
+            operationId: UserService_GetUser
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetUserResponse'
+        put:
+            tags:
+                - UserService
+            description: |-
+                UpdateUser 更新用户。
+                   REST: PUT /v1/user/{id}
+            operationId: UserService_UpdateUser
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateUserRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateUserResponse'
+        delete:
+            tags:
+                - UserService
+            description: |-
+                DeleteUser 删除用户。
+                   REST: DELETE /v1/user/{id}
+            operationId: UserService_DeleteUser
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteUserResponse'
+components:
+    schemas:
+        AuditRecord:
+            type: object
+            properties:
+                id:
+                    type: string
+                tenant_id:
+                    type: string
+                category:
+                    type: string
+                subject:
+                    type: string
+                object:
+                    type: string
+                action:
+                    type: string
+                result:
+                    type: string
+                error:
+                    type: string
+                ip_address:
+                    type: string
+                user_agent:
+                    type: string
+                request_id:
+                    type: string
+                trace_id:
+                    type: string
+                time:
+                    type: string
+                    format: date-time
+            description: "AuditRecord 审计日志条目。字段对齐 model.AuditRecord（源\r\n OperationAuditLog/LoginAuditLog 共有核心字段精简；\r\n Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。"
+        CreateDictEntryRequest:
+            type: object
+            properties:
+                type_code:
+                    type: string
+                value:
+                    type: string
+                label:
+                    type: string
+                numeric:
+                    type: integer
+                    format: int32
+                sort_order:
+                    type: integer
+                    format: int32
+                remark:
+                    type: string
+        CreateDictEntryResponse:
+            type: object
+            properties:
+                dict_entry:
+                    $ref: '#/components/schemas/DictEntry'
+        CreateDictTypeRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                type_name:
+                    type: string
+                sort_order:
+                    type: integer
+                    format: int32
+                remark:
+                    type: string
+        CreateDictTypeResponse:
+            type: object
+            properties:
+                dict_type:
+                    $ref: '#/components/schemas/DictType'
+        CreateMenuRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                parent_id:
+                    type: string
+                type:
+                    enum:
+                        - TYPE_UNSPECIFIED
+                        - TYPE_CATALOG
+                        - TYPE_MENU
+                        - TYPE_BUTTON
+                    type: string
+                    format: enum
+                name:
+                    type: string
+                path:
+                    type: string
+                component:
+                    type: string
+                title:
+                    type: string
+                icon:
+                    type: string
+                order:
+                    type: integer
+                    format: int32
+                remark:
+                    type: string
+        CreateMenuResponse:
+            type: object
+            properties:
+                menu:
+                    $ref: '#/components/schemas/Menu'
+        CreatePermissionRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                menu_ids:
+                    type: array
+                    items:
+                        type: string
+                remark:
+                    type: string
+        CreatePermissionResponse:
+            type: object
+            properties:
+                permission:
+                    $ref: '#/components/schemas/Permission'
+        CreateRolePolicyRequest:
+            type: object
+            properties:
+                role:
+                    type: string
+                object:
+                    type: string
+                action:
+                    type: string
+        CreateRolePolicyResponse:
+            type: object
+            properties:
+                policy:
+                    $ref: '#/components/schemas/RolePolicy'
+        CreateTenantRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                remark:
+                    type: string
+        CreateTenantResponse:
+            type: object
+            properties:
+                tenant:
+                    $ref: '#/components/schemas/Tenant'
+        CreateUserRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                username:
+                    type: string
+                roles:
+                    type: array
+                    items:
+                        type: string
+                password:
+                    type: string
+        CreateUserResponse:
+            type: object
+            properties:
+                user:
+                    $ref: '#/components/schemas/User'
+        DeleteDictEntryResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeleteDictTypeResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeleteFileResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeleteMenuResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeletePermissionResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeleteRolePolicyResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeleteSecretResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeleteTenantResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeleteUserResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DictEntry:
+            type: object
+            properties:
+                id:
+                    type: string
+                type_code:
+                    type: string
+                value:
+                    type: string
+                label:
+                    type: string
+                numeric:
+                    type: integer
+                    format: int32
+                sort_order:
+                    type: integer
+                    format: int32
+                enabled:
+                    type: boolean
+                remark:
+                    type: string
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: |-
+                DictEntry 字典项。Label 内联源 sys_dict_entry_i18n 的 zh 条目（i18n 表按
+                 移植计划 §2.2 多语言后续迭代不移植）。
+        DictType:
+            type: object
+            properties:
+                id:
+                    type: string
+                type_name:
+                    type: string
+                sort_order:
+                    type: integer
+                    format: int32
+                enabled:
+                    type: boolean
+                remark:
+                    type: string
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: DictType 字典类型。ID 即类型编码（如 "gender"）。
+        DownloadFileResponse:
+            type: object
+            properties:
+                content:
+                    type: string
+                    format: bytes
+                file_name:
+                    type: string
+                mime_type:
+                    type: string
+        File:
+            type: object
+            properties:
+                id:
+                    type: string
+                provider:
+                    type: string
+                bucket_name:
+                    type: string
+                save_file_name:
+                    type: string
+                file_directory:
+                    type: string
+                file_name:
+                    type: string
+                extension:
+                    type: string
+                content_hash:
+                    type: string
+                size:
+                    type: integer
+                    format: uint32
+                link_url:
+                    type: string
+                mime_type:
+                    type: string
+                created_by:
+                    type: string
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: File 文件元数据。字段对齐源 storage/service/v1 的 File（recordFile）。
+        GetAuditRecordResponse:
+            type: object
+            properties:
+                record:
+                    $ref: '#/components/schemas/AuditRecord'
+        GetDictEntryResponse:
+            type: object
+            properties:
+                dict_entry:
+                    $ref: '#/components/schemas/DictEntry'
+        GetDictTypeResponse:
+            type: object
+            properties:
+                dict_type:
+                    $ref: '#/components/schemas/DictType'
+        GetFileResponse:
+            type: object
+            properties:
+                file:
+                    $ref: '#/components/schemas/File'
+        GetMenuResponse:
+            type: object
+            properties:
+                menu:
+                    $ref: '#/components/schemas/Menu'
+        GetPermissionResponse:
+            type: object
+            properties:
+                permission:
+                    $ref: '#/components/schemas/Permission'
+        GetSecretResponse:
+            type: object
+            properties:
+                id:
+                    type: string
+                content:
+                    type: string
+                viewer:
+                    type: string
+        GetTenantResponse:
+            type: object
+            properties:
+                tenant:
+                    $ref: '#/components/schemas/Tenant'
+        GetUserResponse:
+            type: object
+            properties:
+                user:
+                    $ref: '#/components/schemas/User'
+        ListAuditRecordsResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AuditRecord'
+                total:
+                    type: integer
+                    format: uint32
+                next_page_token:
+                    type: string
+        ListDictEntriesResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DictEntry'
+                total:
+                    type: integer
+                    format: uint32
+        ListDictTypesResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DictType'
+                total:
+                    type: integer
+                    format: uint32
+        ListFilesResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/File'
+                total:
+                    type: integer
+                    format: uint32
+        ListMenusResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Menu'
+                total:
+                    type: integer
+                    description: 全部节点数（含子孙，非根数）；uint32 避免 proto3 JSON int64 字符串化。
+                    format: uint32
+        ListPermissionsResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Permission'
+                total:
+                    type: integer
+                    format: uint32
+        ListRolePoliciesResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RolePolicy'
+                total:
+                    type: integer
+                    format: uint32
+        ListTenantsResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Tenant'
+                total:
+                    type: integer
+                    description: 注意用 uint32：proto3 JSON 把 int64/uint64 编码为字符串，会破坏常规 JSON 客户端。
+                    format: uint32
+        ListUsersResponse:
+            type: object
+            properties:
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/User'
+                total:
+                    type: integer
+                    description: 注意用 uint32：proto3 JSON 把 int64/uint64 编码为字符串，会破坏常规 JSON 客户端。
+                    format: uint32
+        Menu:
+            type: object
+            properties:
+                id:
+                    type: string
+                parent_id:
+                    type: string
+                type:
+                    enum:
+                        - TYPE_UNSPECIFIED
+                        - TYPE_CATALOG
+                        - TYPE_MENU
+                        - TYPE_BUTTON
+                    type: string
+                    format: enum
+                name:
+                    type: string
+                path:
+                    type: string
+                component:
+                    type: string
+                title:
+                    type: string
+                icon:
+                    type: string
+                order:
+                    type: integer
+                    format: int32
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                    type: string
+                    format: enum
+                remark:
+                    type: string
+                children:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Menu'
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: Menu 菜单节点（自引用树）。
+        Permission:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                menu_ids:
+                    type: array
+                    items:
+                        type: string
+                remark:
+                    type: string
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: |-
+                Permission 权限点（注册表）。ID 即权限码（P9 归一化的 "object:action"，如
+                 "tenant:list"），与 Role.Perms（CSV 角色权限绑定）同命名空间；MenuIDs 是该
+                 权限点对应的可见菜单（源 sys_permission_menus 关联表的内联精简）。
+        RolePolicy:
+            type: object
+            properties:
+                id:
+                    type: string
+                role:
+                    type: string
+                object:
+                    type: string
+                action:
+                    type: string
+            description: |-
+                RolePolicy 角色策略行（casbin p 行的数据化形态，源 sys_role_permissions 的
+                 精简等价物——bald 用 P9 归一化 object:action 而非源 path/method/domain）。
+        Tenant:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                        - STATUS_FREEZE
+                    type: string
+                    format: enum
+                remark:
+                    type: string
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: |-
+                Tenant 租户。ID 即租户编码（business code，如 "platform"、"t-acme"），
+                 与 bald P8 的 tenant_id 同一命名空间——业务租户创建后即作为 P8 隔离维度使用。
+        UpdateDictEntryRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                label:
+                    type: string
+                numeric:
+                    type: integer
+                    format: int32
+                numeric_set:
+                    type: boolean
+                sort_order:
+                    type: integer
+                    format: int32
+                sort_order_set:
+                    type: boolean
+                enabled:
+                    type: boolean
+                enabled_set:
+                    type: boolean
+                remark:
+                    type: string
+        UpdateDictEntryResponse:
+            type: object
+            properties:
+                dict_entry:
+                    $ref: '#/components/schemas/DictEntry'
+        UpdateDictTypeRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                type_name:
+                    type: string
+                sort_order:
+                    type: integer
+                    format: int32
+                sort_order_set:
+                    type: boolean
+                enabled:
+                    type: boolean
+                enabled_set:
+                    type: boolean
+                remark:
+                    type: string
+        UpdateDictTypeResponse:
+            type: object
+            properties:
+                dict_type:
+                    $ref: '#/components/schemas/DictType'
+        UpdateMenuRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                parent_id:
+                    type: string
+                type:
+                    enum:
+                        - TYPE_UNSPECIFIED
+                        - TYPE_CATALOG
+                        - TYPE_MENU
+                        - TYPE_BUTTON
+                    type: string
+                    format: enum
+                name:
+                    type: string
+                path:
+                    type: string
+                component:
+                    type: string
+                title:
+                    type: string
+                icon:
+                    type: string
+                order:
+                    type: integer
+                    format: int32
+                order_set:
+                    type: boolean
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                    type: string
+                    format: enum
+                remark:
+                    type: string
+        UpdateMenuResponse:
+            type: object
+            properties:
+                menu:
+                    $ref: '#/components/schemas/Menu'
+        UpdatePermissionRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                menu_ids:
+                    type: array
+                    items:
+                        type: string
+                menu_ids_set:
+                    type: boolean
+                remark:
+                    type: string
+        UpdatePermissionResponse:
+            type: object
+            properties:
+                permission:
+                    $ref: '#/components/schemas/Permission'
+        UpdateTenantRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                        - STATUS_FREEZE
+                    type: string
+                    format: enum
+                remark:
+                    type: string
+        UpdateTenantResponse:
+            type: object
+            properties:
+                tenant:
+                    $ref: '#/components/schemas/Tenant'
+        UpdateUserRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                username:
+                    type: string
+                roles:
+                    type: array
+                    items:
+                        type: string
+                password:
+                    type: string
+        UpdateUserResponse:
+            type: object
+            properties:
+                user:
+                    $ref: '#/components/schemas/User'
+        UploadFileRequest:
+            type: object
+            properties:
+                file_name:
+                    type: string
+                file_directory:
+                    type: string
+                content:
+                    type: string
+                    format: bytes
+        UploadFileResponse:
+            type: object
+            properties:
+                file:
+                    $ref: '#/components/schemas/File'
+        User:
+            type: object
+            properties:
+                id:
+                    type: string
+                username:
+                    type: string
+                roles:
+                    type: array
+                    items:
+                        type: string
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: |-
+                User 用户。ID 为业务编码（如 "u-admin"）；tenant_id 不在此消息中——
+                 由 bald P8 从上下文注入（写）与过滤（读），客户端不可指定。
+tags:
+    - name: AuditService
+      description: "AuditService 审计日志查询服务（T6，自 go-wind-admin audit 域精简移植）。\r\n\r\n 只读查询：审计事件由写路径自动落库（gin/gRPC 拦截器链 → category=operation；\r\n 登录动作 → category=login），本服务不提供写入（源 Create rpc 是内部补录口，\r\n 精简省略——伪造审计记录违背审计不可抵赖语义）。\r\n\r\n 数据来自 AuditRecord 单表（源 Operation/LoginAuditLog 双表 + Category 分类\r\n 精简合并）；P9 归一化对象 \"audit\"（REST /v1/audit 与 gRPC AuditService 同源）。"
+    - name: DictEntryService
+      description: |-
+        DictEntryService 字典项管理。条目挂在类型下（type_code 引用），业务键
+         "<type_code>:<entry_value>"；ListEntries 是 Cache-Aside 的消费点。
+    - name: DictTypeService
+      description: |-
+        DictTypeService 字典类型管理（T4，自 go-wind-admin dict 域 sys_dict_types 精简移植）。
+
+         字典是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离，ListEntries 的
+         Cache-Aside 键含租户维度（dict biz）。type_code 即主键（源 immutable），仅
+         展示属性可更新；删除类型级联删除其全部条目并失效对应缓存。
+    - name: FileService
+      description: "FileService 文件管理服务（T5，自 go-wind-admin storage 域精简移植）。\r\n\r\n 文件是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离。上传校验\r\n 大小上限（50MiB）与 MIME 白名单（源 pkg/oss 语义），对象按内容类型分桶并\r\n 兜底创建桶；元数据含 SHA256 内容哈希与长度。上传/下载为二进制流：gateway\r\n 转码（bytes→base64 JSON）可用，推荐经 gin 主服务的 multipart/流式 REST。"
+    - name: MenuService
+      description: |-
+        MenuService 菜单管理服务（T3，自 go-wind-admin permission 域 sys_menus 精简移植）。
+
+         菜单是前端导航树的数据源（自引用树，parent_id），同时是权限点可见性的挂载面
+         （Permission.MenuIDs）。管理面操作仅授予 admin 角色（casbin 策略数据化装载）。
+    - name: PermissionService
+      description: |-
+        PermissionService 权限管理服务（T3，自 go-wind-admin permission 域精简移植）。
+
+         两块职责：
+           1. 权限点注册表（Permission）：权限码 → 名称/菜单可见性关联
+              （源 sys_permissions + sys_permission_menus 精简——关联内联为 MenuIDs CSV）；
+           2. 角色策略（RolePolicy）：casbin p 行（role,object,action）的数据化持久层，
+              替代 M6.1 的静态 rbac_policy.csv（D3 策略数据化装载，重启生效）。
+         管理面操作仅授予 admin 角色（策略本身也数据化于 RolePolicy 表）。
+    - name: SecretService
+      description: |-
+        SecretService 受限资源服务（M5：经 grpc-gateway 同时暴露 gRPC 与 REST）。
+
+         T2 起 proto 全部收敛到 api/ 目录（buf 模块根=api/）；本文件的 ListUsers 演示 RPC
+         已由 UserService.ListUsers（api/user/v1）接管 GET /v1/users（对象列表版本）。
+    - name: TenantService
+      description: |-
+        TenantService 租户管理服务（T2，自 go-wind-admin identity/tenant.proto 精简搬运）。
+
+         双层语义（移植计划 §6 D2）：
+           1. 业务层——本服务管理租户本身（租户即业务实体，对应源 sys_tenants；
+              platform 为平台租户，对应源 PlatformTenantID=0）；
+           2. 框架层——bald P8 pkg/store 对其他业务表（users/secrets/…）自动注入
+              tenant_id 读过滤与写注入，与本服务无关。
+         租户管理是平台侧操作：REST/gRPC 路由仅授予 platform:admin 角色（casbin 策略）。
+    - name: UserService
+      description: |-
+        UserService 用户管理服务（T2，自 go-wind-admin identity/user.proto + user_profile.proto
+         精简搬运）。列表/读写天然按当前租户过滤（bald P8 pkg/store 自动注入 tenant_id），
+         跨租户用户不可见（隔离验证点）。
+
+         注意：原 SecretService.ListUsers（string 列表演示 RPC，M3）自本版本起由本服务
+         ListUsers 接管 GET /v1/users（对象列表，语义延续且增强），避免 gateway 路由重复注册。
