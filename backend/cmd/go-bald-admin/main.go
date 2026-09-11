@@ -46,9 +46,9 @@ import (
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
-	obmetrics "github.com/kalandramo/bald-observability-otlp/metrics"
-	obtrace "github.com/kalandramo/bald-observability-otlp/trace"
-	nacoscontract "github.com/kalandramo/bald-registry-nacos/contract"
+	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
+	obtrace "github.com/kalandramo/bald/contrib/observability-otlp/trace"
+	nacoscontract "github.com/kalandramo/bald/contrib/registry/nacos/contract"
 	bconf "github.com/kalandramo/bald/bconf"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	baldbootstrap "github.com/kalandramo/bald/bootstrap"

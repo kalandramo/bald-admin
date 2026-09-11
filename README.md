@@ -51,15 +51,9 @@ go-wind-admin 分层对齐）。生成链路（全命令均在 `backend/api/` �
 
 ## 开发
 
-后端依赖本地 bald 兄弟仓库（go.mod replace 指向 `../../bald`、`../../bald-crud`），
-需先 clone：
-
-```
-code/
-├── bald/          # 框架仓库（github.com/kalandramo/bald）
-├── bald-crud/     # viewer 模块
-└── bald-admin/    # 本仓库
-```
+后端依赖已发布的 bald v0.2.0（含 bconf/transport/contrib 等 v0.1.0 子模块），
+**clone 本仓库即可独立构建**，无需本地 bald 兄弟仓库。联调本地 bald 改动时
+临时加 replace：`go mod edit -replace=github.com/kalandramo/bald=../../bald`。
 
 ```bash
 # 后端

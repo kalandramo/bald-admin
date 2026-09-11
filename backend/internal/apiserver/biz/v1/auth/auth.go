@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	authnjwt "github.com/kalandramo/bald-authn-jwt"
+	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/audit"

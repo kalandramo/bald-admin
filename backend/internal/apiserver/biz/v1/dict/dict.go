@@ -18,7 +18,7 @@ import (
 	"github.com/kalandramo/bald/pkg/contextx"
 	"github.com/kalandramo/bald/pkg/store"
 
-	rediscache "github.com/kalandramo/bald-cache-redis"
+	rediscache "github.com/kalandramo/bald/contrib/cache-redis"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )

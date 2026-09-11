@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	authnjwt "github.com/kalandramo/bald-authn-jwt"
-	rediscache "github.com/kalandramo/bald-cache-redis"
-	baldgorm "github.com/kalandramo/bald-store-gorm"
+	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
+	rediscache "github.com/kalandramo/bald/contrib/cache-redis"
+	baldgorm "github.com/kalandramo/bald/contrib/store-gorm"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"

@@ -9,8 +9,8 @@ package main
 import (
 	"os"
 
-	authnjwt "github.com/kalandramo/bald-authn-jwt"
-	rediscache "github.com/kalandramo/bald-cache-redis"
+	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
+	rediscache "github.com/kalandramo/bald/contrib/cache-redis"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"

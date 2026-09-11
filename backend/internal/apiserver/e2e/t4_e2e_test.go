@@ -22,7 +22,7 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
-	rediscache "github.com/kalandramo/bald-cache-redis"
+	rediscache "github.com/kalandramo/bald/contrib/cache-redis"
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"

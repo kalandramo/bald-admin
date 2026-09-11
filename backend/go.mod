@@ -4,8 +4,10 @@
 // 若放进核心 module，这些依赖会进入核心依赖图。独立成 module 后，
 // 重依赖只存在于本 go.sum，核心 go.mod 保持最小。
 //
-// 开发期 replace 指向兄弟目录本地 bald/bald-crud（clone 布局见仓库根 README）；
-// 各模块发布稳定后可去 replace 改用真实版本。
+// 依赖 bald v0.2.0 与各子模块 v0.1.0（bconf/transport/contrib 等，均经
+// github.com/kalandramo/bald 仓库 submodule tag 发布）——零 replace，
+// clone 本仓库即可独立构建。若需联调本地 bald 改动，临时加
+// `go mod edit -replace=github.com/kalandramo/bald=../../bald` 即可。
 //
 // 本示例用 bald 重构 go-wind-admin/backend，验证 P0–P9 在真实业务下的可用性；
 // 设计见 docs/设计文档.md，分层参考 osbuilder 脚手架模板。
@@ -20,23 +22,23 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
-	github.com/kalandramo/bald v0.0.0
-	github.com/kalandramo/bald-authn-jwt v0.0.0
-	github.com/kalandramo/bald-authz-casbin v0.0.0
-	github.com/kalandramo/bald-cache-redis v0.0.0
-	github.com/kalandramo/bald-observability-otlp v0.0.0
-	github.com/kalandramo/bald-registry-nacos v0.0.0
-	github.com/kalandramo/bald-store-gorm v0.0.0
-	github.com/kalandramo/bald/bconf v0.0.0
-	github.com/kalandramo/bald/berrors v0.0.0
-	github.com/kalandramo/bald/bootstrap v0.0.0-00010101000000-000000000000
-	github.com/kalandramo/bald/log v0.0.0
-	github.com/kalandramo/bald/oss/minio v0.0.0-00010101000000-000000000000
-	github.com/kalandramo/bald/transport v0.0.0
-	github.com/kalandramo/bald/transport/gateway v0.0.0-00010101000000-000000000000
-	github.com/kalandramo/bald/transport/grpc v0.0.0-00010101000000-000000000000
-	github.com/kalandramo/bald/transport/http v0.0.0-00010101000000-000000000000
-	github.com/kalandramo/bald/transport/web v0.0.0-00010101000000-000000000000
+	github.com/kalandramo/bald v0.2.0
+	github.com/kalandramo/bald/bconf v0.1.0
+	github.com/kalandramo/bald/berrors v0.1.0
+	github.com/kalandramo/bald/bootstrap v0.1.0
+	github.com/kalandramo/bald/contrib/authn-jwt v0.1.0
+	github.com/kalandramo/bald/contrib/authz-casbin v0.1.0
+	github.com/kalandramo/bald/contrib/cache-redis v0.1.0
+	github.com/kalandramo/bald/contrib/observability-otlp v0.1.0
+	github.com/kalandramo/bald/contrib/registry/nacos v0.1.0
+	github.com/kalandramo/bald/contrib/store-gorm v0.1.0
+	github.com/kalandramo/bald/log v0.1.0
+	github.com/kalandramo/bald/oss/minio v0.1.0
+	github.com/kalandramo/bald/transport v0.1.0
+	github.com/kalandramo/bald/transport/gateway v0.1.0
+	github.com/kalandramo/bald/transport/grpc v0.1.0
+	github.com/kalandramo/bald/transport/http v0.1.0
+	github.com/kalandramo/bald/transport/web v0.1.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/spf13/cobra v1.10.2
@@ -156,8 +158,8 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/kalandramo/bald-crud/viewer v0.0.0-00010101000000-000000000000 // indirect
-	github.com/kalandramo/bald/bconfig v0.0.0-00010101000000-000000000000 // indirect
+	github.com/kalandramo/bald-crud/viewer v0.1.0 // indirect
+	github.com/kalandramo/bald/bconfig v0.1.0 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
@@ -250,41 +252,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/kalandramo/bald => ../../bald
-
-replace github.com/kalandramo/bald/bconf => ../../bald/bconf
-
-replace github.com/kalandramo/bald/bootstrap => ../../bald/bootstrap
-
-replace github.com/kalandramo/bald/bconfig => ../../bald/bconfig
-
-replace github.com/kalandramo/bald/berrors => ../../bald/berrors
-
-replace github.com/kalandramo/bald/log => ../../bald/log
-
-replace github.com/kalandramo/bald/transport => ../../bald/transport
-
-replace github.com/kalandramo/bald-authn-jwt => ../../bald/contrib/authn-jwt
-
-replace github.com/kalandramo/bald-authz-casbin => ../../bald/contrib/authz-casbin
-
-replace github.com/kalandramo/bald-cache-redis => ../../bald/contrib/cache-redis
-
-replace github.com/kalandramo/bald-registry-nacos => ../../bald/contrib/registry/nacos
-
-replace github.com/kalandramo/bald-observability-otlp => ../../bald/contrib/observability-otlp
-
-replace github.com/kalandramo/bald-store-gorm => ../../bald/contrib/store-gorm
-
-replace github.com/kalandramo/bald/transport/http => ../../bald/transport/http
-
-replace github.com/kalandramo/bald/transport/grpc => ../../bald/transport/grpc
-
-replace github.com/kalandramo/bald/transport/gateway => ../../bald/transport/gateway
-
-replace github.com/kalandramo/bald/transport/web => ../../bald/transport/web
-
-replace github.com/kalandramo/bald-crud/viewer => ../../bald-crud/viewer
-
-replace github.com/kalandramo/bald/oss/minio => ../../bald/oss/minio
