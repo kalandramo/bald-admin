@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	auditv1 "github.com/kalandramo/bald-admin/api/gen/go/audit/v1"
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
@@ -46,14 +47,14 @@ import (
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
-	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
-	otlpcontract "github.com/kalandramo/bald/contrib/observability-otlp/contract"
-	nacoscontract "github.com/kalandramo/bald/contrib/registry/nacos/contract"
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	bconf "github.com/kalandramo/bald/bconf"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	baldbootstrap "github.com/kalandramo/bald/bootstrap"
 	baldconfig "github.com/kalandramo/bald/bootstrap/config"
-	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
+	otlpcontract "github.com/kalandramo/bald/contrib/observability-otlp/contract"
+	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
+	nacoscontract "github.com/kalandramo/bald/contrib/registry/nacos/contract"
 	baldlog "github.com/kalandramo/bald/log"
 	baldlogadapter "github.com/kalandramo/bald/log/slog"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -64,8 +65,6 @@ import (
 	ginmw "github.com/kalandramo/bald/pkg/middleware/gin"
 	"github.com/kalandramo/bald/transport"
 	gateway "github.com/kalandramo/bald/transport/gateway"
-	grpcserver "github.com/kalandramo/bald/transport/grpc"
-	httpserver "github.com/kalandramo/bald/transport/http"
 )
 
 func serveRunE(_ *cobra.Command, _ []string) error {
@@ -73,40 +72,37 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	bootstrap := bconf.NewBootstrap()
 	bootstrap.GetServer().GetHttp().Addr = ":8080"
 
-	// 日志系统接入（两阶段：先默认，配置加载后重建）。
-	logOpts := baldlogadapter.NewOptions()
-	setLogger(logOpts)
+	// 业务身份默认值（U1）：app 元数据改由契约 app 段驱动（FromBootstrap 内化
+	// Name/Version/StopTimeout Option）。env 前缀（GO_BALD_ADMIN_*）由 Name
+	// 规范化派生，必须在 FromBootstrap 构造前就位——坑见框架文档「已知耦合」。
+	bootstrap.GetApp().Name = "go-bald-admin"
+	bootstrap.GetApp().Version = "v0.1.0"
+	bootstrap.GetApp().StopTimeout = durationpb.New(15 * time.Second)
 
-	// 配置源层预装配（两阶段装载的第一阶段）：契约 config 段（nacos/kubernetes
+	// 配置源预装载（两阶段装载的第一阶段）：契约 config 段（nacos/kubernetes
 	// 的地址/凭据/dataId）是引导信息，必须本地可得——先装载本地配置文件填
-	// 契约 config 段，经 bootstrap.Registry Build 出配置层；层在 appkit Run
-	// 期 loadConfig 参与合并（优先级低于本地文件/env/flag：远程只补本地未
-	// 定义的键）并支持热更新（nacos ListenConfig 推送）。
-	cfgLayers, cfgLayersCleanup, err := buildConfigLayers(bootstrap)
+	// 契约 config 段。配置层的 Build 由 FromBootstrap 构造期执行
+	// （WithConfigRegistry），层在 Run 期 loadConfig 参与合并（优先级低于
+	// 本地文件/env/flag：远程只补本地未定义的键）并支持热更新（nacos
+	// ListenConfig 推送），层 reader 释放挂框架停机 Effect。
+	cfgReg, err := preloadBootstrap(bootstrap)
 	if err != nil {
 		return fmt.Errorf("bootstrap config sources: %w", err)
 	}
-	if cfgLayersCleanup != nil {
-		defer cfgLayersCleanup() // Run 返回（进程退出路径）时释放层 reader 资源
+
+	// T9 可观测性缺省态合成（U1）：go-bald-admin 语义「metrics 段缺省仍暴露
+	// :9091」——FromBootstrap 的保守缺省是「段缺省不装配」，故构造前合成默认
+	// 段。env 开关（BALD_ADMIN_METRICS_ADDR / BALD_ADMIN_OTLP_ADDR）同处应用；
+	// 显式配置源（文件/远程）若配 metrics 段将覆盖合成值——env 开关退居
+	// 「段未显式配置时的便捷」，显式声明优先（与契约「配置驱动」哲学一致，
+	// 行为收敛见设计文档 U1 变更记录）。
+	if err := applyObservabilityDefaults(bootstrap); err != nil {
+		return err
 	}
 
-	// T9 可观测性契约化：OTLP trace + 指标双通道改由 bconf 契约 tracer/metrics 段驱动，
-	// 装配挪至 BeforeStart（配置装载 Unmarshal 之后，见 setupObservability）。
-	// Recorder/span 经 otel 全局 Provider lazy 解析——中间件先行构建不漏采：
-	// Setup 设置全局 Provider 后新请求的埋点即走真后端，且 Servers 监听晚于
-	// BeforeStart，无采样窗口损失。与 T7 registrar 同款「构造期 nil + 运行期接线」模式。
-	obs := &observabilityWiring{}
-	// C1：trace provider 注册为进程内组件（退出时由 appkit 统一逆序 Dispose flush
-	// 尾批 span；obs.traceShutdown 在 BeforeStart 装配后才非 nil，未配置段时为 no-op）。
-	traceComp := appkit.ComponentFunc("trace.provider", func(ctx context.Context) error {
-		if obs.traceShutdown != nil {
-			return obs.traceShutdown(ctx)
-		}
-		return nil
-	})
-
 	// 1. 业务装配（分层见 internal/apiserver）。M6.4 起由 wire 显式拼装业务对象
-	//    （cache / auth biz / secret biz），编译期依赖图校验；框架桥接仍在 appkit.BeforeStart 注入。
+	//    （cache / auth biz / secret biz），编译期依赖图校验；框架桥接经
+	//    WithBeforeStart 注入（装载链之后，契约终值可读）。
 	bizSet, err := InitializeBiz()
 	if err != nil {
 		return fmt.Errorf("initialize biz (wire): %w", err)
@@ -144,31 +140,13 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	))
 	apiserver.RegisterRoutes(router, bizSet)                // gin handler 路由（T10：BizSet 直传）
 	registerAdminRoutes(router, appRef, componentFactories) // M10.2 管理面（appRef 迟到绑定）
-	httpSrv := httpserver.NewHTTPServer(bootstrap.GetServer().GetHttp(), router, ready)
 
-	// T2：gRPC service 注册回调捕获 wire 装配的 biz（全部 service 需 biz 注入）。
-	// 闭包取代原包级 var（bizSet 是局部变量）。secret 的 DeleteSecret 同经 biz
-	// 真实删除（gRPC 直连与 gateway 转码共用），不再是占位返回。
-	registerGRPC := func(s *grpc.Server) {
-		adminv1.RegisterSecretServiceServer(s, secretgrpc.NewServer(bizSet.Secret))
-		tenantv1.RegisterTenantServiceServer(s, secretgrpc.NewTenantServer(bizSet.Tenant))
-		userv1.RegisterUserServiceServer(s, secretgrpc.NewUserServer(bizSet.User))
-		menuv1.RegisterMenuServiceServer(s, secretgrpc.NewMenuServer(bizSet.Menu))
-		permissionv1.RegisterPermissionServiceServer(s, secretgrpc.NewPermissionServer(bizSet.Permission))
-		dictv1.RegisterDictTypeServiceServer(s, secretgrpc.NewDictTypeServer(bizSet.Dict))
-		dictv1.RegisterDictEntryServiceServer(s, secretgrpc.NewDictEntryServer(bizSet.Dict))
-		filev1.RegisterFileServiceServer(s, secretgrpc.NewFileServer(bizSet.File))        // T5
-		auditv1.RegisterAuditServiceServer(s, secretgrpc.NewAuditServer(bizSet.AuditLog)) // T6
+	// 2. 约定装配（U1）：Bind×3 / 配置装载+校验 / 日志两阶段 / 热更新 / registrar /
+	//    可观测性 / 停机 Effect 全部由 FromBootstrap 内化（详见 newApp）。
+	app, err := newApp(bootstrap, router, bizSet, cfgReg, ready)
+	if err != nil {
+		return err
 	}
-	grpcSrv := grpcserver.NewGRPCServerWithRegister(
-		bootstrap.GetServer().GetGrpc(),
-		newGRPCServerOptions(),
-		registerGRPC,
-		ready,
-	)
-
-	// 2. 组装 AppKit（含可选 grpc-gateway，见 buildServers）。
-	app := newApp(bootstrap, logOpts, httpSrv, grpcSrv, ready, traceComp, bizSet, obs, cfgLayers)
 	appRef.set(app) // M10.2：管理面 handler 经 appRef 请求期取 AppKit（规避装配时序）
 
 	// 3. 运行。
@@ -225,116 +203,114 @@ func isKnownCommand(root *cobra.Command, name string) bool {
 	return false
 }
 
+// newApp 用 appkit.FromBootstrap 做约定装配（U1：从 New 手动装配切换）。
+//
+// 框架内化（原手写样板，语义与 New 路径等价）：
+//   - Bind×3（server.http / server.grpc / --log.* flag 壳）；
+//   - BeforeStart：Settings→Unmarshal→Validate→按契约 logger 段重建 Logger
+//     （两阶段日志，脱敏装饰经 WithLogDecorators 两阶段统一生效）；
+//   - OnConfigChange：热更新副本试装载+校验后整契约原子落盘并重建 Logger
+//     （比原手写版多了 Validate 拦截——坏配置降级保留旧契约，不落半成品）；
+//   - app 元数据（name/version/stop_timeout）取自契约 app 段；
+//   - T7 registrar：契约 registry 段经 RegistrarRegistry Build，cleanup 挂
+//     停机 Effect（原 regRegistry.Build + SetRegistrar + regCleanup 样板）；
+//   - T9 可观测性：tracer/metrics 段经双 Registry 装配，trace shutdown 与
+//     metrics 暴露端/flush 挂 Effect 逆序回放最后执行（原 setupObservability
+//   - observabilityWiring + traceComp 样板）；
+//   - 配置层 Build 与释放（原 buildConfigLayers 的 Build 半段 + cleanup defer）。
+//
+// 业务保留（配置表达不了）：路由、gRPC service、拦截器链序、S1 能力声明、
+// 业务桥接（WithBeforeStart——装载链之后契约终值可读）、R1-2 审计协调、
+// gateway 第三服务器（独立 :8081，WithExtraServers 逃生舱——契约
+// server.http.driver 的网关面模式与「gin 主面 + 独立转码面并存」不匹配）。
 func newApp(
 	bootstrap *bootstrapv1.BootstrapConfig,
-	logOpts *baldlogadapter.Options,
-	httpSrv *httpserver.HTTPServer,
-	grpcSrv *grpcserver.GRPCServer,
-	ready transport.ReadinessFunc,
-	traceComp appkit.Component,
+	router http.Handler,
 	bizSet *apiserver.BizSet,
-	obs *observabilityWiring,
-	cfgLayers []baldconfig.Layer,
-) *appkit.AppKit {
+	cfgReg *baldbootstrap.Registry,
+	ready transport.ReadinessFunc,
+) (*appkit.AppKit, error) {
+	// T2：gRPC service 注册回调捕获 wire 装配的 biz（全部 service 需 biz 注入）。
+	// secret 的 DeleteSecret 同经 biz 真实删除（gRPC 直连与 gateway 转码共用）。
+	registerGRPC := func(s *grpc.Server) {
+		adminv1.RegisterSecretServiceServer(s, secretgrpc.NewServer(bizSet.Secret))
+		tenantv1.RegisterTenantServiceServer(s, secretgrpc.NewTenantServer(bizSet.Tenant))
+		userv1.RegisterUserServiceServer(s, secretgrpc.NewUserServer(bizSet.User))
+		menuv1.RegisterMenuServiceServer(s, secretgrpc.NewMenuServer(bizSet.Menu))
+		permissionv1.RegisterPermissionServiceServer(s, secretgrpc.NewPermissionServer(bizSet.Permission))
+		dictv1.RegisterDictTypeServiceServer(s, secretgrpc.NewDictTypeServer(bizSet.Dict))
+		dictv1.RegisterDictEntryServiceServer(s, secretgrpc.NewDictEntryServer(bizSet.Dict))
+		filev1.RegisterFileServiceServer(s, secretgrpc.NewFileServer(bizSet.File))        // T5
+		auditv1.RegisterAuditServiceServer(s, secretgrpc.NewAuditServer(bizSet.AuditLog)) // T6
+	}
+
+	// app 先声明再进闭包：WithBeforeStart 在 Run 期才执行，届时已赋值
+	//（FromBootstrap 同款模式）。
 	var app *appkit.AppKit
-	// T7：注册中心契约装配（New 构造路径等价于 FromBootstrap 的 buildRegistrar）：
-	// 显式注册表声明可用后端（未 import 的后端零依赖），BeforeStart 配置装载后
-	// 按 registry 段构造真实 registrar；cleanup 挂停机 Effect（Deregister 先于
-	// Effect 回放，顺序安全）。registry 段不支持热更新（client 重建侵入性大）。
-	regRegistry := registrarRegistry()
-	var regCleanup func()
-	app = appkit.New(
-		appkit.Name("go-bald-admin"),
-		appkit.Version("v0.1.0"),
-		appkit.StopTimeout(15*time.Second),
+	opts := []appkit.BootstrapOption{
+		// --- 能力声明（代码提供） ---
+		appkit.WithHTTP(router),
+		appkit.WithGRPC(registerGRPC, newGRPCServerOptions()...),
+		appkit.WithReadiness(ready),
 
-		appkit.ConfigFile("configs/go-bald-admin.yaml"),
-		appkit.WatchConfigFile(true),
+		// 日志脱敏装饰：阶段 A（启动默认）/ 阶段 B（契约重建）统一生效
+		//（原 setLogger 两处手挂收敛至此）。
+		appkit.WithLogDecorators(
+			baldlogadapter.WithFilter(baldlogadapter.FilterKey("password")),
+			baldlogadapter.WithFilter(baldlogadapter.FilterKey("token")),
+			baldlogadapter.WithAttrs(slog.String("service.name", "go-bald-admin")),
+		),
 
-		// 契约 config 段装配出的配置源层（见 serveRunE 预装载）。
-		appkit.ConfigLayers(cfgLayers...),
+		// --- 配置驱动参数 ---
+		appkit.WithConfigFile(configFileDefault),
+		appkit.WithWatchConfig(true),
+		// 契约 config 段 → 配置层（注册序=层优先级；Build/释放由框架管）。
+		appkit.WithConfigRegistry(cfgReg),
+
+		// T7：注册中心契约装配（显式注册表声明可用后端，未 import 的后端零依赖；
+		// registry 段不支持热更新）。
+		appkit.WithRegistrarRegistry(registrarRegistry()),
+
+		// U1：数据/缓存/存储契约段经透传 provider 消费（构造语义保留业务桥接的
+		// env 优先级与降级语义，连接生命周期上挂框架停机 Effect；实例经
+		// app.Database/Cache/Storage 取回注入桥接变量，见 WithBeforeStart）。
+		appkit.WithDatabaseRegistry(databaseRegistry()),
+		appkit.WithCacheRegistry(cacheRegistry()),
+		appkit.WithStorageRegistry(storageRegistry()),
+
+		// T9：可观测性契约装配（tracer/metrics 段；段不支持热更新）。
+		appkit.WithTracerRegistry(tracerRegistry()),
+		appkit.WithMetricsRegistry(metricsRegistry()),
 
 		// S1 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB
 		// 连接（BALD_ADMIN_DB_DSN，缺省 SQLite 内存），审计落库（StoreAuditor）依赖它。
-		// 此前「审计后端须在 InitBridges 之后装配」只活在注释里（M8 曾因顺序反了
-		// nil panic）；现在漏掉 Provides("db") 会在 Run 启动期直接报错，而非运行时炸弹。
-		appkit.Provides("db"),
-		appkit.Requires("audit.store", "db"),
-
-		// C1 进程内组件：trace provider 纳入统一生命周期（停机末段逆序 Dispose）。
-		appkit.Components(traceComp),
-
-		// T7：nacos client 关闭效应（BeforeStart 契约装配时经 regCleanup 激活，
-		// 未配置 registry 段则为空操作）。
-		appkit.Effect("appkit:registrar-client", func(context.Context) error {
-			if regCleanup != nil {
-				regCleanup()
-			}
-			return nil
-		}),
-
-		// T9：metrics 暴露端点优雅关闭（BeforeStart setupObservability 装配后激活；
-		// Shutdown 让 in-flight 抓取完成，避免连接被硬切），随后 flush OTLP 直推
-		// 缓冲（双通道时收集停机前的尾批指标）。
-		appkit.Effect("metrics:server", func(ctx context.Context) error {
-			if obs.metricsSrv != nil {
-				if err := obs.metricsSrv.Shutdown(ctx); err != nil {
-					baldlog.GetLogger().Error(ctx, "metrics server shutdown failed", "error", err.Error())
-				}
-			}
-			if obs.metricsFlush != nil {
-				return obs.metricsFlush(ctx)
-			}
-			return nil
-		}),
-
-		// 业务 flag 接入：前缀与配置键一致（--server.http.addr ⇔ server.http.addr ⇔ GO_BALD_ADMIN_SERVER_HTTP_ADDR）。
-		appkit.Bind("server.http", bootstrap.GetServer().GetHttp()),
-		appkit.Bind("server.grpc", bootstrap.GetServer().GetGrpc()),
-		appkit.Bind("", logOpts),
-
-		appkit.OnConfigChange(func(m map[string]any) {
-			logger := baldlog.GetLogger()
-			logger.Info(context.Background(), "config changed",
-				"server.http.addr", app.Config().GetString("server.http.addr"),
-				"server.grpc.addr", app.Config().GetString("server.grpc.addr"))
-			if err := baldconfig.Unmarshal(m, bootstrap); err != nil {
-				logger.Error(context.Background(), "reload config failed", "error", err)
-			}
-		}),
+		appkit.WithProvides("db"),
+		appkit.WithRequires("audit.store", "db"),
 
 		// R1 增量协调（key 级订阅）：仅当 http.addr 实际变化才触发（同值刷新、
 		// 其他 key 变更均不波及），与全量 reload 互补——全量做 Unmarshal 重建，
 		// key 级做定点观测/定点重载。
-		appkit.OnKeyChange("server.http.addr", func(old, new string) {
+		appkit.WithOnKeyChange("server.http.addr", func(old, new string) {
 			baldlog.GetLogger().Info(context.Background(), "server.http.addr changed",
 				"old", old, "new", new)
 		}),
 
-		appkit.Servers(buildServers(bootstrap, httpSrv, grpcSrv, ready)...),
-
-		appkit.BeforeStart(func(ctx context.Context) error {
-			m := app.Settings()
-			if m == nil {
-				return nil
+		// 业务桥接（装载链之后执行——契约终值可读、数据/缓存/存储实例已由
+		// 阶段 B 构建）：
+		appkit.WithBeforeStart(func(ctx context.Context) error {
+			// U1：契约装配实例注入桥接变量（DatabaseProvider 等透传 provider 的
+			// 产物；nil 实例 = 降级态，Wire* 对 nil 为 no-op，InitBridges 走自建/降级）。
+			if v, ok := app.Database("sql"); ok {
+				bootstrappkg.WireDatabase(v)
 			}
-			if err := baldconfig.Unmarshal(m, bootstrap); err != nil {
-				return fmt.Errorf("unmarshal config: %w", err)
+			if v, ok := app.Cache("redis"); ok {
+				bootstrappkg.WireCache(v)
 			}
-			if err := bconf.Validate(bootstrap); err != nil {
-				return fmt.Errorf("invalid config: %w", err)
+			if v, ok := app.Storage("minio"); ok {
+				bootstrappkg.WireStorage(v)
 			}
-			// 阶段 B：按最终配置重建 Logger，并装配 bald 桥接（P7/P8/P9 注册点）。
-			setLogger(baldbootstrap.LogOptions(bootstrap.GetLogger()))
-			// T9：契约驱动可观测性（tracer / metrics 段）——trace OTLP 直推 +
-			// 指标双通道（Prometheus 暴露端点 + 可选 OTLP 直推）。须在 Servers
-			// 监听前（BeforeStart 语义保证），段不支持热更新（exporter/Provider
-			// 重建侵入大，与 registry 段同款决策）。
-			if err := setupObservability(bootstrap, obs); err != nil {
-				return fmt.Errorf("setup observability: %w", err)
-			}
-			// T0：注入真实依赖配置（database.sql / cache.redis / storage.minio 段 +
-			// 业务自持 file.bucket），openDB/Redis/MinIO 构造据此分流；须在 InitBridges 之前。
+			// T0：注入真实依赖配置（业务自持 file.bucket；database/cache/storage
+			// 段已由透传 provider 消费，此处仅传桥接所需的余下配置）。
 			bootstrappkg.Configure(bootstrap, app.Config().GetString("file.bucket"))
 			// 在 bootstrap 包内装配 bald 桥接（P7/P8/P9 注册点）：M1+ 注入
 			// Authenticator / Authorizer / store.RegisterTenant / store.RegisterDataScope。
@@ -353,50 +329,47 @@ func newApp(
 				bizSet.Secret.SetCache(bootstrappkg.RedisCache)
 				bizSet.Dict.SetCache(bootstrappkg.RedisCache)
 			}
-			// T7：契约驱动注册中心——registry 段为真相源，type 为空/未注册均
-			// fail-fast（与 FromBootstrap 的 buildRegistrar 同语义），Nacos 不可达
-			// 在此显式报错而非静默降级。注意 cleanup 必须 `=` 赋外层变量，
-			// 闭包内 `:=` 会遮蔽导致停机 Effect 拿 nil。
-			reg, cleanup, err := regRegistry.Build(ctx, bootstrap.GetRegistry())
-			if err != nil {
-				return fmt.Errorf("build registrar: %w", err)
-			}
-			app.SetRegistrar(reg)
-			regCleanup = cleanup
-			// 审计后端注入（R1-2 期望态协调）改由 appkit.Reconcile 驱动：声明期望集合
-			// （audit.backends）后，框架在启动收敛期与每次配置变更时自动 diff-apply，
-			// 此处不再静态装配——单一事实来源收敛到配置键，避免"配置与代码两处声明"。
 			return nil
 		}),
+
 		// R1-2 期望态协调：以 audit.backends 为期望态，与当前生效后端集合 diff，
 		// 自动重建 MultiAuditor 收敛（幂等）。首次收敛在 AfterStart 前（runReconcilers
 		// 于基线 loadConfig 后、BeforeStart 链之后触发）；后续 OnConfigChange 携带新
 		// 快照再次触发，实现运行期热切换而无需重启。
-		appkit.Reconcile("audit.backends", reconcileAudit),
-		appkit.AfterStart(func(ctx context.Context) error {
+		appkit.WithReconcile("audit.backends", reconcileAudit),
+
+		appkit.WithAfterStart(func(ctx context.Context) error {
+			// 地址为契约最终值（装载后写回；:0 动态端口场景见注册中心聚合结果）。
 			ctx = baldlog.ContextWithAttrs(ctx,
-				slog.String("stage", "started"), slog.String("grpc", grpcSrv.Endpoint()))
-			baldlog.GetLogger().Info(ctx, "go-bald-admin started", "http", httpSrv.Endpoint())
+				slog.String("stage", "started"),
+				slog.String("grpc", bootstrap.GetServer().GetGrpc().GetAddr()))
+			baldlog.GetLogger().Info(ctx, "go-bald-admin started",
+				"http", bootstrap.GetServer().GetHttp().GetAddr())
 			return nil
 		}),
-		appkit.BeforeStop(func(ctx context.Context) error {
+		appkit.WithBeforeStop(func(ctx context.Context) error {
 			baldlog.GetLogger().Info(ctx, "go-bald-admin stopping")
 			return nil
 		}),
-	)
-	return app
-}
+	}
 
-// observabilityWiring 承载 BeforeStart 装配、停机期消费的可观测性句柄
-// （构造期 nil + 运行期接线，T7 regCleanup / T8 SetStorage 同模式）。
-type observabilityWiring struct {
-	traceShutdown func(context.Context) error
-	metricsSrv    *http.Server
-	metricsFlush  func(context.Context) error
+	// M5：gateway 第三服务器（REST → gRPC 转码，独立 :8081 与 HTTP 主服务错峰）。
+	// WithExtraServers 逃生舱：契约 server.http.driver 的网关面模式是「同一端口
+	// 二选一」，与本范例「gin 主面 + 独立转码面并存」不匹配。
+	opts = append(opts, appkit.WithExtraServers(buildGateway(bootstrap, ready)...))
+
+	app, err := appkit.FromBootstrap(bootstrap, opts...)
+	if err != nil {
+		// 契约与能力声明不一致（如声明了 WithHTTP 但契约删了 server.http 段）
+		// 属启动期错误，fail-fast 暴露，不静默降级。
+		return nil, fmt.Errorf("from bootstrap: %w", err)
+	}
+	return app, nil
 }
 
 // tracerRegistry 显式注册 trace 后端契约 provider（appkit.TracerRegistry：
-// 契约 tracer 段 → 全局 TracerProvider，tracer.type 单选）。
+// 契约 tracer 段 → 全局 TracerProvider，tracer.type 单选）。装配与停机
+// flush 由 FromBootstrap 内化（U1：原 setupObservability + traceComp 样板删）。
 func tracerRegistry() *appkit.TracerRegistry {
 	tr := appkit.NewTracerRegistry()
 	tr.MustRegister(otlpcontract.TracerType, otlpcontract.NewTracerProvider("go-bald-admin"))
@@ -405,7 +378,8 @@ func tracerRegistry() *appkit.TracerRegistry {
 
 // metricsRegistry 显式注册指标后端契约 provider（appkit.MetricsRegistry：
 // 契约 metrics 段 → 双通道装配，metrics.type 单选——"prometheus"=仅本地
-// 抓取，"otlp"=抓取+直推，同一实现的两种声明形态）。
+// 抓取，"otlp"=抓取+直推，同一实现的两种声明形态）。装配与停机关闭/flush
+// 由 FromBootstrap 内化（U1）。
 func metricsRegistry() *appkit.MetricsRegistry {
 	mr := appkit.NewMetricsRegistry()
 	mr.MustRegister(otlpcontract.TypePrometheus, otlpcontract.NewPrometheusProvider("go-bald-admin"))
@@ -413,68 +387,49 @@ func metricsRegistry() *appkit.MetricsRegistry {
 	return mr
 }
 
-// setupObservability 按 bconf 契约 tracer/metrics 段装配可观测性（显式主开关契约，
-// 字段映射经 observability-otlp/contract，生命周期经 appkit）：
-//   - 段缺省（yaml 无 tracer:/metrics: 段）→ 默认行为：no-op trace + 仅 Prometheus
-//     暴露（addr 缺省 :9091，T8 根治与 gRPC 错峰）——零配置可运行，冒烟/CI 不破；
-//   - 段存在 → type 必须显式声明，空串/未知值启动期报错（Registry.Build
-//     fail-fast；行为由声明决定，不靠 endpoint 非空反推意图）；
-//   - BALD_ADMIN_OTLP_ADDR 覆盖双通道 endpoint、BALD_ADMIN_METRICS_ADDR 覆盖
-//     暴露端口——只提供地址，不改变 type 声明的语义（配 prometheus 不会因
-//     env 翻转成推送；otlp endpoint 契约字段与 env 同时配、type 却是
-//     prometheus 的矛盾声明仍报错）。
+// applyObservabilityDefaults 在 FromBootstrap 构造前应用 go-bald-admin 的
+// 可观测性缺省态与 env 开关（U1：原 setupObservability 的缺省合成/env 半段
+// 前移——Build 半段归框架 buildObservability）：
+//   - metrics 段缺省 → 合成 `type: prometheus`（仅本地抓取，addr 缺省 :9091，
+//     T8 与 gRPC 错峰）——零配置可运行，冒烟/CI 不破；
+//   - BALD_ADMIN_METRICS_ADDR 覆盖暴露端口；BALD_ADMIN_OTLP_ADDR 覆盖双通道
+//     endpoint——只提供地址，不改变 type 声明的语义（配 prometheus 不会因
+//     env 翻转成推送；otlp endpoint 与 type=prometheus 的矛盾声明仍报错）。
 //
-// 段不支持热更新（exporter/Provider 重建侵入大，与 registry 段同款决策）。
-func setupObservability(bootstrap *bootstrapv1.BootstrapConfig, obs *observabilityWiring) error {
-	ctx := context.Background()
-
-	// ---- trace：契约 tracer 段（缺省=no-op；存在则 type 必须显式 "otlp"）----
-	if tr := bootstrap.GetTracer(); tr != nil {
-		if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" {
-			if tr.Otlp == nil {
-				tr.Otlp = &bootstrapv1.Tracer_Otlp{}
-			}
-			tr.Otlp.Endpoint = v
-		}
-		sd, err := tracerRegistry().Build(ctx, tr)
-		if err != nil {
-			return fmt.Errorf("setup trace: %w", err)
-		}
-		obs.traceShutdown = sd // `=` 赋值（T7 教训：闭包内 `:=` 遮蔽致停机拿 nil）
+// 时机语义（U1 行为收敛）：env 开关在构造前应用于合成/预装载态；显式配置源
+// （文件/远程）若配了 metrics/tracer 段，装载时覆盖 env 值——显式声明优先
+// 于 env 开关（原 New 路径 env 后置于装载，语义为 env > 文件；收敛原因：
+// FromBootstrap 的 Build 在装载后立即执行，业务无介入位，且「配置说开了」
+// 胜过「环境变量说没开」与契约哲学一致）。
+func applyObservabilityDefaults(bootstrap *bootstrapv1.BootstrapConfig) error {
+	// metrics 缺省合成：段缺省 → 仅暴露（T9 语义：零配置仍可抓取）。
+	if bootstrap.GetMetrics() == nil {
+		bootstrap.Metrics = &bootstrapv1.Metrics{Type: otlpcontract.TypePrometheus}
 	}
-
-	// ---- metrics：契约 metrics 段（缺省=仅暴露；存在则 type 必须显式）----
 	m := bootstrap.GetMetrics()
-	if m == nil {
-		m = &bootstrapv1.Metrics{Type: otlpcontract.TypePrometheus} // 缺省=仅暴露
-	}
 	if v := os.Getenv("BALD_ADMIN_METRICS_ADDR"); v != "" {
 		if m.Prometheus == nil {
 			m.Prometheus = &bootstrapv1.Metrics_Prometheus{}
 		}
 		m.Prometheus.Addr = v
 	}
-	if m.GetType() == otlpcontract.TypeOTLP {
-		if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" {
+	if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" {
+		switch m.GetType() {
+		case otlpcontract.TypeOTLP:
 			if m.Otlp == nil {
 				m.Otlp = &bootstrapv1.Metrics_Otlp{}
 			}
 			m.Otlp.Endpoint = v
+		case otlpcontract.TypePrometheus:
+			return fmt.Errorf("metrics.type=prometheus conflicts with BALD_ADMIN_OTLP_ADDR configured (use type \"otlp\" to enable push)")
 		}
-	} else if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" && m.GetType() == otlpcontract.TypePrometheus {
-		return fmt.Errorf("metrics.type=prometheus conflicts with BALD_ADMIN_OTLP_ADDR configured (use type \"otlp\" to enable push)")
+		if tr := bootstrap.GetTracer(); tr != nil {
+			if tr.Otlp == nil {
+				tr.Otlp = &bootstrapv1.Tracer_Otlp{}
+			}
+			tr.Otlp.Endpoint = v
+		}
 	}
-	handler, flush, err := metricsRegistry().Build(ctx, m)
-	if err != nil {
-		return fmt.Errorf("setup metrics: %w", err)
-	}
-	// 暴露端独立端口（addr/path 缺省 :9091//metrics，与业务 server 生命周期解耦）。
-	obs.metricsSrv = appkit.StartMetricsServer(
-		m.GetPrometheus().GetAddr(),
-		m.GetPrometheus().GetPath(),
-		handler,
-	)
-	obs.metricsFlush = flush
 	return nil
 }
 
@@ -493,15 +448,17 @@ func configRegistry() *baldbootstrap.Registry {
 // configFileDefault 与 appkit.ConfigFile 的缺省一致（两处必须同步改）。
 const configFileDefault = "configs/go-bald-admin.yaml"
 
-// buildConfigLayers 预装载本地配置文件（--config flag 优先，解析行为与 appkit
-// loadConfig 同源：pflag + 未知 flag 白名单），把契约 config 段经 Registry
-// Build 为配置层。两阶段装载的第一阶段——引导信息（远程源地址/凭据/dataId）
-// 必须本地可得；层内容（dataId 下的配置文档）在 Run 期 loadConfig 参与合并。
+// preloadBootstrap 预装载本地配置文件（--config flag 优先，解析行为与 appkit
+// loadConfig 同源：pflag + 未知 flag 白名单）填契约 config 段，并返回配置源
+// 注册表（U1：层的 Build 与释放改由 FromBootstrap 经 WithConfigRegistry 内化，
+// 原返回 layers+cleanup 的半段删）。两阶段装载的第一阶段——引导信息（远程源
+// 地址/凭据/dataId）必须本地可得；层内容（dataId 下的配置文档）在 Run 期
+// loadConfig 参与合并。
 //
 // 预装载是无层的基线装载（本地文件 + env，不含 flag/远程），仅用于读取 config
-// 段引导信息；完整契约装载仍由 BeforeStart 的 Unmarshal 负责（appkit store
+// 段引导信息；完整契约装载仍由框架 BeforeStart 的 Unmarshal 负责（appkit store
 // 合并结果覆盖同一契约指针），两阶段无冲突。
-func buildConfigLayers(dst *bootstrapv1.BootstrapConfig) ([]baldconfig.Layer, func(), error) {
+func preloadBootstrap(dst *bootstrapv1.BootstrapConfig) (*baldbootstrap.Registry, error) {
 	// 与 appkit 同款解析 --config（appkit 在 Run 期 loadConfig 内解析，预装载
 	// 发生在其前，须自行扫描 os.Args）。
 	cfgFile := configFileDefault
@@ -512,13 +469,13 @@ func buildConfigLayers(dst *bootstrapv1.BootstrapConfig) ([]baldconfig.Layer, fu
 
 	s, err := baldconfig.Load(baldconfig.Options{Name: "go-bald-admin", ConfigFile: cfgFile})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer s.Close() // 预装载 store 无 watch，Close 释放即可
 	if err := s.Unmarshal(dst); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return configRegistry().Build(context.Background(), dst)
+	return configRegistry(), nil
 }
 
 // registrarRegistry 显式注册注册中心契约 provider（业务按需 import 各后端
@@ -528,6 +485,29 @@ func registrarRegistry() *appkit.RegistrarRegistry {
 	rr := appkit.NewRegistrarRegistry()
 	rr.MustRegister(nacoscontract.Type, nacoscontract.Provider)
 	return rr
+}
+
+// U1：数据/缓存/存储透传 provider 的注册表（段名即注册 key——database.sql /
+// cache.redis / storage.minio）。与 contrib contract 官方 provider 的差异：
+// 本业务桥接直接消费 *gorm.DB / *rediscache.Cache / *miniooss.Storage
+// （stores/审计/文件模块的既有类型），构造语义（env 优先级、Redis/MinIO 降级）
+// 保留在 internal/bootstrap——见 providers.go。
+func databaseRegistry() *appkit.DatabaseRegistry {
+	dr := appkit.NewDatabaseRegistry()
+	dr.MustRegister("sql", bootstrappkg.DatabaseProvider)
+	return dr
+}
+
+func cacheRegistry() *appkit.CacheRegistry {
+	cr := appkit.NewCacheRegistry()
+	cr.MustRegister("redis", bootstrappkg.CacheProvider)
+	return cr
+}
+
+func storageRegistry() *appkit.StorageRegistry {
+	sr := appkit.NewStorageRegistry()
+	sr.MustRegister("minio", bootstrappkg.StorageProvider)
+	return sr
 }
 
 // reconAuditors 是 R1-2 协调的「实际态」载体：协调器逐后端 Mount/Unmount，
@@ -792,17 +772,16 @@ func newGRPCServerOptions() []grpc.ServerOption {
 	return grpcBundle.GRPCChain()
 }
 
-// buildServers 组装运行服务器集合：gRPC + HTTP，可选 grpc-gateway。
-// gateway 仅在注入 gatewayFactory 时挂载（默认构建即挂载，由 init 注入）。
-func buildServers(
+// buildGateway 构造 grpc-gateway 第三服务器（U1：gRPC/HTTP 归 WithGRPC/WithHTTP
+// 契约装配，gateway 走 WithExtraServers 逃生舱——独立 :8081 与 gin 主面并存，
+// 契约 server.http.driver 的网关面模式是「同一端口二选一」，与此不匹配）。
+// 仅在注入 gatewayFactory 时挂载（默认构建即挂载，由 init 注入）。
+func buildGateway(
 	bootstrap *bootstrapv1.BootstrapConfig,
-	httpSrv *httpserver.HTTPServer,
-	grpcSrv *grpcserver.GRPCServer,
 	ready transport.ReadinessFunc,
 ) []transport.Server {
-	servers := []transport.Server{grpcSrv, httpSrv}
 	if gatewayFactory == nil {
-		return servers
+		return nil
 	}
 	// gateway 需连到 gRPC 服务（用其监听地址，须可连接，不能是 :0）。
 	// gateway 配置在构造期即与 HTTP 同源绑定：地址走 gatewayAddr()，TLS 直接取主 HTTP 的 http.tls 段，
@@ -816,7 +795,7 @@ func buildServers(
 		// 网关构造失败不应静默降级（否则 REST 路由凭空消失），直接 panic（fail-fast）。
 		panic("build gateway server: " + err.Error())
 	}
-	return append(servers, gw)
+	return []transport.Server{gw}
 }
 
 // gatewayFactory 构造 grpc-gateway 服务器（REST → gRPC 转码）。M5 默认挂载：

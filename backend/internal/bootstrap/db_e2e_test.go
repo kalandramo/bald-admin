@@ -12,6 +12,6 @@ import (
 // 真实 postgres/mysql DSN 在本地无数据库环境无法连通，仅校验分流前的预检失败路径。
 func TestOpenDB_UnsupportedScheme(t *testing.T) {
 	t.Setenv("BALD_ADMIN_DB_DSN", "oracle://u:p@h:1521/db")
-	_, err := openDB()
+	_, err := openDB(nil)
 	assert.Error(t, err, "未知 scheme 必须报错")
 }

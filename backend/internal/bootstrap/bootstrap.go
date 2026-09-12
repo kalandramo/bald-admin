@@ -178,11 +178,16 @@ func InitBridges(ctx context.Context) error {
 	)
 
 	// 2) Store（bald-store-gorm，M4 起 DSN 可配置）。
-	// 默认 SQLite 内存库（M2），生产经 env BALD_ADMIN_DB_DSN 切换到外部
-	// PostgreSQL/MySQL（需引入对应 gorm driver，此处仅占位提示）。
-	db, err := openDB()
-	if err != nil {
-		return err
+	// U1：DB/Redis/MinIO 优先消费注入实例（WireDatabase/WireCache/WireStorage，
+	// FromBootstrap 阶段 B 经透传 provider 构造）；未注入才自建（既有测试与
+	// 独立调用路径零改动）。默认 SQLite 内存库（M2），生产经 env
+	// BALD_ADMIN_DB_DSN 切换到外部 PostgreSQL/MySQL。
+	db := DB
+	if db == nil {
+		var err error
+		if db, err = openDB(depsBootstrap.GetDatabase().GetSql()); err != nil {
+			return err
+		}
 	}
 	if err := db.AutoMigrate(&authmodel.User{}, &authmodel.Role{}, &authmodel.Secret{}, &authmodel.AuditRecord{}, &authmodel.Tenant{},
 		&authmodel.Menu{}, &authmodel.Permission{}, &authmodel.RolePolicy{},
@@ -193,31 +198,35 @@ func InitBridges(ctx context.Context) error {
 
 	// 可选 Redis 后端：供消息总线/缓存复用同一真实连接。不可达仅 warn（审计流降级），
 	// 不阻断启动（与 SQLite 内存库同构的"真实但可选"简化，符合 §0）。
-	// T0 起：地址/密码/逻辑库经 resolveRedis 解析（env BALD_ADMIN_REDIS_ADDR 优先，
-	// 其次配置段 cache.redis），云端带认证实例由此接通。
-	redisAddr, redisOpts := resolveRedis()
-	if rc, rerr := rediscache.New(redisAddr, redisOpts...); rerr != nil {
-		log.GetLogger().Warn(ctx, "redis init skipped, audit stream disabled", "error", rerr.Error())
-	} else {
-		RedisCache = rc
+	// U1 起：注入态优先（WireCache 已注入则跳过自建），否则 resolveRedis
+	// 解析（env BALD_ADMIN_REDIS_ADDR 优先，其次配置段 cache.redis）。
+	if RedisCache == nil {
+		redisAddr, redisOpts := resolveRedis()
+		if rc, rerr := rediscache.New(redisAddr, redisOpts...); rerr != nil {
+			log.GetLogger().Warn(ctx, "redis init skipped, audit stream disabled", "error", rerr.Error())
+		} else {
+			RedisCache = rc
+		}
 	}
 
 	// T0：MinIO 对象存储后端（storage.minio 配置段）。minio.New 仅本地构造不联网，
 	// 失败时 SDK() 为 nil + 日志；真实可达性与建桶由 T5 文件模块 EnsureBucket 兜底，
-	// 此处失败不阻断启动（与 Redis 同构的"真实但可选"）。
-	if mc := depsBootstrap.GetStorage().GetMinio(); mc != nil && mc.GetEndpoint() != "" {
-		MinioStorage = miniooss.NewStorage(&miniooss.Config{
-			Endpoint:  mc.GetEndpoint(),
-			AccessKey: mc.GetAccessKey(),
-			SecretKey: mc.GetSecretKey(),
-			Token:     mc.GetToken(),
-			UseSsl:    mc.GetUseSsl(),
-		})
-		if MinioStorage == nil || MinioStorage.SDK() == nil {
-			MinioStorage = nil
-			log.GetLogger().Warn(ctx, "minio init failed, file module degraded", "endpoint", mc.GetEndpoint())
-		} else {
-			log.GetLogger().Info(ctx, "minio storage constructed", "endpoint", mc.GetEndpoint())
+	// 此处失败不阻断启动（与 Redis 同构的"真实但可选"）。U1 同款注入优先。
+	if MinioStorage == nil {
+		if mc := depsBootstrap.GetStorage().GetMinio(); mc != nil && mc.GetEndpoint() != "" {
+			MinioStorage = miniooss.NewStorage(&miniooss.Config{
+				Endpoint:  mc.GetEndpoint(),
+				AccessKey: mc.GetAccessKey(),
+				SecretKey: mc.GetSecretKey(),
+				Token:     mc.GetToken(),
+				UseSsl:    mc.GetUseSsl(),
+			})
+			if MinioStorage == nil || MinioStorage.SDK() == nil {
+				MinioStorage = nil
+				log.GetLogger().Warn(ctx, "minio init failed, file module degraded", "endpoint", mc.GetEndpoint())
+			} else {
+				log.GetLogger().Info(ctx, "minio storage constructed", "endpoint", mc.GetEndpoint())
+			}
 		}
 	}
 	UserStore = store.NewStore[authmodel.User](baldgorm.NewGormProvider(db, func(u *authmodel.User) string { return u.ID }))
@@ -506,11 +515,14 @@ func init() {
 //   - 驱动优先级：契约段 driver 字段 > DSN scheme 推断；未注册驱动 fail-fast；
 //   - 契约段连接池参数（max_idle/max_open/lifetime）一并消费。
 //
+// U1 起 sqlCfg 由调用方传入（DatabaseProvider 直收契约段；InitBridges 旧路径
+// 传 depsBootstrap 的段），nil = 无契约段（env/内存库路径）。
+//
 // 注意：本函数返回的连接用于 AutoMigrate + seed；多连接场景 SQLite 内存库须用
 // cache=shared 且 keep 一个引用，否则其他连接读到空库。
-func openDB() (*gorm.DB, error) {
+func openDB(sqlCfg *bootstrapv1.Database_SQL) (*gorm.DB, error) {
 	opts := []baldgorm.Option{baldgorm.WithEnv("BALD_ADMIN_DB_DSN")}
-	if sqlCfg := depsBootstrap.GetDatabase().GetSql(); sqlCfg != nil && sqlCfg.GetSource() != "" {
+	if sqlCfg != nil && sqlCfg.GetSource() != "" {
 		opts = append(opts, baldgorm.WithConfig(sqlCfg))
 	}
 	return baldgorm.Open(opts...)
