@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"strconv"
 	"strings"
 	"time"
@@ -137,6 +138,13 @@ var FileStore *store.Store[authmodel.File]
 // 同表双通道：写走审计后端、读走本仓储）。
 var AuditStore *store.Store[authmodel.AuditRecord]
 
+// bridgesMu 串行化 InitBridges 的 check-then-act（UT8 修复：并发首调时
+// 双 goroutine 同时通过 nil 判据、各自生成 RSA 密钥对、后写覆盖先写——
+// 败者持有与胜者不同的 Signer 密钥，签发/验签闭环破坏）。用互斥而非
+// sync.Once：Once.Do 失败也计数，与下方「失败路径重入重新生成密钥无害」
+// 的语义冲突（失败须可重试）。
+var bridgesMu sync.Mutex
+
 // InitBridges 初始化认证/授权/存储桥接。
 // 幂等：已完整初始化（DB 与 Authenticator 均非 nil）则直接返回，避免重复生成
 // RSA 密钥对导致签发方与验签方密钥不一致（非对称下每次生成新密钥对，重复初始化
@@ -145,6 +153,8 @@ var AuditStore *store.Store[authmodel.AuditRecord]
 // 而 DB/stores 仍为 nil——下游 NPE；失败路径重入重新生成密钥对无害（彼时未对外
 // 服务过任何 token）。
 func InitBridges(ctx context.Context) error {
+	bridgesMu.Lock()
+	defer bridgesMu.Unlock()
 	if DB != nil && Authenticator != nil {
 		return nil
 	}
