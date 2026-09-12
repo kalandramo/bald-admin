@@ -4,7 +4,7 @@
 // 若放进核心 module，这些依赖会进入核心依赖图。独立成 module 后，
 // 重依赖只存在于本 go.sum，核心 go.mod 保持最小。
 //
-// 依赖 bald v0.2.0 与各子模块 v0.1.0（bconf/transport/contrib 等，均经
+// 依赖 bald v0.2.x 与各子模块 tag（bconf/transport/contrib 等，均经
 // github.com/kalandramo/bald 仓库 submodule tag 发布）——零 replace，
 // clone 本仓库即可独立构建。若需联调本地 bald 改动，临时加
 // `go mod edit -replace=github.com/kalandramo/bald=../../bald` 即可。
