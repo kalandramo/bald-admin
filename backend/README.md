@@ -90,6 +90,18 @@ env 覆盖通道保留（优先级 env > yaml，只提供地址、不改变 type
 `BALD_ADMIN_OTLP_ADDR` 覆盖双通道 endpoint、`BALD_ADMIN_METRICS_ADDR` 覆盖暴露
 端口——Taskfile 冒烟与 CI 既有用法不破。
 
+> **装配方式升级（2026-09-12）**：main.go 已从手动 `obmetrics.Setup` 翻译
+> 切换到 `appkit` 双 Registry 自动装配（bald v0.2.1 的
+> `WithTracerRegistry`/`WithMetricsRegistry` + `observability-otlp/contract`
+> Provider），装配样板 92 行 → 77 行。契约语义（显式主开关、env 覆盖、
+> 矛盾 fail-fast）不变。
+>
+> **云端终验（2026-09-12，Insight DCE 5.0）**：collector `:32414` 直推
+> 双通道全通——VictoriaMetrics 可查 `bald_requests_total{job="go-bald-admin"}`
+> （注意 OTLP→Prometheus 的 `service.name`→`job` 标签映射，按
+> `service_name` 查是假阴性）；Jaeger 可查 `POST /v1/login` span
+> （`http.status_code=401` 保留）。T9「metrics 云端核对」尾巴闭环。
+
 ## 验证接口
 
 ```bash
