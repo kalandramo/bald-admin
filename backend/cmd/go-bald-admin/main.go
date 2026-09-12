@@ -47,7 +47,7 @@ import (
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
-	obtrace "github.com/kalandramo/bald/contrib/observability-otlp/trace"
+	otlpcontract "github.com/kalandramo/bald/contrib/observability-otlp/contract"
 	nacoscontract "github.com/kalandramo/bald/contrib/registry/nacos/contract"
 	bconf "github.com/kalandramo/bald/bconf"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
@@ -274,10 +274,16 @@ func newApp(
 		}),
 
 		// T9：metrics 暴露端点优雅关闭（BeforeStart setupObservability 装配后激活；
-		// Shutdown 让 in-flight 抓取完成，避免连接被硬切）。
+		// Shutdown 让 in-flight 抓取完成，避免连接被硬切），随后 flush OTLP 直推
+		// 缓冲（双通道时收集停机前的尾批指标）。
 		appkit.Effect("metrics:server", func(ctx context.Context) error {
 			if obs.metricsSrv != nil {
-				return obs.metricsSrv.Shutdown(ctx)
+				if err := obs.metricsSrv.Shutdown(ctx); err != nil {
+					baldlog.GetLogger().Error(ctx, "metrics server shutdown failed", "error", err.Error())
+				}
+			}
+			if obs.metricsFlush != nil {
+				return obs.metricsFlush(ctx)
 			}
 			return nil
 		}),
@@ -386,110 +392,89 @@ func newApp(
 type observabilityWiring struct {
 	traceShutdown func(context.Context) error
 	metricsSrv    *http.Server
+	metricsFlush  func(context.Context) error
 }
 
-// setupObservability 按 bconf 契约 tracer/metrics 段装配可观测性（显式主开关契约）：
+// tracerRegistry 显式注册 trace 后端契约 provider（appkit.TracerRegistry：
+// 契约 tracer 段 → 全局 TracerProvider，tracer.type 单选）。
+func tracerRegistry() *appkit.TracerRegistry {
+	tr := appkit.NewTracerRegistry()
+	tr.MustRegister(otlpcontract.TracerType, otlpcontract.NewTracerProvider("go-bald-admin"))
+	return tr
+}
+
+// metricsRegistry 显式注册指标后端契约 provider（appkit.MetricsRegistry：
+// 契约 metrics 段 → 双通道装配，metrics.type 单选——"prometheus"=仅本地
+// 抓取，"otlp"=抓取+直推，同一实现的两种声明形态）。
+func metricsRegistry() *appkit.MetricsRegistry {
+	mr := appkit.NewMetricsRegistry()
+	mr.MustRegister(otlpcontract.TypePrometheus, otlpcontract.NewPrometheusProvider("go-bald-admin"))
+	mr.MustRegister(otlpcontract.TypeOTLP, otlpcontract.NewOTLPProvider("go-bald-admin"))
+	return mr
+}
+
+// setupObservability 按 bconf 契约 tracer/metrics 段装配可观测性（显式主开关契约，
+// 字段映射经 observability-otlp/contract，生命周期经 appkit）：
 //   - 段缺省（yaml 无 tracer:/metrics: 段）→ 默认行为：no-op trace + 仅 Prometheus
 //     暴露（addr 缺省 :9091，T8 根治与 gRPC 错峰）——零配置可运行，冒烟/CI 不破；
-//   - 段存在 → type 必须显式声明，空串/未知值启动期报错（行为由声明决定，
-//     不靠 endpoint 非空反推意图）：
-//       tracer.type  仅支持 "otlp"（endpoint 必填）；
-//       metrics.type "prometheus"=仅本地暴露 / "otlp"=暴露+OTLP 直推双通道
-//                    （endpoint 必填）；type=prometheus 而 otlp endpoint（含 env）
-//                    非空 → 矛盾配置报错。
+//   - 段存在 → type 必须显式声明，空串/未知值启动期报错（Registry.Build
+//     fail-fast；行为由声明决定，不靠 endpoint 非空反推意图）；
+//   - BALD_ADMIN_OTLP_ADDR 覆盖双通道 endpoint、BALD_ADMIN_METRICS_ADDR 覆盖
+//     暴露端口——只提供地址，不改变 type 声明的语义（配 prometheus 不会因
+//     env 翻转成推送；otlp endpoint 契约字段与 env 同时配、type 却是
+//     prometheus 的矛盾声明仍报错）。
 //
-// env 覆盖通道（优先级 env > yaml，与 flag>env>本地文件一致）：BALD_ADMIN_OTLP_ADDR
-// 覆盖双通道 endpoint、BALD_ADMIN_METRICS_ADDR 覆盖暴露端口——只提供地址，不改变
-// type 声明的语义（配 prometheus 不会因 env 翻转成推送）。
+// 段不支持热更新（exporter/Provider 重建侵入大，与 registry 段同款决策）。
 func setupObservability(bootstrap *bootstrapv1.BootstrapConfig, obs *observabilityWiring) error {
+	ctx := context.Background()
+
 	// ---- trace：契约 tracer 段（缺省=no-op；存在则 type 必须显式 "otlp"）----
-	tr := bootstrap.GetTracer()
-	totlp := tr.GetOtlp()
-	traceEndpoint := ""
-	if tr != nil {
-		switch tr.GetType() {
-		case "otlp":
-			traceEndpoint = totlp.GetEndpoint()
-			if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" {
-				traceEndpoint = v
+	if tr := bootstrap.GetTracer(); tr != nil {
+		if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" {
+			if tr.Otlp == nil {
+				tr.Otlp = &bootstrapv1.Tracer_Otlp{}
 			}
-			if traceEndpoint == "" {
-				return fmt.Errorf("tracer.type=otlp requires tracer.otlp.endpoint (or env BALD_ADMIN_OTLP_ADDR)")
-			}
-		case "":
-			return fmt.Errorf("tracer.type is required when tracer section is present (expect \"otlp\")")
-		default:
-			return fmt.Errorf("tracer.type %q unsupported (expect \"otlp\")", tr.GetType())
+			tr.Otlp.Endpoint = v
 		}
+		sd, err := tracerRegistry().Build(ctx, tr)
+		if err != nil {
+			return fmt.Errorf("setup trace: %w", err)
+		}
+		obs.traceShutdown = sd // `=` 赋值（T7 教训：闭包内 `:=` 遮蔽致停机拿 nil）
 	}
-	traceShutdown, err := obtrace.Setup(
-		obtrace.WithOTLPAddr(traceEndpoint),
-		obtrace.WithServiceName("go-bald-admin"),
-		obtrace.WithInsecure(totlp.GetInsecure()),
-		obtrace.WithHeaders(totlp.GetHeaders()),
-		obtrace.WithSampler(totlp.GetSampler()),
-		obtrace.WithSampleRatio(totlp.GetSampleRatio()),
-	)
-	if err != nil {
-		return fmt.Errorf("setup trace: %w", err)
-	}
-	obs.traceShutdown = traceShutdown // `=` 赋值（T7 教训：闭包内 `:=` 遮蔽致停机拿 nil）
 
 	// ---- metrics：契约 metrics 段（缺省=仅暴露；存在则 type 必须显式）----
 	m := bootstrap.GetMetrics()
-	prom := m.GetPrometheus()
-	motlp := m.GetOtlp()
-	metricsAddr := prom.GetAddr()
-	if metricsAddr == "" {
-		metricsAddr = ":9091" // T8 根治缺省：与 gRPC(:9090) 错开
+	if m == nil {
+		m = &bootstrapv1.Metrics{Type: otlpcontract.TypePrometheus} // 缺省=仅暴露
 	}
 	if v := os.Getenv("BALD_ADMIN_METRICS_ADDR"); v != "" {
-		metricsAddr = v
-	}
-	metricsPath := prom.GetPath()
-	if metricsPath == "" {
-		metricsPath = "/metrics"
-	}
-	metricsEndpoint := ""
-	if m != nil {
-		switch m.GetType() {
-		case "otlp":
-			metricsEndpoint = motlp.GetEndpoint()
-			if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" {
-				metricsEndpoint = v
-			}
-			if metricsEndpoint == "" {
-				return fmt.Errorf("metrics.type=otlp requires metrics.otlp.endpoint (or env BALD_ADMIN_OTLP_ADDR)")
-			}
-		case "prometheus":
-			if motlp.GetEndpoint() != "" || os.Getenv("BALD_ADMIN_OTLP_ADDR") != "" {
-				return fmt.Errorf("metrics.type=prometheus conflicts with otlp endpoint configured (use type \"otlp\" to enable push)")
-			}
-		case "":
-			return fmt.Errorf("metrics.type is required when metrics section is present (expect \"prometheus\" or \"otlp\")")
-		default:
-			return fmt.Errorf("metrics.type %q unsupported (expect \"prometheus\" or \"otlp\")", m.GetType())
+		if m.Prometheus == nil {
+			m.Prometheus = &bootstrapv1.Metrics_Prometheus{}
 		}
+		m.Prometheus.Addr = v
 	}
-	metricsHandler, err := obmetrics.Setup(
-		obmetrics.WithOTLPAddr(metricsEndpoint),
-		obmetrics.WithServiceName("go-bald-admin"),
-		obmetrics.WithInsecure(motlp.GetInsecure()),
-		obmetrics.WithHeaders(motlp.GetHeaders()),
-		obmetrics.WithInterval(time.Duration(motlp.GetPushInterval())*time.Second),
-	)
+	if m.GetType() == otlpcontract.TypeOTLP {
+		if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" {
+			if m.Otlp == nil {
+				m.Otlp = &bootstrapv1.Metrics_Otlp{}
+			}
+			m.Otlp.Endpoint = v
+		}
+	} else if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" && m.GetType() == otlpcontract.TypePrometheus {
+		return fmt.Errorf("metrics.type=prometheus conflicts with BALD_ADMIN_OTLP_ADDR configured (use type \"otlp\" to enable push)")
+	}
+	handler, flush, err := metricsRegistry().Build(ctx, m)
 	if err != nil {
 		return fmt.Errorf("setup metrics: %w", err)
 	}
-	mux := http.NewServeMux()
-	mux.Handle(metricsPath, metricsHandler)
-	srv := &http.Server{Addr: metricsAddr, Handler: mux}
-	go func() {
-		if serveErr := srv.ListenAndServe(); serveErr != nil && serveErr != http.ErrServerClosed {
-			baldlog.GetLogger().Error(context.Background(), "metrics server stopped", "error", serveErr.Error())
-		}
-	}()
-	obs.metricsSrv = srv
+	// 暴露端独立端口（addr/path 缺省 :9091//metrics，与业务 server 生命周期解耦）。
+	obs.metricsSrv = appkit.StartMetricsServer(
+		m.GetPrometheus().GetAddr(),
+		m.GetPrometheus().GetPath(),
+		handler,
+	)
+	obs.metricsFlush = flush
 	return nil
 }
 

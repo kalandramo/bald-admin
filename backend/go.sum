@@ -463,8 +463,8 @@ github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
-github.com/kalandramo/bald v0.2.0 h1:qi6B7vXUbWxSOvBoUvZ1VB8XDq0tIN6XtqVBkSPXxFE=
-github.com/kalandramo/bald v0.2.0/go.mod h1:N124SJ7bv5FvOTVIOmc02VO7Z0iB3y+38jbJA4HB92I=
+github.com/kalandramo/bald v0.2.1 h1:/oEDZ65ALUNHQS3mVM/9Y9/+vVv52eU2kQt24uzLwaE=
+github.com/kalandramo/bald v0.2.1/go.mod h1:pbg2w6BH5/48cANr8iexckYdKZeHDu9zNfcQdFaArc0=
 github.com/kalandramo/bald-crud/viewer v0.1.0 h1:Trtt0xJt88NS1KZQRqbhL094tQA4sFxFWfoJRSFlvK4=
 github.com/kalandramo/bald-crud/viewer v0.1.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
 github.com/kalandramo/bald/bconf v0.1.0 h1:ABBHDqRfjUHvHPRNq+2wxbbzdNqVXHJWDODiyPbzC7o=
@@ -481,8 +481,8 @@ github.com/kalandramo/bald/contrib/authz-casbin v0.1.0 h1:3i2Ls9H1xGXx2lz+t6+VfG
 github.com/kalandramo/bald/contrib/authz-casbin v0.1.0/go.mod h1:hSu8aAuJLRX18TBOfzUOKt2PeEudgsz5CP88Untfet0=
 github.com/kalandramo/bald/contrib/cache-redis v0.1.0 h1:wnCq+dUAXbV1+decJCC9cPdXZvcZ/K8B2OM60kgg0HQ=
 github.com/kalandramo/bald/contrib/cache-redis v0.1.0/go.mod h1:YVZz6A/XZuvR2dwkz2GCBzXCddLZq8lVHGdV1c8N418=
-github.com/kalandramo/bald/contrib/observability-otlp v0.1.0 h1:67TaoRbxmBqhjoiHoSO+GyWtz90do40xltYbnMbs7uY=
-github.com/kalandramo/bald/contrib/observability-otlp v0.1.0/go.mod h1:z6KLSIImyMAfTCoZRqhfeGaVUsb03gZR4zz0/XbavPY=
+github.com/kalandramo/bald/contrib/observability-otlp v0.2.0 h1:gCNNnW4bA3HnnScD0yqycRBbEdbYNKTtwyWgqAv1rlg=
+github.com/kalandramo/bald/contrib/observability-otlp v0.2.0/go.mod h1:cVSs8bdvqkMdmjsIStmAstcbTUX6aYo0yWIfngTdnsc=
 github.com/kalandramo/bald/contrib/registry/nacos v0.1.0 h1:vpoQCbEMgEwNoMaqJWyPR+ex+3eGhtiGl9pBFTf3uYI=
 github.com/kalandramo/bald/contrib/registry/nacos v0.1.0/go.mod h1:IbwoCRl53gP7E3Q/A0u54LCW23N0rG7pT5y729KaKeM=
 github.com/kalandramo/bald/contrib/store-gorm v0.1.0 h1:zcWBEhfDbIqf0tsBW/pNsrHZQ6dmc8WMqIELEzzUBJE=
