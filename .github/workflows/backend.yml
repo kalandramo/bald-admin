@@ -39,13 +39,26 @@ jobs:
 
       # job 级 services 不支持 command，minio/minio 镜像必须显式 `server`
       # 才不退出——故用 step 级 docker run（runner 自带 docker）。
+      # docker run 带 5 次重试：Docker Hub 匿名拉取偶发限流
+      # （"pull access denied" 实为 rate limit 表现，非镜像不存在）。
       - name: Start MinIO
         working-directory: .
         run: |
-          docker run -d --name minio -p 9000:9000 \
-            -e MINIO_ROOT_USER=minioadmin \
-            -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:latest server /data
+          for attempt in 1 2 3 4 5; do
+            if docker run -d --name minio -p 9000:9000 \
+              -e MINIO_ROOT_USER=minioadmin \
+              -e MINIO_ROOT_PASSWORD=minioadmin \
+              minio/minio:latest server /data; then
+              break
+            fi
+            echo "attempt $attempt failed (Docker Hub rate limit?), retry in 20s..."
+            docker rm -f minio 2>/dev/null || true
+            if [ "$attempt" = "5" ]; then
+              echo "minio pull failed after 5 attempts" >&2
+              exit 1
+            fi
+            sleep 20
+          done
           for i in $(seq 1 30); do
             curl -sf http://localhost:9000/minio/health/live && exit 0
             sleep 1
