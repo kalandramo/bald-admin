@@ -151,7 +151,7 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 
 	// 3. 运行。
 	if err := app.Run(context.Background()); err != nil {
-		baldlog.GetLogger().Error(context.Background(), "go-bald-admin exited", "error", err)
+		baldlog.Error(context.Background(), "go-bald-admin exited", "error", err)
 		return err
 	}
 	return nil
@@ -291,7 +291,7 @@ func newApp(
 		// 其他 key 变更均不波及），与全量 reload 互补——全量做 Unmarshal 重建，
 		// key 级做定点观测/定点重载。
 		appkit.WithOnKeyChange("server.http.addr", func(old, new string) {
-			baldlog.GetLogger().Info(context.Background(), "server.http.addr changed",
+			baldlog.Info(context.Background(), "server.http.addr changed",
 				"old", old, "new", new)
 		}),
 
@@ -343,12 +343,12 @@ func newApp(
 			ctx = baldlog.ContextWithAttrs(ctx,
 				slog.String("stage", "started"),
 				slog.String("grpc", bootstrap.GetServer().GetGrpc().GetAddr()))
-			baldlog.GetLogger().Info(ctx, "go-bald-admin started",
+			baldlog.Info(ctx, "go-bald-admin started",
 				"http", bootstrap.GetServer().GetHttp().GetAddr())
 			return nil
 		}),
 		appkit.WithBeforeStop(func(ctx context.Context) error {
-			baldlog.GetLogger().Info(ctx, "go-bald-admin stopping")
+			baldlog.Info(ctx, "go-bald-admin stopping")
 			return nil
 		}),
 	}
@@ -561,7 +561,7 @@ func (c *auditBackendComponent) Start(ctx context.Context) error {
 	reconAuditors.set[c.name] = a
 	reconAuditors.mu.Unlock()
 	applyAuditors()
-	baldlog.GetLogger().Info(ctx, "audit backend mounted", "backend", c.name)
+	baldlog.Info(ctx, "audit backend mounted", "backend", c.name)
 	return nil
 }
 
@@ -579,7 +579,7 @@ func (c *auditBackendComponent) Dispose(ctx context.Context) error {
 			closer.Close()
 		}
 	}
-	baldlog.GetLogger().Info(ctx, "audit backend unmounted", "backend", c.name)
+	baldlog.Info(ctx, "audit backend unmounted", "backend", c.name)
 	return nil
 }
 
@@ -618,7 +618,7 @@ func reconcileAudit(ctx context.Context, rctx *appkit.ReconcileCtx) error {
 		return nil
 	}
 
-	baldlog.GetLogger().Info(ctx, "reconcile audit.backends",
+	baldlog.Info(ctx, "reconcile audit.backends",
 		"add", strings.Join(add, ","), "remove", strings.Join(remove, ","))
 
 	// 新增：期望有、实际无 → 逐后端 Mount（底层 A1 组件生命周期 + 重组审计）。
@@ -626,14 +626,14 @@ func reconcileAudit(ctx context.Context, rctx *appkit.ReconcileCtx) error {
 		comp := &auditBackendComponent{name: name, build: func() audit.Auditor { return buildAuditBackend(name) }}
 		if err := rctx.Mount(ctx, comp.Name(), comp); err != nil {
 			// 失败不回滚，下次协调按实际态（reconItems）重新 diff 补齐。
-			baldlog.GetLogger().Error(ctx, "reconcile mount audit backend failed",
+			baldlog.Error(ctx, "reconcile mount audit backend failed",
 				"backend", name, "error", err)
 		}
 	}
 	// 移除：实际有、期望无 → 逐后端 Unmount。
 	for _, name := range remove {
 		if err := rctx.Unmount(ctx, name); err != nil {
-			baldlog.GetLogger().Error(ctx, "reconcile unmount audit backend failed",
+			baldlog.Error(ctx, "reconcile unmount audit backend failed",
 				"backend", name, "error", err)
 		}
 	}
@@ -720,7 +720,7 @@ func (h *heartbeatComp) Start(_ context.Context) error {
 			case <-h.stop:
 				return
 			case <-t.C:
-				baldlog.GetLogger().Info(context.Background(), "component heartbeat",
+				baldlog.Info(context.Background(), "component heartbeat",
 					"component", h.name, "components", len(h.appFn().ListComponents()))
 			}
 		}

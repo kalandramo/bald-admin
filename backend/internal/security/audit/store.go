@@ -32,7 +32,7 @@ func NewStore(db *gorm.DB) *StoreAuditor {
 func (a *StoreAuditor) Record(ctx context.Context, ev audit.AuditEvent) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.GetLogger().Warn(ctx, "StoreAuditor panic recovered", "error", r)
+			log.Warn(ctx, "StoreAuditor panic recovered", "error", r)
 		}
 	}()
 	if a.DB == nil {
@@ -58,7 +58,7 @@ func (a *StoreAuditor) Record(ctx context.Context, ev audit.AuditEvent) {
 	rec.RequestID = metaString(ev.Meta, "request_id", "")
 	rec.TraceID = metaString(ev.Meta, "trace_id", "")
 	if err := a.DB.WithContext(ctx).Create(rec).Error; err != nil {
-		log.GetLogger().Warn(ctx, "StoreAuditor create failed", "error", err.Error())
+		log.Warn(ctx, "StoreAuditor create failed", "error", err.Error())
 		if a.fallback != nil {
 			a.fallback.Record(ctx, ev)
 		}

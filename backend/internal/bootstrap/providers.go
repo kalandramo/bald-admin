@@ -54,7 +54,7 @@ func CacheProvider(ctx context.Context, cfg *bootstrapv1.Cache) (any, func(), er
 		rediscache.WithDB(int(rc.GetDb())),
 	)
 	if err != nil {
-		log.GetLogger().Warn(ctx, "redis init skipped, audit stream disabled", "error", err.Error())
+		log.Warn(ctx, "redis init skipped, audit stream disabled", "error", err.Error())
 		return nil, nil, nil
 	}
 	return c, nil, nil
@@ -76,10 +76,10 @@ func StorageProvider(ctx context.Context, cfg *bootstrapv1.Storage) (any, func()
 		UseSsl:    mc.GetUseSsl(),
 	})
 	if st == nil || st.SDK() == nil {
-		log.GetLogger().Warn(ctx, "minio init failed, file module degraded", "endpoint", mc.GetEndpoint())
+		log.Warn(ctx, "minio init failed, file module degraded", "endpoint", mc.GetEndpoint())
 		return nil, nil, nil
 	}
-	log.GetLogger().Info(ctx, "minio storage constructed", "endpoint", mc.GetEndpoint())
+	log.Info(ctx, "minio storage constructed", "endpoint", mc.GetEndpoint())
 	return st, nil, nil
 }
 

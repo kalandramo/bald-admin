@@ -132,7 +132,7 @@ func auditLogin(ctx context.Context, c Credential, tenantID string, result audit
 func recordSafely(ctx context.Context, ev audit.AuditEvent) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.GetLogger().Warn(ctx, "login audit panic recovered", "panic", r)
+			log.Warn(ctx, "login audit panic recovered", "panic", r)
 		}
 	}()
 	audit.GetAuditor().Record(ctx, ev)

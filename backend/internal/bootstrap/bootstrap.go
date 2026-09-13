@@ -203,7 +203,7 @@ func InitBridges(ctx context.Context) error {
 	if RedisCache == nil {
 		redisAddr, redisOpts := resolveRedis()
 		if rc, rerr := rediscache.New(redisAddr, redisOpts...); rerr != nil {
-			log.GetLogger().Warn(ctx, "redis init skipped, audit stream disabled", "error", rerr.Error())
+			log.Warn(ctx, "redis init skipped, audit stream disabled", "error", rerr.Error())
 		} else {
 			RedisCache = rc
 		}
@@ -223,9 +223,9 @@ func InitBridges(ctx context.Context) error {
 			})
 			if MinioStorage == nil || MinioStorage.SDK() == nil {
 				MinioStorage = nil
-				log.GetLogger().Warn(ctx, "minio init failed, file module degraded", "endpoint", mc.GetEndpoint())
+				log.Warn(ctx, "minio init failed, file module degraded", "endpoint", mc.GetEndpoint())
 			} else {
-				log.GetLogger().Info(ctx, "minio storage constructed", "endpoint", mc.GetEndpoint())
+				log.Info(ctx, "minio storage constructed", "endpoint", mc.GetEndpoint())
 			}
 		}
 	}
@@ -267,7 +267,7 @@ func InitBridges(ctx context.Context) error {
 	}
 	Authorizer = az
 
-	log.GetLogger().Info(ctx, "bridges initialized",
+	log.Info(ctx, "bridges initialized",
 		"authenticator", "bald-authn-jwt", "authorizer", "casbin", "store", "bald-store-gorm")
 	return nil
 }

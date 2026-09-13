@@ -51,7 +51,7 @@ func (a *StreamAuditor) run() {
 			return
 		case ev := <-a.ch:
 			if err := a.publish(context.Background(), ev); err != nil {
-				log.GetLogger().Warn(context.Background(), "audit stream publish failed", "error", err.Error())
+				log.Warn(context.Background(), "audit stream publish failed", "error", err.Error())
 				if a.fallback != nil {
 					a.fallback.Record(context.Background(), ev)
 				}
@@ -76,7 +76,7 @@ func (a *StreamAuditor) publish(ctx context.Context, ev audit.AuditEvent) error 
 func (a *StreamAuditor) Record(ctx context.Context, ev audit.AuditEvent) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.GetLogger().Warn(ctx, "StreamAuditor panic recovered", "error", r)
+			log.Warn(ctx, "StreamAuditor panic recovered", "error", r)
 		}
 	}()
 	select {
@@ -107,7 +107,7 @@ func (a *StreamAuditor) Close() {
 		select {
 		case ev := <-a.ch:
 			if err := a.publish(context.Background(), ev); err != nil {
-				log.GetLogger().Warn(context.Background(), "audit stream drain publish failed", "error", err.Error())
+				log.Warn(context.Background(), "audit stream drain publish failed", "error", err.Error())
 				if a.fallback != nil {
 					a.fallback.Record(context.Background(), ev)
 				}
@@ -143,7 +143,7 @@ func (m *MultiAuditor) Record(ctx context.Context, ev audit.AuditEvent) {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					log.GetLogger().Warn(ctx, "MultiAuditor backend panic recovered", "error", r)
+					log.Warn(ctx, "MultiAuditor backend panic recovered", "error", r)
 				}
 			}()
 			a.Record(ctx, ev)
