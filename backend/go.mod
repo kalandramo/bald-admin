@@ -22,17 +22,17 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
-	github.com/kalandramo/bald v0.2.6
+	github.com/kalandramo/bald v0.2.7
 	github.com/kalandramo/bald/bconf v0.1.0
 	github.com/kalandramo/bald/berrors v0.1.0
-	github.com/kalandramo/bald/bootstrap v0.1.0
+	github.com/kalandramo/bald/bootstrap v0.2.0
 	github.com/kalandramo/bald/contrib/authn-jwt v0.1.0
 	github.com/kalandramo/bald/contrib/authz-casbin v0.1.0
 	github.com/kalandramo/bald/contrib/cache-redis v0.1.0
 	github.com/kalandramo/bald/contrib/observability-otlp v0.2.0
 	github.com/kalandramo/bald/contrib/registry/nacos v0.1.0
 	github.com/kalandramo/bald/contrib/store-gorm v0.1.0
-	github.com/kalandramo/bald/log v0.1.0
+	github.com/kalandramo/bald/log v0.2.0
 	github.com/kalandramo/bald/oss/minio v0.1.0
 	github.com/kalandramo/bald/transport v0.1.0
 	github.com/kalandramo/bald/transport/gateway v0.1.0

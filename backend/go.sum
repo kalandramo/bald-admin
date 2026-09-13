@@ -463,8 +463,8 @@ github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
-github.com/kalandramo/bald v0.2.6 h1:2hQW0UcXiSffwftHNRJBc+hUJfiNURFOaPBUrQCNIn0=
-github.com/kalandramo/bald v0.2.6/go.mod h1:pbg2w6BH5/48cANr8iexckYdKZeHDu9zNfcQdFaArc0=
+github.com/kalandramo/bald v0.2.7 h1:PhrGeGx2QmG2FCEn1luZ0Iywsf78DmzxUHnIbQcvR/w=
+github.com/kalandramo/bald v0.2.7/go.mod h1:b8gYQOXxXpfJA2U3l7DUPIDQzqLlbWc5bJFX/8tfofs=
 github.com/kalandramo/bald-crud/viewer v0.1.0 h1:Trtt0xJt88NS1KZQRqbhL094tQA4sFxFWfoJRSFlvK4=
 github.com/kalandramo/bald-crud/viewer v0.1.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
 github.com/kalandramo/bald/bconf v0.1.0 h1:ABBHDqRfjUHvHPRNq+2wxbbzdNqVXHJWDODiyPbzC7o=
@@ -473,8 +473,8 @@ github.com/kalandramo/bald/bconfig v0.1.0 h1:3KqvdeIL02JgCIKGnXSstvm8Euql+mRwDIa
 github.com/kalandramo/bald/bconfig v0.1.0/go.mod h1:cmZVKNRGEy+pMjr+9bWSCo8/upZ/MU/J0/VCEbxNKNM=
 github.com/kalandramo/bald/berrors v0.1.0 h1:snmLMWZE3msAQ0u/EkNimpWN2N3G1DFNKkDNYpKSSdk=
 github.com/kalandramo/bald/berrors v0.1.0/go.mod h1:WVPb7iocVAveYo8wbJ5+a6/Kte25hJPt0TTr0a5W1/I=
-github.com/kalandramo/bald/bootstrap v0.1.0 h1:2+knRvDZL/QJYjgTt3ayljCmkxtdbJMdzm8YF7lDtQg=
-github.com/kalandramo/bald/bootstrap v0.1.0/go.mod h1:xm4eJFXr1F1Hzp6aL4RyJzLLbojifSAxBxgDIEaZybo=
+github.com/kalandramo/bald/bootstrap v0.2.0 h1:C1tL/S+OZE4gR0eGmpxuiOdNfgcCf9uZ9ey7MLuOGQc=
+github.com/kalandramo/bald/bootstrap v0.2.0/go.mod h1:/bGEBPt0A+3AORwyiYHWxcbQ+cNMjE19ALr7oWFi3iA=
 github.com/kalandramo/bald/contrib/authn-jwt v0.1.0 h1:hOjZJ3fLfaV1yw/oXfph++zw9/sz1TAn76QRglxfwnc=
 github.com/kalandramo/bald/contrib/authn-jwt v0.1.0/go.mod h1:sY8kLVzhdpkbmZHJNHRsUw1Lvae1gdGIkApG2tbi3jM=
 github.com/kalandramo/bald/contrib/authz-casbin v0.1.0 h1:3i2Ls9H1xGXx2lz+t6+VfGKLzeUn5P6QHhDJ4RRiCZs=
@@ -487,8 +487,8 @@ github.com/kalandramo/bald/contrib/registry/nacos v0.1.0 h1:vpoQCbEMgEwNoMaqJWyP
 github.com/kalandramo/bald/contrib/registry/nacos v0.1.0/go.mod h1:IbwoCRl53gP7E3Q/A0u54LCW23N0rG7pT5y729KaKeM=
 github.com/kalandramo/bald/contrib/store-gorm v0.1.0 h1:zcWBEhfDbIqf0tsBW/pNsrHZQ6dmc8WMqIELEzzUBJE=
 github.com/kalandramo/bald/contrib/store-gorm v0.1.0/go.mod h1:WhNbI9WipKn22RnWh1n+bMiOqfEw1bRtjybfaDz6zXQ=
-github.com/kalandramo/bald/log v0.1.0 h1:VoefxL62Md1HSonoAbXttsQxQw61+q6sfjZ1wXzP3cs=
-github.com/kalandramo/bald/log v0.1.0/go.mod h1:xEw5nXpW1rJM1WYKsR78k4v8urd934jc7rTic26f9LI=
+github.com/kalandramo/bald/log v0.2.0 h1:ZckK4oPLpfyLcF0zlpk3oD4nLRIU+dtFYq0/mtkHnGA=
+github.com/kalandramo/bald/log v0.2.0/go.mod h1:xEw5nXpW1rJM1WYKsR78k4v8urd934jc7rTic26f9LI=
 github.com/kalandramo/bald/oss/minio v0.1.0 h1:KtLubRWWEnz3f13B556A+Mi5f4lcZhcaJeUYsNS4nBQ=
 github.com/kalandramo/bald/oss/minio v0.1.0/go.mod h1:ReY6T319NtiJjUZFZNSupM5GBgGMUJgyx3y/SM1Yoz8=
 github.com/kalandramo/bald/transport v0.1.0 h1:aB0+9CtrlFo7ADtVP+2a833oAuUHoeLVmPi++7eBws8=

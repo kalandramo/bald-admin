@@ -56,7 +56,7 @@ import (
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
 	nacoscontract "github.com/kalandramo/bald/contrib/registry/nacos/contract"
 	baldlog "github.com/kalandramo/bald/log"
-	baldlogadapter "github.com/kalandramo/bald/log/slog"
+	"github.com/kalandramo/bald/log/bslog"
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
@@ -256,9 +256,9 @@ func newApp(
 		// 日志脱敏装饰：阶段 A（启动默认）/ 阶段 B（契约重建）统一生效
 		//（原 setLogger 两处手挂收敛至此）。
 		appkit.WithLogDecorators(
-			baldlogadapter.WithFilter(baldlogadapter.FilterKey("password")),
-			baldlogadapter.WithFilter(baldlogadapter.FilterKey("token")),
-			baldlogadapter.WithAttrs(slog.String("service.name", "go-bald-admin")),
+			bslog.WithFilter(bslog.FilterKey("password")),
+			bslog.WithFilter(bslog.FilterKey("token")),
+			bslog.WithAttrs(slog.String("service.name", "go-bald-admin")),
 		),
 
 		// --- 配置驱动参数 ---
@@ -850,11 +850,11 @@ func registerGateway(ctx context.Context, conn *grpc.ClientConn) (http.Handler, 
 	return mux, nil
 }
 
-func setLogger(opts *baldlogadapter.Options) {
-	baldlog.SetLogger(baldlogadapter.NewSlogLogger(opts,
-		baldlogadapter.WithFilter(baldlogadapter.FilterKey("password")),
-		baldlogadapter.WithFilter(baldlogadapter.FilterKey("token")),
-		baldlogadapter.WithAttrs(slog.String("service.name", "go-bald-admin")),
+func setLogger(opts *bslog.Options) {
+	baldlog.SetLogger(bslog.New(opts,
+		bslog.WithFilter(bslog.FilterKey("password")),
+		bslog.WithFilter(bslog.FilterKey("token")),
+		bslog.WithAttrs(slog.String("service.name", "go-bald-admin")),
 	))
 	// M7 审计后端注入（落库版）在 InitBridges 之后装配（见 appkit.BeforeStart），
 	// 因需 bootstrap.DB 已建立；此处仅设 Logger，不再提前注入 Auditor。
