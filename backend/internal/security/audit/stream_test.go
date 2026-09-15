@@ -27,7 +27,7 @@ func TestStreamAuditor_Record_PublishesToRedis(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 
 	a := NewStream(rdb)
-	defer a.Stop()
+	defer func() { _ = a.Close() }()
 
 	ev := audit.AuditEvent{
 		Time:    time.Now(),
@@ -103,12 +103,9 @@ func TestMultiAuditor_CombinesStoreAndStream(t *testing.T) {
 	defer mr.Close()
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 
-	m := NewMulti(NewStore(db), NewStream(rdb))
-	defer func() {
-		if s, ok := m.auditors[1].(*StreamAuditor); ok {
-			s.Stop()
-		}
-	}()
+	sa := NewStream(rdb)
+	m := NewMulti(NewStore(db), sa)
+	defer func() { _ = sa.Close() }()
 
 	ev := audit.AuditEvent{Time: time.Now(), Subject: "u-alice", Object: "secret", Action: "delete", Result: audit.ResultDeny, Error: "denied"}
 	m.Record(context.Background(), ev)

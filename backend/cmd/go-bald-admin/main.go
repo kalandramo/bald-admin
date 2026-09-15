@@ -492,20 +492,20 @@ func registrarRegistry() *appkit.RegistrarRegistry {
 // 本业务桥接直接消费 *gorm.DB / *rediscache.Cache / *miniooss.Storage
 // （stores/审计/文件模块的既有类型），构造语义（env 优先级、Redis/MinIO 降级）
 // 保留在 internal/bootstrap——见 providers.go。
-func databaseRegistry() *appkit.DatabaseRegistry {
-	dr := appkit.NewDatabaseRegistry()
+func databaseRegistry() *baldbootstrap.DatabaseRegistry {
+	dr := baldbootstrap.NewDatabaseRegistry()
 	dr.MustRegister("sql", bootstrappkg.DatabaseProvider)
 	return dr
 }
 
-func cacheRegistry() *appkit.CacheRegistry {
-	cr := appkit.NewCacheRegistry()
+func cacheRegistry() *baldbootstrap.CacheRegistry {
+	cr := baldbootstrap.NewCacheRegistry()
 	cr.MustRegister("redis", bootstrappkg.CacheProvider)
 	return cr
 }
 
-func storageRegistry() *appkit.StorageRegistry {
-	sr := appkit.NewStorageRegistry()
+func storageRegistry() *baldbootstrap.StorageRegistry {
+	sr := baldbootstrap.NewStorageRegistry()
 	sr.MustRegister("minio", bootstrappkg.StorageProvider)
 	return sr
 }
@@ -575,8 +575,8 @@ func (c *auditBackendComponent) Dispose(ctx context.Context) error {
 	// Close 方法则零副作用）。否则 audit.backends 热切换每次泄漏一个 goroutine
 	// + 1024 容量 chan，且已入队事件被静默丢弃。
 	if c.aud != nil {
-		if closer, ok := c.aud.(interface{ Close() }); ok {
-			closer.Close()
+		if closer, ok := c.aud.(interface{ Close() error }); ok {
+			_ = closer.Close()
 		}
 	}
 	baldlog.Info(ctx, "audit backend unmounted", "backend", c.name)
