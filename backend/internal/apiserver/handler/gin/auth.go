@@ -58,7 +58,7 @@ func RegisterAuth(
 
 	// 需认证分组。
 	authed := e.Group("/v1")
-	authed.Use(mid.AuthnMiddleware(authenticator))
+	authed.Use(authnMiddleware(authenticator))
 	// Authz 由路由级中间件按 (资源名, 动作) 判定；归一化由核心拦截器完成（P9 反哺）：
 	// HTTP 侧经 DefaultHTTPObject/DefaultHTTPAction 把 path/method 翻译为与 gRPC 同源的权限点。
 	authzMW := mid.AuthzMiddleware(authorizer,

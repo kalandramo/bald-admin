@@ -60,9 +60,7 @@ import (
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
-	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
-	ginmw "github.com/kalandramo/bald/pkg/middleware/gin"
 	"github.com/kalandramo/bald/transport"
 	gateway "github.com/kalandramo/bald/transport/gateway"
 )
@@ -124,20 +122,17 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	//     分组保护模式是两种合法模式，范例各保其一（gRPC 侧为全 bundle 链）。
 	//   - 增强点：切 bundle 后 /v1/login 也进入审计（此前散装手挂仅审计受保护路由）——
 	//     登录失败同样应留审计痕迹。
+	//   - T6 修复：审计层经 bundle.Audit 注入动态转发器（securityaudit.Global，
+	//     每次 Record 读全局）。此前散装 AuditMiddleware 在 main 期构造即快照
+	//     全局 nop（契约轨 BeforeStart 装配、R1-2 热切均晚于构造），请求审计
+	//     静默失效；收敛进 bundle 后由单层同时承担审计与指标（M8 同源 emit）。
 	ginBundle := bundle.New(
+		bundle.Audit(securityaudit.Global()), // 动态转发：装配/热切对已挂中间件即时生效
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
 		bundle.Normalized(), // P9 归一化：审计 object/action 与 gRPC 同源
 	)
 	router := gin.New()
 	router.Use(ginBundle.Gin()...)
-	// T6：gin 审计中间件（写路径审计落库，与 gRPC AuditInterceptor 对称）。
-	// wrap 型旁路：c.Next() 后记录，subject 由链内 AuthnMiddleware 注入后可读；
-	// object/action 走 P9 归一化（path→"secret" 等，与 casbin 策略同源），
-	// 审计后端经 audit.backends 热切换统一入口。
-	router.Use(ginmw.AuditMiddleware(
-		ginmw.AuditWithObjectResolver(authz.DefaultHTTPObject),
-		ginmw.AuditWithActionResolver(authz.DefaultHTTPAction),
-	))
 	apiserver.RegisterRoutes(router, bizSet)                // gin handler 路由（T10：BizSet 直传）
 	registerAdminRoutes(router, appRef, componentFactories) // M10.2 管理面（appRef 迟到绑定）
 
@@ -763,9 +758,13 @@ func newGRPCServerOptions() []grpc.ServerOption {
 	// Error→RequestID→Observability→Authn→Audit→Authz 链序由 bundle 固化，
 	// 替代此前手写的 7 段拦截器组装（authnInterceptor/authzInterceptor 闭包删除）。
 	// P9 归一化经 bundle.Normalized() 内置于 Authz 与 Audit 两层。
+	// T6 修复：Audit 层注入动态转发器（同 gin 侧 ginBundle）——此前未注入时
+	// bundle 显式接 Nop，请求审计与认证失败审计（bundle 会把 auditor 注入
+	// AuthnInterceptor）均静默失效。
 	grpcBundle := bundle.New(
 		bundle.Authn(lazyAuthn{}),
 		bundle.Authz(lazyAuthz{}),
+		bundle.Audit(securityaudit.Global()), // 动态转发：契约轨装配/热切轨切换即时生效
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
 		bundle.Normalized(), // P9：FullMethod → 与 HTTP 同源的权限点
 	)

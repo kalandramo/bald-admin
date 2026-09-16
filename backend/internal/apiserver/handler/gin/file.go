@@ -40,7 +40,7 @@ func RegisterFile(
 	biz *filebiz.Biz,
 ) {
 	authed := e.Group("/v1")
-	authed.Use(mid.AuthnMiddleware(authenticator))
+	authed.Use(authnMiddleware(authenticator))
 	authzMW := mid.AuthzMiddleware(authorizer,
 		mid.WithObjectResolver(authz.DefaultHTTPObject),
 		mid.WithActionResolver(authz.DefaultHTTPAction),

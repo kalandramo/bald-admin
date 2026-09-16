@@ -35,7 +35,7 @@ func RegisterAdmin(
 	factories map[string]ComponentFactory,
 ) {
 	authed := e.Group("/admin")
-	authed.Use(mid.AuthnMiddleware(bootstrap.LazyAuthenticator()))
+	authed.Use(authnMiddleware(bootstrap.LazyAuthenticator()))
 	authzMW := mid.AuthzMiddleware(bootstrap.LazyAuthorizer(),
 		mid.WithObjectResolver(authz.DefaultHTTPObject),
 		mid.WithActionResolver(authz.DefaultHTTPAction),
