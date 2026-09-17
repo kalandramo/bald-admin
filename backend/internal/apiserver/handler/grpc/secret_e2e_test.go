@@ -64,7 +64,6 @@ func startServer(t *testing.T) (*grpcserver.GRPCServer, string) {
 			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(nil)))
 			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New()))
 		},
-		nil,
 	)
 	lis, err := listenLocal()
 	if err != nil {
@@ -259,7 +258,6 @@ func TestRESTGateway_MultiTenant_Isolation(t *testing.T) {
 			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(nil)))
 			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New()))
 		},
-		nil,
 	)
 	go func() { _ = grpcSrv.Serve(grpcLis) }()
 	defer grpcSrv.Stop(context.Background())
@@ -279,7 +277,6 @@ func TestRESTGateway_MultiTenant_Isolation(t *testing.T) {
 			}
 			return mux, nil
 		},
-		nil,
 	)
 	if gwErr != nil {
 		t.Fatalf("new gateway server: %v", gwErr)

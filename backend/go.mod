@@ -22,10 +22,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
-	github.com/kalandramo/bald v0.7.0
+	github.com/kalandramo/bald v0.8.0
 	github.com/kalandramo/bald/bconf v0.7.1
 	github.com/kalandramo/bald/berrors v0.1.0
-	github.com/kalandramo/bald/bootstrap v0.7.2
+	github.com/kalandramo/bald/bootstrap v0.7.3
 	github.com/kalandramo/bald/contrib/audit-store v0.1.0
 	github.com/kalandramo/bald/contrib/audit-stream v0.1.0
 	github.com/kalandramo/bald/contrib/authn-jwt v0.1.0
@@ -33,13 +33,14 @@ require (
 	github.com/kalandramo/bald/contrib/cache-redis v0.1.0
 	github.com/kalandramo/bald/contrib/observability-otlp v0.2.0
 	github.com/kalandramo/bald/contrib/store-gorm v0.1.0
+	github.com/kalandramo/bald/health v0.1.1
 	github.com/kalandramo/bald/log v0.5.1
 	github.com/kalandramo/bald/oss/minio v0.1.0
 	github.com/kalandramo/bald/registry v0.1.0
 	github.com/kalandramo/bald/registry/nacos v0.1.0
-	github.com/kalandramo/bald/transport v0.1.0
-	github.com/kalandramo/bald/transport/gateway v0.1.0
-	github.com/kalandramo/bald/transport/grpc v0.1.0
+	github.com/kalandramo/bald/transport v0.2.0
+	github.com/kalandramo/bald/transport/gateway v0.1.1
+	github.com/kalandramo/bald/transport/grpc v0.1.1
 	github.com/kalandramo/bald/transport/web v0.1.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/redis/go-redis/v9 v9.7.0
@@ -162,7 +163,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.1.0 // indirect
 	github.com/kalandramo/bald/bconfig v0.1.0 // indirect
-	github.com/kalandramo/bald/transport/http v0.1.0 // indirect
+	github.com/kalandramo/bald/transport/http v0.1.1 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect

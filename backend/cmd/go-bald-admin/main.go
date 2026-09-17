@@ -54,6 +54,7 @@ import (
 	baldconfig "github.com/kalandramo/bald/bootstrap/config"
 	otlpcontract "github.com/kalandramo/bald/contrib/observability-otlp/contract"
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
+	"github.com/kalandramo/bald/health"
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/log/bslog"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -105,7 +106,10 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("initialize biz (wire): %w", err)
 	}
-	ready := func(ctx context.Context) error { return nil }
+	// 健康检查聚合器：HTTP /healthz /readyz 与 gRPC 标准健康服务状态同源，由
+	// appkit.WithHealth 默认装配（探针路由归装配层，协议实现不注册任何路由）。
+	// 本范例尚无依赖项要检查，空聚合器=恒就绪（等价于迁移前的 ready 桩）。
+	healthChecker := health.New()
 
 	// M10.2 管理面：运行期组件观测与热插拔（工厂目录由业务定义——核心只管挂载原语）。
 	// demo.heartbeat 演示带 goroutine 的组件生命周期（Start 起心跳、Dispose 收），与
@@ -138,7 +142,7 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 
 	// 2. 约定装配（U1）：Bind×3 / 配置装载+校验 / 日志两阶段 / 热更新 / registrar /
 	//    可观测性 / 停机 Effect 全部由 FromBootstrap 内化（详见 newApp）。
-	app, err := newApp(bootstrap, router, bizSet, cfgReg, ready)
+	app, err := newApp(bootstrap, router, bizSet, cfgReg, healthChecker)
 	if err != nil {
 		return err
 	}
@@ -223,7 +227,7 @@ func newApp(
 	router http.Handler,
 	bizSet *apiserver.BizSet,
 	cfgReg *baldbootstrap.Registry,
-	ready transport.ReadinessFunc,
+	healthChecker *health.Health,
 ) (*appkit.AppKit, error) {
 	// T2：gRPC service 注册回调捕获 wire 装配的 biz（全部 service 需 biz 注入）。
 	// secret 的 DeleteSecret 同经 biz 真实删除（gRPC 直连与 gateway 转码共用）。
@@ -246,7 +250,8 @@ func newApp(
 		// --- 能力声明（代码提供） ---
 		appkit.WithHTTP(router),
 		appkit.WithGRPC(registerGRPC, newGRPCServerOptions()...),
-		appkit.WithReadiness(ready),
+		// 健康检查默认装配：HTTP 双探针 + gRPC health 状态联动（新版归位后的唯一入口）。
+		appkit.WithHealth(healthChecker),
 
 		// 日志脱敏装饰：阶段 A（启动默认）/ 阶段 B（契约重建）统一生效
 		//（原 setLogger 两处手挂收敛至此）。
@@ -351,7 +356,7 @@ func newApp(
 	// M5：gateway 第三服务器（REST → gRPC 转码，独立 :8081 与 HTTP 主服务错峰）。
 	// WithExtraServers 逃生舱：契约 server.http.driver 的网关面模式是「同一端口
 	// 二选一」，与本范例「gin 主面 + 独立转码面并存」不匹配。
-	opts = append(opts, appkit.WithExtraServers(buildGateway(bootstrap, ready)...))
+	opts = append(opts, appkit.WithExtraServers(buildGateway(bootstrap)...))
 
 	app, err := appkit.FromBootstrap(bootstrap, opts...)
 	if err != nil {
@@ -779,7 +784,6 @@ func newGRPCServerOptions() []grpc.ServerOption {
 // 仅在注入 gatewayFactory 时挂载（默认构建即挂载，由 init 注入）。
 func buildGateway(
 	bootstrap *bootstrapv1.BootstrapConfig,
-	ready transport.ReadinessFunc,
 ) []transport.Server {
 	if gatewayFactory == nil {
 		return nil
@@ -791,7 +795,7 @@ func buildGateway(
 	if t := bootstrap.GetServer().GetHttp(); t.GetTls() != nil {
 		gwHttpCfg.Tls = t.GetTls()
 	}
-	gw, err := gatewayFactory(gwHttpCfg, bootstrap.GetServer().GetGrpc(), ready)
+	gw, err := gatewayFactory(gwHttpCfg, bootstrap.GetServer().GetGrpc())
 	if err != nil {
 		// 网关构造失败不应静默降级（否则 REST 路由凭空消失），直接 panic（fail-fast）。
 		panic("build gateway server: " + err.Error())
@@ -802,9 +806,11 @@ func buildGateway(
 // gatewayFactory 构造 grpc-gateway 服务器（REST → gRPC 转码）。M5 默认挂载：
 // REST 请求经 registerGateway 转码进入 SecretService，复用同一 gRPC 拦截器链
 // （认证/授权/多租户）。
-
-var gatewayFactory = func(httpCfg *bootstrapv1.Server_Http, grpcBackend *bootstrapv1.Server_Grpc, ready transport.ReadinessFunc) (*gateway.GatewayServer, error) {
-	return gateway.NewGatewayServer(httpCfg, grpcBackend, registerGateway, ready)
+//
+// 探针：第三服务器只是对外转码面，刻意不挂 /healthz /readyz——探针归主面
+// （:8080 由 appkit.WithHealth 默认装配），就绪状态同源，探主面即可。
+var gatewayFactory = func(httpCfg *bootstrapv1.Server_Http, grpcBackend *bootstrapv1.Server_Grpc) (*gateway.GatewayServer, error) {
+	return gateway.NewGatewayServer(httpCfg, grpcBackend, registerGateway)
 }
 
 // gatewayAddr 读取 gateway 监听地址：env BALD_GATEWAY_ADDR 优先，缺省 :8081，
