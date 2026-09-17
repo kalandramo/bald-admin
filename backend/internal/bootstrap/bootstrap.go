@@ -500,7 +500,7 @@ func seedPolicies(ctx context.Context) error {
 }
 
 // 注册外部 SQL 后端的 gorm dialector（注册制：未 import 的后端不进依赖树，
-// 与 contrib/registry 同模式；sqlite 由 contrib/store-gorm 预注册为缺省引擎，
+// 与 registry 各后端契约装配同模式；sqlite 由 contrib/store-gorm 预注册为缺省引擎，
 // 纯 Go driver 零 CGO——本机/CI 无 gcc 环境可跑）。
 func init() {
 	baldgorm.RegisterDialector("postgres", postgres.Open)

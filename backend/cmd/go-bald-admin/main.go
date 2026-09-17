@@ -54,13 +54,13 @@ import (
 	baldconfig "github.com/kalandramo/bald/bootstrap/config"
 	otlpcontract "github.com/kalandramo/bald/contrib/observability-otlp/contract"
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
-	nacoscontract "github.com/kalandramo/bald/contrib/registry/nacos/contract"
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/log/bslog"
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
+	nacoscontract "github.com/kalandramo/bald/registry/nacos/contract"
 	"github.com/kalandramo/bald/transport"
 	gateway "github.com/kalandramo/bald/transport/gateway"
 )
@@ -475,9 +475,11 @@ func preloadBootstrap(dst *bootstrapv1.BootstrapConfig) (*baldbootstrap.Registry
 
 // registrarRegistry 显式注册注册中心契约 provider（业务按需 import 各后端
 // contract 包，未 import 的后端零依赖；registry.type 指向未注册后端时 Build
-// fail-fast，而不是静默无注册）。
-func registrarRegistry() *appkit.RegistrarRegistry {
-	rr := appkit.NewRegistrarRegistry()
+// fail-fast，而不是静默无注册）。装配表自 2026-09-17 起迁入 bootstrap
+// （bootstrap.RegistrarRegistry，与 database/cache/storage 六域对齐）；
+// appkit 只留 WithRegistrarRegistry Option 与注册/反注册生命周期编排。
+func registrarRegistry() *baldbootstrap.RegistrarRegistry {
+	rr := baldbootstrap.NewRegistrarRegistry()
 	rr.MustRegister(nacoscontract.Type, nacoscontract.Provider)
 	return rr
 }

@@ -51,7 +51,8 @@ go-wind-admin 分层对齐）。生成链路（全命令均在 `backend/api/` �
 
 ## 开发
 
-后端依赖已发布的 bald v0.2.0（含 bconf/transport/contrib 等 v0.1.0 子模块），
+后端依赖已发布的 bald v0.7.0（含 bconf v0.7.x / bootstrap v0.7.2 / registry
+v0.1.0 / transport / contrib 等子模块），
 **clone 本仓库即可独立构建**，无需本地 bald 兄弟仓库。联调本地 bald 改动时
 临时加 replace：`go mod edit -replace=github.com/kalandramo/bald=../../bald`。
 

@@ -22,20 +22,21 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
-	github.com/kalandramo/bald v0.6.2
-	github.com/kalandramo/bald/bconf v0.6.0
+	github.com/kalandramo/bald v0.7.0
+	github.com/kalandramo/bald/bconf v0.7.1
 	github.com/kalandramo/bald/berrors v0.1.0
-	github.com/kalandramo/bald/bootstrap v0.7.1
+	github.com/kalandramo/bald/bootstrap v0.7.2
 	github.com/kalandramo/bald/contrib/audit-store v0.1.0
 	github.com/kalandramo/bald/contrib/audit-stream v0.1.0
 	github.com/kalandramo/bald/contrib/authn-jwt v0.1.0
 	github.com/kalandramo/bald/contrib/authz-casbin v0.1.0
 	github.com/kalandramo/bald/contrib/cache-redis v0.1.0
 	github.com/kalandramo/bald/contrib/observability-otlp v0.2.0
-	github.com/kalandramo/bald/contrib/registry/nacos v0.1.0
 	github.com/kalandramo/bald/contrib/store-gorm v0.1.0
 	github.com/kalandramo/bald/log v0.5.1
 	github.com/kalandramo/bald/oss/minio v0.1.0
+	github.com/kalandramo/bald/registry v0.1.0
+	github.com/kalandramo/bald/registry/nacos v0.1.0
 	github.com/kalandramo/bald/transport v0.1.0
 	github.com/kalandramo/bald/transport/gateway v0.1.0
 	github.com/kalandramo/bald/transport/grpc v0.1.0

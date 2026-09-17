@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"time"
 
-	nacoscontract "github.com/kalandramo/bald/contrib/registry/nacos/contract"
 	bconf "github.com/kalandramo/bald/bconf"
 	baldconfig "github.com/kalandramo/bald/bootstrap/config"
-	registry "github.com/kalandramo/bald/pkg/registry"
+	registry "github.com/kalandramo/bald/registry"
+	nacoscontract "github.com/kalandramo/bald/registry/nacos/contract"
 )
 
 func main() {
