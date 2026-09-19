@@ -389,6 +389,119 @@ func auditRegister(ctx context.Context, u *authmodel.User) {
 	})
 }
 
+// ---- Wave 1d-4：token 管理 4 个 rpc ----
+
+// ErrTokenStoreUnavailable 令牌管理需要存储（无 Redis 时禁用）。
+var ErrTokenStoreUnavailable = errors.New("auth: token management unavailable (no token store)")
+
+// ListAccessTokens 列出某用户的活跃访问令牌（源 L41 GetAccessTokens）。
+//
+// 用途：管理员查看某用户当前有哪些活跃会话，以便定向封禁。
+// 返回**明文 token**（对齐契约 GetAccessTokensResponse.access_tokens）——
+// 这是契约约束的必然（客户端需用该 token 值去 BlockToken）。
+func (b *Biz) ListAccessTokens(ctx context.Context, userID string) ([]string, error) {
+	if b.tokenStore == nil {
+		return nil, ErrTokenStoreUnavailable
+	}
+	toks, err := b.tokenStore.ListAccess(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("auth: list access tokens: %w", err)
+	}
+	return toks, nil
+}
+
+// BlockToken 封禁令牌（源 L47）。
+//
+// 语义：管理员定向封禁某 token + 记录原因（可带时长，缺省永久）。
+// 与 Logout 的差异见 token.Store.Block 注释（Logout 是自助登出、Block 是管理封禁）。
+// 同时从活跃索引移除（被封的 token 不应再出现在列表里）。
+func (b *Biz) BlockToken(ctx context.Context, userID, token, jti, reason string, ttl time.Duration) (time.Time, error) {
+	if b.tokenStore == nil {
+		return time.Time{}, ErrTokenStoreUnavailable
+	}
+	// 契约提供 oneof {token, jti}——bald 的 JWT 无 jti（缺陷 D6），故 jti 实际
+	// 承载「token 指纹」或就是 token 本身。两者都接受：优先 token，回退 jti。
+	target := token
+	if target == "" {
+		target = jti
+	}
+	if target == "" {
+		return time.Time{}, fmt.Errorf("%w: token or jti required", ErrRegisterValidation)
+	}
+	if err := b.tokenStore.Block(ctx, target, reason, ttl); err != nil {
+		return time.Time{}, fmt.Errorf("auth: block token: %w", err)
+	}
+	// 从活跃索引移除（若 userID 已知）。
+	if userID != "" {
+		_ = b.tokenStore.UntrackAccess(ctx, userID, target)
+	}
+	safelyAuditToken(ctx, "block", userID, reason)
+	until, _ := b.tokenStore.BlockedUntil(ctx, target)
+	return until, nil
+}
+
+// UnblockToken 解除封禁（源 L50）。
+func (b *Biz) UnblockToken(ctx context.Context, userID, token, jti string) error {
+	if b.tokenStore == nil {
+		return ErrTokenStoreUnavailable
+	}
+	target := token
+	if target == "" {
+		target = jti
+	}
+	if target == "" {
+		return fmt.Errorf("%w: token or jti required", ErrRegisterValidation)
+	}
+	if err := b.tokenStore.Unblock(ctx, target); err != nil {
+		return fmt.Errorf("auth: unblock token: %w", err)
+	}
+	safelyAuditToken(ctx, "unblock", userID, "")
+	return nil
+}
+
+// RevokeTokenById 按标识撤销令牌（源 L44）。
+//
+// 与 BlockToken 的关系：两者都让 token 立即失效（都写吊销键）。差异在**语义**——
+// Revoke 是「撤销」（不带原因/时长，管理动作），Block 是「封禁」（带原因、可查详情）。
+// 本实现让 Revoke 复用 Block 的存储（reason 标注为 revoke），避免两套存储。
+func (b *Biz) RevokeTokenById(ctx context.Context, userID, jti, token, reason string) error {
+	if b.tokenStore == nil {
+		return ErrTokenStoreUnavailable
+	}
+	target := token
+	if target == "" {
+		target = jti
+	}
+	if target == "" {
+		return fmt.Errorf("%w: jti required", ErrRegisterValidation)
+	}
+	if reason == "" {
+		reason = "revoked by admin"
+	}
+	// 撤销用 token 剩余有效期作 TTL 更合适，但此处是管理员主动撤销、未必知道
+	// 剩余时间；用永久（ttl=0 → Block 走实质永久）保证撤销一定生效。
+	if err := b.tokenStore.Block(ctx, target, reason, 0); err != nil {
+		return fmt.Errorf("auth: revoke token: %w", err)
+	}
+	if userID != "" {
+		_ = b.tokenStore.UntrackAccess(ctx, userID, target)
+	}
+	safelyAuditToken(ctx, "revoke", userID, reason)
+	return nil
+}
+
+// safelyAuditToken 记录 token 管理审计（旁路，失败不影响主流程）。
+func safelyAuditToken(ctx context.Context, action, target, reason string) {
+	recordSafely(ctx, audit.AuditEvent{
+		Time:    time.Now(),
+		Object:  "auth",
+		Action:  "token_" + action,
+		Result:  audit.ResultAllow,
+		Error:   reason,
+		Meta:    map[string]any{"category": "token_mgmt", "target_user": target},
+	})
+}
+
 // accessTokenTTL / refreshTokenTTL 返回生效的 TTL（未设置用默认）。
 // 默认 access 2h（与 Wave 1d 之前的硬编码一致，行为零回归）；
 // refresh 7d（源 go-wind-admin 的刷新令牌为长有效期）。
@@ -485,6 +598,12 @@ func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 	// 无存储则刷新令牌无处可查，签发等于给了客户端一个用不了的东西——
 	// 故留空（客户端据 refresh_token 缺失降级为重新登录）。
 	if b.tokenStore != nil {
+		// Wave 1d-4：把访问令牌登记到活跃索引（供 GetAccessTokens 列出）。
+		// 登记失败不阻断登录（索引是管理面辅助能力，非认证必需）。
+		if terr := b.tokenStore.TrackAccess(ctx, u.ID, token, ttl); terr != nil {
+			log.Warn(ctx, "track access token failed, token list will miss this one",
+				"user", u.ID, "error", terr.Error())
+		}
 		rt, rerr := b.issueRefresh(ctx, u.ID)
 		if rerr != nil {
 			// 刷新令牌签发失败不应阻断登录本身（访问令牌已可用）——

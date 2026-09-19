@@ -493,6 +493,10 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "admin", Object: "secret", Action: "delete"},
 		{Role: "admin", Object: "secret", Action: "list"},
 		{Role: "admin", Object: "auth", Action: "get"},
+		// Wave 1d-4：token 管理（GetAccessTokens/BlockToken/UnblockToken/RevokeTokenById）
+		// 是**写操作**（POST）——授权归一化把 POST 映射为 "post"（DefaultHTTPAction）。
+		// 此前 admin 只有 {auth, get}，故 token 管理路由全部 403（实测）。
+		{Role: "admin", Object: "auth", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},

@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -50,6 +51,28 @@ type Store interface {
 	// ConsumeRefresh 读取并**删除**刷新令牌（一次性语义：刷新后旧的作废，
 	// 防止同一 refresh_token 被重放）。返回关联的 subject；不存在返回 ErrNotFound。
 	ConsumeRefresh(ctx context.Context, refreshToken string) (string, error)
+
+	// TrackAccess 把访问令牌登记到 subject 的活跃集合（Wave 1d-4，供
+	// GetAccessTokens 列出）。ttl 为该令牌的剩余有效期。
+	TrackAccess(ctx context.Context, subject, token string, ttl time.Duration) error
+
+	// ListAccess 列出 subject 的**未过期**活跃访问令牌（明文，对齐源契约
+	// GetAccessTokensResponse.access_tokens 语义）。
+	ListAccess(ctx context.Context, subject string) ([]string, error)
+
+	// UntrackAccess 从活跃集合移除某令牌（撤销/解除拉黑时清理索引）。
+	UntrackAccess(ctx context.Context, subject, token string) error
+
+	// Block 拉黑令牌（带原因与可选时长）。ttl<=0 表示不过期（永久拉黑）。
+	// 与 Revoke 的区别：Revoke 是登出（TTL 取剩余有效期，自动过期即失效）；
+	// Block 是**管理员封禁**（可永久、带原因），语义更重。
+	Block(ctx context.Context, token, reason string, ttl time.Duration) error
+
+	// Unblock 解除拉黑。
+	Unblock(ctx context.Context, token string) error
+
+	// BlockedUntil 返回拉黑记录的到期时刻；未拉黑返回零值时间。
+	BlockedUntil(ctx context.Context, token string) (time.Time, error)
 }
 
 // ErrNotFound 刷新令牌不存在或已过期。
@@ -71,6 +94,29 @@ func fingerprint(token string) string {
 // keyRevoked / keyRefresh 是 Redis 键前缀（命名空间隔离，避免与其他业务键碰撞）。
 func keyRevoked(token string) string { return "auth:revoked:" + fingerprint(token) }
 func keyRefresh(token string) string { return "auth:refresh:" + fingerprint(token) }
+
+// keyAccessIndex 是「某用户的活跃访问令牌」索引键（Wave 1d-4）。
+//
+// 用 **ZSET** 而非 SET 或 SCAN：
+//   - 源的实现用 `SCAN at:{ct}:{uid}:*` 全库模式匹配（`user_token_cache.go:387-411`）
+//     ——O(N) 且需遍历全部键，用户多时不可接受；
+//   - SET 无法给**单个成员**设过期时间（TTL 只能作用于整个键）；
+//   - ZSET 以 score = 过期时刻（unix 秒），可用 `ZRANGEBYSCORE (now +inf` 只取
+//     未过期的，并用 `ZREMRANGEBYSCORE -inf now` 惰性清理——O(log N)。
+//
+// member 存 token 明文：契约 GetAccessTokensResponse.access_tokens 要求返回
+// 明文列表，无法只存指纹。这是契约约束下的必然代价（已在缺陷报告记录：
+// 「存明文等于在缓存层复制可用凭证」）。
+func keyAccessIndex(subject string) string { return "auth:at:" + subject }
+
+// keyBlocked 是「封禁详情」键（Wave 1d-4）：存 JSON（原因 + 到期时刻）。
+func keyBlocked(token string) string { return "auth:blocked:" + fingerprint(token) }
+
+// blockedInfo 是封禁记录的存储结构。
+type blockedInfo struct {
+	Reason       string `json:"reason"`
+	BlockedUntil int64  `json:"blocked_until"` // unix 秒；0 = 永久
+}
 
 // RedisStore 是基于 Redis 的 Store 实现。
 //
@@ -199,4 +245,121 @@ func (c *RevocationChecker) AuthenticateToken(token string) (*authn.AuthClaims, 
 		return nil, ErrRevoked
 	}
 	return claims, nil
+}
+
+// ---- Wave 1d-4：活跃令牌索引 + 封禁（token 管理 4 rpc 的存储支撑）----
+
+// TrackAccess 实现 Store：把令牌登记到 subject 的活跃集合。
+//
+// score 用**过期时刻**而非当前时间：这样 ZSET 自带「按过期排序」语义，
+// ListAccess 可只取未过期的、并惰性清理已过期的。
+func (s *RedisStore) TrackAccess(ctx context.Context, subject, token string, ttl time.Duration) error {
+	if subject == "" || token == "" {
+		return errors.New("token: empty subject or token")
+	}
+	if ttl <= 0 {
+		return nil // 已过期：无需登记（登记了也立刻会被剔除）
+	}
+	expireAt := time.Now().Add(ttl).Unix()
+	if err := s.rdb.ZAdd(ctx, keyAccessIndex(subject),
+		goredis.Z{Score: float64(expireAt), Member: token}).Err(); err != nil {
+		return fmt.Errorf("token: track access: %w", err)
+	}
+	// 索引键本身的 TTL 设为「最长成员过期时间 + 余量」——避免用户长期不活跃
+	// 时索引键永久驻留（ZSET 成员的清理依赖读取时的惰性清理，但键本身需要兜底过期）。
+	// 用 max(现有 TTL, 本次 TTL) 语义：不缩短已有更长成员的存活期。
+	s.rdb.Expire(ctx, keyAccessIndex(subject), ttl+time.Hour)
+	return nil
+}
+
+// ListAccess 实现 Store：列出未过期的活跃令牌（并惰性清理已过期的）。
+func (s *RedisStore) ListAccess(ctx context.Context, subject string) ([]string, error) {
+	if subject == "" {
+		return nil, nil
+	}
+	key := keyAccessIndex(subject)
+	now := time.Now().Unix()
+	// 惰性清理：移除 score <= now 的成员（已过期）。
+	s.rdb.ZRemRangeByScore(ctx, key, "-inf", fmt.Sprintf("%d", now))
+	// 只取未过期的（score > now）。
+	toks, err := s.rdb.ZRangeByScore(ctx, key, &goredis.ZRangeBy{
+		Min: fmt.Sprintf("(%d", now), // '(' = 开区间，排除恰好等于 now 的
+		Max: "+inf",
+	}).Result()
+	if err != nil {
+		// 键不存在时 go-redis 返回空列表而非错误；真错误才上报。
+		return nil, fmt.Errorf("token: list access: %w", err)
+	}
+	return toks, nil
+}
+
+// UntrackAccess 实现 Store：从活跃集合移除某令牌。
+func (s *RedisStore) UntrackAccess(ctx context.Context, subject, token string) error {
+	if subject == "" || token == "" {
+		return nil
+	}
+	if err := s.rdb.ZRem(ctx, keyAccessIndex(subject), token).Err(); err != nil {
+		return fmt.Errorf("token: untrack access: %w", err)
+	}
+	return nil
+}
+
+// Block 实现 Store：拉黑令牌（带原因与时长）。
+//
+// 与 Revoke 的分工（语义不同，不可混用）：
+//   - Revoke：**登出**——TTL 取 token 剩余有效期（过期即自然失效，记录不留存）；
+//   - Block：**管理员封禁**——可永久（ttl<=0），带原因，记录在 blocked 键里
+//     供查询「为何被封」。
+//
+// 两者都写 `auth:revoked:` 键（认证中间件只需查一处即可拒绝），但 Block 额外
+// 写 `auth:blocked:` 存详情。这是「一个判定入口 + 一份详情」的分层。
+func (s *RedisStore) Block(ctx context.Context, token, reason string, ttl time.Duration) error {
+	if token == "" {
+		return errors.New("token: empty token")
+	}
+	// 永久封禁用一个极长的 TTL（Redis 无真正的「永不过期 + 可查询到期时刻」组合，
+	// 且永久键会泄漏——用 100 年作为「实质永久」）。
+	revokeTTL := ttl
+	if revokeTTL <= 0 {
+		revokeTTL = 100 * 365 * 24 * time.Hour
+	}
+	if err := s.rdb.Set(ctx, keyRevoked(token), "1", revokeTTL).Err(); err != nil {
+		return fmt.Errorf("token: block: %w", err)
+	}
+	info := blockedInfo{Reason: reason}
+	if ttl > 0 {
+		info.BlockedUntil = time.Now().Add(ttl).Unix()
+	}
+	raw, _ := json.Marshal(info)
+	if err := s.rdb.Set(ctx, keyBlocked(token), raw, revokeTTL).Err(); err != nil {
+		return fmt.Errorf("token: block detail: %w", err)
+	}
+	return nil
+}
+
+// Unblock 实现 Store：解除拉黑（两个键都删）。
+func (s *RedisStore) Unblock(ctx context.Context, token string) error {
+	if token == "" {
+		return errors.New("token: empty token")
+	}
+	if err := s.rdb.Del(ctx, keyRevoked(token), keyBlocked(token)).Err(); err != nil {
+		return fmt.Errorf("token: unblock: %w", err)
+	}
+	return nil
+}
+
+// BlockedUntil 实现 Store：返回封禁到期时刻（未封禁返回零值）。
+func (s *RedisStore) BlockedUntil(ctx context.Context, token string) (time.Time, error) {
+	raw, err := s.rdb.Get(ctx, keyBlocked(token)).Bytes()
+	if err != nil {
+		return time.Time{}, nil // 未封禁（键不存在）——业务结果，非故障
+	}
+	var info blockedInfo
+	if err := json.Unmarshal(raw, &info); err != nil {
+		return time.Time{}, fmt.Errorf("token: parse blocked info: %w", err)
+	}
+	if info.BlockedUntil == 0 {
+		return time.Time{}, nil // 永久封禁
+	}
+	return time.Unix(info.BlockedUntil, 0), nil
 }

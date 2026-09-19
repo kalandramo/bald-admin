@@ -209,6 +209,87 @@ func RegisterAuth(
 		c.JSON(http.StatusOK, biz.ValidateToken(c.Request.Context(), req.Token))
 	})
 
+	// Wave 1d-4：token 管理（源 authentication.proto L41/L44/L47/L50）。
+	//
+	// 全部经 authzMW 保护——token 是敏感资源，只有管理员能操作**他人**的 token。
+	// 权限点 (auth, post)：授权归一化把 POST 映射为 "post"（DefaultHTTPAction
+	// = strings.ToLower(method)，bald/pkg/authz/normalize.go:92-94）。
+	// **需 admin 策略含 {auth, post}**——已在 seedPolicies 补（此前只有 {auth, get}，
+	// 实测导致本组路由全部 403）。viewer 无 {auth, post}，故天然被拒。
+	authed.POST("/auth/tokens", authzMW, func(c *gingonic.Context) {
+		var req struct {
+			UserID string `json:"user_id"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			bindErr(c, err)
+			return
+		}
+		toks, err := biz.ListAccessTokens(c.Request.Context(), req.UserID)
+		if err != nil {
+			writeTokenErr(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gingonic.H{"access_tokens": toks})
+	})
+
+	authed.POST("/auth/tokens/block", authzMW, func(c *gingonic.Context) {
+		var req struct {
+			UserID string `json:"user_id"`
+			Token  string `json:"token"`
+			JTI    string `json:"jti"`
+			Reason string `json:"reason"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			bindErr(c, err)
+			return
+		}
+		until, err := biz.BlockToken(c.Request.Context(), req.UserID, req.Token, req.JTI, req.Reason, 0)
+		if err != nil {
+			writeTokenErr(c, err)
+			return
+		}
+		resp := gingonic.H{}
+		if !until.IsZero() {
+			resp["blocked_until"] = until.Unix()
+		}
+		c.JSON(http.StatusOK, resp)
+	})
+
+	authed.POST("/auth/tokens/unblock", authzMW, func(c *gingonic.Context) {
+		var req struct {
+			UserID string `json:"user_id"`
+			Token  string `json:"token"`
+			JTI    string `json:"jti"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			bindErr(c, err)
+			return
+		}
+		if err := biz.UnblockToken(c.Request.Context(), req.UserID, req.Token, req.JTI); err != nil {
+			writeTokenErr(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gingonic.H{"message": "unblocked"})
+	})
+
+	authed.POST("/auth/tokens/revoke", authzMW, func(c *gingonic.Context) {
+		var req struct {
+			UserID string `json:"user_id"`
+			JTI    string `json:"jti"`
+			Token  string `json:"token"`
+			Reason string `json:"reason"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			bindErr(c, err)
+			return
+		}
+		if err := biz.RevokeTokenById(c.Request.Context(), req.UserID, req.JTI, req.Token, req.Reason); err != nil {
+			writeTokenErr(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gingonic.H{"message": "revoked"})
+	})
+
 	authed.GET("/auth/whoami", authzMW, func(c *gingonic.Context) {
 		info, err := biz.WhoAmI(c.Request.Context())
 		if err != nil {
@@ -242,4 +323,17 @@ func RegisterAuth(
 		}
 		c.JSON(http.StatusOK, gingonic.H{"deleted": c.Param("id")})
 	})
+}
+
+// writeTokenErr 映射 token 管理的错误（Wave 1d-4）。
+func writeTokenErr(c *gingonic.Context, err error) {
+	if errors.Is(err, authbiz.ErrTokenStoreUnavailable) {
+		web.ErrorResponse(c, berrors.Unavailable("auth/token_mgmt_unavailable").WithMessage("%s", err))
+		return
+	}
+	if errors.Is(err, authbiz.ErrRegisterValidation) {
+		web.ErrorResponse(c, berrors.BadRequest("auth/invalid_token_request").WithMessage("%s", err))
+		return
+	}
+	writeBizErr(c, err)
 }
