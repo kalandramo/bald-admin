@@ -430,6 +430,13 @@ func newApp(
 	if aerr != nil {
 		return nil, fmt.Errorf("build asynq server: %w", aerr)
 	}
+	// Wave 3.1：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
+	if sseSrv, serr := buildSSEServer(context.Background(), loadSSEConfig()); serr != nil {
+		return nil, fmt.Errorf("build sse server: %w", serr)
+	} else if sseSrv != nil {
+		opts = append(opts, appkit.WithExtraServers(sseSrv))
+	}
+
 	// Wave 2.4：cron 定时器（逃生舱，决策与约束见 cron.go 文件头）。
 	// cron 无需外部依赖，总是启用。
 	if cronSrv, cerr := buildCronServer(context.Background()); cerr != nil {

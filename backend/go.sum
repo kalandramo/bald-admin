@@ -554,6 +554,8 @@ github.com/kalandramo/bald/transport/grpc v0.1.1 h1:s4HYVe5NwNz7ikD7ZKKypbh8Lw+E
 github.com/kalandramo/bald/transport/grpc v0.1.1/go.mod h1:23HpM8P3nxugY2cVh5GFEpp5cD94hfjZsI2UZn4G3G8=
 github.com/kalandramo/bald/transport/http v0.1.1 h1:LrjxVuL4wsVSB8JPd6/ttA/u5Jv4Qc5Qk1ssBk9LwAI=
 github.com/kalandramo/bald/transport/http v0.1.1/go.mod h1:h/efUzRMx+8uxgSvE6usPPyv05MJt5kjGfYceqBJkfU=
+github.com/kalandramo/bald/transport/sse v0.1.0 h1:Em1LYaU2qzwIDy2kO8jtQIKQSaiGwG7UeWztQhLWhC8=
+github.com/kalandramo/bald/transport/sse v0.1.0/go.mod h1:KXUINZzaU5oAqVP3ZqEf8ezZCSb/msWnPe0BgnlEjQ4=
 github.com/kalandramo/bald/transport/web v0.1.0 h1:dCLCEA3vwOXOQkOoHk0G3JodTbN6LyWoIEdQt+E9R1w=
 github.com/kalandramo/bald/transport/web v0.1.0/go.mod h1:BPDddHt6E0LbGC7vb+TbbG6nBRnbs3v4n0J/SNaI0dE=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=

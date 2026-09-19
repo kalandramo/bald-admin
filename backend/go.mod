@@ -56,6 +56,7 @@ require (
 	github.com/kalandramo/bald/transport/cron v0.1.0
 	github.com/kalandramo/bald/transport/gateway v0.1.1
 	github.com/kalandramo/bald/transport/grpc v0.1.1
+	github.com/kalandramo/bald/transport/sse v0.1.0
 	github.com/kalandramo/bald/transport/web v0.1.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/mojocn/base64Captcha v1.3.8
