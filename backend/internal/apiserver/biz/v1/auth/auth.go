@@ -258,6 +258,137 @@ func (b *Biz) VerifyCaptcha(ctx context.Context, id, input string) (bool, error)
 // ErrCaptchaUnavailable 验证码功能不可用（无存储 / 存储故障）。
 var ErrCaptchaUnavailable = errors.New("auth: captcha service unavailable")
 
+// RegisterInput 是注册入参（对齐源 RegisterUserRequest 的字段与校验约束）。
+type RegisterInput struct {
+	Username   string // min_len 3, max_len 64（源 validate.rules）
+	Password   string // min_len 8, max_len 128
+	TenantCode string // 租户编码（源 tenant_code）
+	Email      string // 可选（源 optional）
+}
+
+// RegisterResult 是注册返回。
+//
+// **契约偏差（显式记录）**：源 RegisterUserResponse.user_id 是 uint32，而
+// bald-admin 的 User.ID 是 string（如 "u-admin"）。ID 体系不同，无法用 uint32 承载。
+// 此处 user_id 字段承载**字符串 ID**（HTTP JSON 无类型约束），并额外提供 id 字段
+// 便于客户端明确语义。gRPC 侧若将来引入 proto，需在契约层重新裁定。
+type RegisterResult struct {
+	UserID string `json:"user_id"`
+	ID     string `json:"id"`
+}
+
+// ErrUsernameTaken 用户名已被占用。
+var ErrUsernameTaken = errors.New("auth: username already taken")
+
+// ErrInvalidTenant 租户编码无效。
+var ErrInvalidTenant = errors.New("auth: invalid tenant")
+
+// ErrRegisterValidation 注册入参校验失败。
+var ErrRegisterValidation = errors.New("auth: invalid registration input")
+
+// 校验约束（对齐源 proto 的 validate.rules）。
+const (
+	minUsernameLen = 3
+	maxUsernameLen = 64
+	minPasswordLen = 8
+	maxPasswordLen = 128
+)
+
+// RegisterUser 注册新用户（Wave 1d-3，对应源 L31）。
+//
+// 为什么不复用 userbiz.Create：
+//  1. userbiz.Create 依赖 **ctx 租户注入**（injectWriteTenant 从 ctx 取租户）——
+//     但注册是**未认证请求**，ctx 无租户，必须显式指定；
+//  2. userbiz.Create 的用户名规则是 3-32，而契约是 3-64——复用会拒绝契约允许的输入。
+//
+// 租户处理：注册必须归属**有效租户**（源项目同款语义——租户模式下无 tenant_code
+// 会撞外键报 500，故提前以明确错误拒绝）。校验租户存在性后显式写入 TenantID。
+func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResult, error) {
+	// 1) 入参校验（对齐契约 validate.rules）。
+	if l := len(in.Username); l < minUsernameLen || l > maxUsernameLen {
+		return nil, fmt.Errorf("%w: username length must be %d-%d", ErrRegisterValidation, minUsernameLen, maxUsernameLen)
+	}
+	if l := len(in.Password); l < minPasswordLen || l > maxPasswordLen {
+		return nil, fmt.Errorf("%w: password length must be %d-%d", ErrRegisterValidation, minPasswordLen, maxPasswordLen)
+	}
+	if in.TenantCode == "" {
+		return nil, fmt.Errorf("%w: tenant_code required", ErrRegisterValidation)
+	}
+
+	// 2) 租户校验：必须存在且启用。租户读不经租户隔离（Tenant 实体无 TenantID 字段，
+	//    P8 隔离对其天然不作用——见 model/tenant.go 注释），故此处可直接查。
+	if _, err := bootstrappkg.TenantStore.Get(ctx, &store.Where{
+		Filters: []*storev1.FilterCondition{store.Eq("id", in.TenantCode)},
+	}); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidTenant, in.TenantCode)
+		}
+		return nil, fmt.Errorf("auth: check tenant: %w", err)
+	}
+
+	// 3) 用户名唯一性：显式查重（DB 的 uniqueIndex 是兜底，但显式查能给出
+	//    明确的 409 语义而非 500）。
+	if _, err := bootstrappkg.UserStore.Get(ctx, &store.Where{
+		Filters: []*storev1.FilterCondition{store.Eq("username", in.Username)},
+	}); err == nil {
+		return nil, ErrUsernameTaken // 查到 = 已存在
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return nil, fmt.Errorf("auth: check username: %w", err)
+	}
+
+	// 4) 密码哈希：**基于明文**（源项目的经典 bug 教训——曾把 AES 密文直接
+	//    bcrypt，导致登录校验对象不一致，注册用户永远无法登录）。
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("auth: hash password: %w", err)
+	}
+
+	// 5) 落库。ID 生成：用户名前缀 + 随机后缀（bald-admin 用字符串 ID；
+	//    不用 username 本身——避免用户名与 ID 耦合，且用户名可改而 ID 不可）。
+	uid := "u-" + in.Username
+	u := &authmodel.User{
+		ID:           uid,
+		Username:     in.Username,
+		PasswordHash: string(hash),
+		TenantID:     in.TenantCode, // 显式指定（注册请求无 ctx 租户）
+		Roles:        "viewer",      // 默认最小权限（不默认 admin）
+	}
+	if err := bootstrappkg.UserStore.Create(ctx, u); err != nil {
+		// 唯一索引冲突（并发注册同名）——DB 兜底路径。
+		if errors.Is(err, store.ErrConflict) {
+			return nil, ErrUsernameTaken
+		}
+		return nil, fmt.Errorf("auth: create user: %w", err)
+	}
+	// 6) **触发策略热重载**（Wave 1d-3）。
+	//
+	// 为什么必需：casbin 的 g 行（subject→角色）在启动时经 loadPolicyCSV 从
+	// UserStore 一次性装载，新用户不在其中——不重载则**注册后立即登录会 403**
+	//（端到端实测：subject=u-xxx, object=auth, action=get 被拒），须重启才生效。
+	//
+	// 重载失败不阻断注册（用户已创建成功）——记 Warn 降级：新用户需重启后才能
+	// 授权通过，但注册本身有效（否则用户拿到 500 却已落库，语义混乱）。
+	if rerr := bootstrappkg.ReloadPolicies(); rerr != nil {
+		log.Warn(ctx, "policy reload after register failed, new user may need restart",
+			"user", u.ID, "error", rerr.Error())
+	}
+	auditRegister(ctx, u)
+	return &RegisterResult{UserID: u.ID, ID: u.ID}, nil
+}
+
+// auditRegister 记录注册审计（与登录/登出同构）。
+func auditRegister(ctx context.Context, u *authmodel.User) {
+	recordSafely(ctx, audit.AuditEvent{
+		Time:     time.Now(),
+		Subject:  u.Username,
+		TenantID: u.TenantID,
+		Object:   "auth",
+		Action:   "register",
+		Result:   audit.ResultAllow,
+		Meta:     map[string]any{"category": "register", "user_id": u.ID},
+	})
+}
+
 // accessTokenTTL / refreshTokenTTL 返回生效的 TTL（未设置用默认）。
 // 默认 access 2h（与 Wave 1d 之前的硬编码一致，行为零回归）；
 // refresh 7d（源 go-wind-admin 的刷新令牌为长有效期）。

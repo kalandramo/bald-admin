@@ -34,6 +34,7 @@ import (
 	miniooss "github.com/kalandramo/bald/oss/minio"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	appauthz "github.com/kalandramo/bald-admin/internal/security/authz"
 	"github.com/kalandramo/bald-admin/internal/security/token"
 	casbinauthz "github.com/kalandramo/bald-admin/internal/security/casbin"
 )
@@ -95,6 +96,41 @@ func LazySigner() authnjwt.Signer { return lazySigner{} }
 // TokenStore 是令牌服务端状态存储（Wave 1d：吊销名单 + 刷新令牌）。
 // 由 BeforeStart 装配（复用 RedisClient）；nil = 无 Redis，降级语义见各调用点。
 var TokenStore token.Store
+
+// policyReloader 是 casbin 策略热重载钩子（Wave 1d-3）。
+//
+// 背景（框架能力缺口）：authz.Authorizer 接口只有 Authorize（pkg/authz/authz.go:15），
+// contrib/authz-casbin 也无热重载入口——运行期新增用户/改角色后，权限必须重启
+// 进程才生效（端到端实测：新注册用户 whoami 403）。应用层用
+// security/authz.ReloadableAuthorizer 装饰器绕行。
+//
+// 为什么经包级变量而非直接依赖：authbiz 已 import bootstrap，若再让 bootstrap
+// 依赖 authbiz 会成环；而注册流程（在 authbiz）需要触发重载。包级函数钩子是
+// 最小耦合的桥接（与 Signer/TokenStore 同款的包级桥接模式）。
+var policyReloader func() error
+
+// SetPolicyReloader 由 main 装配时注入策略重载钩子（重建 casbin 策略快照）。
+func SetPolicyReloader(fn func() error) { policyReloader = fn }
+
+// ReloadPolicies 触发策略热重载（用户/角色变更后调用）。
+// 未注入钩子时为无操作（返回 nil）——保持既有测试零改动。
+func ReloadPolicies() error {
+	if policyReloader == nil {
+		return nil
+	}
+	return policyReloader()
+}
+
+// BuildAuthorizer 从 DB 重建 casbin 授权器（策略真源 = RolePolicy 表 + User.Roles）。
+// 供 main 装配 ReloadableAuthorizer 的 build 函数使用（InitBridges 内的首次构造
+// 也走同一逻辑，保证首次与重载语义一致）。
+func BuildAuthorizer(ctx context.Context) (authz.Authorizer, error) {
+	csv, err := loadPolicyCSV(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return casbinauthz.New(csv)
+}
 
 // lazyAuthnWithRevocation 把「验签 + 吊销检查」适配为请求期解析的认证器。
 //
@@ -302,7 +338,14 @@ func InitBridges(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	Authorizer = az
+	// Wave 1d-3：用可热重载装饰器包装——运行期新增用户/改角色后，
+	// 业务调用 ReloadPolicies() 即可让新权限生效（否则须重启进程）。
+	// 重建函数复用 BuildAuthorizer（与首次构造同一逻辑，语义一致）。
+	reloadable := appauthz.NewReloadable(az, func() (authz.Authorizer, error) {
+		return BuildAuthorizer(context.Background())
+	})
+	Authorizer = reloadable
+	SetPolicyReloader(reloadable.Reload)
 
 	log.Info(ctx, "bridges initialized",
 		"authenticator", "bald-authn-jwt", "authorizer", "casbin", "store", "bald-store-gorm")

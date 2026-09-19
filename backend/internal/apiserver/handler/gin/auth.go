@@ -134,6 +134,44 @@ func RegisterAuth(
 		c.JSON(http.StatusOK, gingonic.H{"valid": valid})
 	})
 
+	// Wave 1d-3：用户注册（公开端点——注册时必然未认证）。
+	// 对齐源 authentication.proto L31。
+	e.POST("/v1/auth/register", func(c *gingonic.Context) {
+		var req struct {
+			Username   string `json:"username"`
+			Password   string `json:"password"`
+			TenantCode string `json:"tenant_code"`
+			Email      string `json:"email"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			bindErr(c, err)
+			return
+		}
+		res, err := biz.RegisterUser(c.Request.Context(), authbiz.RegisterInput{
+			Username:   req.Username,
+			Password:   req.Password,
+			TenantCode: req.TenantCode,
+			Email:      req.Email,
+		})
+		if err != nil {
+			switch {
+			case errors.Is(err, authbiz.ErrRegisterValidation):
+				web.ErrorResponse(c, berrors.BadRequest("auth/invalid_registration").WithMessage("%s", err))
+				return
+			case errors.Is(err, authbiz.ErrInvalidTenant):
+				web.ErrorResponse(c, berrors.BadRequest("auth/invalid_tenant").WithMessage("%s", err))
+				return
+			case errors.Is(err, authbiz.ErrUsernameTaken):
+				// 冲突归 409（语义：资源已存在），而非 400。
+				web.ErrorResponse(c, berrors.AlreadyExists("auth/username_taken").WithMessage("%s", err))
+				return
+			}
+			writeBizErr(c, err)
+			return
+		}
+		c.JSON(http.StatusCreated, res)
+	})
+
 	// 需认证分组。
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
