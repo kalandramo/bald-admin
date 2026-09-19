@@ -538,6 +538,8 @@ github.com/kalandramo/bald/transport v0.2.1 h1:hugtc8k8MOdBhbtWT7BzXKxMN6G+KrSKJ
 github.com/kalandramo/bald/transport v0.2.1/go.mod h1:9NY+2osYepZbxauKAMPhMx29SJjVaH65lBn8SARAVHg=
 github.com/kalandramo/bald/transport/asynq v0.1.0 h1:LAm5RDT6O63AEjPj4BGU66zApx5N+teAcRJbe2DSN00=
 github.com/kalandramo/bald/transport/asynq v0.1.0/go.mod h1:bbx8uso2iLI0Z8cIdM/2KhIvGhaIGfb5bG76/NaMgR8=
+github.com/kalandramo/bald/transport/cron v0.1.0 h1:LLamHLd8y7G5vjeNwOB/h22R5r3JU5RE4zA4FzikXGs=
+github.com/kalandramo/bald/transport/cron v0.1.0/go.mod h1:VM5N7E9Ht1+ZeV0nQ3CHPsx7Z73xbFjCtjZKrlhQ2P4=
 github.com/kalandramo/bald/transport/gateway v0.1.1 h1:7wWqOw0nNgWLMGzXpt0tN2BxKXrFYBz+62LpsfhJ5Wg=
 github.com/kalandramo/bald/transport/gateway v0.1.1/go.mod h1:qrJHPi+xpS/Acxie+sYRmc/EFa6igKorj393eFnL1qU=
 github.com/kalandramo/bald/transport/grpc v0.1.1 h1:s4HYVe5NwNz7ikD7ZKKypbh8Lw+E34t4yCbOsxXwAto=

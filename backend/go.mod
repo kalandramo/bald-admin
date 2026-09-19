@@ -51,6 +51,7 @@ require (
 	github.com/kalandramo/bald/retry v0.1.0
 	github.com/kalandramo/bald/transport v0.2.1
 	github.com/kalandramo/bald/transport/asynq v0.1.0
+	github.com/kalandramo/bald/transport/cron v0.1.0
 	github.com/kalandramo/bald/transport/gateway v0.1.1
 	github.com/kalandramo/bald/transport/grpc v0.1.1
 	github.com/kalandramo/bald/transport/web v0.1.0

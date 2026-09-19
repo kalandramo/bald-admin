@@ -430,6 +430,14 @@ func newApp(
 	if aerr != nil {
 		return nil, fmt.Errorf("build asynq server: %w", aerr)
 	}
+	// Wave 2.4：cron 定时器（逃生舱，决策与约束见 cron.go 文件头）。
+	// cron 无需外部依赖，总是启用。
+	if cronSrv, cerr := buildCronServer(context.Background()); cerr != nil {
+		return nil, fmt.Errorf("build cron server: %w", cerr)
+	} else if cronSrv != nil {
+		opts = append(opts, appkit.WithExtraServers(cronSrv))
+	}
+
 	if asynqSrv != nil {
 		opts = append(opts, appkit.WithExtraServers(asynqSrv))
 		// Wave 2.3：把 asynq server 适配为 task.Scheduler 注入 biz。
