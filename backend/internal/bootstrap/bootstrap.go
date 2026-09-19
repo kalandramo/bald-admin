@@ -606,6 +606,8 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "admin", Object: "inbox", Action: "delete"},
 		{Role: "admin", Object: "recipients", Action: "get"},
 		{Role: "admin", Object: "recipients", Action: "post"},
+		// Wave 3.4：dashboard 只读聚合（仅 admin——分析页是管理面功能）。
+		{Role: "admin", Object: "dashboard", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},

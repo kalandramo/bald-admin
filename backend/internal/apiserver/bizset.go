@@ -3,6 +3,7 @@ package apiserver
 import (
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
+	dashbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dashboard"
 	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
 	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
 	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
@@ -43,4 +44,6 @@ type BizSet struct {
 	Task *taskbiz.Biz
 	// Message 站内消息（Wave 2.5）。
 	Message *msgbiz.Biz
+	// Dashboard 首页分析（Wave 3.4）。
+	Dashboard *dashbiz.Biz
 }

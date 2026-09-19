@@ -14,6 +14,7 @@ import (
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
+	dashbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dashboard"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
@@ -64,6 +65,8 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 	taskBiz := taskbiz.New()
 	// Wave 2.5：站内消息（三表）。
 	messageBiz := msgbiz.New()
+	// Wave 3.4：首页分析（只读聚合）。
+	dashboardBiz := dashbiz.New()
 	// T10：BizSet 收敛到 apiserver 包（bizset.go）；cache 留在装配局部
 	// （仅 secret/dict 消费，server 层不知缓存实现）。
 	bizSet := &apiserver.BizSet{
@@ -81,6 +84,7 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 		Org:        orgBiz,
 		Task:       taskBiz,
 		Message:    messageBiz,
+		Dashboard:  dashboardBiz,
 	}
 	return bizSet, nil
 }
