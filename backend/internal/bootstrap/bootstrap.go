@@ -227,6 +227,11 @@ var PositionStore *store.Store[authmodel.Position]
 // TaskStore 任务定义仓储（Wave 2.3）。
 var TaskStore *store.Store[authmodel.Task]
 
+// PlanStore / PlanModuleStore / PlanQuotaStore 套餐三件套（Wave 4.2）。
+var PlanStore *store.Store[authmodel.Plan]
+var PlanModuleStore *store.Store[authmodel.PlanModule]
+var PlanQuotaStore *store.Store[authmodel.PlanQuota]
+
 // PermGroupStore / PolicyEvalLogStore 权限组与策略评估日志（Wave 4.1）。
 var PermGroupStore *store.Store[authmodel.PermissionGroup]
 var PolicyEvalLogStore *store.Store[authmodel.PolicyEvaluationLog]
@@ -294,7 +299,8 @@ func InitBridges(ctx context.Context) error {
 		&authmodel.OrgUnit{}, &authmodel.Position{}, &authmodel.Task{},
 		&authmodel.InternalMessage{}, &authmodel.InternalMessageCategory{},
 		&authmodel.InternalMessageRecipient{},
-		&authmodel.PermissionGroup{}, &authmodel.PolicyEvaluationLog{}); err != nil {
+		&authmodel.PermissionGroup{}, &authmodel.PolicyEvaluationLog{},
+		&authmodel.Plan{}, &authmodel.PlanModule{}, &authmodel.PlanQuota{}); err != nil {
 		return err
 	}
 	DB = db
@@ -377,6 +383,13 @@ func InitBridges(ctx context.Context) error {
 		func(g *authmodel.PermissionGroup) string { return g.ID }))
 	PolicyEvalLogStore = store.NewStore[authmodel.PolicyEvaluationLog](baldgorm.NewGormProvider(db,
 		func(l *authmodel.PolicyEvaluationLog) string { return l.ID }))
+	// Wave 4.2：套餐三件套。
+	PlanStore = store.NewStore[authmodel.Plan](baldgorm.NewGormProvider(db,
+		func(p *authmodel.Plan) string { return p.ID }))
+	PlanModuleStore = store.NewStore[authmodel.PlanModule](baldgorm.NewGormProvider(db,
+		func(m *authmodel.PlanModule) string { return m.ID }))
+	PlanQuotaStore = store.NewStore[authmodel.PlanQuota](baldgorm.NewGormProvider(db,
+		func(q *authmodel.PlanQuota) string { return q.ID }))
 	if err := seed(ctx); err != nil {
 		return err
 	}
@@ -624,6 +637,19 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "admin", Object: "permission-groups", Action: "put"},
 		{Role: "admin", Object: "permission-groups", Action: "delete"},
 		{Role: "admin", Object: "policy-evaluation-logs", Action: "get"},
+		// Wave 4.2：套餐三件套（仅 admin）。
+		{Role: "admin", Object: "plans", Action: "get"},
+		{Role: "admin", Object: "plans", Action: "post"},
+		{Role: "admin", Object: "plans", Action: "put"},
+		{Role: "admin", Object: "plans", Action: "delete"},
+		{Role: "admin", Object: "plan-modules", Action: "get"},
+		{Role: "admin", Object: "plan-modules", Action: "post"},
+		{Role: "admin", Object: "plan-modules", Action: "put"},
+		{Role: "admin", Object: "plan-modules", Action: "delete"},
+		{Role: "admin", Object: "plan-quotas", Action: "get"},
+		{Role: "admin", Object: "plan-quotas", Action: "post"},
+		{Role: "admin", Object: "plan-quotas", Action: "put"},
+		{Role: "admin", Object: "plan-quotas", Action: "delete"},
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},
