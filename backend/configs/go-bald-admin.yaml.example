@@ -99,3 +99,13 @@ login:
   #   max_attempts: 3             # 最大尝试次数（含首次），default 3
   #   initial_backoff_ms: 200     # 首次退避（毫秒），default 200
   #   max_backoff_ms: 10000       # 退避上限（毫秒），default 10000
+
+# ---- Wave 1d：认证令牌生命周期（业务自持段）----
+# Logout 吊销名单与 RefreshToken 刷新令牌存储在 Redis（复用 cache.redis 连接）。
+# **Redis 不可用时自动降级**（不是 fail-fast，因为核心登录仍可用）：
+#   - Logout 记日志不吊销（JWT 无状态，无存储则无法收回）；
+#   - Login 不签发 refresh_token（无处可查的刷新令牌没有意义）；
+#   - ValidateToken 退化为纯验签（无吊销检查）。
+# auth:
+#   access_ttl_minutes: 120       # 访问令牌有效期（分钟），default 120（2h）
+#   refresh_ttl_hours: 168        # 刷新令牌有效期（小时），default 168（7d）

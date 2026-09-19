@@ -45,6 +45,7 @@ import (
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
+	"github.com/kalandramo/bald-admin/internal/security/token"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
@@ -356,6 +357,31 @@ func newApp(
 			if r := buildLoginRetrier(app.Config()); r != nil {
 				bizSet.Auth.SetLoginRetrier(r)
 			}
+			// Wave 1d：令牌存储 + 校验器接线（Logout 吊销 / RefreshToken 刷新 /
+			// ValidateToken 校验）。
+			//
+			// 关键时序：RegisterRoutes 在**装配期**（本函数返回前）执行，而
+			// RedisClient 在此刻（BeforeStart 内）才就绪——故路由层用的是
+			// LazyAuthenticatorWithRevocation（请求期读包级 TokenStore），
+			// 此处只需把 TokenStore 赋好。
+			//
+			// ValidateToken 的校验器同样用带吊销检查的认证器——与中间件同源，
+			// 故「登出后 ValidateToken 报 invalid」与「登出后中间件拒绝」语义一致。
+			if ts := buildTokenStore(); ts != nil {
+				bootstrappkg.TokenStore = ts
+				bizSet.Auth.SetTokenStore(ts)
+				bizSet.Auth.SetAuthenticator(bootstrappkg.LazyAuthenticatorWithRevocation())
+			} else {
+				// 无 Redis：ValidateToken 仍可用（退化为纯验签，无吊销检查）。
+				bizSet.Auth.SetAuthenticator(bootstrappkg.LazyAuthenticator())
+			}
+			if v := configFloat(app.Config(), "auth.access_ttl_minutes"); v > 0 {
+				refresh := time.Duration(0)
+				if rv := configFloat(app.Config(), "auth.refresh_ttl_hours"); rv > 0 {
+					refresh = time.Duration(rv) * time.Hour
+				}
+				bizSet.Auth.SetTokenTTL(time.Duration(v)*time.Minute, refresh)
+			}
 			return nil
 		}),
 
@@ -642,6 +668,22 @@ func buildLoginRetrier(cfg *baldconfig.Store) *retry.Retrier {
 	baldlog.Info(context.Background(), "login retrier enabled",
 		"initial_backoff_ms", backoff.Initial.Milliseconds(), "max_backoff_ms", backoff.Max.Milliseconds())
 	return r
+}
+
+// buildTokenStore 构造令牌存储（Wave 1d）。
+//
+// 复用 bootstrap 已装配的 Redis 客户端（RedisClient，由 BeforeStart 的
+// cache.redis 段构造）。无 Redis 时返回 nil——**禁用态**：
+//   - Logout 记日志不吊销（无状态 JWT 无法收回）；
+//   - Login 不签发 refresh_token（无处可查的刷新令牌没有意义）；
+//   - ValidateToken 退化为纯验签（无吊销检查）。
+//
+// 这三条降级都在各自调用点显式处理，不静默。
+func buildTokenStore() token.Store {
+	if bootstrappkg.RedisClient == nil {
+		return nil
+	}
+	return token.NewRedisStore(bootstrappkg.RedisClient)
 }
 
 // configFloat 从配置树取数值键（Store 无 GetFloat，经 Get + 类型断言；

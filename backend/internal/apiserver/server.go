@@ -7,24 +7,37 @@ package apiserver
 import (
 	gingonic "github.com/gin-gonic/gin"
 
+	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/pkg/authn"
+
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
-	"github.com/kalandramo/bald/pkg/appkit"
 )
 
 // RegisterRoutes 把本应用所有路由挂到 e。认证/授权依赖从 bootstrap 注入；
 // 业务对象经 BizSet 聚合传入（wire 装配，见 bizset.go）。
+//
+// Wave 1d：默认认证器带**吊销检查**（LazyAuthenticatorWithRevocation）——
+// 登出拉黑的 token 在中间件层即被拒绝，与 ValidateToken 语义同源。
 func RegisterRoutes(e *gingonic.Engine, biz *BizSet) {
+	RegisterRoutesWithAuth(e, bootstrappkg.LazyAuthenticatorWithRevocation(), biz)
+}
+
+// RegisterRoutesWithAuth 与 RegisterRoutes 相同，但允许注入自定义认证器。
+// Wave 1d 新增：e2e 与 main 需要注入**被 token.RevocationChecker 装饰**的认证器
+// （验签后查吊销名单）——装饰器是 authn.Authenticator 的合法实现，本函数让
+// 装配层可替换而不侵入框架中间件。
+func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticator, biz *BizSet) {
 	hgin.RegisterHealth(e)
 	hgin.RegisterOpenAPI(e)
-	hgin.RegisterAuth(e, bootstrappkg.LazyAuthenticator(), bootstrappkg.LazyAuthorizer(), biz.Auth, biz.Secret)
-	hgin.RegisterTenant(e, bootstrappkg.LazyAuthenticator(), bootstrappkg.LazyAuthorizer(), biz.Tenant)
-	hgin.RegisterUser(e, bootstrappkg.LazyAuthenticator(), bootstrappkg.LazyAuthorizer(), biz.User)
-	hgin.RegisterMenu(e, bootstrappkg.LazyAuthenticator(), bootstrappkg.LazyAuthorizer(), biz.Menu)
-	hgin.RegisterPermission(e, bootstrappkg.LazyAuthenticator(), bootstrappkg.LazyAuthorizer(), biz.Permission)
-	hgin.RegisterDict(e, bootstrappkg.LazyAuthenticator(), bootstrappkg.LazyAuthorizer(), biz.Dict)
-	hgin.RegisterFile(e, bootstrappkg.LazyAuthenticator(), bootstrappkg.LazyAuthorizer(), biz.File)
-	hgin.RegisterAudit(e, bootstrappkg.LazyAuthenticator(), bootstrappkg.LazyAuthorizer(), biz.AuditLog)
+	hgin.RegisterAuth(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.Auth, biz.Secret)
+	hgin.RegisterTenant(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.Tenant)
+	hgin.RegisterUser(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.User)
+	hgin.RegisterMenu(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.Menu)
+	hgin.RegisterPermission(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.Permission)
+	hgin.RegisterDict(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.Dict)
+	hgin.RegisterFile(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.File)
+	hgin.RegisterAudit(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.AuditLog)
 }
 
 // ComponentFactory 是管理面组件工厂的包级别名（re-export，供 cmd 层构造工厂目录）。

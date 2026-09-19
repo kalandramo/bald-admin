@@ -69,6 +69,33 @@ func RegisterAuth(
 		c.JSON(http.StatusOK, pair)
 	})
 
+	// Wave 1d：RefreshToken 是**公开端点**（不要求 access_token）。
+	//
+	// 为什么不能在需认证组：refresh 的用途正是「access_token 已过期时换新的」。
+	// 若要求先认证（有效 access_token），逻辑上循环——access_token 没过期根本
+	// 不需要刷新。refresh_token **本身就是凭证**（且是一次性的，见 biz 层
+	// ConsumeRefresh 的 GETDEL 语义）。
+	e.POST("/v1/auth/refresh", func(c *gingonic.Context) {
+		var req struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			bindErr(c, err)
+			return
+		}
+		pair, err := biz.RefreshToken(c.Request.Context(), req.RefreshToken)
+		if err != nil {
+			// 刷新令牌无效归 401（与凭据错误同类：都是「你的凭证不被接受」）。
+			if errors.Is(err, authbiz.ErrRefreshInvalid) {
+				web.ErrorResponse(c, berrors.Unauthenticated("auth/invalid_refresh_token").WithMessage("%s", err))
+				return
+			}
+			writeBizErr(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, pair)
+	})
+
 	// 需认证分组。
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
@@ -78,6 +105,33 @@ func RegisterAuth(
 		mid.WithObjectResolver(authz.DefaultHTTPObject),
 		mid.WithActionResolver(authz.DefaultHTTPAction),
 	)
+
+	// Wave 1d：Logout 在需认证组内——它需要从 ctx 取当前 token 才能拉黑。
+	// 跳过 authzMW：登出是「对自己 token 的操作」，不属于任何业务资源权限点
+	//（源项目同样不为其定义 RBAC 权限）。认证是唯一门槛。
+	authed.POST("/auth/logout", func(c *gingonic.Context) {
+		if err := biz.Logout(c.Request.Context()); err != nil {
+			writeBizErr(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gingonic.H{"message": "logged out"})
+	})
+
+	// ValidateToken 是公开端点（无需认证）——它的用途正是让**未持有有效会话**的
+	// 调用方（如网关、前端）询问「这个 token 还有效吗」。若要求先认证再校验，
+	// 逻辑上循环（能通过认证就说明有效，无需再问）。
+	e.POST("/v1/auth/validate", func(c *gingonic.Context) {
+		var req struct {
+			Token string `json:"token"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			bindErr(c, err)
+			return
+		}
+		// 恒 200：有效/无效都是**业务结果**（valid 字段），不是错误码——
+		// 让调用方能区分「token 无效」与「校验服务故障」。
+		c.JSON(http.StatusOK, biz.ValidateToken(c.Request.Context(), req.Token))
+	})
 
 	authed.GET("/auth/whoami", authzMW, func(c *gingonic.Context) {
 		info, err := biz.WhoAmI(c.Request.Context())

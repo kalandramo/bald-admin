@@ -34,6 +34,7 @@ import (
 	miniooss "github.com/kalandramo/bald/oss/minio"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	"github.com/kalandramo/bald-admin/internal/security/token"
 	casbinauthz "github.com/kalandramo/bald-admin/internal/security/casbin"
 )
 
@@ -90,6 +91,32 @@ func (lazySigner) IssueToken(claims authn.AuthClaims, ttl time.Duration) (string
 
 // LazySigner 返回延迟解析的签发器（请求期读 bootstrappkg.Signer 最新值）。
 func LazySigner() authnjwt.Signer { return lazySigner{} }
+
+// TokenStore 是令牌服务端状态存储（Wave 1d：吊销名单 + 刷新令牌）。
+// 由 BeforeStart 装配（复用 RedisClient）；nil = 无 Redis，降级语义见各调用点。
+var TokenStore token.Store
+
+// lazyAuthnWithRevocation 把「验签 + 吊销检查」适配为请求期解析的认证器。
+//
+// 为什么需要它（Wave 1d 实测的真实时序 bug）：
+// RegisterRoutes 在**装配期**（main 早期）执行，而 RedisClient/TokenStore 要
+// BeforeStart 才就绪——直接传 token.NewRevocationChecker(LazyAuthenticator(), ts)
+// 会把 nil 快照固化，导致**吊销检查在生产路径静默失效**（e2e 走的是显式注入
+// 路径，故未暴露；端到端 HTTP 验证抓到：登出后 whoami 仍返回 200）。
+// 本适配器在**请求期**读取 TokenStore 最新值——与 lazyAuthn/lazySigner 同构。
+type lazyAuthnWithRevocation struct{}
+
+func (lazyAuthnWithRevocation) Authenticate(ctx context.Context) (*authn.AuthClaims, error) {
+	return token.NewRevocationChecker(Authenticator, TokenStore).Authenticate(ctx)
+}
+
+func (lazyAuthnWithRevocation) AuthenticateToken(tokenStr string) (*authn.AuthClaims, error) {
+	return token.NewRevocationChecker(Authenticator, TokenStore).AuthenticateToken(tokenStr)
+}
+
+// LazyAuthenticatorWithRevocation 返回「验签 + 吊销检查」的延迟解析认证器。
+// 注入 gin/grpc 认证中间件，使 Logout 拉黑的 token 在**生产装配路径**也被拒绝。
+func LazyAuthenticatorWithRevocation() authn.Authenticator { return lazyAuthnWithRevocation{} }
 
 // DB 是应用主库（M2 起为 SQLite 内存库，T0 起默认经配置 database.sql 切外部 PostgreSQL）。
 var DB *gorm.DB
