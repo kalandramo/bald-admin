@@ -325,6 +325,8 @@ github.com/golang/protobuf v1.5.1/go.mod h1:DopwsBzvsk0Fs44TXzsVbJyPhcCPeIwnvohx
 github.com/golang/protobuf v1.5.2/go.mod h1:XVQd3VNwM+JqD3oG2Ue2ip4fOMUkwXdXDdiuN0vRsmY=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
 github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
+github.com/gomodule/redigo v1.9.2 h1:HrutZBLhSIU8abiSfW8pj8mPhOyMYjZT/wcA4/L9L9s=
+github.com/gomodule/redigo v1.9.2/go.mod h1:KsU3hiK/Ay8U42qpaJk+kuNa3C+spxapWpM+ywhcgtw=
 github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
 github.com/google/btree v1.0.0/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
 github.com/google/btree v1.1.3 h1:CVpQJjYgC4VbzxeGVHfvZrv1ctoYCAI8vbl07Fcxlyg=
@@ -480,12 +482,18 @@ github.com/kalandramo/bald-crud/viewer v0.1.0 h1:Trtt0xJt88NS1KZQRqbhL094tQA4sFx
 github.com/kalandramo/bald-crud/viewer v0.1.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
 github.com/kalandramo/bald/bconf v0.7.1 h1:5seYcwKnWUPkBrlRbAiWBaBURwlNvLoXYaoHYbcGDoM=
 github.com/kalandramo/bald/bconf v0.7.1/go.mod h1:XzgRroT/H+YpQOUeYC7Ect7bQOUiKc5m7/PeB7PmcD8=
+github.com/kalandramo/bald/bconf v0.7.2 h1:9kajZIh3i9wonO2ShsgFe3iUFbiETyDQ2mWmA3Td/p8=
+github.com/kalandramo/bald/bconf v0.7.2/go.mod h1:XzgRroT/H+YpQOUeYC7Ect7bQOUiKc5m7/PeB7PmcD8=
 github.com/kalandramo/bald/bconfig v0.1.0 h1:3KqvdeIL02JgCIKGnXSstvm8Euql+mRwDIaKCWU9+V8=
 github.com/kalandramo/bald/bconfig v0.1.0/go.mod h1:cmZVKNRGEy+pMjr+9bWSCo8/upZ/MU/J0/VCEbxNKNM=
 github.com/kalandramo/bald/berrors v0.1.0 h1:snmLMWZE3msAQ0u/EkNimpWN2N3G1DFNKkDNYpKSSdk=
 github.com/kalandramo/bald/berrors v0.1.0/go.mod h1:WVPb7iocVAveYo8wbJ5+a6/Kte25hJPt0TTr0a5W1/I=
 github.com/kalandramo/bald/bootstrap v0.7.3 h1:a7167V1Y3wGB8zFJWc0+RWVGsUznvJjPAs+djmJYfc0=
 github.com/kalandramo/bald/bootstrap v0.7.3/go.mod h1:B++4KKYxS8/g3cUT5EJCXdElmuO/qfS8EwqEfKE0YNE=
+github.com/kalandramo/bald/broker v0.1.0 h1:45IVKPwlYr2ejL6CO5qKKzLmYsy0f9zcNyNHQo13BhY=
+github.com/kalandramo/bald/broker v0.1.0/go.mod h1:VXefefdxOZoGneOJ3K6Fur6gI88nwakNvwF5uu/O/QM=
+github.com/kalandramo/bald/broker/redis v0.1.0 h1:+5GyYuaVq/SkHsqdw29pFRngIexHLWg9CPDALDYmsAY=
+github.com/kalandramo/bald/broker/redis v0.1.0/go.mod h1:W4psgZj/B9lYp34GtrxSK0CojPHDUbTgCmik3t0XsLU=
 github.com/kalandramo/bald/cache v0.1.1 h1:FD2fxd+mxgRfV7ppCkTnuyWX+1QFEH//Sfr/s7/4fIY=
 github.com/kalandramo/bald/cache v0.1.1/go.mod h1:cLUjMSZKJDnP3wxrY2XtrqIBKe7JjbQ78e3LLvszTYw=
 github.com/kalandramo/bald/cache/loadable v0.2.0 h1:6/C+mZofSNttjT2vHevzjtCCvXJvpU7h6vQcp7LkJ1Y=

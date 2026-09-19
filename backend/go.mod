@@ -24,9 +24,11 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
 	github.com/kalandramo/bald v0.8.0
-	github.com/kalandramo/bald/bconf v0.7.1
+	github.com/kalandramo/bald/bconf v0.7.2
 	github.com/kalandramo/bald/berrors v0.1.0
 	github.com/kalandramo/bald/bootstrap v0.7.3
+	github.com/kalandramo/bald/broker v0.1.0
+	github.com/kalandramo/bald/broker/redis v0.1.0
 	github.com/kalandramo/bald/cache v0.1.1
 	github.com/kalandramo/bald/cache/loadable v0.2.0
 	github.com/kalandramo/bald/cache/redis v0.1.0
@@ -153,6 +155,7 @@ require (
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/gomodule/redigo v1.9.2 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/hashicorp/consul/api v1.34.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
