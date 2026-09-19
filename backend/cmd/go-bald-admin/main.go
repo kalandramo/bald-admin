@@ -58,6 +58,8 @@ import (
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/log/bslog"
 	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/circuitbreaker"
+	"github.com/kalandramo/bald/circuitbreaker/hystrix"
 	"github.com/kalandramo/bald/ratelimit"
 	"github.com/kalandramo/bald/ratelimit/tokenbucket"
 	"github.com/kalandramo/bald/pkg/audit"
@@ -340,6 +342,13 @@ func newApp(
 			if lim := buildLoginLimiter(app.Config()); lim != nil {
 				bizSet.Auth.SetLoginLimiter(lim)
 			}
+			// Wave 1b：登录 DB 查询熔断接线（业务自持配置段 login.breaker.*）。
+			// 熔断的意义：DB 故障时快速失败（503），避免所有登录请求都卡在超时上。
+			// 用 hystrix（阈值式）而非 sres——sres 是 SRE 概率式，即使全成功也会
+			// 概率拒绝且 State 永不返回 Closed（与契约语义不符，见 Wave 1b 报告）。
+			if cb := buildLoginBreaker(app.Config()); cb != nil {
+				bizSet.Auth.SetLoginBreaker(cb)
+			}
 			return nil
 		}),
 
@@ -552,6 +561,39 @@ func buildLoginLimiter(cfg *baldconfig.Store) ratelimit.Limiter {
 	}
 	baldlog.Info(context.Background(), "login rate limiter enabled", "rate", rate, "burst", burst)
 	return lim
+}
+
+// buildLoginBreaker 从业务自持配置段构造登录 DB 查询熔断器（Wave 1b）。
+//
+// 配置键：
+//
+//	login:
+//	  breaker:
+//	    error_threshold: 0.5        # 错误率阈值（0-1），default 0.5
+//	    request_volume: 20          # 最小请求量（低于此不评估），default 20
+//	    sleep_window_seconds: 5     # Open 后多久转半开（秒），default 5
+//
+// 全部字段缺省时返回 nil（禁用态）——熔断是防御性增强，未配置则不介入。
+// 用 sres 之外的 **hystrix**（阈值式）：sres 的概率式语义不符合契约对
+// StateClosed 的定义（详见 Wave 1b 交付报告与 e2e 测试注释）。
+func buildLoginBreaker(cfg *baldconfig.Store) circuitbreaker.CircuitBreaker {
+	_, configured := cfg.Get("login.breaker")
+	if !configured {
+		return nil // 未配置：禁用态
+	}
+	opts := []hystrix.Option{}
+	if v := configFloat(cfg, "login.breaker.error_threshold"); v > 0 {
+		opts = append(opts, hystrix.WithErrorThreshold(v))
+	}
+	if v := configFloat(cfg, "login.breaker.request_volume"); v > 0 {
+		opts = append(opts, hystrix.WithRequestVolumeThreshold(int(v)))
+	}
+	if v := configFloat(cfg, "login.breaker.sleep_window_seconds"); v > 0 {
+		opts = append(opts, hystrix.WithSleepWindow(time.Duration(v)*time.Second))
+	}
+	cb := hystrix.New(opts...)
+	baldlog.Info(context.Background(), "login breaker enabled")
+	return cb
 }
 
 // configFloat 从配置树取数值键（Store 无 GetFloat，经 Get + 类型断言；

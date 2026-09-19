@@ -29,6 +29,9 @@ require (
 	github.com/kalandramo/bald/cache v0.1.1
 	github.com/kalandramo/bald/cache/loadable v0.2.0
 	github.com/kalandramo/bald/cache/redis v0.1.0
+	github.com/kalandramo/bald/circuitbreaker v0.1.0
+	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0
+	github.com/kalandramo/bald/circuitbreaker/sres v0.1.0
 	github.com/kalandramo/bald/contrib/audit-store v0.1.0
 	github.com/kalandramo/bald/contrib/audit-stream v0.1.0
 	github.com/kalandramo/bald/contrib/authn-jwt v0.1.0
@@ -38,6 +41,8 @@ require (
 	github.com/kalandramo/bald/health v0.1.1
 	github.com/kalandramo/bald/log v0.5.1
 	github.com/kalandramo/bald/oss/minio v0.1.0
+	github.com/kalandramo/bald/ratelimit v0.1.0
+	github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0
 	github.com/kalandramo/bald/registry v0.1.0
 	github.com/kalandramo/bald/registry/nacos v0.1.0
 	github.com/kalandramo/bald/transport v0.2.0
@@ -53,6 +58,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260904194346-d0f1323225a4
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.2
 	gorm.io/gorm v1.31.2
@@ -165,8 +171,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.1.0 // indirect
 	github.com/kalandramo/bald/bconfig v0.1.0 // indirect
-	github.com/kalandramo/bald/ratelimit v0.1.0
-	github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0
 	github.com/kalandramo/bald/transport/http v0.1.1 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
@@ -244,7 +248,6 @@ require (
 	gopkg.in/ini.v1 v1.67.3 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.37.0 // indirect
 	k8s.io/apimachinery v0.37.0 // indirect
 	k8s.io/client-go v0.37.0 // indirect

@@ -13,6 +13,7 @@ import (
 
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
+	"github.com/kalandramo/bald/circuitbreaker"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
@@ -20,6 +21,7 @@ import (
 	"github.com/kalandramo/bald/ratelimit"
 	"golang.org/x/crypto/bcrypt"
 
+	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
@@ -63,6 +65,10 @@ type UserInfo struct {
 	TokenType string   `json:"token_type"` // 如 "Bearer"
 }
 
+// ErrLoginUnavailable 登录依赖（DB）熔断打开——快速失败，不再等 DB 超时。
+// handler 层映射为 503（服务暂不可用），提示客户端稍后重试。
+var ErrLoginUnavailable = errors.New("auth: login temporarily unavailable")
+
 // Biz 认证业务。
 type Biz struct {
 	signer authnjwt.Signer // 私钥签发器（非对称场景只持私钥）
@@ -70,6 +76,11 @@ type Biz struct {
 	// nil = 禁用态：不阻断登录（对齐源项目 LoginRateLimiter 的 fail-open——
 	// 限流是防御性增强，不应让限流组件故障导致登录全部不可用）。
 	loginLimiter ratelimit.Limiter
+	// loginBreaker 登录 DB 查询熔断器（Wave 1b，bald circuitbreaker/sres）。
+	// nil = 禁用态。熔断的意义：DB 故障时快速失败，避免所有登录请求都卡在
+	// 超时上（雪崩）。**只对真故障计数**——ErrNotFound（用户不存在）是正常
+	// 业务结果，计入会让人用不存在的用户名熔断整个登录。
+	loginBreaker circuitbreaker.CircuitBreaker
 }
 
 // New 构造认证 Biz。signer 来自 bootstrap（bald-authn-jwt 签发实例）。
@@ -85,6 +96,14 @@ func New(signer authnjwt.Signer) *Biz {
 func (b *Biz) SetLoginLimiter(l ratelimit.Limiter) {
 	if l != nil {
 		b.loginLimiter = l
+	}
+}
+
+// SetLoginBreaker 运行期注入登录 DB 查询熔断器（Wave 1b）。nil 不覆盖。
+// 与 SetLoginLimiter 同款的运行期注入（配置在 BeforeStart 才装载完成）。
+func (b *Biz) SetLoginBreaker(cb circuitbreaker.CircuitBreaker) {
+	if cb != nil {
+		b.loginBreaker = cb
 	}
 }
 
@@ -112,14 +131,17 @@ func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 		}
 	}
 
-	u, err := bootstrappkg.UserStore.Get(ctx, &store.Where{
-		Filters: []*storev1.FilterCondition{store.Eq("username", c.Username)},
-	})
+	u, err := b.queryUser(ctx, c.Username)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(c.Password)) // 等代价比较，见 dummyHash 注释
 			auditLogin(ctx, c, "", audit.ResultDeny, "invalid credentials")
 			return nil, ErrBadCredential
+		}
+		if errors.Is(err, circuitbreaker.ErrCircuitOpen) {
+			// 熔断打开：DB 已不可用，快速失败（不再等超时）。
+			auditLogin(ctx, c, "", audit.ResultError, "login dependency circuit open")
+			return nil, ErrLoginUnavailable
 		}
 		auditLogin(ctx, c, "", audit.ResultError, err.Error())
 		return nil, fmt.Errorf("auth: query user: %w", err)
@@ -146,6 +168,38 @@ func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 	}
 	auditLogin(ctx, c, u.TenantID, audit.ResultAllow, "")
 	return &TokenPair{AccessToken: token, ExpiresAt: now.Add(ttl).Unix()}, nil
+}
+
+// queryUser 查询用户，经熔断器保护（Wave 1b）。
+//
+// 熔断边界的关键设计——**只对真故障计数**：
+//   - ErrNotFound（用户不存在）是**正常业务结果**，必须 MarkSuccess（不计失败），
+//     否则攻击者用几个不存在的用户名就能熔断整个登录；
+//   - 其余 error（DB 连接失败/超时等）才是真故障 → MarkFailure。
+//
+// 为什么不用 cb.Execute：Execute 对 fn 的任何 error 一律 MarkFailure
+//（sres.go:185-188），会把 NotFound 误计为失败。故手动 Allow/Mark 配对。
+//
+// 熔断器为 nil 时直连 store（禁用态）。
+func (b *Biz) queryUser(ctx context.Context, username string) (*authmodel.User, error) {
+	q := func() (*authmodel.User, error) {
+		return bootstrappkg.UserStore.Get(ctx, &store.Where{
+			Filters: []*storev1.FilterCondition{store.Eq("username", username)},
+		})
+	}
+	if b.loginBreaker == nil {
+		return q()
+	}
+	if err := b.loginBreaker.Allow(); err != nil {
+		return nil, err // 熔断打开（ErrCircuitOpen）
+	}
+	u, err := q()
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		b.loginBreaker.MarkFailure() // 真故障
+		return nil, err
+	}
+	b.loginBreaker.MarkSuccess() // 成功或 NotFound（正常业务结果）都算「依赖可用」
+	return u, err
 }
 
 // auditLogin 记录登录审计事件（category=login，Object/Action 用 P9 归一化

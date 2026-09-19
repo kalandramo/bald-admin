@@ -57,6 +57,12 @@ func RegisterAuth(
 				web.ErrorResponse(c, berrors.ResourceExhausted("auth/rate_limited").WithMessage("%s", err))
 				return
 			}
+			// Wave 1b：登录依赖（DB）熔断打开 → 503（服务暂不可用），
+			// 而非 500——语义是「暂时不可用，稍后重试」，不是「内部错误」。
+			if errors.Is(err, authbiz.ErrLoginUnavailable) {
+				web.ErrorResponse(c, berrors.Unavailable("auth/login_unavailable").WithMessage("%s", err))
+				return
+			}
 			writeBizErr(c, err)
 			return
 		}

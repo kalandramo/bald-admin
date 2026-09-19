@@ -82,3 +82,12 @@ login:
   rate_limit:
     rate: 1      # 每秒补充令牌数（rate=1 → 约每秒放行 1 次尝试）
     burst: 5     # 突发容量（首次可连续尝试次数）
+  # Wave 1b：登录 DB 查询熔断（可选，整段缺省即禁用）。
+  # 意义：DB 故障时快速失败（HTTP 503），避免所有登录请求都卡在超时上（雪崩）。
+  # 用 hystrix（阈值式）：默认 Closed 全放行，达阈值才 Open；Open 后 sleep_window
+  # 过则转半开放一个探针请求。**只对真故障计数**——用户不存在（NotFound）是正常
+  # 业务结果，不计入失败（否则可用不存在的用户名熔断整个登录）。
+  # breaker:
+  #   error_threshold: 0.5        # 错误率阈值（0-1），default 0.5
+  #   request_volume: 20          # 最小请求量（低于此不评估），default 20
+  #   sleep_window_seconds: 5     # Open 后多久转半开（秒），default 5

@@ -484,6 +484,12 @@ github.com/kalandramo/bald/cache/loadable v0.2.0 h1:6/C+mZofSNttjT2vHevzjtCCvXJv
 github.com/kalandramo/bald/cache/loadable v0.2.0/go.mod h1:iXPiM3D/gS+dsAmvNFPiMvuyPCgstOAIw7bRzBrH844=
 github.com/kalandramo/bald/cache/redis v0.1.0 h1:Ui66S54KCkTRvwnjI8INkdV5qw30RmDEjvvxOopxOEg=
 github.com/kalandramo/bald/cache/redis v0.1.0/go.mod h1:gtj4az7b4sxo64WlIsAEyImtiDq3IRhLW1/iK7KGvHo=
+github.com/kalandramo/bald/circuitbreaker v0.1.0 h1:EKyGiuXMEfZnefemwvMe1fnMlfpBM+PG4I5XvGQtDe0=
+github.com/kalandramo/bald/circuitbreaker v0.1.0/go.mod h1:Ewecj3esrO6ZIM+UCrWib/JgIR84K3ltqJ7ROqZKNaQ=
+github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0 h1:ImfMDcRm+2ohQzhGbJi6ozyfoAwz796IIx3alHMtoMg=
+github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0/go.mod h1:goiDBDW18JkLe8ESnTGnDGAQUtsUs7DJmuUc9gxce0I=
+github.com/kalandramo/bald/circuitbreaker/sres v0.1.0 h1:k00dSB0CLAPe8tD7RTcA9Ron9110qDFk9A5uS8RZKMc=
+github.com/kalandramo/bald/circuitbreaker/sres v0.1.0/go.mod h1:4qJdpHUb3236pTwVnxK7wTzVj5Rf4JQ1wzkaeQZTqn4=
 github.com/kalandramo/bald/contrib/audit-store v0.1.0 h1:Qep73IPqtPoUfeB4ZKJORZrWW6JelkAtv3u5EQ98lJI=
 github.com/kalandramo/bald/contrib/audit-store v0.1.0/go.mod h1:4XP0NmxJpfrCkOFdygr6f9Q+DSxys7N6D/Btub/FAEw=
 github.com/kalandramo/bald/contrib/audit-stream v0.1.0 h1:S08HEfs7UPiyLJahsdJkDk90pqGGA7iDtcIiQBSWmRw=
