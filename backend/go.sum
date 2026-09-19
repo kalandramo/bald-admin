@@ -536,6 +536,8 @@ github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0 h1:WpjklPxrBTM9jburq7zd+
 github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0/go.mod h1:qKerhNSsMYshUKrWlTrsdcuJ/y9tw+lW5R7WHRq8Odg=
 github.com/kalandramo/bald/registry v0.1.0 h1:QlOaRva4iVnGVhx9i366vReRkqYzqyx+GnikjWKK+uE=
 github.com/kalandramo/bald/registry v0.1.0/go.mod h1:zSUVEOdvsN1ONSde1Yhu/nepExmWiPK0h86P4TBtQ5c=
+github.com/kalandramo/bald/registry/etcd v0.1.1 h1:cTz75S0Vz8efocSV3Yyvg16kpCYPVo4UpDVY3Qh2Fzg=
+github.com/kalandramo/bald/registry/etcd v0.1.1/go.mod h1:t+FYQseY6XtYi+ytSW27BpnAexn5W+nZMtox24VVFs0=
 github.com/kalandramo/bald/registry/nacos v0.1.0 h1:HUe0NXl0685VIbmrq33bWaEXMg6T7msp0O1AJtZesBw=
 github.com/kalandramo/bald/registry/nacos v0.1.0/go.mod h1:scwVc3/9FGS2IOwBzrCx0iTg51AjedYctmaKT1Kcu2I=
 github.com/kalandramo/bald/retry v0.1.0 h1:7P+UGgdUhw/tUI2NttzM88XMczaeA0NtKCH7U8MT4XU=

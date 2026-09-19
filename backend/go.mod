@@ -49,6 +49,7 @@ require (
 	github.com/kalandramo/bald/ratelimit v0.1.0
 	github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0
 	github.com/kalandramo/bald/registry v0.1.0
+	github.com/kalandramo/bald/registry/etcd v0.1.1
 	github.com/kalandramo/bald/registry/nacos v0.1.0
 	github.com/kalandramo/bald/retry v0.1.0
 	github.com/kalandramo/bald/transport v0.2.1
