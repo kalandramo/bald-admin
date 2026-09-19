@@ -44,6 +44,7 @@ import (
 	tenantv1 "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1"
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
+	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
@@ -61,6 +62,7 @@ import (
 	"github.com/kalandramo/bald/circuitbreaker"
 	"github.com/kalandramo/bald/circuitbreaker/hystrix"
 	"github.com/kalandramo/bald/ratelimit"
+	"github.com/kalandramo/bald/retry"
 	"github.com/kalandramo/bald/ratelimit/tokenbucket"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
@@ -349,6 +351,11 @@ func newApp(
 			if cb := buildLoginBreaker(app.Config()); cb != nil {
 				bizSet.Auth.SetLoginBreaker(cb)
 			}
+			// Wave 1c：登录 DB 查询重试接线（业务自持配置段 login.retry.*）。
+			// 与熔断组合：retry 处理偶发抖动，熔断处理持续故障。
+			if r := buildLoginRetrier(app.Config()); r != nil {
+				bizSet.Auth.SetLoginRetrier(r)
+			}
 			return nil
 		}),
 
@@ -594,6 +601,47 @@ func buildLoginBreaker(cfg *baldconfig.Store) circuitbreaker.CircuitBreaker {
 	cb := hystrix.New(opts...)
 	baldlog.Info(context.Background(), "login breaker enabled")
 	return cb
+}
+
+// buildLoginRetrier 从业务自持配置段构造登录 DB 查询重试器（Wave 1c）。
+//
+// 配置键：
+//
+//	login:
+//	  retry:
+//	    max_attempts: 3             # 最大尝试次数（含首次），default 3
+//	    initial_backoff_ms: 100     # 首次退避（毫秒），default 200
+//	    max_backoff_ms: 2000        # 退避上限（毫秒），default 10000
+//
+// 整段缺省时返回 nil（禁用态，单次查询）。
+// 分类器固定为 authbiz.RetryOnTransientDBError——**只重试瞬时故障**，
+// 不重试 ErrNotFound（确定性业务结果，重试只是浪费 DB 往返）。
+func buildLoginRetrier(cfg *baldconfig.Store) *retry.Retrier {
+	if _, configured := cfg.Get("login.retry"); !configured {
+		return nil // 未配置：禁用态
+	}
+	opts := []retry.Option{
+		retry.WithClassifier(authbiz.RetryOnTransientDBError),
+	}
+	if v := configFloat(cfg, "login.retry.max_attempts"); v >= 1 {
+		opts = append(opts, retry.WithMaxAttempts(int(v)))
+	}
+	backoff := retry.ExponentialBackoff{
+		Initial: 200 * time.Millisecond,
+		Factor:  2,
+		Max:     10 * time.Second,
+	}
+	if v := configFloat(cfg, "login.retry.initial_backoff_ms"); v > 0 {
+		backoff.Initial = time.Duration(v) * time.Millisecond
+	}
+	if v := configFloat(cfg, "login.retry.max_backoff_ms"); v > 0 {
+		backoff.Max = time.Duration(v) * time.Millisecond
+	}
+	opts = append(opts, retry.WithBackoff(backoff), retry.WithJitter(retry.FullJitter))
+	r := retry.New(opts...)
+	baldlog.Info(context.Background(), "login retrier enabled",
+		"initial_backoff_ms", backoff.Initial.Milliseconds(), "max_backoff_ms", backoff.Max.Milliseconds())
+	return r
 }
 
 // configFloat 从配置树取数值键（Store 无 GetFloat，经 Get + 类型断言；

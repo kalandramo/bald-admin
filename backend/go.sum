@@ -518,6 +518,8 @@ github.com/kalandramo/bald/registry v0.1.0 h1:QlOaRva4iVnGVhx9i366vReRkqYzqyx+Gn
 github.com/kalandramo/bald/registry v0.1.0/go.mod h1:zSUVEOdvsN1ONSde1Yhu/nepExmWiPK0h86P4TBtQ5c=
 github.com/kalandramo/bald/registry/nacos v0.1.0 h1:HUe0NXl0685VIbmrq33bWaEXMg6T7msp0O1AJtZesBw=
 github.com/kalandramo/bald/registry/nacos v0.1.0/go.mod h1:scwVc3/9FGS2IOwBzrCx0iTg51AjedYctmaKT1Kcu2I=
+github.com/kalandramo/bald/retry v0.1.0 h1:7P+UGgdUhw/tUI2NttzM88XMczaeA0NtKCH7U8MT4XU=
+github.com/kalandramo/bald/retry v0.1.0/go.mod h1:txNfqsmU9Ypz2HcZXefGIdCJm7F5o7YKrOJ7X+t825s=
 github.com/kalandramo/bald/transport v0.2.0 h1:LsI52eEk8cBMTnFmZtCx3FSRK/lhCxsem0iPu5oJD6s=
 github.com/kalandramo/bald/transport v0.2.0/go.mod h1:9NY+2osYepZbxauKAMPhMx29SJjVaH65lBn8SARAVHg=
 github.com/kalandramo/bald/transport/gateway v0.1.1 h1:7wWqOw0nNgWLMGzXpt0tN2BxKXrFYBz+62LpsfhJ5Wg=

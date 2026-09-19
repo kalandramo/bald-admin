@@ -19,6 +19,7 @@ import (
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/store"
 	"github.com/kalandramo/bald/ratelimit"
+	"github.com/kalandramo/bald/retry"
 	"golang.org/x/crypto/bcrypt"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -81,6 +82,25 @@ type Biz struct {
 	// 超时上（雪崩）。**只对真故障计数**——ErrNotFound（用户不存在）是正常
 	// 业务结果，计入会让人用不存在的用户名熔断整个登录。
 	loginBreaker circuitbreaker.CircuitBreaker
+	// loginRetrier 登录 DB 查询重试器（Wave 1c，bald retry）。
+	// nil = 禁用态（单次查询）。与熔断**天然组合**：retry 处理偶发抖动
+	//（重试可恢复），熔断处理持续故障（重试无望时快速失败）。
+	// 分类器排除 ErrNotFound——重试确定性失败只是浪费 DB 往返。
+	loginRetrier *retry.Retrier
+}
+
+// RetryOnTransientDBError 是登录 DB 查询的重试分类器（Wave 1c）：
+// **只重试瞬时故障**，不重试确定性结果。
+//
+//   - ErrNotFound（用户不存在）：false——确定性业务结果，重试无意义
+//     （重试 3 次只是浪费 DB 往返，且拖慢响应）；
+//   - nil：false——无错误无需重试；
+//   - 其余（连接失败/超时等）：true——瞬时故障，重试可能恢复。
+func RetryOnTransientDBError(err error) bool {
+	if err == nil || errors.Is(err, store.ErrNotFound) {
+		return false
+	}
+	return true
 }
 
 // New 构造认证 Biz。signer 来自 bootstrap（bald-authn-jwt 签发实例）。
@@ -104,6 +124,14 @@ func (b *Biz) SetLoginLimiter(l ratelimit.Limiter) {
 func (b *Biz) SetLoginBreaker(cb circuitbreaker.CircuitBreaker) {
 	if cb != nil {
 		b.loginBreaker = cb
+	}
+}
+
+// SetLoginRetrier 运行期注入登录 DB 查询重试器（Wave 1c）。nil 不覆盖。
+// 应与 SetLoginBreaker 配合使用（retry 处理抖动、熔断处理持续故障）。
+func (b *Biz) SetLoginRetrier(r *retry.Retrier) {
+	if r != nil {
+		b.loginRetrier = r
 	}
 }
 
@@ -170,36 +198,76 @@ func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 	return &TokenPair{AccessToken: token, ExpiresAt: now.Add(ttl).Unix()}, nil
 }
 
-// queryUser 查询用户，经熔断器保护（Wave 1b）。
+// queryUser 查询用户，经 retry + 熔断双层保护（Wave 1b/1c）。
+//
+// 分层语义（外层熔断、内层重试）：
+//
+//	Allow ──► [retry: 瞬时故障重试 N 次] ──► MarkSuccess/MarkFailure
+//
+//   - retry 处理**偶发抖动**（一次连接失败，重试可能成功）；
+//   - 熔断处理**持续故障**（重试仍失败 → 计入失败；连续失败则 Open 快速失败，
+//     不再让每个请求都付出 N 次重试的代价）。
 //
 // 熔断边界的关键设计——**只对真故障计数**：
 //   - ErrNotFound（用户不存在）是**正常业务结果**，必须 MarkSuccess（不计失败），
 //     否则攻击者用几个不存在的用户名就能熔断整个登录；
 //   - 其余 error（DB 连接失败/超时等）才是真故障 → MarkFailure。
 //
-// 为什么不用 cb.Execute：Execute 对 fn 的任何 error 一律 MarkFailure
-//（sres.go:185-188），会把 NotFound 误计为失败。故手动 Allow/Mark 配对。
+// 重试边界同理：分类器 RetryOnTransientDBError 排除 ErrNotFound（见其注释）。
 //
-// 熔断器为 nil 时直连 store（禁用态）。
+// 为什么不用 cb.Execute：Execute 对 fn 的任何 error 一律 MarkFailure，
+// 会把 NotFound 误计为失败。故手动 Allow/Mark 配对。
+//
+// 两个组件都为 nil 时直连 store（禁用态）。
 func (b *Biz) queryUser(ctx context.Context, username string) (*authmodel.User, error) {
-	q := func() (*authmodel.User, error) {
+	q := func(ctx context.Context) (*authmodel.User, error) {
 		return bootstrappkg.UserStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("username", username)},
 		})
 	}
-	if b.loginBreaker == nil {
-		return q()
+
+	// 熔断前置检查（Open 时直接拒绝，不做重试）。
+	if b.loginBreaker != nil {
+		if err := b.loginBreaker.Allow(); err != nil {
+			return nil, err // ErrCircuitOpen
+		}
 	}
-	if err := b.loginBreaker.Allow(); err != nil {
-		return nil, err // 熔断打开（ErrCircuitOpen）
+
+	// 重试包裹实际查询（nil retrier 时单次执行）。
+	u, err := b.queryWithRetry(ctx, q)
+
+	// 熔断结果上报（只对真故障计失败）。
+	if b.loginBreaker != nil {
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			b.loginBreaker.MarkFailure()
+		} else {
+			// 成功或 NotFound（正常业务结果）都算「依赖可用」。
+			b.loginBreaker.MarkSuccess()
+		}
 	}
-	u, err := q()
-	if err != nil && !errors.Is(err, store.ErrNotFound) {
-		b.loginBreaker.MarkFailure() // 真故障
-		return nil, err
-	}
-	b.loginBreaker.MarkSuccess() // 成功或 NotFound（正常业务结果）都算「依赖可用」
 	return u, err
+}
+
+// queryWithRetry 执行查询并在瞬时故障时重试（retrier 为 nil 时单次执行）。
+func (b *Biz) queryWithRetry(ctx context.Context,
+	q func(context.Context) (*authmodel.User, error),
+) (*authmodel.User, error) {
+	if b.loginRetrier == nil {
+		return q(ctx)
+	}
+	var (
+		u   *authmodel.User
+		err error
+	)
+	// Retrier.Do 的 fn 无返回值，经闭包捕获结果。
+	rerr := b.loginRetrier.Do(ctx, func(c context.Context) error {
+		u, err = q(c)
+		return err
+	})
+	if rerr != nil {
+		return nil, rerr
+	}
+	return u, nil
 }
 
 // auditLogin 记录登录审计事件（category=login，Object/Action 用 P9 归一化
