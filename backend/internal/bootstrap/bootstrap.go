@@ -209,6 +209,9 @@ var FileStore *store.Store[authmodel.File]
 // 同表双通道：写走审计后端、读走本仓储）。
 var AuditStore *store.Store[authmodel.AuditRecord]
 
+// MFAFactorStore 用户 MFA 因子仓储（Wave 1.5）。
+var MFAFactorStore *store.Store[authmodel.UserMFAFactor]
+
 // bridgesMu 串行化 InitBridges 的 check-then-act（UT8 修复：并发首调时
 // 双 goroutine 同时通过 nil 判据、各自生成 RSA 密钥对、后写覆盖先写——
 // 败者持有与胜者不同的 Signer 密钥，签发/验签闭环破坏）。用互斥而非
@@ -262,7 +265,8 @@ func InitBridges(ctx context.Context) error {
 	}
 	if err := db.AutoMigrate(&authmodel.User{}, &authmodel.Role{}, &authmodel.Secret{}, &authmodel.AuditRecord{}, &authmodel.Tenant{},
 		&authmodel.Menu{}, &authmodel.Permission{}, &authmodel.RolePolicy{},
-		&authmodel.DictType{}, &authmodel.DictEntry{}, &authmodel.File{}); err != nil {
+		&authmodel.DictType{}, &authmodel.DictEntry{}, &authmodel.File{},
+		&authmodel.UserMFAFactor{}); err != nil {
 		return err
 	}
 	DB = db
@@ -317,6 +321,9 @@ func InitBridges(ctx context.Context) error {
 	AuditStore = store.NewStore[authmodel.AuditRecord](baldgorm.NewGormProvider(db, func(r *authmodel.AuditRecord) string {
 		return strconv.FormatUint(uint64(r.ID), 10)
 	}))
+	// Wave 1.5：MFA 因子仓储（业务键主键，同 RolePolicy 范式）。
+	MFAFactorStore = store.NewStore[authmodel.UserMFAFactor](baldgorm.NewGormProvider(db,
+		func(f *authmodel.UserMFAFactor) string { return f.ID }))
 	if err := seed(ctx); err != nil {
 		return err
 	}
@@ -497,6 +504,15 @@ func seedPolicies(ctx context.Context) error {
 		// 是**写操作**（POST）——授权归一化把 POST 映射为 "post"（DefaultHTTPAction）。
 		// 此前 admin 只有 {auth, get}，故 token 管理路由全部 403（实测）。
 		{Role: "admin", Object: "auth", Action: "post"},
+		// Wave 1.5：MFA 域。
+		// **admin 与 viewer 都需 {mfa, get/post}**——MFA 是用户对**自己账号**的
+		// 安全设置，任何登录用户都应能绑定/解绑自己的因子（源的 MFA 管理面
+		// 从 auth.FromContext 取 operator，强制只能操作本人）。
+		// 越权面（操作**他人**因子）由 biz 层的归属校验兜底，不靠权限点区分。
+		{Role: "admin", Object: "mfa", Action: "get"},
+		{Role: "admin", Object: "mfa", Action: "post"},
+		{Role: "viewer", Object: "mfa", Action: "get"},
+		{Role: "viewer", Object: "mfa", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},

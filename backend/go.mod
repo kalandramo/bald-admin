@@ -52,6 +52,7 @@ require (
 	github.com/kalandramo/bald/transport/web v0.1.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/mojocn/base64Captcha v1.3.8
+	github.com/pquerna/otp v1.5.0
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
@@ -93,6 +94,7 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect

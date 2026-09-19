@@ -46,6 +46,7 @@ import (
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
+	"github.com/kalandramo/bald-admin/internal/security/mfa"
 	"github.com/kalandramo/bald-admin/internal/security/token"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
@@ -374,6 +375,12 @@ func newApp(
 				bizSet.Auth.SetAuthenticator(bootstrappkg.LazyAuthenticatorWithRevocation())
 				// Wave 1d-2：验证码存储（复用同一 Redis）。
 				bizSet.Auth.SetCaptchaStore(captcha.NewRedisStore(bootstrappkg.RedisClient))
+				// Wave 1.5：MFA 挑战存储（复用同一 Redis）。
+				// Redis 故障时 MFA 走 fail-closed（biz 层判 nil 返回错误）——
+				// MFA 是安全边界，不能像限流那样 fail-open。
+				if bizSet.MFA != nil {
+					bizSet.MFA.SetChallenges(mfa.NewRedisChallengeStore(bootstrappkg.RedisClient))
+				}
 			} else {
 				// 无 Redis：ValidateToken 仍可用（退化为纯验签，无吊销检查）；
 				// 验证码不可用（生成/校验返回 503，fail-closed 不放行）。
