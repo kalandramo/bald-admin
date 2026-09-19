@@ -227,6 +227,10 @@ var PositionStore *store.Store[authmodel.Position]
 // TaskStore 任务定义仓储（Wave 2.3）。
 var TaskStore *store.Store[authmodel.Task]
 
+// PermGroupStore / PolicyEvalLogStore 权限组与策略评估日志（Wave 4.1）。
+var PermGroupStore *store.Store[authmodel.PermissionGroup]
+var PolicyEvalLogStore *store.Store[authmodel.PolicyEvaluationLog]
+
 // MessageStore / MessageCategoryStore / RecipientStore 站内消息三表（Wave 2.5）。
 var MessageStore *store.Store[authmodel.InternalMessage]
 var MessageCategoryStore *store.Store[authmodel.InternalMessageCategory]
@@ -289,7 +293,8 @@ func InitBridges(ctx context.Context) error {
 		&authmodel.UserMFAFactor{}, &authmodel.UserCredential{}, &authmodel.LoginPolicy{},
 		&authmodel.OrgUnit{}, &authmodel.Position{}, &authmodel.Task{},
 		&authmodel.InternalMessage{}, &authmodel.InternalMessageCategory{},
-		&authmodel.InternalMessageRecipient{}); err != nil {
+		&authmodel.InternalMessageRecipient{},
+		&authmodel.PermissionGroup{}, &authmodel.PolicyEvaluationLog{}); err != nil {
 		return err
 	}
 	DB = db
@@ -367,6 +372,11 @@ func InitBridges(ctx context.Context) error {
 		func(c *authmodel.InternalMessageCategory) string { return c.ID }))
 	RecipientStore = store.NewStore[authmodel.InternalMessageRecipient](baldgorm.NewGormProvider(db,
 		func(r *authmodel.InternalMessageRecipient) string { return r.ID }))
+	// Wave 4.1：权限组 + 策略评估日志。
+	PermGroupStore = store.NewStore[authmodel.PermissionGroup](baldgorm.NewGormProvider(db,
+		func(g *authmodel.PermissionGroup) string { return g.ID }))
+	PolicyEvalLogStore = store.NewStore[authmodel.PolicyEvaluationLog](baldgorm.NewGormProvider(db,
+		func(l *authmodel.PolicyEvaluationLog) string { return l.ID }))
 	if err := seed(ctx); err != nil {
 		return err
 	}
@@ -608,6 +618,12 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "admin", Object: "recipients", Action: "post"},
 		// Wave 3.4：dashboard 只读聚合（仅 admin——分析页是管理面功能）。
 		{Role: "admin", Object: "dashboard", Action: "get"},
+		// Wave 4.1：权限组 + 策略评估日志（仅 admin——权限配置是管理面功能）。
+		{Role: "admin", Object: "permission-groups", Action: "get"},
+		{Role: "admin", Object: "permission-groups", Action: "post"},
+		{Role: "admin", Object: "permission-groups", Action: "put"},
+		{Role: "admin", Object: "permission-groups", Action: "delete"},
+		{Role: "admin", Object: "policy-evaluation-logs", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},

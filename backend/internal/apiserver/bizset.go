@@ -13,6 +13,7 @@ import (
 	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
+	pgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
 	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
@@ -46,4 +47,6 @@ type BizSet struct {
 	Message *msgbiz.Biz
 	// Dashboard 首页分析（Wave 3.4）。
 	Dashboard *dashbiz.Biz
+	// PermGroup 权限组 + 策略评估日志（Wave 4.1）。
+	PermGroup *pgbiz.Biz
 }

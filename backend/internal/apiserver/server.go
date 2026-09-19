@@ -56,6 +56,9 @@ func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticato
 	if biz.Dashboard != nil {
 		hgin.RegisterDashboard(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.Dashboard)
 	}
+	if biz.PermGroup != nil {
+		hgin.RegisterPermGroup(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.PermGroup)
+	}
 }
 
 // ComponentFactory 是管理面组件工厂的包级别名（re-export，供 cmd 层构造工厂目录）。
