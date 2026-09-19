@@ -50,6 +50,13 @@ func RegisterAuth(
 				web.ErrorResponse(c, berrors.Unauthenticated("auth/bad_credential").WithMessage("%s", err))
 				return
 			}
+			// Wave 1a：限流归 429，与凭据错误区分——前端据此提示「尝试过于频繁」
+			// 而非「密码错」。用 ResourceExhausted（berrors 无 TooManyRequests 工厂；
+			// httperr.go:33 将其映射为 HTTP 429，语义注释即「资源耗尽（限流）」）。
+			if errors.Is(err, authbiz.ErrRateLimited) {
+				web.ErrorResponse(c, berrors.ResourceExhausted("auth/rate_limited").WithMessage("%s", err))
+				return
+			}
 			writeBizErr(c, err)
 			return
 		}

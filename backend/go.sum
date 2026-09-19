@@ -504,6 +504,10 @@ github.com/kalandramo/bald/log v0.5.1 h1:PrjK9yRAOMxJcn+XtDP3TD18VrXyZTXTl2c7lId
 github.com/kalandramo/bald/log v0.5.1/go.mod h1:xEw5nXpW1rJM1WYKsR78k4v8urd934jc7rTic26f9LI=
 github.com/kalandramo/bald/oss/minio v0.1.0 h1:KtLubRWWEnz3f13B556A+Mi5f4lcZhcaJeUYsNS4nBQ=
 github.com/kalandramo/bald/oss/minio v0.1.0/go.mod h1:ReY6T319NtiJjUZFZNSupM5GBgGMUJgyx3y/SM1Yoz8=
+github.com/kalandramo/bald/ratelimit v0.1.0 h1:RO0fTqlXhN2vlOUfGPp/xb7fkBviuRCQnwpGzZjm/Yc=
+github.com/kalandramo/bald/ratelimit v0.1.0/go.mod h1:f6OdCLURzCq332om3MKvHTE0Q5/5I+pK1c5WFzMGRk8=
+github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0 h1:WpjklPxrBTM9jburq7zd+goeczNSTMUtxEX7YwcCNt8=
+github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0/go.mod h1:qKerhNSsMYshUKrWlTrsdcuJ/y9tw+lW5R7WHRq8Odg=
 github.com/kalandramo/bald/registry v0.1.0 h1:QlOaRva4iVnGVhx9i366vReRkqYzqyx+GnikjWKK+uE=
 github.com/kalandramo/bald/registry v0.1.0/go.mod h1:zSUVEOdvsN1ONSde1Yhu/nepExmWiPK0h86P4TBtQ5c=
 github.com/kalandramo/bald/registry/nacos v0.1.0 h1:HUe0NXl0685VIbmrq33bWaEXMg6T7msp0O1AJtZesBw=

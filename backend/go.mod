@@ -165,6 +165,8 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.1.0 // indirect
 	github.com/kalandramo/bald/bconfig v0.1.0 // indirect
+	github.com/kalandramo/bald/ratelimit v0.1.0
+	github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0
 	github.com/kalandramo/bald/transport/http v0.1.1 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect

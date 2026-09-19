@@ -58,6 +58,8 @@ import (
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/log/bslog"
 	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/ratelimit"
+	"github.com/kalandramo/bald/ratelimit/tokenbucket"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
@@ -331,6 +333,13 @@ func newApp(
 				bizSet.Secret.SetCache(bootstrappkg.RedisCache)
 				bizSet.Dict.SetCache(bootstrappkg.RedisCache)
 			}
+			// Wave 1a：登录限流接线（业务自持配置段 login.rate_limit.*——
+			// 与 file.bucket 同模式）。框架契约的 server.http.rate_limit 段是
+			// **中间件级**限流且当前零实现（无消费者），故业务级登录限流走自持段。
+			// 未配置时保持 nil = 禁用态（不阻断登录，fail-open）。
+			if lim := buildLoginLimiter(app.Config()); lim != nil {
+				bizSet.Auth.SetLoginLimiter(lim)
+			}
 			return nil
 		}),
 
@@ -442,6 +451,15 @@ func applyObservabilityDefaults(bootstrap *bootstrapv1.BootstrapConfig) error {
 // （etcd/consul/apollo/vault/http）零依赖——其契约段无消费者，静默跳过。
 func configRegistry() *baldbootstrap.Registry {
 	reg := baldbootstrap.NewRegistry()
+	// Wave 1a：注册 file / env 两个**离线可用**的配置源。
+	//
+	// 此前只注册 nacos / kubernetes（两者都需网络）——导致本地开发与 CI
+	// 无法用「config 段 + 本地文件」驱动配置（Build 要求至少一个源可构造，
+	// 否则报 no config source configured）。补上 file/env 后，无网络环境
+	// 也能以 config.file 段启动（端到端验证与离线开发的前提）。
+	// 注册序即层优先级：file 在前（本地文件优先于环境变量整文档层）。
+	reg.MustRegister("file", baldbootstrap.FileProvider())
+	reg.MustRegister("env", baldbootstrap.EnvProvider())
 	reg.MustRegister("nacos", baldbootstrap.NacosProvider())
 	reg.MustRegister("kubernetes", baldbootstrap.KubernetesProvider())
 	return reg
@@ -506,6 +524,53 @@ func cacheRegistry() *baldbootstrap.CacheRegistry {
 	cr := baldbootstrap.NewCacheRegistry()
 	cr.MustRegister("redis", bootstrappkg.CacheProvider)
 	return cr
+}
+
+// buildLoginLimiter 从业务自持配置段构造登录限流器（Wave 1a）。
+//
+// 配置键（与 file.bucket 同模式，框架契约无对应段）：
+//
+//	login:
+//	  rate_limit:
+//	    rate: 1      # 每秒补充令牌数（必填，<=0 视为未配置）
+//	    burst: 5     # 突发容量（必填，<=0 视为未配置）
+//
+// 未配置（rate/burst 任一缺失或非正）→ 返回 nil，biz 保持禁用态（fail-open，
+// 不阻断登录）。构造失败（参数非法）同样返回 nil + WARN——限流是防御性增强，
+// 不应因配置笔误导致服务无法启动。
+func buildLoginLimiter(cfg *baldconfig.Store) ratelimit.Limiter {
+	rate := configFloat(cfg, "login.rate_limit.rate")
+	burst := configFloat(cfg, "login.rate_limit.burst")
+	if rate <= 0 || burst <= 0 {
+		return nil // 未配置或配置不全：禁用态
+	}
+	lim, err := tokenbucket.New(rate, burst)
+	if err != nil {
+		baldlog.Warn(context.Background(), "login rate limiter disabled: invalid config",
+			"rate", rate, "burst", burst, "error", err.Error())
+		return nil
+	}
+	baldlog.Info(context.Background(), "login rate limiter enabled", "rate", rate, "burst", burst)
+	return lim
+}
+
+// configFloat 从配置树取数值键（Store 无 GetFloat，经 Get + 类型断言；
+// yaml 解析的整数会落为 int，故两种数值类型都接受）。
+func configFloat(cfg *baldconfig.Store, key string) float64 {
+	v, ok := cfg.Get(key)
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	default:
+		return 0
+	}
 }
 
 func storageRegistry() *baldbootstrap.StorageRegistry {

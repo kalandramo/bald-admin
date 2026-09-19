@@ -70,3 +70,15 @@ metrics:
 # ---- 业务自持段（storage.minio 契约无 bucket 字段，file 模块自持）----
 file:
   bucket: "bald-admin"
+
+# ---- Wave 1a：登录限流（业务自持段）----
+# 框架契约的 server.http.rate_limit 是**中间件级**限流且当前零实现
+#（无 Go 代码消费该段），故业务级登录限流走自持配置段。
+# 未配置（或 rate/burst 非正）→ 禁用态：不阻断登录（fail-open，对齐源项目
+# LoginRateLimiter 的语义——限流是防御性增强，不应因组件故障导致登录不可用）。
+# 限流在凭据校验**之前**生效（先拦流量再做昂贵 bcrypt 比较）。
+# 超限返回 HTTP 429 + reason="auth/rate_limited"。
+login:
+  rate_limit:
+    rate: 1      # 每秒补充令牌数（rate=1 → 约每秒放行 1 次尝试）
+    burst: 5     # 突发容量（首次可连续尝试次数）

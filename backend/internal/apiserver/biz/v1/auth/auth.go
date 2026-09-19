@@ -17,6 +17,7 @@ import (
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/store"
+	"github.com/kalandramo/bald/ratelimit"
 	"golang.org/x/crypto/bcrypt"
 
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
@@ -24,6 +25,11 @@ import (
 
 // ErrBadCredential 凭据错误。
 var ErrBadCredential = errors.New("auth: invalid username or password")
+
+// ErrRateLimited 登录被限流（handler 层映射为 429）。
+// Wave 1a：对齐源项目 LoginRateLimiter 的语义——「登录尝试过于频繁」，
+// 与凭据错误（401）区分，便于前端提示「稍后重试」而非「密码错」。
+var ErrRateLimited = errors.New("auth: too many login attempts")
 
 // dummyHash 进程启动时预生成一次的 bcrypt 哈希：用户不存在路径做等代价比较，
 // 抹平「用户存在与否」的响应时序差（防用户名枚举侧信道）——存在路径每次都跑
@@ -60,6 +66,10 @@ type UserInfo struct {
 // Biz 认证业务。
 type Biz struct {
 	signer authnjwt.Signer // 私钥签发器（非对称场景只持私钥）
+	// loginLimiter 登录限流器（Wave 1a，bald ratelimit/tokenbucket）。
+	// nil = 禁用态：不阻断登录（对齐源项目 LoginRateLimiter 的 fail-open——
+	// 限流是防御性增强，不应让限流组件故障导致登录全部不可用）。
+	loginLimiter ratelimit.Limiter
 }
 
 // New 构造认证 Biz。signer 来自 bootstrap（bald-authn-jwt 签发实例）。
@@ -67,11 +77,41 @@ func New(signer authnjwt.Signer) *Biz {
 	return &Biz{signer: signer}
 }
 
+// SetLoginLimiter 运行期注入登录限流器（main.go 在装配后调用；测试可注入
+// 真实 tokenbucket 实例）。nil 不覆盖——保留禁用态语义。
+//
+// 为什么经 setter 而非构造参数：与 SetCache/SetStorage 同款的 T0 时序约定——
+// 限流器构造需要配置（rate/burst），而配置在 BeforeStart 才装载完成。
+func (b *Biz) SetLoginLimiter(l ratelimit.Limiter) {
+	if l != nil {
+		b.loginLimiter = l
+	}
+}
+
 // Login 校验凭据（查 store）并签发 JWT。
 // T6 登录审计：成功/失败/内部错误均记一条 category=login 审计事件（源
 // login_audit_log 语义精简：IP/UA/结果/失败原因；风险评分/MFA/设备指纹后续迭代）。
 // 经全局 audit.GetAuditor()（bootstrap audit.backends 热切换同一入口），旁路不阻断。
 func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
+	// Wave 1a：限流在凭据校验之前——先拦流量再做昂贵的 bcrypt 比较，
+	// 否则限流形同虚设（攻击者仍能消耗 CPU）。限流器为 nil 时直接放行
+	//（禁用态，对齐源项目 LoginRateLimiter 的 fail-open）。
+	if b.loginLimiter != nil {
+		allowed, lerr := b.loginLimiter.Allow()
+		switch {
+		case !allowed:
+			// 超限：Allow 契约规定 ok=false 伴随 ratelimit.ErrLimited——
+			// 这是「被限流」的正常信号，不是故障，不可当作 fail-open 处理
+			//（ratelimit.go 的 Limiter 接口注释）。
+			auditLogin(ctx, c, "", audit.ResultDeny, "rate limited")
+			return nil, ErrRateLimited
+		case lerr != nil:
+			// 限流器自身故障（非 ErrLimited）：fail-open 不阻断登录，
+			// 但记录以便排查。
+			log.Warn(ctx, "login rate limiter error, failing open", "error", lerr.Error())
+		}
+	}
+
 	u, err := bootstrappkg.UserStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("username", c.Username)},
 	})
