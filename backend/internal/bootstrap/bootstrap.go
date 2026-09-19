@@ -18,17 +18,18 @@ import (
 	"time"
 
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
-	rediscache "github.com/kalandramo/bald/contrib/cache-redis"
 	baldgorm "github.com/kalandramo/bald/contrib/store-gorm"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/store"
+	goredis "github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
+	"github.com/kalandramo/bald/cache"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	miniooss "github.com/kalandramo/bald/oss/minio"
 
@@ -93,9 +94,16 @@ func LazySigner() authnjwt.Signer { return lazySigner{} }
 // DB 是应用主库（M2 起为 SQLite 内存库，T0 起默认经配置 database.sql 切外部 PostgreSQL）。
 var DB *gorm.DB
 
-// RedisCache 是可选 Redis 缓存/消息总线后端（M6.2 Cache-Aside + M9 审计流）。
-// rdb 为 nil 表示无 Redis 环境，调用方（缓存直连 store / 审计流降级）应降级。
-var RedisCache *rediscache.Cache
+// RedisClient 是底层 go-redis 客户端（可空：nil 表示无 Redis 环境）。
+// 供审计流等「需要原生 Redis 命令」的消费方复用同一真实连接——D1 迁移后
+// cache/redis 适配器不暴露底层 client（其 Close 亦不关闭 client），故由
+// bootstrap 自行持有并管理生命周期。
+var RedisClient goredis.UniversalClient
+
+// RedisCache 是可选 Redis 缓存后端（M6.2 Cache-Aside；D1 由
+// contrib/cache-redis 迁移到 cache/redis 适配器）。nil 表示无 Redis 环境，
+// 调用方（缓存直连 store / 审计流降级）应降级。
+var RedisCache cache.Cache
 
 // MinioStorage 是可选 MinIO 对象存储后端（T0 起由 storage.minio 配置段构造，
 // T5 文件模块消费）。SDK() 为 nil 表示未配置或构造失败，调用方应降级。
@@ -196,13 +204,15 @@ func InitBridges(ctx context.Context) error {
 	}
 	DB = db
 
-	// 可选 Redis 后端：供消息总线/缓存复用同一真实连接。不可达仅 warn（审计流降级），
+	// 可选 Redis 后端：供缓存/审计流复用同一真实连接。不可达仅 warn（审计流降级），
 	// 不阻断启动（与 SQLite 内存库同构的"真实但可选"简化，符合 §0）。
 	// U1 起：注入态优先（WireCache 已注入则跳过自建），否则 resolveRedis
 	// 解析（env BALD_ADMIN_REDIS_ADDR 优先，其次配置段 cache.redis）。
+	// D1：构造走 BuildRedisCache（cache/redis 适配器 + 探活），连接记入 RedisClient。
 	if RedisCache == nil {
-		redisAddr, redisOpts := resolveRedis()
-		if rc, rerr := rediscache.New(redisAddr, redisOpts...); rerr != nil {
+		redisAddr, redisPassword, redisDB := resolveRedis()
+		rc, rerr := BuildRedisCache(redisAddr, redisPassword, redisDB)
+		if rerr != nil {
 			log.Warn(ctx, "redis init skipped, audit stream disabled", "error", rerr.Error())
 		} else {
 			RedisCache = rc
@@ -529,20 +539,19 @@ func openDB(sqlCfg *bootstrapv1.Database_SQL) (*gorm.DB, error) {
 }
 
 // resolveRedis 解析 Redis 连接参数：env BALD_ADMIN_REDIS_ADDR 优先（覆盖手段），
-// 其次配置段 cache.redis（addr/password/db）；两者皆空返回禁用态
-// （New 对空 addr 返回 nil rdb 的 Cache，调用方降级直连）。
-func resolveRedis() (string, []rediscache.Option) {
-	if addr := os.Getenv("BALD_ADMIN_REDIS_ADDR"); addr != "" {
-		return addr, nil
+// 其次配置段 cache.redis（addr/password/db）；两者皆空返回空 addr（禁用态，
+// BuildRedisCache 返回 nil，调用方降级直连）。
+// D1：返回三元组而非 []rediscache.Option——新 cache/redis 适配器只收已构造的
+// client，连接参数在 BuildRedisCache 内落到 goredis.Options。
+func resolveRedis() (addr, password string, db int) {
+	if a := os.Getenv("BALD_ADMIN_REDIS_ADDR"); a != "" {
+		return a, "", 0
 	}
 	rc := depsBootstrap.GetCache().GetRedis()
 	if rc == nil || rc.GetAddr() == "" {
-		return "", nil
+		return "", "", 0
 	}
-	return rc.GetAddr(), []rediscache.Option{
-		rediscache.WithPassword(rc.GetPassword()),
-		rediscache.WithDB(int(rc.GetDb())),
-	}
+	return rc.GetAddr(), rc.GetPassword(), int(rc.GetDb())
 }
 
 // dsnScheme 的解析逻辑已上提 contrib/store-gorm（Open 的 scheme 推断）。

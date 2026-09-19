@@ -9,7 +9,11 @@ package e2e
 //     写穿透失效：Update/Delete 后键消失、再读重载新值
 //  3. 授权：viewer 读 200 / 写 403（dict_type/dict_entry 策略数据化）
 //  4. P8 隔离：t-other 用户看不到 t-default 的字典种子（缓存键亦含租户维度）
-//  5. Redis 停机降级直连 loader 由 contrib/cache-redis 单测覆盖（miniredis Close）
+//  5. Redis 停机降级直连 loader 由 cache/loadable 单测覆盖（WithDegradeOnError）
+//
+// D1（2026-09-19）：缓存实现由 contrib/cache-redis 迁移到 cache/redis +
+// cache/loadable（原组件已从 bald 删除）；测试断言改用 cache.Cache 接口的
+// Has/Get 与 bootstrap.CacheKey，不再依赖旧 Client() 直取底层连接。
 
 import (
 	"context"
@@ -18,11 +22,12 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	goredis "github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	gingonic "github.com/gin-gonic/gin"
 
-	rediscache "github.com/kalandramo/bald/contrib/cache-redis"
+	"github.com/kalandramo/bald/cache"
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
@@ -39,7 +44,7 @@ import (
 
 // startDictREST 起真实 gin 引擎 + miniredis 真实 Redis（dict biz 注入缓存，
 // 其余 biz 沿用 startTenantREST 形态）。返回 base URL 与缓存实例（键存在性断言）。
-func startDictREST(t *testing.T) (string, *rediscache.Cache) {
+func startDictREST(t *testing.T) (string, cache.Cache) {
 	t.Helper()
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
@@ -49,19 +54,18 @@ func startDictREST(t *testing.T) (string, *rediscache.Cache) {
 		t.Fatalf("miniredis: %v", err)
 	}
 	t.Cleanup(mr.Close)
-	cache, err := rediscache.New(mr.Addr())
-	if err != nil {
-		t.Fatalf("rediscache.New: %v", err)
-	}
+	rdb := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cacheInst := bootstrappkg.UseRedisClient(rdb)
 	e := gingonic.New()
 	apiserver.RegisterRoutes(e, &apiserver.BizSet{
 		Auth: authbiz.New(bootstrappkg.Signer), Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
 		User: userbiz.New(), Menu: menubiz.New(), Permission: permissionbiz.New(),
-		Dict: dictbiz.New(cache), File: filebiz.New(nil, ""), AuditLog: auditlogbiz.New(),
+		Dict: dictbiz.New(cacheInst), File: filebiz.New(nil, ""), AuditLog: auditlogbiz.New(),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
-	return srv.URL, cache
+	return srv.URL, cacheInst
 }
 
 // callDictType / callDictEntry 通用 REST 调用（响应体 protojson 解码）。
@@ -143,10 +147,10 @@ func TestDictREST_TypeLifecycle(t *testing.T) {
 // TestDictREST_EntryLifecycleAndCache 条目 CRUD + Cache-Aside 命中/写穿透失效
 // （T4 核心验收：缓存键真实存在于 miniredis，失效可观测）。
 func TestDictREST_EntryLifecycleAndCache(t *testing.T) {
-	base, cache := startDictREST(t)
+	base, cacheInst := startDictREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
 	ctx := context.Background()
-	ck := rediscache.Key("dict:entries", "t-default", "gender") // 租户维度键
+	ck := bootstrappkg.CacheKey("dict:entries", "t-default", "gender") // 租户维度键
 
 	// 1. 创建条目（numeric 演示，sort_order=4 落尾）→ 重复 409（type_code:value 业务键唯一，
 	//    错误映射统一后 store.ErrConflict → 409）。
@@ -171,8 +175,9 @@ func TestDictREST_EntryLifecycleAndCache(t *testing.T) {
 		}
 	}
 	// 缓存键真实存在（Cache-Aside 命中可观测——写穿透/失效断言的基线）。
-	if _, err := cache.Client().Get(ctx, ck).Result(); err != nil {
-		t.Fatalf("cache key %s must be backfilled, got err=%v", ck, err)
+	// D1：改用 cache.Cache 接口的 Has（旧实现经 Client() 直取底层连接）。
+	if ok, err := cacheInst.Has(ctx, ck); err != nil || !ok {
+		t.Fatalf("cache key %s must be backfilled, got ok=%v err=%v", ck, ok, err)
 	}
 
 	// 3. 写穿透失效：更新条目 → 键消失 → 再读重载新值并回填。
@@ -180,8 +185,8 @@ func TestDictREST_EntryLifecycleAndCache(t *testing.T) {
 		map[string]any{"label": "自定义(改)"}); code != http.StatusOK {
 		t.Fatalf("update entry status=%d", code)
 	}
-	if _, err := cache.Client().Get(ctx, ck).Result(); err == nil {
-		t.Fatalf("cache key must be invalidated after update (write-through)")
+	if ok, err := cacheInst.Has(ctx, ck); err != nil || ok {
+		t.Fatalf("cache key must be invalidated after update (write-through), got ok=%v err=%v", ok, err)
 	}
 	code, entries = callDictEntry(t, base, tok, http.MethodGet, "/v1/dict_entry?type_code=gender", nil)
 	if code != http.StatusOK || entries.GetTotal() != 4 {

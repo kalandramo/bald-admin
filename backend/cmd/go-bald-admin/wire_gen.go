@@ -10,7 +10,7 @@ import (
 	"os"
 
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
-	rediscache "github.com/kalandramo/bald/contrib/cache-redis"
+	"github.com/kalandramo/bald/cache"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
@@ -79,7 +79,8 @@ func provideRedisAddr() redisAddr { return redisAddr(os.Getenv("BALD_ADMIN_REDIS
 // 直接传包级变量会把 nil 快照固化进 Biz（login 签发即 panic）。
 func provideSigner() authnjwt.Signer { return bootstrap.LazySigner() }
 
-// newRedisCache 适配 redisAddr→rediscache.New（保留错误，Redis 不可达即启动失败）。
-func newRedisCache(addr redisAddr) (*rediscache.Cache, error) {
-	return rediscache.New(string(addr))
+// newRedisCache 适配 redisAddr→bootstrap.BuildRedisCache（D1：cache/redis 适配器；
+// 保留错误，Redis 不可达即启动失败）。addr 为空返回 nil（禁用态）。
+func newRedisCache(addr redisAddr) (cache.Cache, error) {
+	return bootstrap.BuildRedisCache(string(addr), "", 0)
 }

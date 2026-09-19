@@ -478,6 +478,12 @@ github.com/kalandramo/bald/berrors v0.1.0 h1:snmLMWZE3msAQ0u/EkNimpWN2N3G1DFNKkD
 github.com/kalandramo/bald/berrors v0.1.0/go.mod h1:WVPb7iocVAveYo8wbJ5+a6/Kte25hJPt0TTr0a5W1/I=
 github.com/kalandramo/bald/bootstrap v0.7.3 h1:a7167V1Y3wGB8zFJWc0+RWVGsUznvJjPAs+djmJYfc0=
 github.com/kalandramo/bald/bootstrap v0.7.3/go.mod h1:B++4KKYxS8/g3cUT5EJCXdElmuO/qfS8EwqEfKE0YNE=
+github.com/kalandramo/bald/cache v0.1.1 h1:FD2fxd+mxgRfV7ppCkTnuyWX+1QFEH//Sfr/s7/4fIY=
+github.com/kalandramo/bald/cache v0.1.1/go.mod h1:cLUjMSZKJDnP3wxrY2XtrqIBKe7JjbQ78e3LLvszTYw=
+github.com/kalandramo/bald/cache/loadable v0.2.0 h1:6/C+mZofSNttjT2vHevzjtCCvXJvpU7h6vQcp7LkJ1Y=
+github.com/kalandramo/bald/cache/loadable v0.2.0/go.mod h1:iXPiM3D/gS+dsAmvNFPiMvuyPCgstOAIw7bRzBrH844=
+github.com/kalandramo/bald/cache/redis v0.1.0 h1:Ui66S54KCkTRvwnjI8INkdV5qw30RmDEjvvxOopxOEg=
+github.com/kalandramo/bald/cache/redis v0.1.0/go.mod h1:gtj4az7b4sxo64WlIsAEyImtiDq3IRhLW1/iK7KGvHo=
 github.com/kalandramo/bald/contrib/audit-store v0.1.0 h1:Qep73IPqtPoUfeB4ZKJORZrWW6JelkAtv3u5EQ98lJI=
 github.com/kalandramo/bald/contrib/audit-store v0.1.0/go.mod h1:4XP0NmxJpfrCkOFdygr6f9Q+DSxys7N6D/Btub/FAEw=
 github.com/kalandramo/bald/contrib/audit-stream v0.1.0 h1:S08HEfs7UPiyLJahsdJkDk90pqGGA7iDtcIiQBSWmRw=
@@ -635,6 +641,8 @@ github.com/quic-go/quic-go v0.59.0 h1:OLJkp1Mlm/aS7dpKgTc6cnpynnD2Xg7C1pwL6vy/SA
 github.com/quic-go/quic-go v0.59.0/go.mod h1:upnsH4Ju1YkqpLXC305eW3yDZ4NfnNbmQRCMWS58IKU=
 github.com/redis/go-redis/v9 v9.7.0 h1:HhLSs+B6O021gwzl+locl0zEDnyNkxMtf/Z3NNBMa9E=
 github.com/redis/go-redis/v9 v9.7.0/go.mod h1:f6zhXITC7JUJIlPEiBOTXxJgPLdZcA93GewI7inzyWw=
+github.com/redis/go-redis/v9 v9.17.2 h1:P2EGsA4qVIM3Pp+aPocCJ7DguDHhqrXNhVcEp4ViluI=
+github.com/redis/go-redis/v9 v9.17.2/go.mod h1:u410H11HMLoB+TP67dz8rL9s6QW2j76l0//kSOd3370=
 github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=

@@ -8,8 +8,12 @@
 //
 // 与 contrib/database/<engine>/contract 的官方 provider 的区别：官方路径
 // 返回生态客户端（*gormcrud.Client 等），本业务桥接直接消费 *gorm.DB /
-// *rediscache.Cache / *miniooss.Storage（stores/审计/文件模块的既有类型）。
+// cache.Cache / *miniooss.Storage（stores/审计/文件模块的既有类型）。
 // 两条路径都合法（「代码声明能力」），范例选择保留自有桥接。
+//
+// D1（2026-09-19）：cache 桥接由 contrib/cache-redis 迁移到 cache/redis
+// 适配器（原组件已从 bald 删除）；底层 go-redis client 记入 RedisClient 供
+// 审计流复用（适配器不暴露 client）。
 package bootstrap
 
 import (
@@ -17,8 +21,8 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/kalandramo/bald/cache"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
-	rediscache "github.com/kalandramo/bald/contrib/cache-redis"
 	"github.com/kalandramo/bald/log"
 
 	miniooss "github.com/kalandramo/bald/oss/minio"
@@ -40,19 +44,17 @@ func DatabaseProvider(ctx context.Context, cfg *bootstrapv1.Database) (any, func
 	}, nil
 }
 
-// CacheProvider 是契约 cache.redis 段的透传 provider：构造走 resolveRedis
-// 同款参数解析（addr/password/db）。Redis 不可达仅 warn 不阻断（审计流降级，
+// CacheProvider 是契约 cache.redis 段的透传 provider：构造走 BuildRedisCache
+// （含真实探活，避免假连接）。Redis 不可达仅 warn 不阻断（审计流降级，
 // 与 InitBridges 既有语义一致）——返回 nil 实例，消费侧按 nil 降级。
-// rediscache.Cache 无 Close 方法（连接池随进程退出），cleanup 为 nil。
+// D1：底层 client 记入 RedisClient（审计流复用）；cache/redis 适配器不暴露
+// client 且其 Close 不关闭 client，连接生命周期归本进程（无 cleanup）。
 func CacheProvider(ctx context.Context, cfg *bootstrapv1.Cache) (any, func(), error) {
 	rc := cfg.GetRedis()
 	if rc == nil || rc.GetAddr() == "" {
 		return nil, nil, nil // 段存在但空 addr：禁用态（与 resolveRedis 空返回同构）
 	}
-	c, err := rediscache.New(rc.GetAddr(),
-		rediscache.WithPassword(rc.GetPassword()),
-		rediscache.WithDB(int(rc.GetDb())),
-	)
+	c, err := BuildRedisCache(rc.GetAddr(), rc.GetPassword(), int(rc.GetDb()))
 	if err != nil {
 		log.Warn(ctx, "redis init skipped, audit stream disabled", "error", err.Error())
 		return nil, nil, nil
@@ -96,9 +98,10 @@ func WireDatabase(v any) {
 	}
 }
 
-// WireCache 注入契约装配的 Redis 实例（app.Cache("redis") 的结果）。
+// WireCache 注入契约装配的 KV 缓存实例（app.Cache("redis") 的结果）。
+// 同时经 UseRedisClient 把底层 client 记入 RedisClient（审计流复用）。
 func WireCache(v any) {
-	if c, ok := v.(*rediscache.Cache); ok && c != nil {
+	if c, ok := v.(cache.Cache); ok && c != nil {
 		RedisCache = c
 	}
 }

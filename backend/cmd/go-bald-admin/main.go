@@ -325,6 +325,8 @@ func newApp(
 			// env 通道（BALD_ADMIN_REDIS_ADDR）拿不到完整参数、对带密码实例 ping
 			// 即失败；不接线则配置驱动运行下缓存静默失效。未配置段时 RedisCache
 			// 为 nil，SetCache 不覆盖，保留 wire env 通道（CI 覆盖手段）。
+			// D1：SetCache 接收通用 KV 适配器（cache.Cache），biz 内部包装为
+			// loadable 读穿透缓存（loader 构造期绑定，从 key 反解业务参数）。
 			if bootstrappkg.RedisCache != nil {
 				bizSet.Secret.SetCache(bootstrappkg.RedisCache)
 				bizSet.Dict.SetCache(bootstrappkg.RedisCache)
@@ -596,8 +598,10 @@ func buildAuditBackend(name string) audit.Auditor {
 			return securityaudit.NewStore(bootstrappkg.DB)
 		}
 	case "stream":
-		if bootstrappkg.RedisCache != nil && bootstrappkg.RedisCache.Client() != nil {
-			return securityaudit.NewStream(bootstrappkg.RedisCache.Client())
+		// D1：底层 client 经 bootstrap.RedisClient 复用（cache/redis 适配器
+		// 不暴露 client）；nil 即无 Redis，跳过该后端。
+		if bootstrappkg.RedisClient != nil {
+			return securityaudit.NewStream(bootstrappkg.RedisClient)
 		}
 	}
 	return nil

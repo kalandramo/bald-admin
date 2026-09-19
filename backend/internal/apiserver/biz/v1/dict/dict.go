@@ -15,10 +15,11 @@ import (
 	"sort"
 
 	"github.com/kalandramo/bald/berrors"
+	"github.com/kalandramo/bald/cache"
+	"github.com/kalandramo/bald/cache/loadable"
 	"github.com/kalandramo/bald/pkg/contextx"
 	"github.com/kalandramo/bald/pkg/store"
 
-	rediscache "github.com/kalandramo/bald/contrib/cache-redis"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
@@ -26,20 +27,62 @@ import (
 // Biz 字典管理业务。cache 可选（nil/禁用时直连 store）；仓储经 store() 请求期
 // 读取（T0 确立的时序约定：biz 引用 bootstrap 包级桥接禁止构造期快照）。
 type Biz struct {
-	cache *rediscache.Cache
+	// cache 是读穿透缓存（cache/loadable 组合器）；nil = 禁用，直连 store。
+	// D1 迁移：原 contrib/cache-redis 的请求期 loader 由构造期 loader 承接
+	// （SetCache 时绑定，loader 从 key 反解 typeCode）。
+	cache *loadable.Cache
 }
 
-// New 构造字典业务。
-func New(cache *rediscache.Cache) *Biz { return &Biz{cache: cache} }
+// New 构造字典业务。backend 是通用 KV 缓存（cache.Cache）；非 nil 时包装为
+// loadable 读穿透缓存（loader 构造期绑定，从 key 反解 typeCode）。nil = 禁用。
+func New(backend cache.Cache) *Biz {
+	b := &Biz{}
+	b.wrapCache(backend)
+	return b
+}
+
+// wrapCache 把通用 KV 缓存包装为读穿透缓存（nil 保持禁用态）。
+func (b *Biz) wrapCache(backend cache.Cache) {
+	if backend == nil {
+		b.cache = nil
+		return
+	}
+	b.cache = loadable.New(backend, b.loadEntries,
+		loadable.WithTTL(bootstrappkg.DefaultCacheTTL),
+		loadable.WithDegradeOnError(), // Redis 故障降级直连 store（T4 语义）
+	)
+}
 
 // SetCache 运行期注入缓存（main.go BeforeStart 在 InitBridges 之后调用）：
 // 配置驱动的 cache.redis 段（含 password/db）只流向 bootstrap.RedisCache，wire 的
 // env 通道拿不到完整参数；构造期值拷贝会把 nil/禁用态固化（与 file Biz 的
 // SetStorage 同款时序约定）。nil 不覆盖（保留 env 通道）。
-func (b *Biz) SetCache(c *rediscache.Cache) {
-	if c != nil {
-		b.cache = c
+func (b *Biz) SetCache(c cache.Cache) {
+	if c == nil {
+		return
 	}
+	b.wrapCache(c)
+}
+
+// loadEntries 是 loadable 的读取函数：从缓存键反解 typeCode，加载该类型全部
+// 条目并序列化。键格式 CacheKey("dict:entries", tenant, typeCode)；租户段取自
+// ctx（与写键同源），故前缀校验失败即报错。
+func (b *Biz) loadEntries(ctx context.Context, key string) ([]byte, error) {
+	tenant := contextx.TenantIDFromContext(ctx)
+	typeCode, err := bootstrappkg.CutCacheKeyPrefix(key,
+		bootstrappkg.CacheKeyPrefix("dict:entries", tenant))
+	if err != nil {
+		return nil, fmt.Errorf("dict.loadEntries: %w", err)
+	}
+	es, err := b.listEntriesDirect(ctx, typeCode)
+	if err != nil {
+		return nil, err
+	}
+	buf, err := json.Marshal(es)
+	if err != nil {
+		return nil, fmt.Errorf("dict.ListEntries marshal: %w", err)
+	}
+	return buf, nil
 }
 
 func (b *Biz) typeStore() *store.Store[authmodel.DictType]   { return bootstrappkg.DictTypeStore }
@@ -152,30 +195,21 @@ func (b *Biz) ListEntries(ctx context.Context, typeCode string) ([]*authmodel.Di
 		return nil, 0, fmt.Errorf("dict.ListEntries: type %s: %w", typeCode, err)
 	}
 	tenant := contextx.TenantIDFromContext(ctx)
-	key := rediscache.Key("dict:entries", tenant, typeCode)
-	loader := func(c context.Context) (string, error) {
-		es, err := b.listEntriesDirect(c, typeCode)
-		if err != nil {
-			return "", err
-		}
-		buf, err := json.Marshal(es)
-		if err != nil {
-			return "", fmt.Errorf("dict.ListEntries marshal: %w", err)
-		}
-		return string(buf), nil
-	}
-	var raw string
-	var err error
+	key := bootstrappkg.CacheKey("dict:entries", tenant, typeCode)
+	var (
+		raw []byte
+		err error
+	)
 	if b.cache != nil {
-		raw, err = b.cache.Get(ctx, key, loader)
+		raw, err = b.cache.Get(ctx, key)
 	} else {
-		raw, err = loader(ctx)
+		raw, err = b.loadEntries(ctx, key)
 	}
 	if err != nil {
 		return nil, 0, err
 	}
 	var es []*authmodel.DictEntry
-	if err := json.Unmarshal([]byte(raw), &es); err != nil {
+	if err := json.Unmarshal(raw, &es); err != nil {
 		return nil, 0, fmt.Errorf("dict.ListEntries unmarshal: %w", err)
 	}
 	return es, len(es), nil
@@ -281,5 +315,5 @@ func (b *Biz) invalidate(ctx context.Context, typeCode string) {
 		return
 	}
 	tenant := contextx.TenantIDFromContext(ctx)
-	_ = b.cache.Delete(ctx, rediscache.Key("dict:entries", tenant, typeCode))
+	_ = b.cache.Delete(ctx, bootstrappkg.CacheKey("dict:entries", tenant, typeCode))
 }

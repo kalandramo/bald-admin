@@ -26,11 +26,13 @@ require (
 	github.com/kalandramo/bald/bconf v0.7.1
 	github.com/kalandramo/bald/berrors v0.1.0
 	github.com/kalandramo/bald/bootstrap v0.7.3
+	github.com/kalandramo/bald/cache v0.1.1
+	github.com/kalandramo/bald/cache/loadable v0.2.0
+	github.com/kalandramo/bald/cache/redis v0.1.0
 	github.com/kalandramo/bald/contrib/audit-store v0.1.0
 	github.com/kalandramo/bald/contrib/audit-stream v0.1.0
 	github.com/kalandramo/bald/contrib/authn-jwt v0.1.0
 	github.com/kalandramo/bald/contrib/authz-casbin v0.1.0
-	github.com/kalandramo/bald/contrib/cache-redis v0.1.0
 	github.com/kalandramo/bald/contrib/observability-otlp v0.2.0
 	github.com/kalandramo/bald/contrib/store-gorm v0.1.0
 	github.com/kalandramo/bald/health v0.1.1
@@ -43,7 +45,7 @@ require (
 	github.com/kalandramo/bald/transport/grpc v0.1.1
 	github.com/kalandramo/bald/transport/web v0.1.0
 	github.com/minio/minio-go/v7 v7.3.0
-	github.com/redis/go-redis/v9 v9.7.0
+	github.com/redis/go-redis/v9 v9.17.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1
