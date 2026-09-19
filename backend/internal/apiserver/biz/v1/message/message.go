@@ -59,11 +59,30 @@ const (
 	RecipientRevoked = "REVOKED"
 )
 
-// Biz 是站内消息业务。
-type Biz struct{}
+// Publisher 是 SSE 推送能力的最小接口（对齐源 `InternalMessagePublisher`）。
+//
+// **为何用接口而非直接依赖 `*sse.Server`**：与源同款解耦——源定义
+// `InternalMessagePublisher` 接口并以 `RegisterInternalMessagePublisher` 注入，
+// 使 message 域不强绑定具体传输实现（源注释：「sse 未配置时降级为 no-op」）。
+type Publisher interface {
+	// TryPublish 非阻塞推送；流不存在或缓冲满时返回 false（不阻塞发送方）。
+	TryPublish(streamID string, eventName string, payload any) bool
+}
 
-// New 构造 Biz。
+// Biz 是站内消息业务。
+type Biz struct {
+	// publisher 可为 nil（SSE 未装配时降级为「只落库、不推送」）。
+	publisher Publisher
+}
+
+// New 构造 Biz（无 SSE 推送能力）。
 func New() *Biz { return &Biz{} }
+
+// NewWithPublisher 构造带 SSE 推送能力的 Biz。
+func NewWithPublisher(p Publisher) *Biz { return &Biz{publisher: p} }
+
+// SetPublisher 注入/替换推送能力（源用同名注册方法）。
+func (b *Biz) SetPublisher(p Publisher) { b.publisher = p }
 
 // ---- message ----
 
@@ -276,7 +295,37 @@ func (b *Biz) Deliver(ctx context.Context, tenantID string, msg *Message, recipi
 		}
 		return fmt.Errorf("message: deliver: %w", err)
 	}
+
+	// **落库成功后才推送**（顺序重要：先持久化，再实时通知）。
+	// 推送失败不影响投递结果——收件箱仍可拉取（源同此：`publishNotification`
+	// 只记 Debug 日志，不返回 error）。
+	b.publish(r)
 	return nil
+}
+
+// publish 把收件记录推给该用户的 SSE 流（源 `publishNotification`）。
+//
+// **streamID 用 recipientUserID**：源注释原话——「同一用户的所有在线设备
+// 订阅同一条流，库的 stream fan-out 会把该事件投递给该流的全部 subscriber，
+// 因此只需单次 publish」。
+//
+// publisher 为 nil（SSE 未装配）时静默跳过——**降级语义**：
+// 站内信仍落库、收件箱可拉取，只是没有实时推送。
+func (b *Biz) publish(r *authmodel.InternalMessageRecipient) {
+	if b.publisher == nil {
+		return
+	}
+	payload := map[string]any{
+		"id":                r.ID,
+		"message_id":        r.MessageID,
+		"recipient_user_id": r.RecipientUserID,
+		"title":             r.Title,
+		"content":           r.Content,
+		"status":            r.Status,
+		"created_at":        r.CreatedAt.Unix(),
+	}
+	// TryPublish 非阻塞：无在线连接时立即返回 false，不拖慢发送方。
+	b.publisher.TryPublish(r.RecipientUserID, "notification", payload)
 }
 
 // RevokeMessage 撤销消息（源 RevokeMessage）。

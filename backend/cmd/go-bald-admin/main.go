@@ -430,11 +430,16 @@ func newApp(
 	if aerr != nil {
 		return nil, fmt.Errorf("build asynq server: %w", aerr)
 	}
-	// Wave 3.1：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
-	if sseSrv, serr := buildSSEServer(context.Background(), loadSSEConfig()); serr != nil {
+	// Wave 3.1/3.2：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
+	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
+	if sseSrv, serr := buildSSEServer(context.Background(), loadSSEConfig(),
+		bootstrappkg.LazyAuthenticator()); serr != nil {
 		return nil, fmt.Errorf("build sse server: %w", serr)
 	} else if sseSrv != nil {
 		opts = append(opts, appkit.WithExtraServers(sseSrv))
+		// Wave 3.2：把 message 域接到 SSE（源 RegisterInternalMessagePublisher）。
+		// SSE 未装配时 wireMessageSSE 返回原 biz——降级为「只落库不推送」。
+		wireMessageSSE(sseSrv, bizSet.Message)
 	}
 
 	// Wave 2.4：cron 定时器（逃生舱，决策与约束见 cron.go 文件头）。
