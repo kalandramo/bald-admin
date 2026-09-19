@@ -5,6 +5,7 @@ import (
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
 	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
+	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
 	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
 	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
 	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
@@ -31,4 +32,6 @@ type BizSet struct {
 	AuditLog   *auditlogbiz.Biz
 	// MFA 多因素认证（Wave 1.5）。
 	MFA *mfabiz.Biz
+	// Identity identity 扩展域（Wave 1.6：credential + login_policy）。
+	Identity *identitybiz.Biz
 }

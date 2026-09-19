@@ -17,6 +17,7 @@ import (
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
+	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
 	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
@@ -52,6 +53,8 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 	// Wave 1.5：MFA biz——挑战存储（Redis）在 BeforeStart 经 SetChallenges 补注
 	// （与 file.SetStorage / auth.SetCaptchaStore 同款时序约定：构造期配置未就绪）。
 	mfaBiz := mfabiz.New(nil)
+	// Wave 1.6：identity 扩展域（credential + login_policy，无外部依赖）。
+	identityBiz := identitybiz.New()
 	// T10：BizSet 收敛到 apiserver 包（bizset.go）；cache 留在装配局部
 	// （仅 secret/dict 消费，server 层不知缓存实现）。
 	bizSet := &apiserver.BizSet{
@@ -65,6 +68,7 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 		File:       fileBiz,
 		AuditLog:   auditLogBiz,
 		MFA:        mfaBiz,
+		Identity:   identityBiz,
 	}
 	return bizSet, nil
 }

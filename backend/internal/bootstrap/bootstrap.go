@@ -212,6 +212,12 @@ var AuditStore *store.Store[authmodel.AuditRecord]
 // MFAFactorStore 用户 MFA 因子仓储（Wave 1.5）。
 var MFAFactorStore *store.Store[authmodel.UserMFAFactor]
 
+// CredentialStore 用户凭证仓储（Wave 1.6）。
+var CredentialStore *store.Store[authmodel.UserCredential]
+
+// LoginPolicyStore 登录策略仓储（Wave 1.6）。
+var LoginPolicyStore *store.Store[authmodel.LoginPolicy]
+
 // bridgesMu 串行化 InitBridges 的 check-then-act（UT8 修复：并发首调时
 // 双 goroutine 同时通过 nil 判据、各自生成 RSA 密钥对、后写覆盖先写——
 // 败者持有与胜者不同的 Signer 密钥，签发/验签闭环破坏）。用互斥而非
@@ -266,7 +272,7 @@ func InitBridges(ctx context.Context) error {
 	if err := db.AutoMigrate(&authmodel.User{}, &authmodel.Role{}, &authmodel.Secret{}, &authmodel.AuditRecord{}, &authmodel.Tenant{},
 		&authmodel.Menu{}, &authmodel.Permission{}, &authmodel.RolePolicy{},
 		&authmodel.DictType{}, &authmodel.DictEntry{}, &authmodel.File{},
-		&authmodel.UserMFAFactor{}); err != nil {
+		&authmodel.UserMFAFactor{}, &authmodel.UserCredential{}, &authmodel.LoginPolicy{}); err != nil {
 		return err
 	}
 	DB = db
@@ -324,6 +330,11 @@ func InitBridges(ctx context.Context) error {
 	// Wave 1.5：MFA 因子仓储（业务键主键，同 RolePolicy 范式）。
 	MFAFactorStore = store.NewStore[authmodel.UserMFAFactor](baldgorm.NewGormProvider(db,
 		func(f *authmodel.UserMFAFactor) string { return f.ID }))
+	// Wave 1.6：凭证 + 登录策略仓储（业务键主键）。
+	CredentialStore = store.NewStore[authmodel.UserCredential](baldgorm.NewGormProvider(db,
+		func(c *authmodel.UserCredential) string { return c.ID }))
+	LoginPolicyStore = store.NewStore[authmodel.LoginPolicy](baldgorm.NewGormProvider(db,
+		func(p *authmodel.LoginPolicy) string { return p.ID }))
 	if err := seed(ctx); err != nil {
 		return err
 	}
@@ -513,6 +524,20 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "admin", Object: "mfa", Action: "post"},
 		{Role: "viewer", Object: "mfa", Action: "get"},
 		{Role: "viewer", Object: "mfa", Action: "post"},
+		// Wave 1.6：凭证与登录策略——**安全敏感，仅 admin**。
+		// viewer 不得读写凭证/策略（凭证明文操作、策略配错会锁全员）。
+		{Role: "admin", Object: "credentials", Action: "get"},
+		{Role: "admin", Object: "credentials", Action: "post"},
+		{Role: "admin", Object: "credentials", Action: "delete"},
+		{Role: "admin", Object: "credentials", Action: "put"},
+		{Role: "admin", Object: "login-policies", Action: "get"},
+		{Role: "admin", Object: "login-policies", Action: "post"},
+		{Role: "admin", Object: "login-policies", Action: "delete"},
+		{Role: "admin", Object: "login-policies", Action: "put"},
+		{Role: "admin", Object: "profile", Action: "get"},
+		{Role: "admin", Object: "profile", Action: "post"},
+		// viewer 只能操作自己的凭证（改密码），不能读他人。
+		{Role: "viewer", Object: "credentials", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},
