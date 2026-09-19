@@ -8,6 +8,7 @@ import (
 	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
 	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
 	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
+	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
 	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
@@ -40,4 +41,6 @@ type BizSet struct {
 	Org *orgbiz.Biz
 	// Task 任务调度（Wave 2.3）。
 	Task *taskbiz.Biz
+	// Message 站内消息（Wave 2.5）。
+	Message *msgbiz.Biz
 }

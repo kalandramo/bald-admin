@@ -391,3 +391,36 @@ func TestWave1_5_DisableAndRevoke(t *testing.T) {
 	}
 	t.Logf("凭证撤销 ✅")
 }
+
+// TestWave1_5_DisableIdempotent —— 回归测试（Wave 2.5 发现同不变量违反点）。
+//
+// **不变量的违反点**：`biz.Disable` 在 credentialID 为空时按 (tenant,user)
+// 删**集合**（源语义：「不传 credentialID 时清空该用户全部该方法因子」）。
+// 但 `Store.Delete` 对 0 行匹配返回 ErrNotFound——用户禁用**本就未启用**的
+// 方法时，删 0 行是合法结果，却被误报为 not found。
+//
+// RED 判据：未修复时 Disable 返回错误；修复后返回 nil。
+func TestWave1_5_DisableIdempotent(t *testing.T) {
+	cs := newTestMFAStore(t)
+	base := startMFAREST(t, cs)
+	uid, _ := freshUser(t, base)
+	biz := mfabiz.New(cs)
+	ctx := context.Background()
+
+	// 该用户从未绑定任何 TOTP 因子 → 按 method 清空应删 0 行。
+	// 语义：禁用「本就没启用」的方法 = 幂等成功（不是错误）。
+	if err := biz.Disable(ctx, "t-default", uid, ""); err != nil {
+		t.Fatalf("禁用未启用的方法应幂等成功，实际报错: %v", err)
+	}
+
+	// 重复调用仍应成功。
+	if err := biz.Disable(ctx, "t-default", uid, ""); err != nil {
+		t.Fatalf("重复禁用应幂等成功，实际报错: %v", err)
+	}
+
+	// 但按具体 credentialID 删除不存在的因子 → 仍应报 not found
+	// （精确单条删除的 ErrNotFound 语义是正确的，不能一并放宽）。
+	if err := biz.RevokeDevice(ctx, "t-default", uid, "no-such-cred"); err == nil {
+		t.Fatalf("按不存在 credentialID 撤销应报错（精确单条语义）")
+	}
+}

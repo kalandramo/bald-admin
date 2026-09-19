@@ -227,6 +227,11 @@ var PositionStore *store.Store[authmodel.Position]
 // TaskStore 任务定义仓储（Wave 2.3）。
 var TaskStore *store.Store[authmodel.Task]
 
+// MessageStore / MessageCategoryStore / RecipientStore 站内消息三表（Wave 2.5）。
+var MessageStore *store.Store[authmodel.InternalMessage]
+var MessageCategoryStore *store.Store[authmodel.InternalMessageCategory]
+var RecipientStore *store.Store[authmodel.InternalMessageRecipient]
+
 // bridgesMu 串行化 InitBridges 的 check-then-act（UT8 修复：并发首调时
 // 双 goroutine 同时通过 nil 判据、各自生成 RSA 密钥对、后写覆盖先写——
 // 败者持有与胜者不同的 Signer 密钥，签发/验签闭环破坏）。用互斥而非
@@ -282,7 +287,9 @@ func InitBridges(ctx context.Context) error {
 		&authmodel.Menu{}, &authmodel.Permission{}, &authmodel.RolePolicy{},
 		&authmodel.DictType{}, &authmodel.DictEntry{}, &authmodel.File{},
 		&authmodel.UserMFAFactor{}, &authmodel.UserCredential{}, &authmodel.LoginPolicy{},
-		&authmodel.OrgUnit{}, &authmodel.Position{}, &authmodel.Task{}); err != nil {
+		&authmodel.OrgUnit{}, &authmodel.Position{}, &authmodel.Task{},
+		&authmodel.InternalMessage{}, &authmodel.InternalMessageCategory{},
+		&authmodel.InternalMessageRecipient{}); err != nil {
 		return err
 	}
 	DB = db
@@ -353,6 +360,13 @@ func InitBridges(ctx context.Context) error {
 	// Wave 2.3：任务定义仓储。
 	TaskStore = store.NewStore[authmodel.Task](baldgorm.NewGormProvider(db,
 		func(t *authmodel.Task) string { return t.ID }))
+	// Wave 2.5：站内消息三表。
+	MessageStore = store.NewStore[authmodel.InternalMessage](baldgorm.NewGormProvider(db,
+		func(m *authmodel.InternalMessage) string { return m.ID }))
+	MessageCategoryStore = store.NewStore[authmodel.InternalMessageCategory](baldgorm.NewGormProvider(db,
+		func(c *authmodel.InternalMessageCategory) string { return c.ID }))
+	RecipientStore = store.NewStore[authmodel.InternalMessageRecipient](baldgorm.NewGormProvider(db,
+		func(r *authmodel.InternalMessageRecipient) string { return r.ID }))
 	if err := seed(ctx); err != nil {
 		return err
 	}
@@ -573,6 +587,25 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "admin", Object: "tasks", Action: "post"},
 		{Role: "admin", Object: "tasks", Action: "put"},
 		{Role: "admin", Object: "tasks", Action: "delete"},
+		// Wave 2.5：站内消息。
+		// 管理面（消息/分类 CRUD、发送、撤销）→ 仅 admin；
+		// **收件箱 → 任何登录用户**（操作自己的收件箱，源同此语义）。
+		{Role: "admin", Object: "messages", Action: "get"},
+		{Role: "admin", Object: "messages", Action: "post"},
+		{Role: "admin", Object: "messages", Action: "put"},
+		{Role: "admin", Object: "messages", Action: "delete"},
+		{Role: "admin", Object: "message-categories", Action: "get"},
+		{Role: "admin", Object: "message-categories", Action: "post"},
+		{Role: "admin", Object: "message-categories", Action: "put"},
+		{Role: "admin", Object: "message-categories", Action: "delete"},
+		{Role: "viewer", Object: "inbox", Action: "get"},
+		{Role: "viewer", Object: "inbox", Action: "post"},
+		{Role: "viewer", Object: "inbox", Action: "delete"},
+		{Role: "admin", Object: "inbox", Action: "get"},
+		{Role: "admin", Object: "inbox", Action: "post"},
+		{Role: "admin", Object: "inbox", Action: "delete"},
+		{Role: "admin", Object: "recipients", Action: "get"},
+		{Role: "admin", Object: "recipients", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},

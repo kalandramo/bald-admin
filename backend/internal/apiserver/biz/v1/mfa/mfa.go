@@ -59,9 +59,9 @@ type EnrolledMethod struct {
 
 // Status 是 MFA 总览。
 type Status struct {
-	Enabled     bool             `json:"enabled"`
-	Enforced    string           `json:"enforcement"` // NOT_REQUIRED / OPTIONAL / REQUIRED
-	Enrolled    []EnrolledMethod `json:"enrolled,omitempty"`
+	Enabled  bool             `json:"enabled"`
+	Enforced string           `json:"enforcement"` // NOT_REQUIRED / OPTIONAL / REQUIRED
+	Enrolled []EnrolledMethod `json:"enrolled,omitempty"`
 }
 
 // listFactors 列出某用户的全部因子（租户隔离由 Store 自动注入，此处显式传租户
@@ -131,10 +131,10 @@ func toEnrolled(factors []*authmodel.UserMFAFactor) []EnrolledMethod {
 
 // StartEnrollResult 是开始注册的返回。
 type StartEnrollResult struct {
-	OperationID  string `json:"operation_id"`
-	Secret       string `json:"secret"`         // 仅此一次返回
-	OTPAuthURL   string `json:"otp_auth_url"`
-	ExpiresAt    int64  `json:"expires_at"`
+	OperationID string `json:"operation_id"`
+	Secret      string `json:"secret"` // 仅此一次返回
+	OTPAuthURL  string `json:"otp_auth_url"`
+	ExpiresAt   int64  `json:"expires_at"`
 }
 
 // StartEnroll 开始注册 TOTP（源 StartEnrollMethod）。
@@ -228,7 +228,11 @@ func (b *Biz) Disable(ctx context.Context, tenantID, userID, credentialID string
 	if credentialID != "" {
 		w.Filters = append(w.Filters, store.Eq("id", credentialID))
 	}
-	if err := bootstrappkg.MFAFactorStore.Delete(ctx, w); err != nil {
+	// **容忍 0 行匹配**：不传 credentialID 时这是**集合删除**（清空该用户全部
+	// 该方法因子）。`Store.Delete` 对 0 行返回 ErrNotFound——那是「按主键删单条」
+	// 的语义，用在集合删除上会误报：用户禁用**本就未启用**的方法时，删 0 行
+	// 是合法结果。（此缺陷由 Wave 2.5 的同不变量排查捕获，见 t_w1_5 回归测试。）
+	if err := bootstrappkg.MFAFactorStore.Delete(ctx, w); err != nil && !errors.Is(err, store.ErrNotFound) {
 		return fmt.Errorf("mfa: disable factor: %w", err)
 	}
 	return nil
