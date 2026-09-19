@@ -459,6 +459,12 @@ func newApp(
 		}
 	}
 
+	// D14 修复：注册审计后端 provider（store 惰性绑定 DB）。
+	// **必须在 FromBootstrap 之前**——registry 是 BootstrapOption；
+	// 但传入的是惰性工厂，真正的 DB 解析推迟到运行期首个审计事件
+	// （见 audit_wiring.go 文件头：appkit 的 buildAudit 先于 buildDatabases）。
+	opts = append(opts, appkit.WithAuditRegistry(auditRegistry()))
+
 	app, err := appkit.FromBootstrap(bootstrap, opts...)
 	if err != nil {
 		// 契约与能力声明不一致（如声明了 WithHTTP 但契约删了 server.http 段）
