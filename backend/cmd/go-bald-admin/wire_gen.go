@@ -17,6 +17,7 @@ import (
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
+	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
 	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
 	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
@@ -55,6 +56,8 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 	mfaBiz := mfabiz.New(nil)
 	// Wave 1.6：identity 扩展域（credential + login_policy，无外部依赖）。
 	identityBiz := identitybiz.New()
+	// Wave 1.7：组织架构（org_unit 树 + position）。
+	orgBiz := orgbiz.New()
 	// T10：BizSet 收敛到 apiserver 包（bizset.go）；cache 留在装配局部
 	// （仅 secret/dict 消费，server 层不知缓存实现）。
 	bizSet := &apiserver.BizSet{
@@ -69,6 +72,7 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 		AuditLog:   auditLogBiz,
 		MFA:        mfaBiz,
 		Identity:   identityBiz,
+		Org:        orgBiz,
 	}
 	return bizSet, nil
 }

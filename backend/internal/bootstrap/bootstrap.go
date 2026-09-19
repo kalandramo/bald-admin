@@ -218,6 +218,12 @@ var CredentialStore *store.Store[authmodel.UserCredential]
 // LoginPolicyStore 登录策略仓储（Wave 1.6）。
 var LoginPolicyStore *store.Store[authmodel.LoginPolicy]
 
+// OrgUnitStore 组织单元仓储（Wave 1.7，树形）。
+var OrgUnitStore *store.Store[authmodel.OrgUnit]
+
+// PositionStore 职位仓储（Wave 1.7）。
+var PositionStore *store.Store[authmodel.Position]
+
 // bridgesMu 串行化 InitBridges 的 check-then-act（UT8 修复：并发首调时
 // 双 goroutine 同时通过 nil 判据、各自生成 RSA 密钥对、后写覆盖先写——
 // 败者持有与胜者不同的 Signer 密钥，签发/验签闭环破坏）。用互斥而非
@@ -272,7 +278,8 @@ func InitBridges(ctx context.Context) error {
 	if err := db.AutoMigrate(&authmodel.User{}, &authmodel.Role{}, &authmodel.Secret{}, &authmodel.AuditRecord{}, &authmodel.Tenant{},
 		&authmodel.Menu{}, &authmodel.Permission{}, &authmodel.RolePolicy{},
 		&authmodel.DictType{}, &authmodel.DictEntry{}, &authmodel.File{},
-		&authmodel.UserMFAFactor{}, &authmodel.UserCredential{}, &authmodel.LoginPolicy{}); err != nil {
+		&authmodel.UserMFAFactor{}, &authmodel.UserCredential{}, &authmodel.LoginPolicy{},
+		&authmodel.OrgUnit{}, &authmodel.Position{}); err != nil {
 		return err
 	}
 	DB = db
@@ -335,6 +342,11 @@ func InitBridges(ctx context.Context) error {
 		func(c *authmodel.UserCredential) string { return c.ID }))
 	LoginPolicyStore = store.NewStore[authmodel.LoginPolicy](baldgorm.NewGormProvider(db,
 		func(p *authmodel.LoginPolicy) string { return p.ID }))
+	// Wave 1.7：组织单元（树）+ 职位仓储。
+	OrgUnitStore = store.NewStore[authmodel.OrgUnit](baldgorm.NewGormProvider(db,
+		func(o *authmodel.OrgUnit) string { return o.ID }))
+	PositionStore = store.NewStore[authmodel.Position](baldgorm.NewGormProvider(db,
+		func(p *authmodel.Position) string { return p.ID }))
 	if err := seed(ctx); err != nil {
 		return err
 	}
@@ -538,6 +550,18 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "admin", Object: "profile", Action: "post"},
 		// viewer 只能操作自己的凭证（改密码），不能读他人。
 		{Role: "viewer", Object: "credentials", Action: "post"},
+		// Wave 1.7：组织架构（org_unit / position）。
+		// admin 全权；viewer 只读（组织架构是全员可见的公共组织信息）。
+		{Role: "admin", Object: "org-units", Action: "get"},
+		{Role: "admin", Object: "org-units", Action: "post"},
+		{Role: "admin", Object: "org-units", Action: "put"},
+		{Role: "admin", Object: "org-units", Action: "delete"},
+		{Role: "admin", Object: "positions", Action: "get"},
+		{Role: "admin", Object: "positions", Action: "post"},
+		{Role: "admin", Object: "positions", Action: "put"},
+		{Role: "admin", Object: "positions", Action: "delete"},
+		{Role: "viewer", Object: "org-units", Action: "get"},
+		{Role: "viewer", Object: "positions", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},
