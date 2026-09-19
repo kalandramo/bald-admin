@@ -22,6 +22,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
+	github.com/hibiken/asynq v0.26.0
 	github.com/kalandramo/bald v0.8.0
 	github.com/kalandramo/bald/bconf v0.7.1
 	github.com/kalandramo/bald/berrors v0.1.0
@@ -168,7 +169,6 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hashicorp/serf v0.10.4 // indirect
 	github.com/hashicorp/vault/api v1.23.0 // indirect
-	github.com/hibiken/asynq v0.26.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
