@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
@@ -28,6 +29,7 @@ import (
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald-admin/internal/security/captcha"
 	"github.com/kalandramo/bald-admin/internal/security/token"
 )
 
@@ -119,6 +121,8 @@ type Biz struct {
 	// accessTTL / refreshTTL 令牌有效期（Wave 1d）。零值用默认。
 	accessTTL  time.Duration
 	refreshTTL time.Duration
+	// captchaStore 验证码存储（Wave 1d-2）。nil = 不可用（生成/校验返回 503）。
+	captchaStore captcha.Store
 }
 
 // RetryOnTransientDBError 是登录 DB 查询的重试分类器（Wave 1c）：
@@ -192,6 +196,67 @@ func (b *Biz) SetTokenTTL(access, refresh time.Duration) {
 		b.refreshTTL = refresh
 	}
 }
+
+// SetCaptchaStore 运行期注入验证码存储（Wave 1d-2）。nil 不覆盖。
+func (b *Biz) SetCaptchaStore(s captcha.Store) {
+	if s != nil {
+		b.captchaStore = s
+	}
+}
+
+// CaptchaResult 是 GenerateCaptcha 的返回（对齐源 GenerateCaptchaResponse）。
+type CaptchaResult struct {
+	CaptchaID   string `json:"captcha_id"`
+	ImageBase64 string `json:"image_base64"`
+}
+
+// GenerateCaptcha 生成图片验证码（Wave 1d-2，对应源 L58）。
+// 无存储时返回错误（验证码无处保存 = 无法校验，生成无意义）。
+func (b *Biz) GenerateCaptcha(ctx context.Context) (*CaptchaResult, error) {
+	if b.captchaStore == nil {
+		return nil, ErrCaptchaUnavailable
+	}
+	id, img, err := b.captchaStore.Generate(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("auth: generate captcha: %w", err)
+	}
+	// base64Captcha 返回的是 data URI（"data:image/png;base64,xxx"），
+	// 而契约 GenerateCaptchaResponse.image_base64 的语义是**纯 Base64 编码**
+	//（见 proto 注释「验证码图片的Base64编码字符串」）。剥掉前缀对齐契约字面——
+	// 前端若要直接 <img src> 自行拼前缀（一行代码），不应由服务端替它决定格式。
+	return &CaptchaResult{
+		CaptchaID:   id,
+		ImageBase64: stripDataURI(img),
+	}, nil
+}
+
+// stripDataURI 剥掉 "data:image/png;base64," 前缀（若无前缀则原样返回）。
+func stripDataURI(s string) string {
+	if i := strings.Index(s, ";base64,"); i >= 0 {
+		return s[i+len(";base64,"):]
+	}
+	return s
+}
+
+// VerifyCaptcha 校验验证码（Wave 1d-2，对应源 L61）。
+//
+// 返回 bool 而非 error——「验证码错」是**业务结果**，不是故障。
+// 但存储故障（Redis 不可用）必须区分：返回 error，由 handler 归 503。
+// 这是安全边界的 fail-closed：存储故障时**不放行**（否则攻击者可用 Redis
+// 故障绕过验证码）。
+func (b *Biz) VerifyCaptcha(ctx context.Context, id, input string) (bool, error) {
+	if b.captchaStore == nil {
+		return false, ErrCaptchaUnavailable
+	}
+	ok, err := b.captchaStore.Verify(ctx, id, input)
+	if err != nil {
+		return false, fmt.Errorf("auth: verify captcha: %w", err)
+	}
+	return ok, nil
+}
+
+// ErrCaptchaUnavailable 验证码功能不可用（无存储 / 存储故障）。
+var ErrCaptchaUnavailable = errors.New("auth: captcha service unavailable")
 
 // accessTokenTTL / refreshTokenTTL 返回生效的 TTL（未设置用默认）。
 // 默认 access 2h（与 Wave 1d 之前的硬编码一致，行为零回归）；

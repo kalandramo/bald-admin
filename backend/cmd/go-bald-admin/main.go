@@ -45,6 +45,7 @@ import (
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
+	"github.com/kalandramo/bald-admin/internal/security/captcha"
 	"github.com/kalandramo/bald-admin/internal/security/token"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
@@ -371,8 +372,11 @@ func newApp(
 				bootstrappkg.TokenStore = ts
 				bizSet.Auth.SetTokenStore(ts)
 				bizSet.Auth.SetAuthenticator(bootstrappkg.LazyAuthenticatorWithRevocation())
+				// Wave 1d-2：验证码存储（复用同一 Redis）。
+				bizSet.Auth.SetCaptchaStore(captcha.NewRedisStore(bootstrappkg.RedisClient))
 			} else {
-				// 无 Redis：ValidateToken 仍可用（退化为纯验签，无吊销检查）。
+				// 无 Redis：ValidateToken 仍可用（退化为纯验签，无吊销检查）；
+				// 验证码不可用（生成/校验返回 503，fail-closed 不放行）。
 				bizSet.Auth.SetAuthenticator(bootstrappkg.LazyAuthenticator())
 			}
 			if v := configFloat(app.Config(), "auth.access_ttl_minutes"); v > 0 {

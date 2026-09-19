@@ -37,6 +37,7 @@ import (
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald-admin/internal/security/captcha"
 	"github.com/kalandramo/bald-admin/internal/security/token"
 )
 
@@ -58,12 +59,22 @@ func newTestTokenStore(t *testing.T) *token.RedisStore {
 // startAuthREST 起真实 gin 引擎，认证中间件包一层吊销检查（装饰器）。
 // ts 为 nil 时不包装（禁用态，行为与 Wave 1d 之前一致）。
 func startAuthREST(t *testing.T, ts token.Store) string {
+	return startAuthRESTFull(t, ts, nil)
+}
+
+// startAuthRESTWithCaptcha 同上，但额外注入验证码存储（Wave 1d-2）。
+func startAuthRESTWithCaptcha(t *testing.T, cs captcha.Store) string {
+	return startAuthRESTFull(t, nil, cs)
+}
+
+func startAuthRESTFull(t *testing.T, ts token.Store, cs captcha.Store) string {
 	t.Helper()
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	authBiz := authbiz.New(bootstrappkg.Signer)
 	authBiz.SetTokenStore(ts)
+	authBiz.SetCaptchaStore(cs)
 
 	// 认证器：装饰器包住懒解析认证器——验签通过后再查吊销名单。
 	var authenticator authn.Authenticator = bootstrappkg.LazyAuthenticator()

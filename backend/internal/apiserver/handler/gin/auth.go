@@ -96,6 +96,44 @@ func RegisterAuth(
 		c.JSON(http.StatusOK, pair)
 	})
 
+	// Wave 1d-2：验证码（公开端点——登录前获取，此时必然未认证）。
+	// 对齐源 authentication.proto L58/L61。
+	e.GET("/v1/auth/captcha", func(c *gingonic.Context) {
+		res, err := biz.GenerateCaptcha(c.Request.Context())
+		if err != nil {
+			// 无存储/存储故障 → 503（fail-closed：不放行无验证码的登录）。
+			if errors.Is(err, authbiz.ErrCaptchaUnavailable) {
+				web.ErrorResponse(c, berrors.Unavailable("auth/captcha_unavailable").WithMessage("%s", err))
+				return
+			}
+			writeBizErr(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, res)
+	})
+
+	e.POST("/v1/auth/captcha/verify", func(c *gingonic.Context) {
+		var req struct {
+			CaptchaID string `json:"captcha_id"`
+			UserInput string `json:"user_input"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			bindErr(c, err)
+			return
+		}
+		valid, err := biz.VerifyCaptcha(c.Request.Context(), req.CaptchaID, req.UserInput)
+		if err != nil {
+			if errors.Is(err, authbiz.ErrCaptchaUnavailable) {
+				web.ErrorResponse(c, berrors.Unavailable("auth/captcha_unavailable").WithMessage("%s", err))
+				return
+			}
+			writeBizErr(c, err)
+			return
+		}
+		// 恒 200：有效/无效都是业务结果（valid 字段）——与 ValidateToken 同语义。
+		c.JSON(http.StatusOK, gingonic.H{"valid": valid})
+	})
+
 	// 需认证分组。
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
