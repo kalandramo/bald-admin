@@ -18,6 +18,7 @@ import (
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
 	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
+	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
 	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
@@ -58,6 +59,8 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 	identityBiz := identitybiz.New()
 	// Wave 1.7：组织架构（org_unit 树 + position）。
 	orgBiz := orgbiz.New()
+	// Wave 2.3：任务调度（scheduler 在 BeforeStart 后经 SetScheduler 注入）。
+	taskBiz := taskbiz.New()
 	// T10：BizSet 收敛到 apiserver 包（bizset.go）；cache 留在装配局部
 	// （仅 secret/dict 消费，server 层不知缓存实现）。
 	bizSet := &apiserver.BizSet{
@@ -73,6 +76,7 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 		MFA:        mfaBiz,
 		Identity:   identityBiz,
 		Org:        orgBiz,
+		Task:       taskBiz,
 	}
 	return bizSet, nil
 }

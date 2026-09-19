@@ -224,6 +224,9 @@ var OrgUnitStore *store.Store[authmodel.OrgUnit]
 // PositionStore 职位仓储（Wave 1.7）。
 var PositionStore *store.Store[authmodel.Position]
 
+// TaskStore 任务定义仓储（Wave 2.3）。
+var TaskStore *store.Store[authmodel.Task]
+
 // bridgesMu 串行化 InitBridges 的 check-then-act（UT8 修复：并发首调时
 // 双 goroutine 同时通过 nil 判据、各自生成 RSA 密钥对、后写覆盖先写——
 // 败者持有与胜者不同的 Signer 密钥，签发/验签闭环破坏）。用互斥而非
@@ -279,7 +282,7 @@ func InitBridges(ctx context.Context) error {
 		&authmodel.Menu{}, &authmodel.Permission{}, &authmodel.RolePolicy{},
 		&authmodel.DictType{}, &authmodel.DictEntry{}, &authmodel.File{},
 		&authmodel.UserMFAFactor{}, &authmodel.UserCredential{}, &authmodel.LoginPolicy{},
-		&authmodel.OrgUnit{}, &authmodel.Position{}); err != nil {
+		&authmodel.OrgUnit{}, &authmodel.Position{}, &authmodel.Task{}); err != nil {
 		return err
 	}
 	DB = db
@@ -347,6 +350,9 @@ func InitBridges(ctx context.Context) error {
 		func(o *authmodel.OrgUnit) string { return o.ID }))
 	PositionStore = store.NewStore[authmodel.Position](baldgorm.NewGormProvider(db,
 		func(p *authmodel.Position) string { return p.ID }))
+	// Wave 2.3：任务定义仓储。
+	TaskStore = store.NewStore[authmodel.Task](baldgorm.NewGormProvider(db,
+		func(t *authmodel.Task) string { return t.ID }))
 	if err := seed(ctx); err != nil {
 		return err
 	}
@@ -562,6 +568,11 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "admin", Object: "positions", Action: "delete"},
 		{Role: "viewer", Object: "org-units", Action: "get"},
 		{Role: "viewer", Object: "positions", Action: "get"},
+		// Wave 2.3：任务调度——**仅 admin**（启停任务影响后台作业，属运维面）。
+		{Role: "admin", Object: "tasks", Action: "get"},
+		{Role: "admin", Object: "tasks", Action: "post"},
+		{Role: "admin", Object: "tasks", Action: "put"},
+		{Role: "admin", Object: "tasks", Action: "delete"},
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},

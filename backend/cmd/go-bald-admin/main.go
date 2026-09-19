@@ -66,6 +66,7 @@ import (
 	"github.com/kalandramo/bald/circuitbreaker/hystrix"
 	"github.com/kalandramo/bald/ratelimit"
 	"github.com/kalandramo/bald/retry"
+	"github.com/kalandramo/bald/transport/asynq"
 	"github.com/kalandramo/bald/ratelimit/tokenbucket"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
@@ -431,6 +432,11 @@ func newApp(
 	}
 	if asynqSrv != nil {
 		opts = append(opts, appkit.WithExtraServers(asynqSrv))
+		// Wave 2.3：把 asynq server 适配为 task.Scheduler 注入 biz。
+		// 类型断言取回 *asynq.Server（buildAsynqServer 的返回类型是接口）。
+		if as, ok := asynqSrv.(*asynq.Server); ok && bizSet != nil && bizSet.Task != nil {
+			bizSet.Task.SetScheduler(newAsynqScheduler(as))
+		}
 	}
 
 	app, err := appkit.FromBootstrap(bootstrap, opts...)
