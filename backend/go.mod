@@ -38,6 +38,8 @@ require (
 	github.com/kalandramo/bald/contrib/authz-casbin v0.1.0
 	github.com/kalandramo/bald/contrib/observability-otlp v0.2.0
 	github.com/kalandramo/bald/contrib/store-gorm v0.1.0
+	github.com/kalandramo/bald/encoding v0.1.0
+	github.com/kalandramo/bald/encoding/json v0.1.1
 	github.com/kalandramo/bald/health v0.1.1
 	github.com/kalandramo/bald/log v0.5.1
 	github.com/kalandramo/bald/oss/minio v0.1.0
@@ -46,7 +48,8 @@ require (
 	github.com/kalandramo/bald/registry v0.1.0
 	github.com/kalandramo/bald/registry/nacos v0.1.0
 	github.com/kalandramo/bald/retry v0.1.0
-	github.com/kalandramo/bald/transport v0.2.0
+	github.com/kalandramo/bald/transport v0.2.1
+	github.com/kalandramo/bald/transport/asynq v0.1.0
 	github.com/kalandramo/bald/transport/gateway v0.1.1
 	github.com/kalandramo/bald/transport/grpc v0.1.1
 	github.com/kalandramo/bald/transport/web v0.1.0
@@ -165,6 +168,7 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hashicorp/serf v0.10.4 // indirect
 	github.com/hashicorp/vault/api v1.23.0 // indirect
+	github.com/hibiken/asynq v0.26.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -205,10 +209,11 @@ require (
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
-	github.com/spf13/cast v1.5.0 // indirect
+	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.12.0 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect

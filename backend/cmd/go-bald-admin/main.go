@@ -422,6 +422,17 @@ func newApp(
 	// 二选一」，与本范例「gin 主面 + 独立转码面并存」不匹配。
 	opts = append(opts, appkit.WithExtraServers(buildGateway(bootstrap)...))
 
+	// Wave 2.1：asynq 任务队列服务器（逃生舱，决策见 asynq.go 文件头）。
+	// 无 Redis 地址时 buildAsynqServer 返回 nil，WithExtraServers 收到 nil 会
+	// panic——故先判空再追加。
+	asynqSrv, aerr := buildAsynqServer(context.Background(), asynqRedisAddr())
+	if aerr != nil {
+		return nil, fmt.Errorf("build asynq server: %w", aerr)
+	}
+	if asynqSrv != nil {
+		opts = append(opts, appkit.WithExtraServers(asynqSrv))
+	}
+
 	app, err := appkit.FromBootstrap(bootstrap, opts...)
 	if err != nil {
 		// 契约与能力声明不一致（如声明了 WithHTTP 但契约删了 server.http 段）

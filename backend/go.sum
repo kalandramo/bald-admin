@@ -198,6 +198,7 @@ github.com/fatih/color v1.19.0 h1:Zp3PiM21/9Ld6FzSKyL5c/BULoe/ONr9KlbYVOfG8+w=
 github.com/fatih/color v1.19.0/go.mod h1:zNk67I0ZUT1bEGsSGyCZYZNrHuTkJJB+r6Q9VuMi0LE=
 github.com/frankban/quicktest v1.14.3 h1:FJKSZTDHjyhriyC81FLQ0LY93eSai0ZyR/ZIkd3ZUKE=
 github.com/frankban/quicktest v1.14.3/go.mod h1:mgiwOwqx65TmIk1wJ6Q7wvnVMocbUorkibMOrVTHZps=
+github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHkI4W8=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx59Ho=
 github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
@@ -439,6 +440,8 @@ github.com/hashicorp/serf v0.10.4 h1:TCQOrJXHZ1Xf80c4WBhMM9OwUFgDaIP0R+YvoQUKadI
 github.com/hashicorp/serf v0.10.4/go.mod h1:l+s5Q1OSPWU6b9l9m7ODJzTp7mLevSaVzAI03Nka2F0=
 github.com/hashicorp/vault/api v1.23.0 h1:gXgluBsSECfRWTSW9niY2jwg2e9mMJc4WoHNv4g3h6A=
 github.com/hashicorp/vault/api v1.23.0/go.mod h1:zransKiB9ftp+kgY8ydjnvCU7Wk8i9L0DYWpXeMj9ko=
+github.com/hibiken/asynq v0.26.0 h1:1Zxr92MlDnb1Zt/QR5g2vSCqUS03i95lUfqx5X7/wrw=
+github.com/hibiken/asynq v0.26.0/go.mod h1:Qk4e57bTnWDoyJ67VkchuV6VzSM9IQW2nPvAGuDyw58=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
@@ -509,6 +512,10 @@ github.com/kalandramo/bald/contrib/observability-otlp v0.2.0 h1:gCNNnW4bA3HnnScD
 github.com/kalandramo/bald/contrib/observability-otlp v0.2.0/go.mod h1:cVSs8bdvqkMdmjsIStmAstcbTUX6aYo0yWIfngTdnsc=
 github.com/kalandramo/bald/contrib/store-gorm v0.1.0 h1:zcWBEhfDbIqf0tsBW/pNsrHZQ6dmc8WMqIELEzzUBJE=
 github.com/kalandramo/bald/contrib/store-gorm v0.1.0/go.mod h1:WhNbI9WipKn22RnWh1n+bMiOqfEw1bRtjybfaDz6zXQ=
+github.com/kalandramo/bald/encoding v0.1.0 h1:oQZwHnjBD/rSG6QHvhv7Myx8GI+9T3V2lxiWzcBPUUY=
+github.com/kalandramo/bald/encoding v0.1.0/go.mod h1:RWT+lGgXHZJElSVwSri1AVaImHK6Ju0vohD4iZxn6QA=
+github.com/kalandramo/bald/encoding/json v0.1.1 h1:PVZFFF583qhtYtJK5QZ9YFQihFkbz7U4nDk7FsSE9ko=
+github.com/kalandramo/bald/encoding/json v0.1.1/go.mod h1:j4reA7Hr3C2xjPCKMSqPXnH8VOxMoNX6g5kbiw4WldM=
 github.com/kalandramo/bald/health v0.1.1 h1:Q0sySYkf4XZ6BcSQ3P/Sk1T8FFF3NzKOcu3Q2wsDpUM=
 github.com/kalandramo/bald/health v0.1.1/go.mod h1:+f+lE2uNtgeXlJ6YoqPg7PoDIUZ+VvhJZI9RP+oHNd0=
 github.com/kalandramo/bald/log v0.5.1 h1:PrjK9yRAOMxJcn+XtDP3TD18VrXyZTXTl2c7lIdz1z8=
@@ -527,6 +534,10 @@ github.com/kalandramo/bald/retry v0.1.0 h1:7P+UGgdUhw/tUI2NttzM88XMczaeA0NtKCH7U
 github.com/kalandramo/bald/retry v0.1.0/go.mod h1:txNfqsmU9Ypz2HcZXefGIdCJm7F5o7YKrOJ7X+t825s=
 github.com/kalandramo/bald/transport v0.2.0 h1:LsI52eEk8cBMTnFmZtCx3FSRK/lhCxsem0iPu5oJD6s=
 github.com/kalandramo/bald/transport v0.2.0/go.mod h1:9NY+2osYepZbxauKAMPhMx29SJjVaH65lBn8SARAVHg=
+github.com/kalandramo/bald/transport v0.2.1 h1:hugtc8k8MOdBhbtWT7BzXKxMN6G+KrSKJ73QinCXnKo=
+github.com/kalandramo/bald/transport v0.2.1/go.mod h1:9NY+2osYepZbxauKAMPhMx29SJjVaH65lBn8SARAVHg=
+github.com/kalandramo/bald/transport/asynq v0.1.0 h1:LAm5RDT6O63AEjPj4BGU66zApx5N+teAcRJbe2DSN00=
+github.com/kalandramo/bald/transport/asynq v0.1.0/go.mod h1:bbx8uso2iLI0Z8cIdM/2KhIvGhaIGfb5bG76/NaMgR8=
 github.com/kalandramo/bald/transport/gateway v0.1.1 h1:7wWqOw0nNgWLMGzXpt0tN2BxKXrFYBz+62LpsfhJ5Wg=
 github.com/kalandramo/bald/transport/gateway v0.1.1/go.mod h1:qrJHPi+xpS/Acxie+sYRmc/EFa6igKorj393eFnL1qU=
 github.com/kalandramo/bald/transport/grpc v0.1.1 h1:s4HYVe5NwNz7ikD7ZKKypbh8Lw+E34t4yCbOsxXwAto=
@@ -667,6 +678,8 @@ github.com/redis/go-redis/v9 v9.17.2/go.mod h1:u410H11HMLoB+TP67dz8rL9s6QW2j76l0
 github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
+github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=
+github.com/robfig/cron/v3 v3.0.1/go.mod h1:eQICP3HwyT7UooqI/z+Ov+PtYAWygg1TEWWzGIFLtro=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
@@ -690,6 +703,8 @@ github.com/spf13/afero v1.15.0/go.mod h1:NC2ByUVxtQs4b3sIUphxK0NioZnmxgyCrfzeuq8
 github.com/spf13/cast v1.3.1/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
 github.com/spf13/cast v1.5.0 h1:rj3WzYc11XZaIZMPKmwP96zkFEnnAmV8s6XbB2aY32w=
 github.com/spf13/cast v1.5.0/go.mod h1:SpXXQ5YoyJw6s3/6cMTQuxvgRl3PCJiyaX9p6b155UU=
+github.com/spf13/cast v1.10.0 h1:h2x0u2shc1QuLHfxi+cTJvs30+ZAHOGRic8uyGTDWxY=
+github.com/spf13/cast v1.10.0/go.mod h1:jNfB8QC9IA6ZuY2ZjDp0KtFO2LZZlg4S/7bzP6qqeHo=
 github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
 github.com/spf13/cobra v1.10.2/go.mod h1:7C1pvHqHw5A4vrJfjNwvOdzYu0Gml16OCs2GRiTUUS4=
 github.com/spf13/jwalterweatherman v1.1.0 h1:ue6voC5bR5F8YxI5S67j9i582FU4Qvo2bmqnqMYADFk=
