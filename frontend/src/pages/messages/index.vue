@@ -2,7 +2,7 @@
 import type { Message } from "@@/apis/message/type"
 import { deleteMessageApi, listMessagesApi, revokeMessageApi, sendMessageApi } from "@@/apis/message"
 import { useConfirmAction } from "@@/composables/useConfirmAction"
-import { formatDateTime } from "@@/utils/datetime"
+import { formatUnixSeconds } from "@@/utils/datetime"
 
 defineOptions({ name: "Messages" })
 
@@ -107,7 +107,7 @@ onMounted(fetchList)
         <el-table-column prop="status" label="状态" align="center" width="100" />
         <el-table-column label="创建时间" align="center" width="180">
           <template #default="{ row }">
-            {{ row.created_at ? formatDateTime(row.created_at) : "—" }}
+            {{ row.created_at ? formatUnixSeconds(row.created_at) : "—" }}
           </template>
         </el-table-column>
         <el-table-column label="操作" align="center" width="200">

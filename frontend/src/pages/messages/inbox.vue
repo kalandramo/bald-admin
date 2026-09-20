@@ -2,7 +2,7 @@
 import type { Recipient } from "@@/apis/message/type"
 import { deleteInboxApi, listInboxApi, markInboxReadApi } from "@@/apis/message"
 import { useConfirmAction } from "@@/composables/useConfirmAction"
-import { formatDateTime } from "@@/utils/datetime"
+import { formatUnixSeconds } from "@@/utils/datetime"
 
 defineOptions({ name: "MessageInbox" })
 
@@ -56,7 +56,7 @@ onMounted(fetchList)
         </el-table-column>
         <el-table-column label="接收时间" align="center" width="180">
           <template #default="{ row }">
-            {{ row.created_at ? formatDateTime(row.created_at) : "—" }}
+            {{ row.created_at ? formatUnixSeconds(row.created_at) : "—" }}
           </template>
         </el-table-column>
         <el-table-column label="操作" align="center" width="200">

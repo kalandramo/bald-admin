@@ -69,7 +69,7 @@ onMounted(fetchData)
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column label="时间" width="180">
           <template #default="{ row }">
-            {{ row.created_at ? formatDateTime(Number(row.created_at) * 1000) : "—" }}
+            {{ row.created_at ? formatDateTime(row.created_at) : "—" }}
           </template>
         </el-table-column>
         <el-table-column prop="duration_usec" label="耗时(μs)" width="120" align="center" />

@@ -9,7 +9,7 @@ import {
   startMFAEnrollApi
 } from "@@/apis/mfa"
 import { useConfirmAction } from "@@/composables/useConfirmAction"
-import { formatDateTime } from "@@/utils/datetime"
+import { formatUnixSeconds } from "@@/utils/datetime"
 
 defineOptions({ name: "MFA" })
 
@@ -115,7 +115,7 @@ onMounted(fetchData)
         </el-table-column>
         <el-table-column label="绑定时间" align="center" width="180">
           <template #default="{ row }">
-            {{ row.created_at ? formatDateTime(row.created_at) : "—" }}
+            {{ row.created_at ? formatUnixSeconds(row.created_at) : "—" }}
           </template>
         </el-table-column>
         <el-table-column label="操作" align="center" width="200">
