@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/pkg/store"
 
@@ -267,11 +269,16 @@ func toGroup(m *authmodel.PermissionGroup) *Group {
 // **本域是「读为主」**（源只有 List/Get）——写入由权限判定链路调用。
 // 本项目当前未在 authz 中间件里接线（那是 Wave 4 后续或独立改动），
 // 故此处提供写入能力供测试与后续接线使用。
+//
+// ID 用 uuid（非 `UnixNano()`）：Windows 的 `time.Now().UnixNano()` 实际分辨率
+// 约 0.5–1ms（实测连续两次调用 99999/100000 返回同值），纳秒作唯一键会**连续
+// 撞键**导致日志被 conflict 吞掉。uuid 与时钟粒度无关（file 域同款模式，
+// 见 `biz/v1/file/file.go:104`）。
 func (b *Biz) RecordEvaluation(ctx context.Context, tenantID, userID, permissionID,
 	requestPath, requestMethod string, allowed bool, details string) error {
 	now := time.Now()
 	rec := &authmodel.PolicyEvaluationLog{
-		ID:            fmt.Sprintf("%s:pel:%d", tenantID, now.UnixNano()),
+		ID:            fmt.Sprintf("%s:pel:%s", tenantID, uuid.NewString()),
 		TenantID:      tenantID,
 		UserID:        userID,
 		PermissionID:  permissionID,

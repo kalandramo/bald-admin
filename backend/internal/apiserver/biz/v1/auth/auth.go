@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
@@ -657,12 +658,17 @@ func (b *Biz) issueRefresh(ctx context.Context, subject string) (string, error) 
 func newNonce() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		// crypto/rand 失败极罕见（系统熵源故障）；退化为纳秒时间戳保证唯一性
-		// 仍优于返回相同 token。
-		return strconv.FormatInt(time.Now().UnixNano(), 36)
+		// crypto/rand 失败极罕见（系统熵源故障）；退化为时间戳 + 进程内原子
+		// 计数器。**不能只用纳秒时间戳**——Windows 上 `time.Now().UnixNano()`
+		// 分辨率约 0.5–1ms（实测连续两次调用 99999/100000 同值），连续签发会
+		// 撞 nonce，反而重现本函数要绕开的「同 token」缺陷。
+		return fmt.Sprintf("%s-%d", strconv.FormatInt(time.Now().UnixNano(), 36), nonceSeq.Add(1))
 	}
 	return hex.EncodeToString(b[:])
 }
+
+// nonceSeq 是 newNonce fallback 路径的进程内单调计数器。
+var nonceSeq atomic.Uint64
 
 // Logout 登出（Wave 1d，对应源 authentication.proto L28）。
 //

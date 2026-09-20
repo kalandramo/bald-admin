@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/pquerna/otp"
@@ -85,13 +86,25 @@ func ValidateTOTP(code, secret string) bool {
 	return err == nil && ok
 }
 
+// opSeq 是 fallback 路径的进程内单调计数器（crypto/rand 失败时使用）。
+var opSeq atomic.Uint64
+
 // NewOperationID 生成操作 id（源 newOperationID 的等价物：随机十六进制串）。
 func NewOperationID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		return fmt.Sprintf("op-%d", time.Now().UnixNano())
+		return fallbackOperationID()
 	}
 	return hex.EncodeToString(b[:])
+}
+
+// fallbackOperationID 是 crypto/rand 失败时的退化 ID 生成（系统熵源故障，
+// 极罕见）。**不能只依赖纳秒时间戳**：Windows 的 `time.Now().UnixNano()`
+// 实际分辨率约 0.5–1ms（实测连续两次调用 99999/100000 返回同值），连续生成
+// 会撞值——而操作 id 是「取出即删」挑战的键，撞值意味着跨挑战串扰。
+// 故叠加进程内原子计数器（单调，与时钟粒度无关）保证唯一。
+func fallbackOperationID() string {
+	return fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), opSeq.Add(1))
 }
 
 // EnrollContext 是注册挑战上下文（绑定归属，防跨用户劫持）。

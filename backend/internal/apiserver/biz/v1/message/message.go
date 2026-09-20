@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/pkg/store"
 
@@ -99,8 +101,14 @@ type Message struct {
 	CreatedAt  int64  `json:"created_at,omitempty"`
 }
 
+// msgID 生成消息主键（业务键前缀 + uuid）。
+//
+// 用 uuid 而非 `UnixNano()`：Windows 的 `time.Now().UnixNano()` 实际分辨率约
+// 0.5–1ms（实测连续两次调用 99999/100000 返回同值），纳秒作唯一键会连续撞键
+// （同租户下快速连发消息 → 主键冲突 → 创建失败）。与 file 域同款模式
+// （`biz/v1/file/file.go:104`）。
 func msgID(tenantID string) string {
-	return tenantID + ":msg:" + fmt.Sprintf("%d", time.Now().UnixNano())
+	return tenantID + ":msg:" + uuid.NewString()
 }
 
 // CreateMessage 创建消息本体（源 CreateMessage）。
