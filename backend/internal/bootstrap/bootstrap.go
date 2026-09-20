@@ -37,6 +37,7 @@ import (
 	appauthz "github.com/kalandramo/bald-admin/internal/security/authz"
 	"github.com/kalandramo/bald-admin/internal/security/token"
 	casbinauthz "github.com/kalandramo/bald-admin/internal/security/casbin"
+	"github.com/kalandramo/bald-admin/internal/security/audit/sqlaudit"
 )
 
 // Authenticator 登录令牌校验器（来自 bald-authn-jwt，公钥验签实例）。
@@ -304,6 +305,13 @@ func InitBridges(ctx context.Context) error {
 		return err
 	}
 	DB = db
+
+	// Wave 5.2：注册 data_access 类审计的 gorm SQL 采集回调。
+	// 源用 ent 的 dialect.Driver 包装采集 SQL；bald-admin 用 gorm，对应机制是
+	// Callback（见 sqlaudit 包头注）。**必须在 AutoMigrate 之后**——否则迁移
+	// 期间的 DDL 也会被采集（噪音），且审计表尚未建好。
+	// 防重入：sqlaudit 在落库审计时打 ctx sinking 标记 + 表名双保险。
+	sqlaudit.Register(db)
 
 	// 可选 Redis 后端：供缓存/审计流复用同一真实连接。不可达仅 warn（审计流降级），
 	// 不阻断启动（与 SQLite 内存库同构的"真实但可选"简化，符合 §0）。
