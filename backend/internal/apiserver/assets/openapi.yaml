@@ -6,6 +6,45 @@ info:
     title: ""
     version: 0.0.1
 paths:
+    /admin/v1/initial-context:
+        get:
+            tags:
+                - AdminPortalService
+            description: "GetInitialContext 一次性获取进入后台所需的所有上下文（菜单树 + 权限码）。\r\n   REST: GET /admin/v1/initial-context"
+            operationId: AdminPortalService_GetInitialContext
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InitialContextResponse'
+    /admin/v1/perm-codes:
+        get:
+            tags:
+                - AdminPortalService
+            description: "GetMyPermissionCode 查询当前用户的权限码列表。\r\n   REST: GET /admin/v1/perm-codes"
+            operationId: AdminPortalService_GetMyPermissionCode
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListPermissionCodeResponse'
+    /admin/v1/routes:
+        get:
+            tags:
+                - AdminPortalService
+            description: "GetNavigation 查询前端路由表（当前用户可见的菜单树，去 BUTTON 类型）。\r\n   REST: GET /admin/v1/routes"
+            operationId: AdminPortalService_GetNavigation
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListRouteResponse'
     /v1/audit:
         get:
             tags:
@@ -381,6 +420,135 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DownloadFileResponse'
+    /v1/language:
+        get:
+            tags:
+                - LanguageService
+            description: "ListLanguages 列出语言（sort_order 升序）。\r\n   REST: GET /v1/language"
+            operationId: LanguageService_ListLanguages
+            parameters:
+                - name: enabled_only
+                  in: query
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListLanguagesResponse'
+        post:
+            tags:
+                - LanguageService
+            description: "CreateLanguage 创建语言（language_code 为业务键，重复 → 409）。\r\n   REST: POST /v1/language"
+            operationId: LanguageService_CreateLanguage
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateLanguageRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateLanguageResponse'
+    /v1/language/batch:
+        post:
+            tags:
+                - LanguageService
+            description: "BatchCreateLanguages 批量创建。**源未实现**（见 service 头注）→ UNIMPLEMENTED。\r\n   REST: POST /v1/language/batch"
+            operationId: LanguageService_BatchCreateLanguages
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BatchCreateLanguagesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BatchCreateLanguagesResponse'
+    /v1/language/count:
+        get:
+            tags:
+                - LanguageService
+            description: "CountLanguages 统计语言数量。\r\n   REST: GET /v1/language/count"
+            operationId: LanguageService_CountLanguages
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CountLanguagesResponse'
+    /v1/language/{id}:
+        get:
+            tags:
+                - LanguageService
+            description: "GetLanguage 取单个语言。\r\n   REST: GET /v1/language/{id}"
+            operationId: LanguageService_GetLanguage
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetLanguageResponse'
+        put:
+            tags:
+                - LanguageService
+            description: "UpdateLanguage 更新语言（非空字段即更新；language_code 不可变）。\r\n   REST: PUT /v1/language/{id}"
+            operationId: LanguageService_UpdateLanguage
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateLanguageRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateLanguageResponse'
+        delete:
+            tags:
+                - LanguageService
+            description: "DeleteLanguage 删除语言。\r\n   REST: DELETE /v1/language/{id}"
+            operationId: LanguageService_DeleteLanguage
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteLanguageResponse'
     /v1/menu:
         get:
             tags:
@@ -650,6 +818,19 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DeletePermissionResponse'
+    /v1/redis-cache-monitor:
+        get:
+            tags:
+                - RedisCacheMonitorService
+            description: "GetRedisCacheMonitor 查询 Redis 缓存监控信息。\r\n   REST: GET /v1/redis-cache-monitor"
+            operationId: RedisCacheMonitorService_GetRedisCacheMonitor
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RedisCacheMonitorInfo'
     /v1/secrets/{id}:
         get:
             tags:
@@ -927,10 +1108,67 @@ components:
                     type: string
                 trace_id:
                     type: string
+                http_method:
+                    type: string
+                    description: '---- api 类专属（源 ApiAuditLog）----'
+                path:
+                    type: string
+                status_code:
+                    type: integer
+                    format: uint32
+                latency_ms:
+                    type: integer
+                    format: uint32
+                table_name:
+                    type: string
+                    description: '---- data_access 类专属（源 DataAccessAuditLog）----'
+                data_source:
+                    type: string
+                db_user:
+                    type: string
+                sql_text:
+                    type: string
+                affected_rows:
+                    type: integer
+                    format: uint32
+                target_type:
+                    type: string
+                    description: '---- permission 类专属（源 PermissionAuditLog）----'
+                target_id:
+                    type: string
+                old_value:
+                    type: string
+                new_value:
+                    type: string
+                session_id:
+                    type: string
+                    description: '---- login 类专属（源 LoginAuditLog）----'
+                mfa_status:
+                    type: string
                 time:
                     type: string
                     format: date-time
-            description: "AuditRecord 审计日志条目。字段对齐 model.AuditRecord（源\r\n OperationAuditLog/LoginAuditLog 共有核心字段精简；\r\n Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。"
+            description: "AuditRecord 审计日志条目。字段对齐 model.AuditRecord（源\r\n OperationAuditLog/LoginAuditLog 共有核心字段精简；\r\n Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。\r\n\r\n Wave 5.1：单表 + category 承载源**五类**审计（operation/login/api/\r\n data_access/permission）。源是五张独立表、字段差异大，此处取并集为\r\n nullable 列（决策记录见 e2e 文件头）——api/data_access/permission\r\n 三类专属字段列在下方分组。"
+        BatchCreateLanguagesRequest:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Language'
+        BatchCreateLanguagesResponse:
+            type: object
+            properties:
+                created_ids:
+                    type: array
+                    items:
+                        type: string
+        CountLanguagesResponse:
+            type: object
+            properties:
+                count:
+                    type: integer
+                    format: uint32
         CreateDictEntryRequest:
             type: object
             properties:
@@ -970,6 +1208,27 @@ components:
             properties:
                 dict_type:
                     $ref: '#/components/schemas/DictType'
+        CreateLanguageRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                language_name:
+                    type: string
+                native_name:
+                    type: string
+                is_default:
+                    type: boolean
+                is_enabled:
+                    type: boolean
+                sort_order:
+                    type: integer
+                    format: int32
+        CreateLanguageResponse:
+            type: object
+            properties:
+                language:
+                    $ref: '#/components/schemas/Language'
         CreateMenuRequest:
             type: object
             properties:
@@ -1080,6 +1339,11 @@ components:
                 deleted:
                     type: string
         DeleteFileResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeleteLanguageResponse:
             type: object
             properties:
                 deleted:
@@ -1230,6 +1494,11 @@ components:
             properties:
                 file:
                     $ref: '#/components/schemas/File'
+        GetLanguageResponse:
+            type: object
+            properties:
+                language:
+                    $ref: '#/components/schemas/Language'
         GetMenuResponse:
             type: object
             properties:
@@ -1259,6 +1528,58 @@ components:
             properties:
                 user:
                     $ref: '#/components/schemas/User'
+        InfoEntry:
+            type: object
+            properties:
+                key:
+                    type: string
+                value:
+                    type: string
+            description: InfoEntry INFO 输出的单个 key/value 对。
+        InfoSection:
+            type: object
+            properties:
+                name:
+                    type: string
+                entries:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/InfoEntry'
+            description: InfoSection INFO 输出的单个 section。
+        InitialContextResponse:
+            type: object
+            properties:
+                menus:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MenuRouteItem'
+                permissions:
+                    type: array
+                    items:
+                        type: string
+        Language:
+            type: object
+            properties:
+                id:
+                    type: string
+                language_name:
+                    type: string
+                native_name:
+                    type: string
+                is_default:
+                    type: boolean
+                is_enabled:
+                    type: boolean
+                sort_order:
+                    type: integer
+                    format: int32
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: Language 语言条目。ID 即标准语言代码（如 "zh-CN"）。
         ListAuditRecordsResponse:
             type: object
             properties:
@@ -1301,6 +1622,16 @@ components:
                 total:
                     type: integer
                     format: uint32
+        ListLanguagesResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Language'
+                total:
+                    type: integer
+                    format: uint32
         ListMenusResponse:
             type: object
             properties:
@@ -1312,6 +1643,13 @@ components:
                     type: integer
                     description: 全部节点数（含子孙，非根数）；uint32 避免 proto3 JSON int64 字符串化。
                     format: uint32
+        ListPermissionCodeResponse:
+            type: object
+            properties:
+                codes:
+                    type: array
+                    items:
+                        type: string
         ListPermissionsResponse:
             type: object
             properties:
@@ -1332,6 +1670,13 @@ components:
                 total:
                     type: integer
                     format: uint32
+        ListRouteResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MenuRouteItem'
         ListTenantsResponse:
             type: object
             properties:
@@ -1402,6 +1747,29 @@ components:
                     type: string
                     format: date-time
             description: Menu 菜单节点（自引用树）。
+        MenuRouteItem:
+            type: object
+            properties:
+                path:
+                    type: string
+                name:
+                    type: string
+                component:
+                    type: string
+                redirect:
+                    type: string
+                title:
+                    type: string
+                icon:
+                    type: string
+                order:
+                    type: integer
+                    format: int32
+                children:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MenuRouteItem'
+            description: MenuRouteItem 前端路由项（扁平结构，见 service 头注的差异说明）。
         Permission:
             type: object
             properties:
@@ -1425,6 +1793,20 @@ components:
                 Permission 权限点（注册表）。ID 即权限码（P9 归一化的 "object:action"，如
                  "tenant:list"），与 Role.Perms（CSV 角色权限绑定）同命名空间；MenuIDs 是该
                  权限点对应的可见菜单（源 sys_permission_menus 关联表的内联精简）。
+        RedisCacheMonitorInfo:
+            type: object
+            properties:
+                sections:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/InfoSection'
+                db_size:
+                    type: string
+                slowlog:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SlowLogEntry'
+            description: RedisCacheMonitorInfo 监控信息（INFO 分节 + DBSIZE + SLOWLOG）。
         RolePolicy:
             type: object
             properties:
@@ -1439,6 +1821,25 @@ components:
             description: |-
                 RolePolicy 角色策略行（casbin p 行的数据化形态，源 sys_role_permissions 的
                  精简等价物——bald 用 P9 归一化 object:action 而非源 path/method/domain）。
+        SlowLogEntry:
+            type: object
+            properties:
+                id:
+                    type: string
+                created_at:
+                    type: string
+                    format: date-time
+                duration_usec:
+                    type: string
+                args:
+                    type: array
+                    items:
+                        type: string
+                client_addr:
+                    type: string
+                client_name:
+                    type: string
+            description: SlowLogEntry SLOWLOG GET 返回的单条慢日志。
         Tenant:
             type: object
             properties:
@@ -1516,6 +1917,31 @@ components:
             properties:
                 dict_type:
                     $ref: '#/components/schemas/DictType'
+        UpdateLanguageRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                language_name:
+                    type: string
+                native_name:
+                    type: string
+                is_default:
+                    type: boolean
+                is_default_set:
+                    type: boolean
+                is_enabled:
+                    type: boolean
+                is_enabled_set:
+                    type: boolean
+                sort_order:
+                    type: integer
+                    format: int32
+        UpdateLanguageResponse:
+            type: object
+            properties:
+                language:
+                    $ref: '#/components/schemas/Language'
         UpdateMenuRequest:
             type: object
             properties:
@@ -1656,6 +2082,8 @@ components:
                 User 用户。ID 为业务编码（如 "u-admin"）；tenant_id 不在此消息中——
                  由 bald P8 从上下文注入（写）与过滤（读），客户端不可指定。
 tags:
+    - name: AdminPortalService
+      description: "AdminPortalService 后台前端初始化数据与配置服务（Wave 6.2，自 go-wind-admin\r\n admin 域 i_admin_portal.proto 精简移植，3 rpc）。\r\n\r\n ## 为何是真新增（裁定见计划 §Wave 6.1）\r\n\r\n 本 service **不 import** 其他业务域的消息类型（源仅 import menu.proto 作\r\n MenuRouteItem 复用）——三个 rpc 全是**跨域聚合**：把 user/role/permission/menu\r\n 四域的数据拼成前端初始化所需的视图，无单一对标 biz。\r\n\r\n ## 聚合链（源 admin_portal_service.go 实测）\r\n\r\n\tUser.Roles(角色名) → Role.Perms(权限码) → Permission.MenuIDs(菜单ID) → Menu 树\r\n\r\n 即「当前登录用户 → 其角色 → 角色权限码 → 权限点关联的菜单 → 过滤出路由」。\r\n\r\n ## 与源的差异\r\n\r\n 源的 `MenuRouteItem` 复用 permission 域消息（含 meta 嵌套对象）；本项目 Menu\r\n model 已内联 Title/Icon/Order（见 model/menu.go），故 MenuRouteItem 在本域\r\n 重新定义为扁平结构。源的套餐模块白名单过滤（filterMenusByPlanWhitelist）\r\n 未移植——本项目 plan_module 的 module 字段语义未对齐（源用枚举，本项目\r\n 未落该字段），强行实现会造无数据来源的逻辑。"
     - name: AuditService
       description: "AuditService 审计日志查询服务（T6，自 go-wind-admin audit 域精简移植）。\r\n\r\n 只读查询：审计事件由写路径自动落库（gin/gRPC 拦截器链 → category=operation；\r\n 登录动作 → category=login），本服务不提供写入（源 Create rpc 是内部补录口，\r\n 精简省略——伪造审计记录违背审计不可抵赖语义）。\r\n\r\n 数据来自 AuditRecord 单表（源 Operation/LoginAuditLog 双表 + Category 分类\r\n 精简合并）；P9 归一化对象 \"audit\"（REST /v1/audit 与 gRPC AuditService 同源）。"
     - name: DictEntryService
@@ -1671,6 +2099,8 @@ tags:
          展示属性可更新；删除类型级联删除其全部条目并失效对应缓存。
     - name: FileService
       description: "FileService 文件管理服务（T5，自 go-wind-admin storage 域精简移植）。\r\n\r\n 文件是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离。上传校验\r\n 大小上限（50MiB）与 MIME 白名单（源 pkg/oss 语义），对象按内容类型分桶并\r\n 兜底创建桶；元数据含 SHA256 内容哈希与长度。上传/下载为二进制流：gateway\r\n 转码（bytes→base64 JSON）可用，推荐经 gin 主服务的 multipart/流式 REST。"
+    - name: LanguageService
+      description: "LanguageService 语言管理（Wave 5.3，自 go-wind-admin dict 域 language 精简移植）。\r\n\r\n 源语言域 7 rpc（List/Count/Get/Create/BatchCreate/Update/Delete）。本实现\r\n **对齐项目既有惯例**（与同目录 DictType/DictEntry 一致），与源有两处显式偏差：\r\n\r\n  1. **主键用 string 业务键**（`language_code`，如 \"zh-CN\"）而非源 `uint32 id`\r\n     ——源 ID 由 DB 自增生成，本项目 dict 域同款场景（type_code 作主键）已确立\r\n     「业务键主键」范式（见 model/dict.go），语言代码天然唯一且可读。\r\n  2. **请求体简化**：源的 `FieldMask view_mask`/`update_mask`/`oneof query_by`\r\n     未移植——本项目 handler 用「非空字段即更新」语义（同 DictType 的 Update），\r\n     字段掩码是源框架的通用能力，复刻它对功能对等无增益。\r\n\r\n BatchCreate 源 service 层**未实现**（proto 有、`language_service.go` 无该方法）\r\n ——故本实现同样返回 UNIMPLEMENTED（对齐源行为，不自创）。"
     - name: MenuService
       description: |-
         MenuService 菜单管理服务（T3，自 go-wind-admin permission 域 sys_menus 精简移植）。
@@ -1687,6 +2117,8 @@ tags:
            2. 角色策略（RolePolicy）：casbin p 行（role,object,action）的数据化持久层，
               替代 M6.1 的静态 rbac_policy.csv（D3 策略数据化装载，重启生效）。
          管理面操作仅授予 admin 角色（策略本身也数据化于 RolePolicy 表）。
+    - name: RedisCacheMonitorService
+      description: "RedisCacheMonitorService Redis 缓存监控（只读，聚合 INFO/DBSIZE/SLOWLOG 视图）。\r\n\r\n Wave 6.2 真新增（裁定见计划 §Wave 6.1）：源 redis_cache 域仅此 1 rpc，无对标 biz。\r\n\r\n ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）\r\n\r\n 三个只读命令（INFO / DBSIZE / SLOWLOG GET）**任一失败不阻断其余**——失败项\r\n 置空并记日志，而非整体报错。Redis 不可用时返回**空视图**（非错误），避免\r\n 单点故障导致整个监控页不可用。"
     - name: SecretService
       description: |-
         SecretService 受限资源服务（M5：经 grpc-gateway 同时暴露 gRPC 与 REST）。
