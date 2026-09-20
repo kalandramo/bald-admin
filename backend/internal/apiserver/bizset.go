@@ -3,6 +3,7 @@ package apiserver
 import (
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
+	cmbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/cachemonitor"
 	dashbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dashboard"
 	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
 	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
@@ -15,6 +16,7 @@ import (
 	pgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
 	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
 	planbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/plan"
+	portalbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/portal"
 	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
@@ -55,4 +57,8 @@ type BizSet struct {
 	Plan *planbiz.Biz
 	// Language 语言管理（Wave 5.3；平台级数据）。
 	Language *langbiz.Biz
+	// Portal 管理面聚合（Wave 6.2；AdminPortalService 3 rpc）。
+	Portal *portalbiz.Biz
+	// CacheMonitor Redis 缓存监控（Wave 6.2；1 rpc）。
+	CacheMonitor *cmbiz.Biz
 }

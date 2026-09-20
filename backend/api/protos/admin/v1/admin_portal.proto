@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package go.bald.admin.admin.v1;
+
+option go_package = "github.com/kalandramo/bald/examples/go-bald-admin/api/gen/admin/v1;adminv1";
+
+import "google/api/annotations.proto";
+
+// AdminPortalService 后台前端初始化数据与配置服务（Wave 6.2，自 go-wind-admin
+// admin 域 i_admin_portal.proto 精简移植，3 rpc）。
+//
+// ## 为何是真新增（裁定见计划 §Wave 6.1）
+//
+// 本 service **不 import** 其他业务域的消息类型（源仅 import menu.proto 作
+// MenuRouteItem 复用）——三个 rpc 全是**跨域聚合**：把 user/role/permission/menu
+// 四域的数据拼成前端初始化所需的视图，无单一对标 biz。
+//
+// ## 聚合链（源 admin_portal_service.go 实测）
+//
+//	User.Roles(角色名) → Role.Perms(权限码) → Permission.MenuIDs(菜单ID) → Menu 树
+//
+// 即「当前登录用户 → 其角色 → 角色权限码 → 权限点关联的菜单 → 过滤出路由」。
+//
+// ## 与源的差异
+//
+// 源的 `MenuRouteItem` 复用 permission 域消息（含 meta 嵌套对象）；本项目 Menu
+// model 已内联 Title/Icon/Order（见 model/menu.go），故 MenuRouteItem 在本域
+// 重新定义为扁平结构。源的套餐模块白名单过滤（filterMenusByPlanWhitelist）
+// 未移植——本项目 plan_module 的 module 字段语义未对齐（源用枚举，本项目
+// 未落该字段），强行实现会造无数据来源的逻辑。
+service AdminPortalService {
+  // GetNavigation 查询前端路由表（当前用户可见的菜单树，去 BUTTON 类型）。
+  //   REST: GET /admin/v1/routes
+  rpc GetNavigation(GetNavigationRequest) returns (ListRouteResponse) {
+    option (google.api.http) = {
+      get: "/admin/v1/routes"
+    };
+  }
+
+  // GetMyPermissionCode 查询当前用户的权限码列表。
+  //   REST: GET /admin/v1/perm-codes
+  rpc GetMyPermissionCode(GetMyPermissionCodeRequest) returns (ListPermissionCodeResponse) {
+    option (google.api.http) = {
+      get: "/admin/v1/perm-codes"
+    };
+  }
+
+  // GetInitialContext 一次性获取进入后台所需的所有上下文（菜单树 + 权限码）。
+  //   REST: GET /admin/v1/initial-context
+  rpc GetInitialContext(GetInitialContextRequest) returns (InitialContextResponse) {
+    option (google.api.http) = {
+      get: "/admin/v1/initial-context"
+    };
+  }
+}
+
+// MenuRouteItem 前端路由项（扁平结构，见 service 头注的差异说明）。
+message MenuRouteItem {
+  string path = 1;               // 路由路径
+  string name = 2;               // 路由名
+  string component = 3;          // 前端组件
+  string redirect = 4;           // 重定向地址
+  string title = 5;              // 展示标题（源 meta.title）
+  string icon = 6;               // 图标（源 meta.icon）
+  int32 order = 7;               // 展示顺序（源 meta.order）
+  repeated MenuRouteItem children = 8; // 子路由
+}
+
+message GetNavigationRequest {}
+
+message ListRouteResponse {
+  repeated MenuRouteItem items = 1;
+}
+
+message GetMyPermissionCodeRequest {}
+
+message ListPermissionCodeResponse {
+  repeated string codes = 1;
+}
+
+message GetInitialContextRequest {}
+
+message InitialContextResponse {
+  repeated MenuRouteItem menus = 1;  // 菜单树
+  repeated string permissions = 2;   // 权限码
+}

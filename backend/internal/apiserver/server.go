@@ -71,6 +71,12 @@ func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticato
 	if biz.Language != nil {
 		hgin.RegisterLanguage(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.Language)
 	}
+	if biz.Portal != nil {
+		hgin.RegisterAdminPortal(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.Portal)
+	}
+	if biz.CacheMonitor != nil {
+		hgin.RegisterRedisCacheMonitor(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.CacheMonitor)
+	}
 }
 
 // ComponentFactory 是管理面组件工厂的包级别名（re-export，供 cmd 层构造工厂目录）。

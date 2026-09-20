@@ -37,3 +37,8 @@ type RolePolicy struct {
 func (r Role) PermsList() []string {
 	return splitCSV(r.Perms)
 }
+
+// MenuIDsList 解析 MenuIDs 字段为菜单 ID 切片（Wave 6.2 portal 聚合用）。
+func (p Permission) MenuIDsList() []string {
+	return splitCSV(p.MenuIDs)
+}

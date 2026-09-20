@@ -765,6 +765,20 @@ func seedPolicies(ctx context.Context) error {
 		// viewer：语言只读（语言是平台级基础数据，登录用户可读）。
 		{Role: "viewer", Object: "language", Action: "get"},
 		{Role: "viewer", Object: "language", Action: "list"},
+		// Wave 6.2 管理面聚合（AdminPortalService）：object 用 **admin_portal**
+		// （自定义 resolver 产出，见 handler/gin/admin_portal.go）——**不能用
+		// "admin"**：/admin/components 的管理面组件目录也归一化为 "admin"，
+		// 给 viewer 开 admin:get 会连带放开它（实测回归：TestAdmin_Forbidden
+		// 由 403 变 200）。独立 object 使导航/权限码的只读开放与组件目录的
+		// admin 专属隔离。
+		{Role: "admin", Object: "admin_portal", Action: "get"},
+		{Role: "admin", Object: "admin_portal", Action: "list"},
+		// viewer 需拉导航/权限码（前端初始化），故只读开放。
+		{Role: "viewer", Object: "admin_portal", Action: "get"},
+		{Role: "viewer", Object: "admin_portal", Action: "list"},
+		// Wave 6.2 缓存监控（RedisCacheMonitorService）：admin 专属运维接口。
+		{Role: "admin", Object: "redis-cache-monitor", Action: "get"},
+		{Role: "admin", Object: "redis-cache-monitor", Action: "list"},
 		// admin：文件管理（T5）。同款六元组（REST HTTP 动词小写 + gRPC
 		// get/list/write 双协议全放行；DefaultGRPCObject("FileService/...")="file"）。
 		{Role: "admin", Object: "file", Action: "get"},

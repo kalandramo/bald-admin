@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package go.bald.admin.admin.v1;
+
+option go_package = "github.com/kalandramo/bald/examples/go-bald-admin/api/gen/admin/v1;adminv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// RedisCacheMonitorService Redis 缓存监控（只读，聚合 INFO/DBSIZE/SLOWLOG 视图）。
+//
+// Wave 6.2 真新增（裁定见计划 §Wave 6.1）：源 redis_cache 域仅此 1 rpc，无对标 biz。
+//
+// ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）
+//
+// 三个只读命令（INFO / DBSIZE / SLOWLOG GET）**任一失败不阻断其余**——失败项
+// 置空并记日志，而非整体报错。Redis 不可用时返回**空视图**（非错误），避免
+// 单点故障导致整个监控页不可用。
+service RedisCacheMonitorService {
+  // GetRedisCacheMonitor 查询 Redis 缓存监控信息。
+  //   REST: GET /v1/redis-cache-monitor
+  rpc GetRedisCacheMonitor(GetRedisCacheMonitorRequest) returns (RedisCacheMonitorInfo) {
+    option (google.api.http) = {
+      get: "/v1/redis-cache-monitor"
+    };
+  }
+}
+
+// RedisCacheMonitorInfo 监控信息（INFO 分节 + DBSIZE + SLOWLOG）。
+message RedisCacheMonitorInfo {
+  repeated InfoSection sections = 1;  // INFO 输出（按 section 拆分）
+  uint64 db_size = 2;                 // 当前库 key 总数（DBSIZE）
+  repeated SlowLogEntry slowlog = 3;  // 最近慢日志（SLOWLOG GET）
+}
+
+// InfoSection INFO 输出的单个 section。
+message InfoSection {
+  string name = 1;
+  repeated InfoEntry entries = 2;
+}
+
+// InfoEntry INFO 输出的单个 key/value 对。
+message InfoEntry {
+  string key = 1;
+  string value = 2;
+}
+
+// SlowLogEntry SLOWLOG GET 返回的单条慢日志。
+message SlowLogEntry {
+  int64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  int64 duration_usec = 3;   // 耗时（微秒）
+  repeated string args = 4;  // 命令参数（已净化 UTF-8）
+  string client_addr = 5;
+  string client_name = 6;
+}
+
+message GetRedisCacheMonitorRequest {}
