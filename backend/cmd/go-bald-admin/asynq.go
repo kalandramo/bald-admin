@@ -30,6 +30,7 @@ import (
 
 	"github.com/kalandramo/bald/encoding"
 	"github.com/kalandramo/bald/encoding/json"
+	"github.com/kalandramo/bald/encoding/msgpack"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/transport"
 	"github.com/kalandramo/bald/transport/asynq"
@@ -51,23 +52,53 @@ var asynqCodecRegistered bool
 // **处理器在构造期注册**（不是 AfterStart）：asynq 的 handler 是**启动期配置**
 // ——`Start` 时绑定到 mux，启动后再注册无效（任务会被判为「无处理器」）。
 // 这是实测确认的时序约束（首版误放 AfterStart，任务入队后无消费者）。
+//
+// Wave 5.5：codec 由配置驱动（`asynq.codec`，默认 json）——压 `bald/encoding`
+// 轴（msgpack/proto 等替代 json）。**注册先于 WithCodec**：asynq 的
+// `WithCodec(name)` 内部 `encoding.GetCodec(name)` 对未注册名**静默设 nil**，
+// 故障延迟到首次入队才以 `codec is nil` 暴露——故此处显式注册后再传名。
 func buildAsynqServer(ctx context.Context, redisAddr string) (transport.Server, error) {
 	if redisAddr == "" {
 		return nil, nil
 	}
-	if !asynqCodecRegistered {
-		encoding.MustRegister(json.New())
-		asynqCodecRegistered = true
-	}
+	registerAsynqCodecs()
+
+	codecName := asynqCodecName()
 	srv := asynq.NewServer(
 		asynq.WithRedisAddress(redisAddr),
 		// 并发度：契约段无此字段，正是「字段面不足」的体现（见文件头决策）。
 		asynq.WithConcurrency(4),
+		asynq.WithCodec(codecName),
 	)
 	if err := registerAsynqHandlers(ctx, srv); err != nil {
 		return nil, err
 	}
 	return srv, nil
+}
+
+// registerAsynqCodecs 注册 asynq 可用的全部 codec（幂等）。
+//
+// 注册 json 与 msgpack 两个：json 是缺省（`server.go:122` 默认 GetCodec("json")），
+// msgpack 供 `asynq.codec: msgpack` 配置切换。两者都注册使配置切换无需额外装配。
+func registerAsynqCodecs() {
+	if asynqCodecRegistered {
+		return
+	}
+	encoding.MustRegister(json.New())
+	encoding.MustRegister(msgpack.New())
+	asynqCodecRegistered = true
+}
+
+// asynqCodecName 返回 asynq 使用的 codec 名（配置 `asynq.codec`，默认 json）。
+//
+// 与 asynqRedisAddr 同款时序约束：本函数在 FromBootstrap **之前**调用（构造期），
+// 配置 store 尚未就绪，故读 env（`BALD_ADMIN_ASYNQ_CODEC`）作可靠路径。
+// 未配置时返回 "json"——与框架默认（server.go:122）一致，行为零回归。
+func asynqCodecName() string {
+	if v := os.Getenv("BALD_ADMIN_ASYNQ_CODEC"); v != "" {
+		return v
+	}
+	return "json"
 }
 
 // asynqRedisAddr 返回 asynq 用的 Redis 地址。

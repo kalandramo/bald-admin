@@ -204,6 +204,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.1.0 // indirect
 	github.com/kalandramo/bald/bconfig v0.1.0 // indirect
+	github.com/kalandramo/bald/encoding/msgpack v0.1.0 // indirect
 	github.com/kalandramo/bald/oss/s3 v0.1.0 // indirect
 	github.com/kalandramo/bald/transport/http v0.1.1 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
@@ -246,6 +247,8 @@ require (
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
+	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
+	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
