@@ -61,6 +61,7 @@ import (
 	gormpkg "gorm.io/gorm"
 
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 )
 
 // lazyStoreAuditor 是 `store` 审计后端的惰性包装（D14 修复核心）。
@@ -103,7 +104,7 @@ func (l *lazyStoreAuditor) resolve() audit.Auditor {
 				l.initErr = fmt.Errorf("audit-store: migrate default table: %w", err)
 			}
 		}
-		l.inner = auditstore.New(db)
+		l.inner = auditstore.New(db, auditstore.WithRecordMapper(securityaudit.RecordMapper))
 	})
 	return l.inner
 }

@@ -11,8 +11,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/kalandramo/bald/berrors"
+	"github.com/kalandramo/bald/pkg/audit"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
@@ -134,6 +136,8 @@ func (b *Biz) CreateRolePolicy(ctx context.Context, role, object, action string)
 	if err := b.policyStore().Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("permission.CreateRolePolicy(%s,%s,%s): %w", role, object, action, err)
 	}
+	// Wave 5.1：permission 类审计（源 PermissionAuditLog 的 GRANT 语义）。
+	auditPermission(ctx, "grant", role, p.ID, "", role+":"+object+":"+action)
 	return p, nil
 }
 
@@ -141,7 +145,8 @@ func (b *Biz) CreateRolePolicy(ctx context.Context, role, object, action string)
 func (b *Biz) DeleteRolePolicy(ctx context.Context, id string) (bool, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.policyStore().Get(ctx, w); err != nil {
+	old, err := b.policyStore().Get(ctx, w)
+	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return false, nil
 		}
@@ -150,7 +155,40 @@ func (b *Biz) DeleteRolePolicy(ctx context.Context, id string) (bool, error) {
 	if err := b.policyStore().Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("permission.DeleteRolePolicy(%s): %w", id, err)
 	}
+	// Wave 5.1：permission 类审计（源 PermissionAuditLog 的 REVOKE 语义）。
+	auditPermission(ctx, "revoke", old.Role, id, old.Role+":"+old.Object+":"+old.Action, "")
 	return true, nil
+}
+
+// auditPermission 记录一条 permission 类审计（权限变更：GRANT/REVOKE）。
+//
+// 源语义核实：源 `permission_audit_log.proto` 的 ActionType 是 GRANT/REVOKE/
+// ASSIGN/EXPIRE 等**权限变更**语义（**非**授权拒绝），写入路径是
+// `applogging.WithWritePermissionAuditLogFunc`（logging 层回调，
+// `rest_server.go:66`）——由权限变更操作触发。本函数对齐该语义。
+//
+// 旁路语义：recordSafely 有 recover 兜底，审计失败不影响业务返回。
+func auditPermission(ctx context.Context, action, targetType, targetID, oldValue, newValue string) {
+	recordSafely(ctx, audit.AuditEvent{
+		Time:   time.Now(),
+		Object: "permission",
+		Action: action,
+		Result: audit.ResultAllow,
+		Meta: map[string]any{
+			"category":    "permission",
+			"target_type": targetType,
+			"target_id":   targetID,
+			"old_value":   oldValue,
+			"new_value":   newValue,
+		},
+	})
+}
+
+// recordSafely 旁路记录：auditor panic 仅忽略，绝不向上游抛错（与框架
+// middleware/gin 的 recordSafely 同纪律）。
+func recordSafely(ctx context.Context, ev audit.AuditEvent) {
+	defer func() { _ = recover() }()
+	audit.GetAuditor().Record(ctx, ev)
 }
 
 // joinCSV 序列化 MenuIDs（与 model.splitCSV 逆操作）。

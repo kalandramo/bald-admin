@@ -11,6 +11,7 @@ import (
 	"github.com/kalandramo/bald/pkg/authn"
 
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
+	"github.com/kalandramo/bald-admin/internal/apiserver/middleware/apiaudit"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
@@ -28,6 +29,11 @@ func RegisterRoutes(e *gingonic.Engine, biz *BizSet) {
 // （验签后查吊销名单）——装饰器是 authn.Authenticator 的合法实现，本函数让
 // 装配层可替换而不侵入框架中间件。
 func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticator, biz *BizSet) {
+	// Wave 5.1：api 类审计中间件（源 ApiAuditLog）——记录协议层信息
+	// （method/path/status/latency），与框架 operation 类审计正交。
+	// 挂在此处（而非 main.go 的 router）保证**生产与 e2e 共用同一装配路径**。
+	e.Use(apiaudit.Middleware())
+
 	hgin.RegisterHealth(e)
 	hgin.RegisterOpenAPI(e)
 	hgin.RegisterAuth(e, authenticator, bootstrappkg.LazyAuthorizer(), biz.Auth, biz.Secret)

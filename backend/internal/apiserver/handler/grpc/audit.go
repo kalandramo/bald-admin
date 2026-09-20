@@ -73,6 +73,22 @@ func toAuditPBGRPC(m *authmodel.AuditRecord) *auditv1.AuditRecord {
 		UserAgent: m.UserAgent,
 		RequestId: m.RequestID,
 		TraceId:   m.TraceID,
-		Time:      timestamppb.New(time.Unix(0, m.Time)),
+		// Wave 5.1：五类差异字段（各分类按需非空）。
+		HttpMethod:   m.HTTPMethod,
+		Path:         m.Path,
+		StatusCode:   m.StatusCode,
+		LatencyMs:    m.LatencyMs,
+		TableName:    m.TableName,
+		DataSource:   m.DataSource,
+		DbUser:       m.DBUser,
+		SqlText:      m.SQLText,
+		AffectedRows: m.AffectedRows,
+		TargetType:   m.TargetType,
+		TargetId:     m.TargetID,
+		OldValue:     m.OldValue,
+		NewValue:     m.NewValue,
+		SessionId:    m.SessionID,
+		MfaStatus:    m.MFAStatus,
+		Time:         timestamppb.New(time.Unix(0, m.Time)),
 	}
 }

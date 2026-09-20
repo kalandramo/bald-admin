@@ -26,20 +26,44 @@ const (
 // AuditRecord 审计日志条目。字段对齐 model.AuditRecord（源
 // OperationAuditLog/LoginAuditLog 共有核心字段精简；
 // Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。
+//
+// Wave 5.1：单表 + category 承载源**五类**审计（operation/login/api/
+// data_access/permission）。源是五张独立表、字段差异大，此处取并集为
+// nullable 列（决策记录见 e2e 文件头）——api/data_access/permission
+// 三类专属字段列在下方分组。
 type AuditRecord struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                 // 自增主键（字符串化）
-	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`     // 租户
-	Category      string                 `protobuf:"bytes,3,opt,name=category,proto3" json:"category,omitempty"`                     // 分类："operation" / "login"
-	Subject       string                 `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`                       // 操作主体（操作者 UserID 或登录账号名）
-	Object        string                 `protobuf:"bytes,5,opt,name=object,proto3" json:"object,omitempty"`                         // 资源对象（P9 归一化，如 "secret" "auth"）
-	Action        string                 `protobuf:"bytes,6,opt,name=action,proto3" json:"action,omitempty"`                         // 动作（P9 归一化，如 "get" "delete" "login"）
-	Result        string                 `protobuf:"bytes,7,opt,name=result,proto3" json:"result,omitempty"`                         // allow / deny / error
-	Error         string                 `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`                           // 错误/拒绝原因（空为成功）
-	IpAddress     string                 `protobuf:"bytes,9,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`  // 客户端 IP
-	UserAgent     string                 `protobuf:"bytes,10,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"` // 客户端 UA
-	RequestId     string                 `protobuf:"bytes,11,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"` // 全局请求 ID
-	TraceId       string                 `protobuf:"bytes,12,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`       // W3C 链路 ID
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                 // 自增主键（字符串化）
+	TenantId  string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`     // 租户
+	Category  string                 `protobuf:"bytes,3,opt,name=category,proto3" json:"category,omitempty"`                     // 分类："operation" / "login" / "api" / "data_access" / "permission"
+	Subject   string                 `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`                       // 操作主体（操作者 UserID 或登录账号名）
+	Object    string                 `protobuf:"bytes,5,opt,name=object,proto3" json:"object,omitempty"`                         // 资源对象（P9 归一化，如 "secret" "auth"）
+	Action    string                 `protobuf:"bytes,6,opt,name=action,proto3" json:"action,omitempty"`                         // 动作（P9 归一化，如 "get" "delete" "login"）
+	Result    string                 `protobuf:"bytes,7,opt,name=result,proto3" json:"result,omitempty"`                         // allow / deny / error
+	Error     string                 `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`                           // 错误/拒绝原因（空为成功）
+	IpAddress string                 `protobuf:"bytes,9,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`  // 客户端 IP
+	UserAgent string                 `protobuf:"bytes,10,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"` // 客户端 UA
+	RequestId string                 `protobuf:"bytes,11,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"` // 全局请求 ID
+	TraceId   string                 `protobuf:"bytes,12,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`       // W3C 链路 ID
+	// ---- api 类专属（源 ApiAuditLog）----
+	HttpMethod string `protobuf:"bytes,13,opt,name=http_method,json=httpMethod,proto3" json:"http_method,omitempty"`  // HTTP 方法（GET/POST/...）
+	Path       string `protobuf:"bytes,14,opt,name=path,proto3" json:"path,omitempty"`                                // 请求路径
+	StatusCode uint32 `protobuf:"varint,15,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"` // HTTP 响应状态码
+	LatencyMs  uint32 `protobuf:"varint,16,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`    // 处理耗时（毫秒）
+	// ---- data_access 类专属（源 DataAccessAuditLog）----
+	TableName    string `protobuf:"bytes,17,opt,name=table_name,json=tableName,proto3" json:"table_name,omitempty"`           // 被访问的表名
+	DataSource   string `protobuf:"bytes,18,opt,name=data_source,json=dataSource,proto3" json:"data_source,omitempty"`        // 数据源标识
+	DbUser       string `protobuf:"bytes,19,opt,name=db_user,json=dbUser,proto3" json:"db_user,omitempty"`                    // 数据库用户
+	SqlText      string `protobuf:"bytes,20,opt,name=sql_text,json=sqlText,proto3" json:"sql_text,omitempty"`                 // 脱敏后的 SQL 文本
+	AffectedRows uint32 `protobuf:"varint,21,opt,name=affected_rows,json=affectedRows,proto3" json:"affected_rows,omitempty"` // 影响行数
+	// ---- permission 类专属（源 PermissionAuditLog）----
+	TargetType string `protobuf:"bytes,22,opt,name=target_type,json=targetType,proto3" json:"target_type,omitempty"` // 变更目标类型（role/permission/...）
+	TargetId   string `protobuf:"bytes,23,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`       // 变更目标 ID
+	OldValue   string `protobuf:"bytes,24,opt,name=old_value,json=oldValue,proto3" json:"old_value,omitempty"`       // 变更前值
+	NewValue   string `protobuf:"bytes,25,opt,name=new_value,json=newValue,proto3" json:"new_value,omitempty"`       // 变更后值
+	// ---- login 类专属（源 LoginAuditLog）----
+	SessionId     string                 `protobuf:"bytes,26,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // 会话 ID
+	MfaStatus     string                 `protobuf:"bytes,27,opt,name=mfa_status,json=mfaStatus,proto3" json:"mfa_status,omitempty"` // MFA 状态
 	Time          *timestamppb.Timestamp `protobuf:"bytes,100,opt,name=time,proto3" json:"time,omitempty"`                           // 事件时间
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -159,6 +183,111 @@ func (x *AuditRecord) GetTraceId() string {
 	return ""
 }
 
+func (x *AuditRecord) GetHttpMethod() string {
+	if x != nil {
+		return x.HttpMethod
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetStatusCode() uint32 {
+	if x != nil {
+		return x.StatusCode
+	}
+	return 0
+}
+
+func (x *AuditRecord) GetLatencyMs() uint32 {
+	if x != nil {
+		return x.LatencyMs
+	}
+	return 0
+}
+
+func (x *AuditRecord) GetTableName() string {
+	if x != nil {
+		return x.TableName
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetDataSource() string {
+	if x != nil {
+		return x.DataSource
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetDbUser() string {
+	if x != nil {
+		return x.DbUser
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetSqlText() string {
+	if x != nil {
+		return x.SqlText
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetAffectedRows() uint32 {
+	if x != nil {
+		return x.AffectedRows
+	}
+	return 0
+}
+
+func (x *AuditRecord) GetTargetType() string {
+	if x != nil {
+		return x.TargetType
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetTargetId() string {
+	if x != nil {
+		return x.TargetId
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetOldValue() string {
+	if x != nil {
+		return x.OldValue
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetNewValue() string {
+	if x != nil {
+		return x.NewValue
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *AuditRecord) GetMfaStatus() string {
+	if x != nil {
+		return x.MfaStatus
+	}
+	return ""
+}
+
 func (x *AuditRecord) GetTime() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Time
@@ -168,7 +297,7 @@ func (x *AuditRecord) GetTime() *timestamppb.Timestamp {
 
 type ListAuditRecordsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Category      string                 `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`                     // 非空 = 分类精确过滤（operation/login）
+	Category      string                 `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`                     // 非空 = 分类精确过滤（operation/login/api/data_access/permission）
 	Subject       string                 `protobuf:"bytes,2,opt,name=subject,proto3" json:"subject,omitempty"`                       // 非空 = 主体精确过滤
 	Object        string                 `protobuf:"bytes,3,opt,name=object,proto3" json:"object,omitempty"`                         // 非空 = 资源对象精确过滤
 	Action        string                 `protobuf:"bytes,4,opt,name=action,proto3" json:"action,omitempty"`                         // 非空 = 动作精确过滤
@@ -418,7 +547,7 @@ var File_audit_v1_audit_proto protoreflect.FileDescriptor
 
 const file_audit_v1_audit_proto_rawDesc = "" +
 	"\n" +
-	"\x14audit/v1/audit.proto\x12\x16go.bald.admin.audit.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf6\x02\n" +
+	"\x14audit/v1/audit.proto\x12\x16go.bald.admin.audit.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xba\x06\n" +
 	"\vAuditRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1a\n" +
@@ -435,7 +564,30 @@ const file_audit_v1_audit_proto_rawDesc = "" +
 	" \x01(\tR\tuserAgent\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\v \x01(\tR\trequestId\x12\x19\n" +
-	"\btrace_id\x18\f \x01(\tR\atraceId\x12.\n" +
+	"\btrace_id\x18\f \x01(\tR\atraceId\x12\x1f\n" +
+	"\vhttp_method\x18\r \x01(\tR\n" +
+	"httpMethod\x12\x12\n" +
+	"\x04path\x18\x0e \x01(\tR\x04path\x12\x1f\n" +
+	"\vstatus_code\x18\x0f \x01(\rR\n" +
+	"statusCode\x12\x1d\n" +
+	"\n" +
+	"latency_ms\x18\x10 \x01(\rR\tlatencyMs\x12\x1d\n" +
+	"\n" +
+	"table_name\x18\x11 \x01(\tR\ttableName\x12\x1f\n" +
+	"\vdata_source\x18\x12 \x01(\tR\n" +
+	"dataSource\x12\x17\n" +
+	"\adb_user\x18\x13 \x01(\tR\x06dbUser\x12\x19\n" +
+	"\bsql_text\x18\x14 \x01(\tR\asqlText\x12#\n" +
+	"\raffected_rows\x18\x15 \x01(\rR\faffectedRows\x12\x1f\n" +
+	"\vtarget_type\x18\x16 \x01(\tR\n" +
+	"targetType\x12\x1b\n" +
+	"\ttarget_id\x18\x17 \x01(\tR\btargetId\x12\x1b\n" +
+	"\told_value\x18\x18 \x01(\tR\boldValue\x12\x1b\n" +
+	"\tnew_value\x18\x19 \x01(\tR\bnewValue\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x1a \x01(\tR\tsessionId\x12\x1d\n" +
+	"\n" +
+	"mfa_status\x18\x1b \x01(\tR\tmfaStatus\x12.\n" +
 	"\x04time\x18d \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xe3\x01\n" +
 	"\x17ListAuditRecordsRequest\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x18\n" +
