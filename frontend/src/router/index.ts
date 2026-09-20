@@ -309,6 +309,41 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         }
       }
     ]
+  },
+  // 身份凭证
+  {
+    path: "/identity",
+    component: Layouts,
+    redirect: "/identity/credentials",
+    name: "Identity",
+    meta: {
+      title: "身份凭证",
+      elIcon: "Key",
+      alwaysShow: true,
+      roles: ["admin"]
+    },
+    children: [
+      {
+        path: "credentials",
+        component: () => import("@/pages/identity/credentials/index.vue"),
+        name: "IdentityCredentials",
+        meta: {
+          title: "用户凭证",
+          elIcon: "Postcard",
+          roles: ["admin"]
+        }
+      },
+      {
+        path: "policies",
+        component: () => import("@/pages/identity/policies/index.vue"),
+        name: "IdentityPolicies",
+        meta: {
+          title: "登录策略",
+          elIcon: "Lock",
+          roles: ["admin"]
+        }
+      }
+    ]
   }
 ]
 
