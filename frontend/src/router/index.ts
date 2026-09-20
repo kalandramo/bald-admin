@@ -344,6 +344,30 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         }
       }
     ]
+  },
+  // 多因素认证
+  {
+    path: "/mfa",
+    component: Layouts,
+    redirect: "/mfa/index",
+    name: "MFA",
+    meta: {
+      title: "多因素认证",
+      elIcon: "Lock",
+      roles: ["admin"]
+    },
+    children: [
+      {
+        path: "index",
+        component: () => import("@/pages/mfa/index.vue"),
+        name: "MFAIndex",
+        meta: {
+          title: "MFA 设置",
+          elIcon: "List",
+          roles: ["admin"]
+        }
+      }
+    ]
   }
 ]
 
