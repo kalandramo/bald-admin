@@ -229,6 +229,41 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         }
       }
     ]
+  },
+  // 组织架构
+  {
+    path: "/org",
+    component: Layouts,
+    redirect: "/org/index",
+    name: "Org",
+    meta: {
+      title: "组织架构",
+      elIcon: "OfficeBuilding",
+      alwaysShow: true,
+      roles: ["admin"]
+    },
+    children: [
+      {
+        path: "index",
+        component: () => import("@/pages/org/index.vue"),
+        name: "OrgUnits",
+        meta: {
+          title: "组织单元",
+          elIcon: "List",
+          roles: ["admin"]
+        }
+      },
+      {
+        path: "positions",
+        component: () => import("@/pages/org/positions/index.vue"),
+        name: "OrgPositions",
+        meta: {
+          title: "岗位管理",
+          elIcon: "Postcard",
+          roles: ["admin"]
+        }
+      }
+    ]
   }
 ]
 
