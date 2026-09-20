@@ -26,6 +26,9 @@ import (
 	"github.com/kalandramo/bald/log"
 
 	miniooss "github.com/kalandramo/bald/oss/minio"
+	s3oss "github.com/kalandramo/bald/oss/s3"
+
+	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
 )
 
 // DatabaseProvider 是契约 database.sql 段的透传 provider：构造走 openDB
@@ -107,8 +110,24 @@ func WireCache(v any) {
 }
 
 // WireStorage 注入契约装配的 MinIO 实例（app.Storage("minio") 的结果）。
+// WireStorage 注入契约装配的对象存储实例（app.Storage(...) 的结果）。
+//
+// Wave 5.4：支持两个后端——minio（既有）与 s3（新增）。两者的门面类型不同
+// （*miniooss.Storage / *s3oss.Storage），故分别记入 MinioStorage 与
+// ObjectStorageBridge；main 侧按实际注入的后端调 file biz 的对应 setter。
+//
+// nil 透传为 no-op（与 WireDatabase/WireCache 同约定）。
 func WireStorage(v any) {
-	if st, ok := v.(*miniooss.Storage); ok && st != nil {
-		MinioStorage = st
+	switch st := v.(type) {
+	case *miniooss.Storage:
+		if st != nil {
+			MinioStorage = st
+			ObjectStorageBridge = filestore.NewMinioAdapter(st)
+		}
+	case *s3oss.Storage:
+		if st != nil {
+			S3Storage = st
+			ObjectStorageBridge = filestore.NewS3Adapter(st)
+		}
 	}
 }

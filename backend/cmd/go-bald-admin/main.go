@@ -72,6 +72,7 @@ import (
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
 	nacoscontract "github.com/kalandramo/bald/registry/nacos/contract"
+	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/transport"
 	gateway "github.com/kalandramo/bald/transport/gateway"
 )
@@ -319,6 +320,11 @@ func newApp(
 			if v, ok := app.Storage("minio"); ok {
 				bootstrappkg.WireStorage(v)
 			}
+			// Wave 5.4：storage.type=s3 时装配 s3 后端（与 minio 互斥择一）。
+			// WireStorage 按实际类型分派，两者共用 ObjectStorageBridge。
+			if v, ok := app.Storage(s3contract.Type); ok {
+				bootstrappkg.WireStorage(v)
+			}
 			// T0：注入真实依赖配置（业务自持 file.bucket；database/cache/storage
 			// 段已由透传 provider 消费，此处仅传桥接所需的余下配置）。
 			bootstrappkg.Configure(bootstrap, app.Config().GetString("file.bucket"))
@@ -329,7 +335,13 @@ func newApp(
 			}
 			// T8：文件存储运行期接线——InitializeBiz 构造期值拷贝 bootstrap.MinioStorage
 			// 拿到 nil（InitBridges 尚未执行，§9 真调暴露的 e2e 盲区），桥接装配后补注。
-			bizSet.File.SetStorage(bootstrappkg.MinioStorage, bootstrappkg.FileBucket)
+			// Wave 5.4：改注入 ObjectStorageBridge（按 storage.type 已包成 minio/s3
+			// 适配器）——minio 与 s3 走同一条接线，签名差异由适配层吸收。
+			if bootstrappkg.ObjectStorageBridge != nil {
+				bizSet.File.SetObjectStorage(bootstrappkg.ObjectStorageBridge, bootstrappkg.FileBucket)
+			} else {
+				bizSet.File.SetStorage(bootstrappkg.MinioStorage, bootstrappkg.FileBucket)
+			}
 			// 同款时序：secret/dict 的 Cache-Aside 接入配置驱动的 RedisCache——
 			// cache.redis 段（含 password/db）只流向 bootstrap.RedisCache，wire 的
 			// env 通道（BALD_ADMIN_REDIS_ADDR）拿不到完整参数、对带密码实例 ping
@@ -762,6 +774,9 @@ func configFloat(cfg *baldconfig.Store, key string) float64 {
 func storageRegistry() *baldbootstrap.StorageRegistry {
 	sr := baldbootstrap.NewStorageRegistry()
 	sr.MustRegister("minio", bootstrappkg.StorageProvider)
+	// Wave 5.4：注册 s3 后端（契约 storage.s3 段 → bald/oss/s3）。
+	// 官方 provider 签名与 bootstrappkg.StorageProvider 结构化兼容，直接注册。
+	sr.MustRegister(s3contract.Type, s3contract.Provider)
 	return sr
 }
 

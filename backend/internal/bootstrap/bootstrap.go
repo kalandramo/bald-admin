@@ -32,8 +32,10 @@ import (
 	"github.com/kalandramo/bald/cache"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	miniooss "github.com/kalandramo/bald/oss/minio"
+	s3oss "github.com/kalandramo/bald/oss/s3"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
 	appauthz "github.com/kalandramo/bald-admin/internal/security/authz"
 	"github.com/kalandramo/bald-admin/internal/security/token"
 	casbinauthz "github.com/kalandramo/bald-admin/internal/security/casbin"
@@ -172,6 +174,17 @@ var RedisCache cache.Cache
 // MinioStorage 是可选 MinIO 对象存储后端（T0 起由 storage.minio 配置段构造，
 // T5 文件模块消费）。SDK() 为 nil 表示未配置或构造失败，调用方应降级。
 var MinioStorage *miniooss.Storage
+
+// S3Storage 是可选 S3 兼容对象存储后端（Wave 5.4，storage.s3 配置段）。
+// 与 MinioStorage 并列：二者按配置择一装配。
+var S3Storage *s3oss.Storage
+
+// ObjectStorageBridge 是文件模块实际消费的对象存储抽象（Wave 5.4）。
+//
+// 由 WireStorage 按注入的后端类型填充（minio → MinioAdapter；s3 → S3Adapter），
+// 吸收两者**签名差异**（minio 逐调用传 bucket，s3 构造期固定 bucket）。
+// nil 表示未配置对象存储，file biz 判 nil 降级。
+var ObjectStorageBridge filestore.ObjectStorage
 
 // FileBucket 是文件模块使用的对象存储桶（业务自持配置段 file.bucket；
 // bconf storage.minio 契约无 bucket 字段，见移植计划 §5）。

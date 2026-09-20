@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	miniov7 "github.com/minio/minio-go/v7"
 
 	"github.com/kalandramo/bald/berrors"
 	miniooss "github.com/kalandramo/bald/oss/minio"
@@ -28,6 +27,7 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
@@ -36,9 +36,14 @@ const (
 	ReasonUploadTooLarge = "file/upload_too_large"
 )
 
-// Biz 文件业务：MinIO 客户端 + 兜底桶名。FileStore 经 bootstrap 包级引用。
+// Biz 文件业务：对象存储抽象 + 兜底桶名。FileStore 经 bootstrap 包级引用。
+//
+// Wave 5.4：`store` 字段由具体 `*miniooss.Storage` 改为 `filestore.ObjectStorage`
+// 抽象——吸收 minio/s3 的**签名差异**（minio 逐调用传 bucket，s3 构造期固定
+// bucket）。构造入口保留 `New(mc *miniooss.Storage, ...)` 以零回归既有调用方
+// （10+ e2e + wire），内部自动包成 MinioAdapter；s3 路径经 SetObjectStorage 注入。
 type Biz struct {
-	mc            *miniooss.Storage
+	store         filestore.ObjectStorage
 	defaultBucket string // file.bucket 配置：files 类内容的兜底桶名
 }
 
@@ -51,12 +56,25 @@ type Biz struct {
 // 因此构造后必须在 BeforeStart（InitBridges 之后）调用 SetStorage 补注
 // （对齐 appkit.SetRegistrar 的"构造期 nil + 运行期接线"模式）。
 func New(mc *miniooss.Storage, defaultBucket string) *Biz {
-	return &Biz{mc: mc, defaultBucket: defaultBucket}
+	return &Biz{store: filestore.NewMinioAdapter(mc), defaultBucket: defaultBucket}
 }
 
-// SetStorage 运行期注入存储依赖（main.go BeforeStart 在 InitBridges 之后调用）。
+// SetStorage 运行期注入 MinIO 存储依赖（main.go BeforeStart 在 InitBridges 之后调用）。
 func (b *Biz) SetStorage(mc *miniooss.Storage, defaultBucket string) {
-	b.mc = mc
+	b.store = filestore.NewMinioAdapter(mc)
+	b.defaultBucket = defaultBucket
+}
+
+// SetObjectStorage 注入任意对象存储后端（Wave 5.4：s3 路径）。
+//
+// 与 SetStorage 的差异：SetStorage 专收 minio（既有调用方零改动）；本方法收
+// 抽象接口，供 storage.type=s3 时注入 S3Adapter。nil 不覆盖（保留既有后端，
+// 与 SetCache/SetCaptchaStore 的「nil 不覆盖」时序约定一致）。
+func (b *Biz) SetObjectStorage(s filestore.ObjectStorage, defaultBucket string) {
+	if s == nil {
+		return
+	}
+	b.store = s
 	b.defaultBucket = defaultBucket
 }
 
@@ -68,7 +86,7 @@ func (b *Biz) fileStore() *store.Store[authmodel.File] {
 // Upload 上传文件（语义对齐源 UploadFile）：校验 → 分桶 → 建桶 → PutObject →
 // 元数据落库。返回登记后的元数据（ID 为新 uuid，FileName 保留原始名）。
 func (b *Biz) Upload(ctx context.Context, fileName, fileDirectory string, content []byte) (*authmodel.File, error) {
-	if b.mc == nil {
+	if b.store == nil {
 		return nil, berrors.Internal("file/storage_unavailable")
 	}
 	if len(content) == 0 {
@@ -94,7 +112,7 @@ func (b *Biz) Upload(ctx context.Context, fileName, fileDirectory string, conten
 		return nil, err
 	}
 
-	info, err := b.mc.PutObject(ctx, bucket, objectName, bytes.NewReader(content), mimeType)
+	info, err := b.store.PutObject(ctx, bucket, objectName, bytes.NewReader(content), mimeType)
 	if err != nil {
 		return nil, fmt.Errorf("file: put object: %w", err)
 	}
@@ -102,14 +120,14 @@ func (b *Biz) Upload(ctx context.Context, fileName, fileDirectory string, conten
 	dir, base := parseKey(info.Key)
 	m := &authmodel.File{
 		ID:            uuid.NewString(), // 源 recordFile：Id 独立 uuid
-		Provider:      "minio",
+		Provider:      "storage",        // 后端无关（minio/s3 经 ObjectStorage 抽象）
 		BucketName:    bucket,
 		SaveFileName:  base + ext, // 保存名 = uuid + 扩展名（对象键重建用）
 		FileDirectory: dir,
 		FileName:      fileName, // 原始文件名（Content-Disposition 友好）
 		Extension:     ext,
 		ContentHash:   sha256Hex(content),
-		Size:          int64(info.Size),
+		Size:          int64(len(content)), // size 由 content 长度提供（见 PutResult 注释）
 		MimeType:      mimeType,
 		CreatedBy:     contextx.UserIDFromContext(ctx),
 	}
@@ -121,14 +139,14 @@ func (b *Biz) Upload(ctx context.Context, fileName, fileDirectory string, conten
 
 // Download 下载文件内容（语义对齐源 DownloadFile）：按元数据重建对象键读取。
 func (b *Biz) Download(ctx context.Context, id string) (*authmodel.File, []byte, error) {
-	if b.mc == nil {
+	if b.store == nil {
 		return nil, nil, berrors.Internal("file/storage_unavailable")
 	}
 	m, err := b.Get(ctx, id)
 	if err != nil {
 		return nil, nil, err
 	}
-	obj, err := b.mc.GetObject(ctx, m.BucketName, b.objectKey(m))
+	obj, err := b.store.GetObject(ctx, m.BucketName, b.objectKey(m))
 	if err != nil {
 		return nil, nil, fmt.Errorf("file: get object: %w", err)
 	}
@@ -166,14 +184,14 @@ func (b *Biz) List(ctx context.Context, fileName, mimeType string) ([]*authmodel
 
 // Delete 删除文件（语义对齐源 Delete）：先删对象，再删元数据。
 func (b *Biz) Delete(ctx context.Context, id string) (string, error) {
-	if b.mc == nil {
+	if b.store == nil {
 		return "", berrors.Internal("file/storage_unavailable")
 	}
 	m, err := b.Get(ctx, id)
 	if err != nil {
 		return "", err
 	}
-	if err := b.mc.SDK().RemoveObject(ctx, m.BucketName, b.objectKey(m), miniov7.RemoveObjectOptions{}); err != nil {
+	if err := b.store.RemoveObject(ctx, m.BucketName, b.objectKey(m)); err != nil {
 		return "", fmt.Errorf("file: remove object: %w", err)
 	}
 	w := &store.Where{}
@@ -195,14 +213,14 @@ func (b *Biz) bucketFor(contentType string) string {
 
 // ensureBucket 桶兜底创建（源 EnsureBucket 语义）：不存在则创建（默认区域）。
 func (b *Biz) ensureBucket(ctx context.Context, bucket string) error {
-	exists, err := b.mc.SDK().BucketExists(ctx, bucket)
+	exists, err := b.store.BucketExists(ctx, bucket)
 	if err != nil {
 		return fmt.Errorf("file: bucket exists: %w", err)
 	}
 	if exists {
 		return nil
 	}
-	if err := b.mc.SDK().MakeBucket(ctx, bucket, miniov7.MakeBucketOptions{}); err != nil {
+	if err := b.store.MakeBucket(ctx, bucket); err != nil {
 		return fmt.Errorf("file: make bucket: %w", err)
 	}
 	return nil
