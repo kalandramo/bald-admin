@@ -155,6 +155,26 @@ export const dynamicRoutes: RouteRecordRaw[] = [
           elIcon: "Lock",
           roles: ["admin"]
         }
+      },
+      {
+        path: "languages",
+        component: () => import("@/pages/system/languages/index.vue"),
+        name: "SystemLanguages",
+        meta: {
+          title: "语言管理",
+          elIcon: "Notification",
+          roles: ["admin"]
+        }
+      },
+      {
+        path: "cache-monitor",
+        component: () => import("@/pages/system/cache-monitor/index.vue"),
+        name: "SystemCacheMonitor",
+        meta: {
+          title: "缓存监控",
+          elIcon: "Odometer",
+          roles: ["admin"]
+        }
       }
     ]
   },
