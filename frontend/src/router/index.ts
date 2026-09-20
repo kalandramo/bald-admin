@@ -368,6 +368,65 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         }
       }
     ]
+  },
+  // 站内消息
+  {
+    path: "/messages",
+    component: Layouts,
+    redirect: "/messages/index",
+    name: "Messages",
+    meta: {
+      title: "站内消息",
+      elIcon: "ChatDotRound",
+      alwaysShow: true,
+      roles: ["admin"]
+    },
+    children: [
+      {
+        path: "index",
+        component: () => import("@/pages/messages/index.vue"),
+        name: "MessagesIndex",
+        meta: {
+          title: "消息管理",
+          elIcon: "List",
+          roles: ["admin"]
+        }
+      },
+      {
+        path: "inbox",
+        component: () => import("@/pages/messages/inbox.vue"),
+        name: "MessagesInbox",
+        meta: {
+          title: "我的收件箱",
+          elIcon: "Message",
+          roles: ["admin"]
+        }
+      }
+    ]
+  },
+  // 任务调度
+  {
+    path: "/tasks",
+    component: Layouts,
+    redirect: "/tasks/index",
+    name: "Tasks",
+    meta: {
+      title: "任务调度",
+      elIcon: "Timer",
+      roles: ["admin"]
+    },
+    children: [
+      {
+        path: "index",
+        component: () => import("@/pages/tasks/index.vue"),
+        name: "TasksIndex",
+        meta: {
+          title: "任务列表",
+          elIcon: "List",
+          roles: ["admin"]
+        }
+      }
+    ]
   }
 ]
 
