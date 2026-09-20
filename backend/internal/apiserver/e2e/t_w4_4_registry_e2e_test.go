@@ -21,6 +21,7 @@ package e2e
 
 import (
 	"context"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -39,10 +40,29 @@ func etcdAddr() string {
 	return "127.0.0.1:2379"
 }
 
+// requireEtcdReachable 前置探测 etcd 可达性。
+//
+// **为什么必须显式探测**：`etcdcontract.Provider` 内部是**惰性构造**——
+// `clientv3.New` 不建立连接（gRPC 懒连），故 etcd 不可达时 Provider 仍返回
+// 成功。若只在 Provider 返回错误时 Skip，可达性判据形同虚设，测试会继续执行到
+// `reg.Register()` 才阻塞——etcd client 的 gRPC 重连会让该调用**挂起数分钟**
+// （Windows 上实测触发 `go test` 10 分钟超时 panic），而非按约定 Skip。
+//
+// 故先用 TCP 拨号做真实可达性判据（与仓库「环境缺失 → Skip，不伪装通过」一致）。
+func requireEtcdReachable(t *testing.T, addr string) {
+	t.Helper()
+	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+	if err != nil {
+		t.Skipf("etcd %s 不可达，跳过（环境缺失，非验证失败）: %v", addr, err)
+	}
+	_ = conn.Close()
+}
+
 // TestWave4_4_EtcdRegisterAndDiscover —— etcd 注册 → 发现 → 注销（真实依赖）。
 func TestWave4_4_EtcdRegisterAndDiscover(t *testing.T) {
 	ctx := context.Background()
 	addr := etcdAddr()
+	requireEtcdReachable(t, addr)
 
 	// 用 contract.Provider 走**与生产同款**的构造路径（非直接 New）。
 	cfg := &bootstrapv1.Registry{
@@ -58,6 +78,11 @@ func TestWave4_4_EtcdRegisterAndDiscover(t *testing.T) {
 	}
 	t.Logf("etcd Registrar 构造成功（type=%s addr=%s）", etcdcontract.Type, addr)
 
+	// 各调用用带超时的 ctx：即使探测通过后 etcd 中途失联，也不会挂到 go test
+	// 全局超时（把「环境抖动」与「实现缺陷」区分开）。
+	opCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	// 唯一服务名，避免与其他测试/残留冲突。
 	svcName := "e2e-svc-" + time.Now().Format("150405.000000")
 	inst := &registry.ServiceInstance{
@@ -70,7 +95,7 @@ func TestWave4_4_EtcdRegisterAndDiscover(t *testing.T) {
 	}
 
 	// 1) 注册。
-	if err := reg.Register(ctx, inst); err != nil {
+	if err := reg.Register(opCtx, inst); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 	t.Logf("注册成功: %s", inst.Name)
@@ -82,7 +107,7 @@ func TestWave4_4_EtcdRegisterAndDiscover(t *testing.T) {
 	}
 	var found []*registry.ServiceInstance
 	for i := 0; i < 20; i++ { // 等注册可见（etcd 写入异步）
-		found, err = disco.GetService(ctx, svcName)
+		found, err = disco.GetService(opCtx, svcName)
 		if err == nil && len(found) > 0 {
 			break
 		}
@@ -101,14 +126,14 @@ func TestWave4_4_EtcdRegisterAndDiscover(t *testing.T) {
 	t.Logf("发现成功: %s -> %d 个实例，endpoint=%v", svcName, len(found), found[0].Endpoints)
 
 	// 3) 注销。
-	if err := reg.Deregister(ctx, inst); err != nil {
+	if err := reg.Deregister(opCtx, inst); err != nil {
 		t.Fatalf("Deregister: %v", err)
 	}
 
 	// 4) 确认已消失（发现不到）。
 	gone := false
 	for i := 0; i < 20; i++ {
-		after, gerr := disco.GetService(ctx, svcName)
+		after, gerr := disco.GetService(opCtx, svcName)
 		if gerr == nil && len(after) == 0 {
 			gone = true
 			break

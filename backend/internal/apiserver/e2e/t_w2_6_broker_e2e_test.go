@@ -33,6 +33,8 @@ import (
 	"testing"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
+
 	"github.com/kalandramo/bald/broker"
 	redisbroker "github.com/kalandramo/bald/broker/redis"
 	"github.com/kalandramo/bald/broker/redis/option"
@@ -40,11 +42,27 @@ import (
 
 const brokerTestAddr = "redis://127.0.0.1:6379"
 
+// requireRedis 独立探测 broker 测试依赖的本地 Redis（127.0.0.1:6379）。
+//
+// **不能依赖 `broker.Connect()` 的返回值判断可达性**——D13.2 实测 `Connect()`
+// 对不可达 Redis 返回 nil（假成功），用它做 Skip 判据会让测试在不该继续时继续，
+// 故障延迟到 `Subscribe` 才暴露成 **FAIL**（而非环境缺失应有的 SKIP）。
+// 这与本仓其余 e2e 的「环境缺失 → Skip，不伪装通过」约定一致。
+func requireRedis(t *testing.T) {
+	t.Helper()
+	rdb := goredis.NewClient(&goredis.Options{Addr: "127.0.0.1:6379"})
+	defer func() { _ = rdb.Close() }()
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		t.Skipf("redis 127.0.0.1:6379 不可达，跳过（环境缺失，非验证失败）: %v", err)
+	}
+}
+
 // TestWave2_6_BrokerCrossInstance —— broker pubsub 跨实例扇出（核心能力）。
 //
 // 发布方与订阅方是**两个独立的 broker 实例**，经 Redis 中转——
 // 这正是 broker 相对进程内 channel 的唯一价值。
 func TestWave2_6_BrokerCrossInstance(t *testing.T) {
+	requireRedis(t) // 独立探测（不能靠 Connect 的假成功判可达性，见 helper 注释）
 	topic := "bald-admin.probe." + time.Now().Format("150405.000000")
 
 	// 订阅方（实例 A）。**必须先 Init**（D13.1）。
@@ -53,7 +71,7 @@ func TestWave2_6_BrokerCrossInstance(t *testing.T) {
 		t.Fatalf("sub.Init: %v", err)
 	}
 	if err := sub.Connect(); err != nil {
-		t.Skipf("redis 不可达，跳过（环境缺失）: %v", err)
+		t.Fatalf("sub.Connect: %v", err) // 可达性已由 requireRedis 保证，此处失败即真故障
 	}
 	defer sub.Disconnect()
 
@@ -107,7 +125,12 @@ func TestWave2_6_BrokerCrossInstance(t *testing.T) {
 // TestWave2_6_BrokerRequiresInit —— D13.1 回归：不调 Init 则 Subscribe 失败。
 //
 // 锁住该约束，防止后人误以为 NewBroker 已完成初始化。
+//
+// 注意：本测试断言的是「不调 Init → Subscribe 报 `invalid redis URL scheme`」。
+// 若 Redis 不可达，Subscribe 也会报错（但原因不同），会让本测试**假绿**——
+// 故必须先 requireRedis 保证可达，使失败原因唯一归因于「未 Init」。
 func TestWave2_6_BrokerRequiresInit(t *testing.T) {
+	requireRedis(t)
 	// 刻意**不调 Init**。
 	b := redisbroker.NewBroker(option.DriverTypePubSub, broker.WithAddress(brokerTestAddr))
 	if err := b.Connect(); err != nil {
@@ -176,13 +199,14 @@ func TestWave2_6_BrokerDegrade(t *testing.T) {
 //
 // 两 driver 的 NewBroker 都不调 Init——同族约束（D13.1 覆盖两者）。
 func TestWave2_6_BrokerStreamDriver(t *testing.T) {
+	requireRedis(t)
 	b := redisbroker.NewBroker(option.DriverTypeStream, broker.WithAddress(brokerTestAddr))
 	// 同样必须显式 Init。
 	if err := b.Init(); err != nil {
 		t.Fatalf("stream Init: %v", err)
 	}
 	if err := b.Connect(); err != nil {
-		t.Skipf("redis 不可达，跳过: %v", err)
+		t.Fatalf("stream Connect: %v", err)
 	}
 	defer b.Disconnect()
 	t.Logf("stream driver 可用，Name=%s Address=%s", b.Name(), b.Address())
