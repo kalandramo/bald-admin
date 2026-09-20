@@ -264,6 +264,51 @@ export const dynamicRoutes: RouteRecordRaw[] = [
         }
       }
     ]
+  },
+  // 套餐配额
+  {
+    path: "/plans",
+    component: Layouts,
+    redirect: "/plans/index",
+    name: "Plans",
+    meta: {
+      title: "套餐配额",
+      elIcon: "Goods",
+      alwaysShow: true,
+      roles: ["admin"]
+    },
+    children: [
+      {
+        path: "index",
+        component: () => import("@/pages/plans/index.vue"),
+        name: "PlansIndex",
+        meta: {
+          title: "套餐管理",
+          elIcon: "List",
+          roles: ["admin"]
+        }
+      },
+      {
+        path: "modules",
+        component: () => import("@/pages/plans/modules/index.vue"),
+        name: "PlanModules",
+        meta: {
+          title: "套餐模块",
+          elIcon: "Grid",
+          roles: ["admin"]
+        }
+      },
+      {
+        path: "quotas",
+        component: () => import("@/pages/plans/quotas/index.vue"),
+        name: "PlanQuotas",
+        meta: {
+          title: "套餐配额",
+          elIcon: "Histogram",
+          roles: ["admin"]
+        }
+      }
+    ]
   }
 ]
 
