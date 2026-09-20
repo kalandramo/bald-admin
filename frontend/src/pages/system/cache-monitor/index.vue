@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { RedisCacheMonitorInfo } from "@/api/generated/model"
-import { redisCacheMonitorServiceGetRedisCacheMonitor } from "@/api/generated/redis-cache-monitor-service"
 import { formatDateTime } from "@@/utils/datetime"
+import { redisCacheMonitorServiceGetRedisCacheMonitor } from "@/api/generated/redis-cache-monitor-service"
 
 defineOptions({ name: "CacheMonitor" })
 

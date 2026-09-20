@@ -1,12 +1,12 @@
 <script lang="ts" setup>
 import type { Language } from "@/api/generated/model"
+import { useConfirmAction } from "@@/composables/useConfirmAction"
 import {
   languageServiceCreateLanguage,
   languageServiceDeleteLanguage,
   languageServiceListLanguages,
   languageServiceUpdateLanguage
 } from "@/api/generated/language-service"
-import { useConfirmAction } from "@@/composables/useConfirmAction"
 
 defineOptions({ name: "Languages" })
 
