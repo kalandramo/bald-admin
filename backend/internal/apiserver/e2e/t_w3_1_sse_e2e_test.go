@@ -25,27 +25,54 @@ import (
 	"testing"
 	"time"
 
+	jsoncodec "github.com/kalandramo/bald/encoding/json"
 	baldsse "github.com/kalandramo/bald/transport/sse"
 )
 
-// TestWave3_1_PublishDataRequiresCodec —— **关键约束**：PublishData* 系列
-// 依赖 encoding 全局注册表，未注册时 `NewServer` 不报错、PublishData* 才失败。
+// TestWave3_1_PublishDataRequiresCodec —— SSE PublishData* 的 codec 兜底语义。
 //
-// 与 asynq（Wave 2.1）同族约束。错误信息**明确指引修复方式**（比 D13 好）。
+// ## 行为核实（Wave 5.5 后重写，原断言已失效——诊断过程如实记录）
+//
+// 原测试断言「codec 未注册 → PublishData* 报错」，**隐含依赖「全局注册表为空」**。
+// 该假设在两种情况下被打破：
+//  1. **全量 `-shuffle=on`**：Wave 5.5 的 `registerAsynqCodecs` 先跑并注册了
+//     json/msgpack → `NewServer` 的兜底（`sse/server.go:116-117` 取
+//     `GetCodec("json")`）取到 json → 不报错 → 原断言 FAIL（跨测试全局态污染）。
+//  2. **单独跑本测试**：全局表为空 → 兜底 `GetCodec("json")` 返回 **nil**
+//     （json 未注册）→ codec 仍 nil → 报错。
+//
+// 即：**该测试的结果取决于全局注册表状态**（进程级单例），任何「断言成功」
+// 或「断言失败」的写法都会在某种执行顺序下失效。
+//
+// ## 修法：显式控制全局态
+//
+// 测试内**显式注册 json**（幂等），使兜底必然取到 json——断言与执行顺序无关。
+// 这是「全局态测试必须自己控制前置状态」的通用修法。
 func TestWave3_1_PublishDataRequiresCodec(t *testing.T) {
-	// 刻意不注册 codec。
-	srv := baldsse.NewServer(":0", baldsse.WithAutoStream(true))
+	// 显式注册 json（幂等；其他测试可能已注册）——保证兜底可取到。
+	registerCodecSafely(jsoncodec.New())
+
+	// 指定一个必然未注册的 codec 名：WithCodec 对未注册名设 nil，
+	// 而 NewServer 的兜底会把 nil 覆盖为 GetCodec("json")（现已注册）。
+	srv := baldsse.NewServer(":0",
+		baldsse.WithAutoStream(true),
+		baldsse.WithCodec("no-such-codec-xyz"),
+	)
 	srv.CreateStream("codec-check")
 
 	err := srv.PublishDataWithEventName(context.Background(), "codec-check", "ev",
 		map[string]any{"k": "v"})
-	if err == nil {
-		t.Fatal("codec 未注册时 PublishData* 应报错（框架行为变化？请核实）")
+	// 实测语义：SSE 对 nil codec **静默兜底取 json**（`sse/server.go:116-117`），
+	// 故 Publish 成功。这是「静默兜底」——与 asynq 不同（asynq 无兜底，见下）。
+	if err != nil {
+		t.Fatalf("SSE 应对 nil codec 兜底取 json（实测语义），实际报错: %v", err)
 	}
-	if !strings.Contains(err.Error(), "codec is nil") {
-		t.Fatalf("错误信息不符: %v", err)
-	}
-	t.Logf("确认约束: %v", err)
+	t.Logf("确认 SSE 语义：WithCodec(未注册名) → 构造期兜底取 json → Publish 成功（静默兜底）")
+
+	// 对照：asynq 的 codec 是构造缺省值（`asynq/server.go:122` 的
+	// `codec: encoding.GetCodec("json")`）且**无 nil 兜底**——故 WithCodec
+	// 传未注册名会把 codec 覆盖成 nil 并**保持**，运行期报 `codec is nil`。
+	// 该差异由 TestWave5_5_AsynqCodecSelection 侧证（GetCodec(未注册)=nil）。
 }
 
 // TestWave3_1_SSEProtocolHeaders —— 订阅端点返回正确的 SSE 协议头。
