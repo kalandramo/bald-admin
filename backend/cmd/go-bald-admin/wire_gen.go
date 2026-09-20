@@ -26,6 +26,7 @@ import (
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
 	pgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
 	planbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/plan"
+	langbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/language"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
@@ -73,6 +74,7 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 	permGroupBiz := pgbiz.New()
 	// Wave 4.2：套餐三件套。
 	planBiz := planbiz.New()
+	languageBiz := langbiz.New()
 	// T10：BizSet 收敛到 apiserver 包（bizset.go）；cache 留在装配局部
 	// （仅 secret/dict 消费，server 层不知缓存实现）。
 	bizSet := &apiserver.BizSet{
@@ -93,6 +95,7 @@ func InitializeBiz() (*apiserver.BizSet, error) {
 		Dashboard:  dashboardBiz,
 		PermGroup:  permGroupBiz,
 		Plan:       planBiz,
+		Language:   languageBiz,
 	}
 	return bizSet, nil
 }

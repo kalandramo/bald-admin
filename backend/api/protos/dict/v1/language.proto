@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+package go.bald.admin.dict.v1;
+
+option go_package = "github.com/kalandramo/bald/examples/go-bald-admin/api/gen/dict/v1;dictv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// LanguageService 语言管理（Wave 5.3，自 go-wind-admin dict 域 language 精简移植）。
+//
+// 源语言域 7 rpc（List/Count/Get/Create/BatchCreate/Update/Delete）。本实现
+// **对齐项目既有惯例**（与同目录 DictType/DictEntry 一致），与源有两处显式偏差：
+//
+//  1. **主键用 string 业务键**（`language_code`，如 "zh-CN"）而非源 `uint32 id`
+//     ——源 ID 由 DB 自增生成，本项目 dict 域同款场景（type_code 作主键）已确立
+//     「业务键主键」范式（见 model/dict.go），语言代码天然唯一且可读。
+//  2. **请求体简化**：源的 `FieldMask view_mask`/`update_mask`/`oneof query_by`
+//     未移植——本项目 handler 用「非空字段即更新」语义（同 DictType 的 Update），
+//     字段掩码是源框架的通用能力，复刻它对功能对等无增益。
+//
+// BatchCreate 源 service 层**未实现**（proto 有、`language_service.go` 无该方法）
+// ——故本实现同样返回 UNIMPLEMENTED（对齐源行为，不自创）。
+service LanguageService {
+  // ListLanguages 列出语言（sort_order 升序）。
+  //   REST: GET /v1/language
+  rpc ListLanguages(ListLanguagesRequest) returns (ListLanguagesResponse) {
+    option (google.api.http) = {
+      get: "/v1/language"
+    };
+  }
+
+  // GetLanguage 取单个语言。
+  //   REST: GET /v1/language/{id}
+  rpc GetLanguage(GetLanguageRequest) returns (GetLanguageResponse) {
+    option (google.api.http) = {
+      get: "/v1/language/{id}"
+    };
+  }
+
+  // CreateLanguage 创建语言（language_code 为业务键，重复 → 409）。
+  //   REST: POST /v1/language
+  rpc CreateLanguage(CreateLanguageRequest) returns (CreateLanguageResponse) {
+    option (google.api.http) = {
+      post: "/v1/language"
+      body: "*"
+    };
+  }
+
+  // BatchCreateLanguages 批量创建。**源未实现**（见 service 头注）→ UNIMPLEMENTED。
+  //   REST: POST /v1/language/batch
+  rpc BatchCreateLanguages(BatchCreateLanguagesRequest) returns (BatchCreateLanguagesResponse) {
+    option (google.api.http) = {
+      post: "/v1/language/batch"
+      body: "*"
+    };
+  }
+
+  // UpdateLanguage 更新语言（非空字段即更新；language_code 不可变）。
+  //   REST: PUT /v1/language/{id}
+  rpc UpdateLanguage(UpdateLanguageRequest) returns (UpdateLanguageResponse) {
+    option (google.api.http) = {
+      put: "/v1/language/{id}"
+      body: "*"
+    };
+  }
+
+  // DeleteLanguage 删除语言。
+  //   REST: DELETE /v1/language/{id}
+  rpc DeleteLanguage(DeleteLanguageRequest) returns (DeleteLanguageResponse) {
+    option (google.api.http) = {
+      delete: "/v1/language/{id}"
+    };
+  }
+
+  // CountLanguages 统计语言数量。
+  //   REST: GET /v1/language/count
+  rpc CountLanguages(CountLanguagesRequest) returns (CountLanguagesResponse) {
+    option (google.api.http) = {
+      get: "/v1/language/count"
+    };
+  }
+}
+
+// Language 语言条目。ID 即标准语言代码（如 "zh-CN"）。
+message Language {
+  string id = 1;            // 标准语言代码（主键，源 language_code）
+  string language_name = 2; // 语言名称（如 "中文（简体）"）
+  string native_name = 3;   // 本地语言名称（如 "简体中文"）
+  bool is_default = 4;      // 是否默认语言
+  bool is_enabled = 5;      // 是否启用
+  int32 sort_order = 6;     // 排序（值越小越靠前）
+
+  google.protobuf.Timestamp created_at = 100;
+  google.protobuf.Timestamp updated_at = 101;
+}
+
+message ListLanguagesRequest {
+  bool enabled_only = 1; // true = 只返回启用的语言
+}
+
+message ListLanguagesResponse {
+  repeated Language items = 1;
+  uint32 total = 2;
+}
+
+message GetLanguageRequest {
+  string id = 1; // 语言代码
+}
+
+message GetLanguageResponse {
+  Language language = 1;
+}
+
+message CreateLanguageRequest {
+  string id = 1;            // 语言代码（业务键）
+  string language_name = 2;
+  string native_name = 3;
+  bool is_default = 4;
+  bool is_enabled = 5;
+  int32 sort_order = 6;
+}
+
+message CreateLanguageResponse {
+  Language language = 1;
+}
+
+message BatchCreateLanguagesRequest {
+  repeated Language items = 1;
+}
+
+message BatchCreateLanguagesResponse {
+  repeated string created_ids = 1; // 创建成功的语言代码列表
+}
+
+message UpdateLanguageRequest {
+  string id = 1;            // 语言代码（路径参数）
+  string language_name = 2; // 非空即更新
+  string native_name = 3;   // 非空即更新
+  bool is_default = 4;      // 显式设置（配 is_default_set 区分「未设置」与「设为 false」）
+  bool is_default_set = 5;
+  bool is_enabled = 6;
+  bool is_enabled_set = 7;
+  int32 sort_order = 8;
+}
+
+message UpdateLanguageResponse {
+  Language language = 1;
+}
+
+message DeleteLanguageRequest {
+  string id = 1;
+}
+
+message DeleteLanguageResponse {
+  string deleted = 1; // 被删除的语言代码
+}
+
+message CountLanguagesRequest {}
+
+message CountLanguagesResponse {
+  uint32 count = 1;
+}

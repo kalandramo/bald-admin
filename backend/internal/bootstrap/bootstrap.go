@@ -216,6 +216,9 @@ var RolePolicyStore *store.Store[authmodel.RolePolicy]
 var DictTypeStore *store.Store[authmodel.DictType]
 var DictEntryStore *store.Store[authmodel.DictEntry]
 
+// LanguageStore 语言仓储（Wave 5.3；平台级数据，无租户维度）。
+var LanguageStore *store.Store[authmodel.Language]
+
 // FileStore 文件元数据仓储（T5；MinIO 对象经 MinioStorage 桥接，元数据落本库）。
 var FileStore *store.Store[authmodel.File]
 
@@ -309,6 +312,7 @@ func InitBridges(ctx context.Context) error {
 	if err := db.AutoMigrate(&authmodel.User{}, &authmodel.Role{}, &authmodel.Secret{}, &authmodel.AuditRecord{}, &authmodel.Tenant{},
 		&authmodel.Menu{}, &authmodel.Permission{}, &authmodel.RolePolicy{},
 		&authmodel.DictType{}, &authmodel.DictEntry{}, &authmodel.File{},
+		&authmodel.Language{},
 		&authmodel.UserMFAFactor{}, &authmodel.UserCredential{}, &authmodel.LoginPolicy{},
 		&authmodel.OrgUnit{}, &authmodel.Position{}, &authmodel.Task{},
 		&authmodel.InternalMessage{}, &authmodel.InternalMessageCategory{},
@@ -371,6 +375,7 @@ func InitBridges(ctx context.Context) error {
 		func(p *authmodel.RolePolicy) string { return p.ID }))
 	DictTypeStore = store.NewStore[authmodel.DictType](baldgorm.NewGormProvider(db, func(t *authmodel.DictType) string { return t.ID }))
 	DictEntryStore = store.NewStore[authmodel.DictEntry](baldgorm.NewGormProvider(db, func(e *authmodel.DictEntry) string { return e.ID }))
+	LanguageStore = store.NewStore[authmodel.Language](baldgorm.NewGormProvider(db, func(l *authmodel.Language) string { return l.ID }))
 	FileStore = store.NewStore[authmodel.File](baldgorm.NewGormProvider(db, func(f *authmodel.File) string { return f.ID }))
 	// T6：审计查询仓储（自增主键；审计表全量记录不走租户读隔离，ID 提取器照常）。
 	AuditStore = store.NewStore[authmodel.AuditRecord](baldgorm.NewGormProvider(db, func(r *authmodel.AuditRecord) string {
@@ -571,6 +576,22 @@ func seed(ctx context.Context) error {
 			return err
 		}
 	}
+	// Wave 5.3 语言种子：对齐源 constants.DefaultLanguages 的 7 条
+	// （zh-CN 为默认；sort_order 源值 0/1/100——zh-CN 最小在前）。
+	languages := []*authmodel.Language{
+		{ID: "zh-CN", LanguageName: "中文（简体）", NativeName: "简体中文", IsDefault: true, IsEnabled: true, SortOrder: 0},
+		{ID: "en-US", LanguageName: "英语", NativeName: "English", IsEnabled: true, SortOrder: 1},
+		{ID: "zh-TW", LanguageName: "中文（繁体）", NativeName: "繁體中文", IsEnabled: true, SortOrder: 100},
+		{ID: "ja-JP", LanguageName: "日语", NativeName: "日本語", IsEnabled: true, SortOrder: 100},
+		{ID: "ko-KR", LanguageName: "韩语", NativeName: "한국어", IsEnabled: true, SortOrder: 100},
+		{ID: "es-ES", LanguageName: "西班牙语", NativeName: "Español", IsEnabled: true, SortOrder: 100},
+		{ID: "fr-FR", LanguageName: "法语", NativeName: "Français", IsEnabled: true, SortOrder: 100},
+	}
+	for _, l := range languages {
+		if err := LanguageStore.Create(ctx, l); err != nil && err != store.ErrConflict {
+			return err
+		}
+	}
 	// T3 角色策略种子（casbin p 行数据化，D3）：内容与被删除的静态 rbac_policy.csv
 	// 等价（存量授权行为零回归）+ menu/permission 管理域（仅 admin 写，viewer 只读）。
 	// RolePolicy 自增主键无业务唯一键，防重复种子用「非空即跳过」。
@@ -732,6 +753,18 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "viewer", Object: "dict_type", Action: "list"},
 		{Role: "viewer", Object: "dict_entry", Action: "get"},
 		{Role: "viewer", Object: "dict_entry", Action: "list"},
+		// admin：语言管理（Wave 5.3）。object 归一化：REST /v1/language →
+		// DefaultHTTPObject="language"；gRPC LanguageService/* →
+		// DefaultGRPCObject="language"（去 Service 后缀）——双协议同源。
+		{Role: "admin", Object: "language", Action: "get"},
+		{Role: "admin", Object: "language", Action: "post"},
+		{Role: "admin", Object: "language", Action: "put"},
+		{Role: "admin", Object: "language", Action: "delete"},
+		{Role: "admin", Object: "language", Action: "list"},
+		{Role: "admin", Object: "language", Action: "write"},
+		// viewer：语言只读（语言是平台级基础数据，登录用户可读）。
+		{Role: "viewer", Object: "language", Action: "get"},
+		{Role: "viewer", Object: "language", Action: "list"},
 		// admin：文件管理（T5）。同款六元组（REST HTTP 动词小写 + gRPC
 		// get/list/write 双协议全放行；DefaultGRPCObject("FileService/...")="file"）。
 		{Role: "admin", Object: "file", Action: "get"},

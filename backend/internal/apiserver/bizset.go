@@ -7,15 +7,16 @@ import (
 	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
 	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
 	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
-	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
+	langbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/language"
 	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
+	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
 	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
-	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
+	pgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
 	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
 	planbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/plan"
-	pgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
 	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
+	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 )
@@ -52,4 +53,6 @@ type BizSet struct {
 	PermGroup *pgbiz.Biz
 	// Plan 套餐三件套（Wave 4.2）。
 	Plan *planbiz.Biz
+	// Language 语言管理（Wave 5.3；平台级数据）。
+	Language *langbiz.Biz
 }
