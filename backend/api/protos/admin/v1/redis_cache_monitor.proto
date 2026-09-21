@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package go.bald.admin.admin.v1;
 
-option go_package = "github.com/kalandramo/bald/examples/go-bald-admin/api/gen/admin/v1;adminv1";
+option go_package = "github.com/kalandramo/bald-admin/api/gen/go/admin/v1;adminv1";
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
