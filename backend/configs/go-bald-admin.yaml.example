@@ -3,7 +3,11 @@ server:
   grpc:  { addr: ":9090" }
 gateway: { addr: ":8081" }
 log: { level: "info", format: "json" }
-audit: { backends: "store,stream" }   # Redis 可用才含 stream
+# audit.backends 逐项必须是**已注册**的 provider。当前仅注册了 `store`
+# （见 cmd/go-bald-admin/audit_wiring.go:129——`stream` 的 provider 构造即需
+# redis 客户端，无法惰性化，故未注册）。写 "store,stream" 会在启动时报
+# `audit provider "stream" not registered`。
+audit: { backends: "store" }
 
 # ---- T0 新增：真实服务依赖（云端地址由用户填写）----
 database:
@@ -34,10 +38,19 @@ registry:
     username: "<NACOS_USERNAME>"
     password: "<NACOS_PASSWORD>"
 
-# ---- 配置中心（契约 config 段 → appkit 配置层）----
-# 层优先级低于本地文件/env/flag：远程只补充本地未定义的键（本地值始终胜出）；
-# dataId 内容变更经 nacos ListenConfig 推送热更新（Watch=true）。
+# ---- 配置源契约段（**至少一个源可构造**，否则启动报
+# "bootstrap: no config source configured"）----
+# file 源指向本文件自身——它不依赖网络，是本地开发与 CI 的默认可用源。
+# 仅配 nacos（下方）时，无网络环境会因「一个源都构造不出」而启动失败。
+#
+# 注：下方 nacos 段需网络；离线场景由 config.file 保证至少一个源可用。
 config:
+  file:
+    path: "configs/go-bald-admin.yaml"
+    format: "yaml"
+    watch: false
+  # 配置中心（层优先级低于本地文件/env/flag：远程只补充本地未定义的键，
+  # 本地值始终胜出；dataId 内容变更经 nacos ListenConfig 推送热更新）。
   nacos:
     server_addrs: ["<NACOS_ADDR>:8848"]
     namespace: "<NAMESPACE_ID>"
