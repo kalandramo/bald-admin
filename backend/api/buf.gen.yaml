@@ -2,8 +2,22 @@ version: v2
 managed:
   enabled: true
   disable:
+    # 外部依赖必须**逐个豁免**（D18）：managed.override.go_package_prefix 会
+    # 无差别覆写**所有** proto 的 go_package，包括来自外部 BSR 模块的文件。
+    # 不豁免则生成物把 `gnostic/openapi/v3` 改写成
+    # `<本项目>/gen/go/gnostic/openapi/v3`（不存在的路径）→ go build 失败。
+    #
+    # 框架 `_example/bald/proto/buf.gen.yaml` 用 v1 的 `except` 表达了同一原则，
+    # 并列了 googleapis + protovalidate 两条，注释载明「若生成本地副本会与官方库
+    # 注册的同一 proto 冲突，运行时直接 panic」——本文件是 v2 迁移时**漏了这条**。
+    #
+    # 新增外部依赖（如本文件 deps 中的 gnostic / bald-bconf）时，务必同步追加。
     - file_option: go_package
       module: buf.build/googleapis/googleapis
+    - file_option: go_package
+      module: buf.build/gnostic/gnostic
+    - file_option: go_package
+      module: buf.build/kalandramo/bald-bconf
   override:
     # 生成物按语言分层（gen/go/...），与 go-wind-admin 的 gen/go 结构对齐——
     # 未来若有第二语言/生成面（如 gen/typescript），语言维度即目录维度。

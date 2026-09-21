@@ -21,3 +21,12 @@ coverage/
 # 日志与临时
 *.log
 .DS_Store
+
+# 探测用生成物（A/B/C 三层能力探测，见 .rivet/plans/）。
+# protos-upstream 是**独立 buf module**（有自己的 buf.yaml）+ **独立 Go module**
+# （gen/go.mod），与生产 protos/ 完全隔离。
+#
+# gen/go/** 不入库：可由 `cd backend/api/protos-upstream && buf generate` 重建
+# （buf.lock 已锁定依赖版本，重建结果确定）。
+# gen/go.mod + gen/go.sum **入库**——它们是隔离边界的声明，不是生成物。
+backend/api/protos-upstream/gen/go/
