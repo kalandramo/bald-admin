@@ -7,6 +7,6 @@ deps:
   - name: buf.build/googleapis/googleapis
     commit: c17df5b2beca46928cc87d5656bd5343
     digest: b5:648a01e0170d4512dea7d564016165decd1ed6e34bef79fe54753e51ad7e27545709ad9157d7551270147d551155c595a2fb0bf5bb33b1c83040ddbce915c604
-  - name: buf.build/tx7do/pagination
-    commit: 7e34dd27013f4c67bb09025c73a73980
-    digest: b5:f1affafbeb5564a0cb38bf25efe4af9af7c0da770fe7d860617dc2dfb6b8dd352de105cd3175c9ac86d9e7ea5c8f409ab94637431a9c6f48ca0fbfb32771b279
+  - name: buf.build/kalandramo/bald-bconf
+    commit: ff3e78df9ab4403a86e66f69348b575d
+    digest: b5:55791a51647aa21790817491bb508e044fb637293e5aa41cd627e8c97a1ba81cf9077867d3a78510018c28c4ea498eb89cfe727700752c588d55b2c21030718e

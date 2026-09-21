@@ -26,11 +26,22 @@ deps:
   # - gnostic/gnostic：提供 gnostic/openapi/v3/*.proto（OpenAPI 元数据注解，
   #   源 proto 54 处 import）；本项目 openapi 生成链路本就用 gnostic 的
   #   protoc-gen-openapi 插件，此前缺的是 proto 侧注解依赖。
-  # - tx7do/pagination：提供 pagination/v1/pagination.proto（源 List 入参
-  #   PagingRequest，源 proto 55 处 import）。
+  # - kalandramo/bald-bconf：提供 bald/store/v1/store.proto（分页/过滤/排序契约）。
+  #   这是**框架自有**的分页契约，与源的 pagination.PagingRequest 字段结构逐项
+  #   一致（page/page_size/offset/limit/token/no_paging/oneof filtering_type/
+  #   order_by/sorting，字段号与类型全同），但包名不同：
+  #     源   ：pagination/v1/pagination.proto  → pagination.PagingRequest
+  #     本项目：bald/store/v1/store.proto       → bald.store.v1.PagingRequest
+  #   故搬源 proto 时 import 路径与类型引用需按上述对应改写（显式偏差，
+  #   在搬入的 proto 头注中说明，与 language.proto 的做法一致）。
+  #
+  # 回收记录：本项原为第三方 buf.build/tx7do/pagination（因 D17——框架契约
+  # 未发布到 BSR——被迫引入）。D17 修复并发布 bald-bconf 后回收为框架自有，
+  # 消除「两套并行分页类型」。二者当前均为**预置依赖**（尚无 proto 实际
+  # import），待 P0.5 各域搬 proto 时启用。
   #
   # 注：google/protobuf/field_mask.proto **不需要** dep——它是 protobuf
   # 内置 well-known type（buf 自带 wellknowntypes 缓存），实测仅靠
   # googleapis dep 即可解析（源 proto 28 处 import 的 field_mask 均属此列）。
   - buf.build/gnostic/gnostic
-  - buf.build/tx7do/pagination
+  - buf.build/kalandramo/bald-bconf
