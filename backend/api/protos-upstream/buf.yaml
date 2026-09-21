@@ -1,0 +1,25 @@
+# protos-upstream：go-wind-admin 源 proto 的**只读镜像**（能力缺口探测用，A 层）。
+#
+# 为什么独立 module 而非并入 protos/：
+#   源 proto 与本项目生产 proto 存在 **10 处 service 同名**（如 DictTypeService）
+#   及 10+ 处 message 同名（如 GetDictTypeRequest），且同名 message 的字段类型
+#   不同（源 uint32 id vs 本项目 string id）——并入同 package 会 `declared
+#   multiple times` 编译失败（探针实测）。独立 module 保留源 package 原名
+#   （identity.service.v1 等），与本项目 go.bald.admin.* 天然隔离。
+#
+# 本目录**不参与生产生成链路**（不被 buf.gen.yaml / buf.openapi.gen.yaml 的
+# inputs 引用），仅供探测与对照。详见 .rivet/plans/ 的 A/B/C 三层计划。
+version: v2
+modules:
+  - path: .
+    name: buf.build/kalandramo/bald-admin-upstream
+    lint:
+      # 源 proto 用源的命名惯例（无枚举前缀、无 XxxRequest 规范），
+      # 与 STANDARD 冲突 —— 此处仅做结构校验，风格规则全豁免。
+      # 探测目的是「契约能否承接」，不是「源风格是否合规」。
+      use:
+        - MINIMAL
+deps:
+  - buf.build/googleapis/googleapis
+  - buf.build/gnostic/gnostic
+  - buf.build/tx7do/pagination
