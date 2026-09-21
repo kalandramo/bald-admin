@@ -653,6 +653,130 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DeleteMenuResponse'
+    /v1/org-units:
+        get:
+            tags:
+                - OrgUnitService
+            description: "ListOrgUnits 列出组织单元（**返回树形**，children 递归嵌套）。\r\n   REST: GET /v1/org-units"
+            operationId: OrgUnitService_ListOrgUnits
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListOrgUnitsResponse'
+        post:
+            tags:
+                - OrgUnitService
+            description: "CreateOrgUnit 创建组织单元（code 为业务键，重复 → 409）。\r\n   REST: POST /v1/org-units"
+            operationId: OrgUnitService_CreateOrgUnit
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateOrgUnitRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateOrgUnitResponse'
+    /v1/org-units/batch:
+        post:
+            tags:
+                - OrgUnitService
+            description: "BatchCreateOrgUnits 批量创建（逐条创建，**部分失败不回滚**——对齐源语义）。\r\n   REST: POST /v1/org-units/batch"
+            operationId: OrgUnitService_BatchCreateOrgUnits
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BatchCreateOrgUnitsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BatchCreateOrgUnitsResponse'
+    /v1/org-units/count:
+        get:
+            tags:
+                - OrgUnitService
+            description: "CountOrgUnits 统计组织单元数量。\r\n   REST: GET /v1/org-units/count\r\n 注意：REST 路径 `/org-units/count` 必须注册在 `/org-units/{code}` **之前**\r\n （gin 路由树对静态段优先，显式排序避免歧义——同 dict/language 的 /count 约定）。"
+            operationId: OrgUnitService_CountOrgUnits
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CountOrgUnitsResponse'
+    /v1/org-units/{code}:
+        get:
+            tags:
+                - OrgUnitService
+            description: "GetOrgUnit 取单个组织单元（按 code）。\r\n   REST: GET /v1/org-units/{code}"
+            operationId: OrgUnitService_GetOrgUnit
+            parameters:
+                - name: code
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetOrgUnitResponse'
+        put:
+            tags:
+                - OrgUnitService
+            description: "UpdateOrgUnit 更新组织单元（非空字段即更新；code 不可变）。\r\n **防环**：不能把节点挂到自己的子孙下（源无此校验，是本项目的正确性增强）。\r\n   REST: PUT /v1/org-units/{code}"
+            operationId: OrgUnitService_UpdateOrgUnit
+            parameters:
+                - name: code
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateOrgUnitRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateOrgUnitResponse'
+        delete:
+            tags:
+                - OrgUnitService
+            description: "DeleteOrgUnit 删除组织单元。**有子节点时拒绝**（否则产生悬挂引用）。\r\n   REST: DELETE /v1/org-units/{code}"
+            operationId: OrgUnitService_DeleteOrgUnit
+            parameters:
+                - name: code
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteOrgUnitResponse'
     /v1/permission:
         get:
             tags:
@@ -818,6 +942,130 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DeletePermissionResponse'
+    /v1/positions:
+        get:
+            tags:
+                - PositionService
+            description: "ListPositions 列出职位（回填 org_unit_name / reports_to_position_name）。\r\n   REST: GET /v1/positions"
+            operationId: PositionService_ListPositions
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListPositionsResponse'
+        post:
+            tags:
+                - PositionService
+            description: "CreatePosition 创建职位（校验所属组织单元存在——避免悬挂引用）。\r\n   REST: POST /v1/positions"
+            operationId: PositionService_CreatePosition
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreatePositionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreatePositionResponse'
+    /v1/positions/batch:
+        post:
+            tags:
+                - PositionService
+            description: "BatchCreatePositions 批量创建（部分失败不回滚）。\r\n   REST: POST /v1/positions/batch"
+            operationId: PositionService_BatchCreatePositions
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BatchCreatePositionsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BatchCreatePositionsResponse'
+    /v1/positions/count:
+        get:
+            tags:
+                - PositionService
+            description: "CountPositions 统计职位数量。\r\n   REST: GET /v1/positions/count"
+            operationId: PositionService_CountPositions
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CountPositionsResponse'
+    /v1/positions/{code}:
+        get:
+            tags:
+                - PositionService
+            description: "GetPosition 取单个职位（按 code）。\r\n   REST: GET /v1/positions/{code}"
+            operationId: PositionService_GetPosition
+            parameters:
+                - name: code
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetPositionResponse'
+        put:
+            tags:
+                - PositionService
+            description: "UpdatePosition 更新职位（非空字段即更新；code 不可变）。\r\n   REST: PUT /v1/positions/{code}"
+            operationId: PositionService_UpdatePosition
+            parameters:
+                - name: code
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdatePositionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdatePositionResponse'
+        delete:
+            tags:
+                - PositionService
+            description: "DeletePosition 删除职位。\r\n   REST: DELETE /v1/positions/{code}"
+            operationId: PositionService_DeletePosition
+            parameters:
+                - name: code
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeletePositionResponse'
     /v1/redis-cache-monitor:
         get:
             tags:
@@ -1163,10 +1411,58 @@ components:
                     type: array
                     items:
                         type: string
+        BatchCreateOrgUnitsRequest:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OrgUnit'
+        BatchCreateOrgUnitsResponse:
+            type: object
+            properties:
+                created:
+                    type: array
+                    items:
+                        type: string
+                failed:
+                    type: array
+                    items:
+                        type: string
+        BatchCreatePositionsRequest:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Position'
+        BatchCreatePositionsResponse:
+            type: object
+            properties:
+                created:
+                    type: array
+                    items:
+                        type: string
+                failed:
+                    type: array
+                    items:
+                        type: string
         CountLanguagesResponse:
             type: object
             properties:
                 count:
+                    type: integer
+                    format: uint32
+        CountOrgUnitsResponse:
+            type: object
+            properties:
+                total:
+                    type: integer
+                    format: uint32
+        CountPositionsResponse:
+            type: object
+            properties:
+                total:
                     type: integer
                     format: uint32
         CreateDictEntryRequest:
@@ -1264,6 +1560,51 @@ components:
             properties:
                 menu:
                     $ref: '#/components/schemas/Menu'
+        CreateOrgUnitRequest:
+            type: object
+            properties:
+                code:
+                    type: string
+                name:
+                    type: string
+                type:
+                    enum:
+                        - TYPE_UNSPECIFIED
+                        - TYPE_COMPANY
+                        - TYPE_DIVISION
+                        - TYPE_DEPARTMENT
+                        - TYPE_TEAM
+                        - TYPE_PROJECT
+                        - TYPE_COMMITTEE
+                        - TYPE_REGION
+                        - TYPE_SUBSIDIARY
+                        - TYPE_BRANCH
+                        - TYPE_OTHER
+                    type: string
+                    format: enum
+                parent_id:
+                    type: string
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                    type: string
+                    format: enum
+                sort_order:
+                    type: integer
+                    format: int32
+                leader_id:
+                    type: string
+                remark:
+                    type: string
+                description:
+                    type: string
+        CreateOrgUnitResponse:
+            type: object
+            properties:
+                org_unit:
+                    $ref: '#/components/schemas/OrgUnit'
         CreatePermissionRequest:
             type: object
             properties:
@@ -1282,6 +1623,62 @@ components:
             properties:
                 permission:
                     $ref: '#/components/schemas/Permission'
+        CreatePositionRequest:
+            type: object
+            properties:
+                code:
+                    type: string
+                name:
+                    type: string
+                headcount:
+                    type: integer
+                    format: int32
+                sort_order:
+                    type: integer
+                    format: int32
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                    type: string
+                    format: enum
+                type:
+                    enum:
+                        - TYPE_UNSPECIFIED
+                        - TYPE_REGULAR
+                        - TYPE_LEADER
+                        - TYPE_MANAGER
+                        - TYPE_INTERN
+                        - TYPE_CONTRACT
+                        - TYPE_OTHER
+                    type: string
+                    format: enum
+                remark:
+                    type: string
+                description:
+                    type: string
+                job_family:
+                    type: string
+                job_grade:
+                    type: string
+                level:
+                    type: integer
+                    format: int32
+                is_key_position:
+                    type: boolean
+                org_unit_id:
+                    type: string
+                reports_to_position_id:
+                    type: string
+                start_at:
+                    type: string
+                    format: date-time
+        CreatePositionResponse:
+            type: object
+            properties:
+                position:
+                    $ref: '#/components/schemas/Position'
         CreateRolePolicyRequest:
             type: object
             properties:
@@ -1353,7 +1750,17 @@ components:
             properties:
                 deleted:
                     type: string
+        DeleteOrgUnitResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
         DeletePermissionResponse:
+            type: object
+            properties:
+                deleted:
+                    type: string
+        DeletePositionResponse:
             type: object
             properties:
                 deleted:
@@ -1504,11 +1911,21 @@ components:
             properties:
                 menu:
                     $ref: '#/components/schemas/Menu'
+        GetOrgUnitResponse:
+            type: object
+            properties:
+                org_unit:
+                    $ref: '#/components/schemas/OrgUnit'
         GetPermissionResponse:
             type: object
             properties:
                 permission:
                     $ref: '#/components/schemas/Permission'
+        GetPositionResponse:
+            type: object
+            properties:
+                position:
+                    $ref: '#/components/schemas/Position'
         GetSecretResponse:
             type: object
             properties:
@@ -1643,6 +2060,17 @@ components:
                     type: integer
                     description: 全部节点数（含子孙，非根数）；uint32 避免 proto3 JSON int64 字符串化。
                     format: uint32
+        ListOrgUnitsResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OrgUnit'
+                total:
+                    type: integer
+                    description: 全部节点数（含子孙，非根数）；uint32 避免 proto3 JSON int64 字符串化。
+                    format: uint32
         ListPermissionCodeResponse:
             type: object
             properties:
@@ -1657,6 +2085,16 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Permission'
+                total:
+                    type: integer
+                    format: uint32
+        ListPositionsResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Position'
                 total:
                     type: integer
                     format: uint32
@@ -1770,6 +2208,63 @@ components:
                     items:
                         $ref: '#/components/schemas/MenuRouteItem'
             description: MenuRouteItem 前端路由项（扁平结构，见 service 头注的差异说明）。
+        OrgUnit:
+            type: object
+            properties:
+                id:
+                    type: string
+                code:
+                    type: string
+                name:
+                    type: string
+                type:
+                    enum:
+                        - TYPE_UNSPECIFIED
+                        - TYPE_COMPANY
+                        - TYPE_DIVISION
+                        - TYPE_DEPARTMENT
+                        - TYPE_TEAM
+                        - TYPE_PROJECT
+                        - TYPE_COMMITTEE
+                        - TYPE_REGION
+                        - TYPE_SUBSIDIARY
+                        - TYPE_BRANCH
+                        - TYPE_OTHER
+                    type: string
+                    format: enum
+                parent_id:
+                    type: string
+                path:
+                    type: string
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                    type: string
+                    format: enum
+                sort_order:
+                    type: integer
+                    format: int32
+                leader_id:
+                    type: string
+                leader_name:
+                    type: string
+                remark:
+                    type: string
+                description:
+                    type: string
+                children:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OrgUnit'
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: OrgUnit 组织单元。树形由 `parent_id` + `children` 表达。
         Permission:
             type: object
             properties:
@@ -1793,6 +2288,70 @@ components:
                 Permission 权限点（注册表）。ID 即权限码（P9 归一化的 "object:action"，如
                  "tenant:list"），与 Role.Perms（CSV 角色权限绑定）同命名空间；MenuIDs 是该
                  权限点对应的可见菜单（源 sys_permission_menus 关联表的内联精简）。
+        Position:
+            type: object
+            properties:
+                id:
+                    type: string
+                code:
+                    type: string
+                name:
+                    type: string
+                headcount:
+                    type: integer
+                    format: int32
+                sort_order:
+                    type: integer
+                    format: int32
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                    type: string
+                    format: enum
+                type:
+                    enum:
+                        - TYPE_UNSPECIFIED
+                        - TYPE_REGULAR
+                        - TYPE_LEADER
+                        - TYPE_MANAGER
+                        - TYPE_INTERN
+                        - TYPE_CONTRACT
+                        - TYPE_OTHER
+                    type: string
+                    format: enum
+                remark:
+                    type: string
+                description:
+                    type: string
+                job_family:
+                    type: string
+                job_grade:
+                    type: string
+                level:
+                    type: integer
+                    format: int32
+                is_key_position:
+                    type: boolean
+                org_unit_id:
+                    type: string
+                org_unit_name:
+                    type: string
+                reports_to_position_id:
+                    type: string
+                reports_to_position_name:
+                    type: string
+                start_at:
+                    type: string
+                    format: date-time
+                created_at:
+                    type: string
+                    format: date-time
+                updated_at:
+                    type: string
+                    format: date-time
+            description: Position 职位。
         RedisCacheMonitorInfo:
             type: object
             properties:
@@ -1986,6 +2545,53 @@ components:
             properties:
                 menu:
                     $ref: '#/components/schemas/Menu'
+        UpdateOrgUnitRequest:
+            type: object
+            properties:
+                code:
+                    type: string
+                name:
+                    type: string
+                type:
+                    enum:
+                        - TYPE_UNSPECIFIED
+                        - TYPE_COMPANY
+                        - TYPE_DIVISION
+                        - TYPE_DEPARTMENT
+                        - TYPE_TEAM
+                        - TYPE_PROJECT
+                        - TYPE_COMMITTEE
+                        - TYPE_REGION
+                        - TYPE_SUBSIDIARY
+                        - TYPE_BRANCH
+                        - TYPE_OTHER
+                    type: string
+                    format: enum
+                parent_id:
+                    type: string
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                    type: string
+                    format: enum
+                sort_order:
+                    type: integer
+                    format: int32
+                sort_order_set:
+                    type: boolean
+                leader_id:
+                    type: string
+                remark:
+                    type: string
+                description:
+                    type: string
+        UpdateOrgUnitResponse:
+            type: object
+            properties:
+                org_unit:
+                    $ref: '#/components/schemas/OrgUnit'
         UpdatePermissionRequest:
             type: object
             properties:
@@ -2006,6 +2612,67 @@ components:
             properties:
                 permission:
                     $ref: '#/components/schemas/Permission'
+        UpdatePositionRequest:
+            type: object
+            properties:
+                code:
+                    type: string
+                name:
+                    type: string
+                headcount:
+                    type: integer
+                    format: int32
+                headcount_set:
+                    type: boolean
+                sort_order:
+                    type: integer
+                    format: int32
+                sort_order_set:
+                    type: boolean
+                status:
+                    enum:
+                        - STATUS_UNSPECIFIED
+                        - STATUS_ON
+                        - STATUS_OFF
+                    type: string
+                    format: enum
+                type:
+                    enum:
+                        - TYPE_UNSPECIFIED
+                        - TYPE_REGULAR
+                        - TYPE_LEADER
+                        - TYPE_MANAGER
+                        - TYPE_INTERN
+                        - TYPE_CONTRACT
+                        - TYPE_OTHER
+                    type: string
+                    format: enum
+                remark:
+                    type: string
+                description:
+                    type: string
+                job_family:
+                    type: string
+                job_grade:
+                    type: string
+                level:
+                    type: integer
+                    format: int32
+                level_set:
+                    type: boolean
+                is_key_position:
+                    type: boolean
+                is_key_position_set:
+                    type: boolean
+                org_unit_id:
+                    type: string
+                reports_to_position_id:
+                    type: string
+        UpdatePositionResponse:
+            type: object
+            properties:
+                position:
+                    $ref: '#/components/schemas/Position'
         UpdateTenantRequest:
             type: object
             properties:
@@ -2107,6 +2774,8 @@ tags:
 
          菜单是前端导航树的数据源（自引用树，parent_id），同时是权限点可见性的挂载面
          （Permission.MenuIDs）。管理面操作仅授予 admin 角色（casbin 策略数据化装载）。
+    - name: OrgUnitService
+      description: "OrgUnitService 组织单元管理（Wave P0.5，自 go-wind-admin identity 域\r\n org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。\r\n\r\n 本实现**对齐项目既有惯例**（与 dict/menu/tenant 一致），与源有多处显式偏差：\r\n\r\n  1. **主键用 string 业务键**（`code`，如 \"FIN-LEADER-001\"）而非源 `uint32 id`\r\n     ——源 ID 由 DB 自增生成；本项目 model.OrgUnit 主键即 `\"<tenant>:<code>\"`\r\n     （见 internal/apiserver/model/org.go），code 是跨系统同步的稳定标识。\r\n     proto 的 `id` 字段保留为**只读输出**（完整主键），供前端判断编辑态。\r\n  2. **请求体简化**：源的 `oneof query_by` / `FieldMask view_mask` /\r\n     `update_mask` / `allow_missing` 未移植——本项目 handler 用「非空字段即更新」\r\n     语义，并用 `*_set` 显式位区分「未设置」与「设为零值」（见 UpdateOrgUnitRequest）。\r\n  3. **枚举加前缀 + 补 0 值**：源 `Status{OFF=0,ON=1}` 的 0 值语义为「禁用」，\r\n     但 proto3 的 0 值必须是默认值——本实现改 `STATUS_UNSPECIFIED=0`（同 menu/tenant）。\r\n  4. **`parent_id` 语义统一为「父节点 code」**：源 model 存完整主键、对外暴露\r\n     也是完整主键（输入 code 输出主键，语义不对称）；本实现输入输出统一为 code。\r\n  5. **不移植源的分页**：源 List 用 `pagination.PagingRequest`；本实现精简为全量\r\n     （同 menu.proto 的 ListMenusRequest），分页列入后续迭代。\r\n  6. **不移植** gnostic 注解 / `attributes` map / `business_scopes` /\r\n     `permission_tags` / 法务与地理字段（源 40 字段 → 本实现 14 字段）：\r\n     以本项目 model.OrgUnit 的实际字段集为准（用户要求「对齐本项目字段」）。"
     - name: PermissionService
       description: |-
         PermissionService 权限管理服务（T3，自 go-wind-admin permission 域精简移植）。
@@ -2117,6 +2786,8 @@ tags:
            2. 角色策略（RolePolicy）：casbin p 行（role,object,action）的数据化持久层，
               替代 M6.1 的静态 rbac_policy.csv（D3 策略数据化装载，重启生效）。
          管理面操作仅授予 admin 角色（策略本身也数据化于 RolePolicy 表）。
+    - name: PositionService
+      description: "PositionService 职位管理（Wave P0.5，自 go-wind-admin identity 域\r\n position.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。\r\n\r\n 与 OrgUnitService 同域的显式偏差（主键 string 业务键 / 请求体简化 /\r\n 枚举加前缀 / 不移植分页与 gnostic 注解）见 org_unit.proto 头注，此处不重复。\r\n\r\n 额外两点：\r\n  1. **关联字段回填**：`org_unit_name` / `reports_to_position_name` 由服务端\r\n     批量查询回填（源 org_unit_service.go 的三步式：extractRelationIDs →\r\n     fetchRelationInfo 批量查 → bindRelations 递归回填）。**批量**是源的精髓，\r\n     逐个查会退化成 N+1。\r\n  2. **源枚举注释有误**：源 `position.proto` 的 `OFF = 0; // 打开` 与\r\n     `ON = 1; // 关闭` 注释与枚举名语义相反（源缺陷）；本实现按名称语义修正。"
     - name: RedisCacheMonitorService
       description: "RedisCacheMonitorService Redis 缓存监控（只读，聚合 INFO/DBSIZE/SLOWLOG 视图）。\r\n\r\n Wave 6.2 真新增（裁定见计划 §Wave 6.1）：源 redis_cache 域仅此 1 rpc，无对标 biz。\r\n\r\n ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）\r\n\r\n 三个只读命令（INFO / DBSIZE / SLOWLOG GET）**任一失败不阻断其余**——失败项\r\n 置空并记日志，而非整体报错。Redis 不可用时返回**空视图**（非错误），避免\r\n 单点故障导致整个监控页不可用。"
     - name: SecretService

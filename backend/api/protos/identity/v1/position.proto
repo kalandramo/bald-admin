@@ -1,0 +1,215 @@
+syntax = "proto3";
+
+package go.bald.admin.identity.v1;
+
+option go_package = "github.com/kalandramo/bald-admin/api/gen/go/identity/v1;identityv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// PositionService 职位管理（Wave P0.5，自 go-wind-admin identity 域
+// position.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
+//
+// 与 OrgUnitService 同域的显式偏差（主键 string 业务键 / 请求体简化 /
+// 枚举加前缀 / 不移植分页与 gnostic 注解）见 org_unit.proto 头注，此处不重复。
+//
+// 额外两点：
+//  1. **关联字段回填**：`org_unit_name` / `reports_to_position_name` 由服务端
+//     批量查询回填（源 org_unit_service.go 的三步式：extractRelationIDs →
+//     fetchRelationInfo 批量查 → bindRelations 递归回填）。**批量**是源的精髓，
+//     逐个查会退化成 N+1。
+//  2. **源枚举注释有误**：源 `position.proto` 的 `OFF = 0; // 打开` 与
+//     `ON = 1; // 关闭` 注释与枚举名语义相反（源缺陷）；本实现按名称语义修正。
+service PositionService {
+  // ListPositions 列出职位（回填 org_unit_name / reports_to_position_name）。
+  //   REST: GET /v1/positions
+  rpc ListPositions(ListPositionsRequest) returns (ListPositionsResponse) {
+    option (google.api.http) = {
+      get: "/v1/positions"
+    };
+  }
+
+  // CountPositions 统计职位数量。
+  //   REST: GET /v1/positions/count
+  rpc CountPositions(CountPositionsRequest) returns (CountPositionsResponse) {
+    option (google.api.http) = {
+      get: "/v1/positions/count"
+    };
+  }
+
+  // GetPosition 取单个职位（按 code）。
+  //   REST: GET /v1/positions/{code}
+  rpc GetPosition(GetPositionRequest) returns (GetPositionResponse) {
+    option (google.api.http) = {
+      get: "/v1/positions/{code}"
+    };
+  }
+
+  // CreatePosition 创建职位（校验所属组织单元存在——避免悬挂引用）。
+  //   REST: POST /v1/positions
+  rpc CreatePosition(CreatePositionRequest) returns (CreatePositionResponse) {
+    option (google.api.http) = {
+      post: "/v1/positions"
+      body: "*"
+    };
+  }
+
+  // UpdatePosition 更新职位（非空字段即更新；code 不可变）。
+  //   REST: PUT /v1/positions/{code}
+  rpc UpdatePosition(UpdatePositionRequest) returns (UpdatePositionResponse) {
+    option (google.api.http) = {
+      put: "/v1/positions/{code}"
+      body: "*"
+    };
+  }
+
+  // DeletePosition 删除职位。
+  //   REST: DELETE /v1/positions/{code}
+  rpc DeletePosition(DeletePositionRequest) returns (DeletePositionResponse) {
+    option (google.api.http) = {
+      delete: "/v1/positions/{code}"
+    };
+  }
+
+  // BatchCreatePositions 批量创建（部分失败不回滚）。
+  //   REST: POST /v1/positions/batch
+  rpc BatchCreatePositions(BatchCreatePositionsRequest) returns (BatchCreatePositionsResponse) {
+    option (google.api.http) = {
+      post: "/v1/positions/batch"
+      body: "*"
+    };
+  }
+}
+
+// Position 职位。
+message Position {
+  enum Status {
+    STATUS_UNSPECIFIED = 0; // 未指定
+    STATUS_ON = 1;          // 启用（源 Status.ON）
+    STATUS_OFF = 2;         // 禁用（源 Status.OFF）
+  }
+
+  enum Type {
+    TYPE_UNSPECIFIED = 0; // 未指定
+    TYPE_REGULAR = 1;     // 普通职位（源 REGULAR）
+    TYPE_LEADER = 2;      // 领导职位（源 LEADER）
+    TYPE_MANAGER = 3;     // 管理职位（源 MANAGER）
+    TYPE_INTERN = 4;      // 实习职位（源 INTERN）
+    TYPE_CONTRACT = 5;    // 合同职位（源 CONTRACT）
+    TYPE_OTHER = 100;     // 其他职位（源 OTHER）
+  }
+
+  string id = 1;   // 完整主键 "<tenant>:pos:<code>"（**只读**）
+  string code = 2; // 唯一编码（业务键，源 code）
+  string name = 3; // 职位名称
+
+  int32 headcount = 4;   // 编制人数（0 = 无限制）
+  int32 sort_order = 5;  // 排序（值越小越靠前）
+  Status status = 6;     // 状态
+  Type type = 7;         // 职位类型
+  string remark = 8;      // 备注
+  string description = 9; // 职位描述
+
+  string job_family = 10;   // 职类/序列
+  string job_grade = 11;    // 职级
+  int32 level = 12;         // 数值化职级
+  bool is_key_position = 13; // 是否关键岗位
+
+  string org_unit_id = 20;   // 所属组织单元 **code**
+  string org_unit_name = 21; // 所属组织单元名称（**回填**）
+
+  string reports_to_position_id = 22;   // 汇报上级职位 **code**
+  string reports_to_position_name = 23; // 汇报上级职位名称（**回填**）
+
+  google.protobuf.Timestamp start_at = 50; // 生效时间
+
+  google.protobuf.Timestamp created_at = 100; // 创建时间
+  google.protobuf.Timestamp updated_at = 101; // 更新时间
+}
+
+message ListPositionsRequest {
+  // 精简为全量；源项目支持 pagination，列入后续迭代。
+}
+
+message ListPositionsResponse {
+  repeated Position items = 1;
+  uint32 total = 2; // uint32 避免 proto3 JSON int64 字符串化
+}
+
+message CountPositionsRequest {}
+
+message CountPositionsResponse {
+  uint32 total = 1;
+}
+
+message GetPositionRequest {
+  string code = 1; // 职位编码
+}
+
+message GetPositionResponse {
+  Position position = 1;
+}
+
+message CreatePositionRequest {
+  string code = 1;      // 唯一编码（业务键）
+  string name = 2;      // 职位名称
+  int32 headcount = 3;
+  int32 sort_order = 4;
+  Position.Status status = 5; // UNSPECIFIED → 服务端默认 STATUS_ON
+  Position.Type type = 6;
+  string remark = 7;
+  string description = 8;
+  string job_family = 9;
+  string job_grade = 10;
+  int32 level = 11;
+  bool is_key_position = 12;
+  string org_unit_id = 13;            // 所属组织单元 code（须存在）
+  string reports_to_position_id = 14; // 汇报上级职位 code
+  google.protobuf.Timestamp start_at = 15;
+}
+
+message CreatePositionResponse {
+  Position position = 1;
+}
+
+message UpdatePositionRequest {
+  string code = 1;      // 职位编码（路径参数，定位）
+  string name = 2;      // 空 = 不改
+  int32 headcount = 3;  // 见 headcount_set
+  bool headcount_set = 4;
+  int32 sort_order = 5; // 见 sort_order_set
+  bool sort_order_set = 6;
+  Position.Status status = 7; // UNSPECIFIED = 不改
+  Position.Type type = 8;     // UNSPECIFIED = 不改
+  string remark = 9;
+  string description = 10;
+  string job_family = 11;
+  string job_grade = 12;
+  int32 level = 13;          // 见 level_set
+  bool level_set = 14;
+  bool is_key_position = 15; // 见 is_key_position_set
+  bool is_key_position_set = 16;
+  string org_unit_id = 17;
+  string reports_to_position_id = 18;
+}
+
+message UpdatePositionResponse {
+  Position position = 1;
+}
+
+message DeletePositionRequest {
+  string code = 1;
+}
+
+message DeletePositionResponse {
+  string deleted = 1; // 被删除的职位编码
+}
+
+message BatchCreatePositionsRequest {
+  repeated Position items = 1;
+}
+
+message BatchCreatePositionsResponse {
+  repeated string created = 1; // 创建成功的职位 code 列表
+  repeated string failed = 2;  // 创建失败的 code 列表
+}

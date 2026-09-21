@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { OrgUnit } from "@@/apis/org/type"
+import { OrgUnitStatus, OrgUnitType } from "@@/apis/org/type"
 import { createOrgUnitApi, deleteOrgUnitApi, listOrgUnitsApi, updateOrgUnitApi } from "@@/apis/org"
 import { useConfirmAction } from "@@/composables/useConfirmAction"
 
@@ -14,14 +15,19 @@ const dialogTitle = ref("")
 const submitting = ref(false)
 const formRef = useTemplateRef("formRef")
 
+// 枚举选项（值即 protojson 输出的符号名，见 api/protos/identity/v1/org_unit.proto）。
+const typeOptions = Object.entries(OrgUnitType)
+  .filter(([k]) => k !== "TYPE_UNSPECIFIED")
+  .map(([k, v]) => ({ label: k, value: v }))
+
 function defaultForm(): OrgUnit {
   return {
     id: "",
     name: "",
     code: "",
-    type: "DEPARTMENT",
+    type: OrgUnitType.TYPE_DEPARTMENT,
     parent_id: "",
-    status: "ON",
+    status: OrgUnitStatus.STATUS_ON,
     sort_order: 0,
     leader_id: "",
     remark: "",
@@ -63,9 +69,30 @@ function handleSubmit() {
     submitting.value = true
     try {
       if (form.id) {
-        await updateOrgUnitApi(form.code, form)
+        await updateOrgUnitApi(form.code!, {
+          code: form.code,
+          name: form.name,
+          type: form.type,
+          parent_id: form.parent_id,
+          status: form.status,
+          sort_order: form.sort_order,
+          sort_order_set: true,
+          leader_id: form.leader_id,
+          remark: form.remark,
+          description: form.description
+        })
       } else {
-        await createOrgUnitApi(form)
+        await createOrgUnitApi({
+          code: form.code,
+          name: form.name,
+          type: form.type,
+          parent_id: form.parent_id,
+          status: form.status,
+          sort_order: form.sort_order,
+          leader_id: form.leader_id,
+          remark: form.remark,
+          description: form.description
+        })
       }
       ElMessage.success("保存成功")
       dialogVisible.value = false
@@ -77,11 +104,11 @@ function handleSubmit() {
 }
 
 function handleDeleteAction(row: OrgUnit) {
-  handleDelete(() => deleteOrgUnitApi(row.code), fetchList)
+  handleDelete(() => deleteOrgUnitApi(row.code!), fetchList)
 }
 
 function statusTag(status?: string) {
-  return status === "ON"
+  return status === OrgUnitStatus.STATUS_ON
     ? { type: "success" as const, label: "启用" }
     : { type: "info" as const, label: "禁用" }
 }
@@ -140,7 +167,9 @@ onMounted(fetchList)
           <el-input v-model="form.name" />
         </el-form-item>
         <el-form-item label="类型" prop="type">
-          <el-input v-model="form.type" placeholder="如 DEPARTMENT / COMPANY" />
+          <el-select v-model="form.type" placeholder="选择组织类型">
+            <el-option v-for="opt in typeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="父级编码" prop="parent_id">
           <el-input v-model="form.parent_id" placeholder="留空为根节点" />
@@ -150,10 +179,10 @@ onMounted(fetchList)
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">
-            <el-radio value="ON">
+            <el-radio :value="OrgUnitStatus.STATUS_ON">
               启用
             </el-radio>
-            <el-radio value="OFF">
+            <el-radio :value="OrgUnitStatus.STATUS_OFF">
               禁用
             </el-radio>
           </el-radio-group>

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { Position } from "@@/apis/org/type"
+import { PositionStatus, PositionType } from "@@/apis/org/type"
 import { createPositionApi, deletePositionApi, listPositionsApi, updatePositionApi } from "@@/apis/org"
 import { useConfirmAction } from "@@/composables/useConfirmAction"
 
@@ -14,14 +15,19 @@ const dialogTitle = ref("")
 const submitting = ref(false)
 const formRef = useTemplateRef("formRef")
 
+// 枚举选项（值即 protojson 输出的符号名）。
+const typeOptions = Object.entries(PositionType)
+  .filter(([k]) => k !== "TYPE_UNSPECIFIED")
+  .map(([k, v]) => ({ label: k, value: v }))
+
 function defaultForm(): Position {
   return {
     id: "",
     name: "",
     code: "",
     headcount: 0,
-    status: "ON",
-    type: "",
+    status: PositionStatus.STATUS_ON,
+    type: PositionType.TYPE_REGULAR,
     org_unit_id: "",
     reports_to_position_id: "",
     job_family: "",
@@ -66,9 +72,41 @@ function handleSubmit() {
     submitting.value = true
     try {
       if (form.id) {
-        await updatePositionApi(form.code, form)
+        await updatePositionApi(form.code!, {
+          code: form.code,
+          name: form.name,
+          headcount: form.headcount,
+          headcount_set: true,
+          status: form.status,
+          type: form.type,
+          org_unit_id: form.org_unit_id,
+          reports_to_position_id: form.reports_to_position_id,
+          job_family: form.job_family,
+          job_grade: form.job_grade,
+          level: form.level,
+          level_set: true,
+          is_key_position: form.is_key_position,
+          is_key_position_set: true,
+          sort_order: form.sort_order,
+          sort_order_set: true,
+          remark: form.remark
+        })
       } else {
-        await createPositionApi(form)
+        await createPositionApi({
+          code: form.code,
+          name: form.name,
+          headcount: form.headcount,
+          status: form.status,
+          type: form.type,
+          org_unit_id: form.org_unit_id,
+          reports_to_position_id: form.reports_to_position_id,
+          job_family: form.job_family,
+          job_grade: form.job_grade,
+          level: form.level,
+          is_key_position: form.is_key_position,
+          sort_order: form.sort_order,
+          remark: form.remark
+        })
       }
       ElMessage.success("保存成功")
       dialogVisible.value = false
@@ -80,11 +118,11 @@ function handleSubmit() {
 }
 
 function handleDeleteAction(row: Position) {
-  handleDelete(() => deletePositionApi(row.code), fetchList)
+  handleDelete(() => deletePositionApi(row.code!), fetchList)
 }
 
 function statusTag(status?: string) {
-  return status === "ON"
+  return status === PositionStatus.STATUS_ON
     ? { type: "success" as const, label: "启用" }
     : { type: "info" as const, label: "禁用" }
 }
@@ -150,7 +188,9 @@ onMounted(fetchList)
           <el-input v-model="form.reports_to_position_id" placeholder="填岗位 code，可空" />
         </el-form-item>
         <el-form-item label="类型" prop="type">
-          <el-input v-model="form.type" />
+          <el-select v-model="form.type" placeholder="选择职位类型">
+            <el-option v-for="opt in typeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="编制" prop="headcount">
           <el-input-number v-model="form.headcount" :min="0" />
@@ -169,10 +209,10 @@ onMounted(fetchList)
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">
-            <el-radio value="ON">
+            <el-radio :value="PositionStatus.STATUS_ON">
               启用
             </el-radio>
-            <el-radio value="OFF">
+            <el-radio :value="PositionStatus.STATUS_OFF">
               禁用
             </el-radio>
           </el-radio-group>

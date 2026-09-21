@@ -3,6 +3,13 @@ package e2e
 // t_w1_7_org_e2e_test.go —— Wave 1.7：组织架构域
 //（org_unit 7 rpc 树形 + position 7 rpc 关联回填）。
 //
+// **Wave P0.5 迁移说明**：本域已从 B 轨（Go DTO + encoding/json）迁移为
+// A 轨（bindPB/writePB + protojson）。响应形状随之变化：
+//   - 列表：`{"items":[...]}` → `{"items":[...],"total":N}`（树根数组 + 全节点数）
+//   - 单对象：裸对象 → `{"org_unit":{...}}` / `{"position":{...}}` 包装
+//   - 变更：`{"message":"updated"}` → 返回更新后的对象
+// 故断言改为 **PB 解码**（decodePB + identityv1 消息），不再手解 JSON struct。
+//
 // 核心验证点（对齐源实现）：
 //   - **树形**：ParentID 建父子关系，List 返回嵌套 children；
 //   - **防环**：不能把节点挂到自己的子孙下（否则遍历死循环）；
@@ -20,6 +27,7 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
+	identityv1 "github.com/kalandramo/bald-admin/api/gen/go/identity/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
@@ -64,19 +72,19 @@ func TestWave1_7_OrgUnitTree(t *testing.T) {
 
 	// 根。
 	code, raw := callRaw(t, base, admin, http.MethodPost, "/v1/org-units",
-		map[string]any{"name": "总部", "code": root, "type": "COMPANY"})
+		map[string]any{"name": "总部", "code": root, "type": "TYPE_COMPANY"})
 	if code != http.StatusCreated {
 		t.Fatalf("create root status=%d body=%s", code, raw)
 	}
 	// 子。
 	code, raw = callRaw(t, base, admin, http.MethodPost, "/v1/org-units",
-		map[string]any{"name": "研发部", "code": root + "-dev", "type": "DEPARTMENT", "parent_id": root})
+		map[string]any{"name": "研发部", "code": root + "-dev", "type": "TYPE_DEPARTMENT", "parent_id": root})
 	if code != http.StatusCreated {
 		t.Fatalf("create child status=%d body=%s", code, raw)
 	}
 	// 孙。
 	code, raw = callRaw(t, base, admin, http.MethodPost, "/v1/org-units",
-		map[string]any{"name": "后端组", "code": root + "-dev-be", "type": "TEAM", "parent_id": root + "-dev"})
+		map[string]any{"name": "后端组", "code": root + "-dev-be", "type": "TYPE_TEAM", "parent_id": root + "-dev"})
 	if code != http.StatusCreated {
 		t.Fatalf("create grandchild status=%d body=%s", code, raw)
 	}
@@ -86,31 +94,22 @@ func TestWave1_7_OrgUnitTree(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("list status=%d", code)
 	}
-	var res struct {
-		Items []struct {
-			Code     string `json:"code"`
-			Children []struct {
-				Code     string `json:"code"`
-				Children []struct {
-					Code string `json:"code"`
-				} `json:"children"`
-			} `json:"children"`
-		} `json:"items"`
-	}
-	if err := json.Unmarshal(raw, &res); err != nil {
-		t.Fatalf("unmarshal: %v", err)
+	res := new(identityv1.ListOrgUnitsResponse)
+	decodePB(raw, res)
+	if res.GetTotal() != 3 {
+		t.Fatalf("total=%d, want 3（根+子+孙）", res.GetTotal())
 	}
 	foundDepth := 0
-	for _, r := range res.Items {
-		if r.Code != root {
+	for _, r := range res.GetItems() {
+		if r.GetCode() != root {
 			continue
 		}
 		foundDepth = 1
-		for _, c := range r.Children {
-			if c.Code == root+"-dev" {
+		for _, c := range r.GetChildren() {
+			if c.GetCode() == root+"-dev" {
 				foundDepth = 2
-				for _, g := range c.Children {
-					if g.Code == root+"-dev-be" {
+				for _, g := range c.GetChildren() {
+					if g.GetCode() == root+"-dev-be" {
 						foundDepth = 3
 					}
 				}
@@ -120,7 +119,13 @@ func TestWave1_7_OrgUnitTree(t *testing.T) {
 	if foundDepth != 3 {
 		t.Fatalf("树形深度=%d, want 3（根→子→孙）: %s", foundDepth, raw)
 	}
-	t.Logf("树形结构正确 ✅（3 层嵌套）")
+	// parent_id 语义：输出 code（非完整主键）。
+	for _, r := range res.GetItems() {
+		if r.GetCode() == root+"-dev" && r.GetParentId() != root {
+			t.Fatalf("parent_id=%q, want %q（应为 code 而非主键）", r.GetParentId(), root)
+		}
+	}
+	t.Logf("树形结构正确 ✅（3 层嵌套，parent_id 为 code）")
 }
 
 // TestWave1_7_CyclePrevention 防环：不能把节点挂到自己的子孙下。
@@ -130,9 +135,9 @@ func TestWave1_7_CyclePrevention(t *testing.T) {
 	root := orgCode()
 
 	for _, u := range []map[string]any{
-		{"name": "A", "code": root, "type": "COMPANY"},
-		{"name": "B", "code": root + "-b", "type": "DEPARTMENT", "parent_id": root},
-		{"name": "C", "code": root + "-b-c", "type": "TEAM", "parent_id": root + "-b"},
+		{"name": "A", "code": root, "type": "TYPE_COMPANY"},
+		{"name": "B", "code": root + "-b", "type": "TYPE_DEPARTMENT", "parent_id": root},
+		{"name": "C", "code": root + "-b-c", "type": "TYPE_TEAM", "parent_id": root + "-b"},
 	} {
 		if code, raw := callRaw(t, base, admin, http.MethodPost, "/v1/org-units", u); code != http.StatusCreated {
 			t.Fatalf("setup %v status=%d body=%s", u["code"], code, raw)
@@ -146,17 +151,8 @@ func TestWave1_7_CyclePrevention(t *testing.T) {
 		t.Fatalf("成环操作 status=%d body=%s, want 400", code, raw)
 	}
 	// reason 在 details[].reason（berrors 的嵌套结构），非顶层字段。
-	var e struct {
-		Details []struct {
-			Reason string `json:"reason"`
-		} `json:"details"`
-	}
-	_ = json.Unmarshal(raw, &e)
-	gotReason := ""
-	if len(e.Details) > 0 {
-		gotReason = e.Details[0].Reason
-	}
-	if gotReason != "org/cycle" {
+	// 注意：错误体走 web.ErrorResponse（非 protojson），仍是普通 JSON。
+	if gotReason := errorReason(raw); gotReason != "org/cycle" {
 		t.Fatalf("reason=%q, want org/cycle (body=%s)", gotReason, raw)
 	}
 
@@ -176,8 +172,8 @@ func TestWave1_7_DeleteWithChildrenRejected(t *testing.T) {
 	root := orgCode()
 
 	for _, u := range []map[string]any{
-		{"name": "P", "code": root, "type": "COMPANY"},
-		{"name": "Ch", "code": root + "-c", "type": "DEPARTMENT", "parent_id": root},
+		{"name": "P", "code": root, "type": "TYPE_COMPANY"},
+		{"name": "Ch", "code": root + "-c", "type": "TYPE_DEPARTMENT", "parent_id": root},
 	} {
 		if code, raw := callRaw(t, base, admin, http.MethodPost, "/v1/org-units", u); code != http.StatusCreated {
 			t.Fatalf("setup status=%d body=%s", code, raw)
@@ -192,10 +188,17 @@ func TestWave1_7_DeleteWithChildrenRejected(t *testing.T) {
 	if code, _ := callRaw(t, base, admin, http.MethodDelete, "/v1/org-units/"+root+"-c", nil); code != http.StatusOK {
 		t.Fatalf("删子 status=%d", code)
 	}
-	if code, raw := callRaw(t, base, admin, http.MethodDelete, "/v1/org-units/"+root, nil); code != http.StatusOK {
+	code, raw = callRaw(t, base, admin, http.MethodDelete, "/v1/org-units/"+root, nil)
+	if code != http.StatusOK {
 		t.Fatalf("删父 status=%d body=%s", code, raw)
 	}
-	t.Logf("删除保护生效 ✅（有子拒绝 / 无子成功）")
+	// 删除响应回传被删 code（A 轨形状）。
+	del := new(identityv1.DeleteOrgUnitResponse)
+	decodePB(raw, del)
+	if del.GetDeleted() != root {
+		t.Fatalf("deleted=%q, want %q", del.GetDeleted(), root)
+	}
+	t.Logf("删除保护生效 ✅（有子拒绝 / 无子成功 / 回传 code）")
 }
 
 // TestWave1_7_PositionEnrichment position 的关联回填。
@@ -206,7 +209,7 @@ func TestWave1_7_PositionEnrichment(t *testing.T) {
 
 	// 建组织单元。
 	if code, raw := callRaw(t, base, admin, http.MethodPost, "/v1/org-units",
-		map[string]any{"name": "财务部", "code": root, "type": "DEPARTMENT"}); code != http.StatusCreated {
+		map[string]any{"name": "财务部", "code": root, "type": "TYPE_DEPARTMENT"}); code != http.StatusCreated {
 		t.Fatalf("create org status=%d body=%s", code, raw)
 	}
 	// 建上级职位。
@@ -221,36 +224,37 @@ func TestWave1_7_PositionEnrichment(t *testing.T) {
 	if code != http.StatusCreated {
 		t.Fatalf("create mgr status=%d body=%s", code, raw)
 	}
-	var p struct {
-		OrgUnitName           string `json:"org_unit_name"`
-		ReportsToPositionName string `json:"reports_to_position_name"`
+	created := new(identityv1.CreatePositionResponse)
+	decodePB(raw, created)
+	p := created.GetPosition()
+	if p.GetOrgUnitName() != "财务部" {
+		t.Fatalf("org_unit_name 未回填: %q (body=%s)", p.GetOrgUnitName(), raw)
 	}
-	_ = json.Unmarshal(raw, &p)
-	if p.OrgUnitName != "财务部" {
-		t.Fatalf("org_unit_name 未回填: %q (body=%s)", p.OrgUnitName, raw)
+	if p.GetReportsToPositionName() != "财务总监" {
+		t.Fatalf("reports_to_position_name 未回填: %q", p.GetReportsToPositionName())
 	}
-	if p.ReportsToPositionName != "财务总监" {
-		t.Fatalf("reports_to_position_name 未回填: %q", p.ReportsToPositionName)
+	// 关联字段输出 code（非完整主键）。
+	if p.GetOrgUnitId() != root {
+		t.Fatalf("org_unit_id=%q, want %q（应为 code）", p.GetOrgUnitId(), root)
 	}
 
 	// List 也应回填。
 	_, raw = callRaw(t, base, admin, http.MethodGet, "/v1/positions", nil)
-	var list struct {
-		Items []struct {
-			Code                  string `json:"code"`
-			OrgUnitName           string `json:"org_unit_name"`
-			ReportsToPositionName string `json:"reports_to_position_name"`
-		} `json:"items"`
-	}
-	_ = json.Unmarshal(raw, &list)
-	for _, it := range list.Items {
-		if it.Code == root+"-mgr" {
-			if it.OrgUnitName != "财务部" || it.ReportsToPositionName != "财务总监" {
+	list := new(identityv1.ListPositionsResponse)
+	decodePB(raw, list)
+	found := false
+	for _, it := range list.GetItems() {
+		if it.GetCode() == root+"-mgr" {
+			found = true
+			if it.GetOrgUnitName() != "财务部" || it.GetReportsToPositionName() != "财务总监" {
 				t.Fatalf("List 未回填: %+v", it)
 			}
 		}
 	}
-	t.Logf("关联回填 ✅（org_unit_name + reports_to_position_name）")
+	if !found {
+		t.Fatalf("List 未含新建职位 %s-mgr", root)
+	}
+	t.Logf("关联回填 ✅（org_unit_name + reports_to_position_name，关联 ID 为 code）")
 }
 
 // TestWave1_7_PositionValidation 引用不存在的组织单元应被拒。
@@ -274,20 +278,18 @@ func TestWave1_7_BatchCreate(t *testing.T) {
 
 	code, raw := callRaw(t, base, admin, http.MethodPost, "/v1/org-units/batch",
 		map[string]any{"items": []map[string]any{
-			{"name": "B1", "code": root + "-1", "type": "DEPARTMENT"},
-			{"name": "B2", "code": root + "-2", "type": "DEPARTMENT"},
-			{"name": "", "code": root + "-bad", "type": "DEPARTMENT"}, // 缺 name → 失败
+			{"name": "B1", "code": root + "-1", "type": "TYPE_DEPARTMENT"},
+			{"name": "B2", "code": root + "-2", "type": "TYPE_DEPARTMENT"},
+			{"name": "", "code": root + "-bad", "type": "TYPE_DEPARTMENT"}, // 缺 name → 失败
 		}})
 	if code != http.StatusOK {
 		t.Fatalf("batch status=%d body=%s", code, raw)
 	}
-	var res struct {
-		Created []any    `json:"created"`
-		Failed  []string `json:"failed"`
-	}
-	_ = json.Unmarshal(raw, &res)
-	if len(res.Created) != 2 || len(res.Failed) != 1 {
-		t.Fatalf("批量结果 created=%d failed=%d, want 2/1: %s", len(res.Created), len(res.Failed), raw)
+	res := new(identityv1.BatchCreateOrgUnitsResponse)
+	decodePB(raw, res)
+	if len(res.GetCreated()) != 2 || len(res.GetFailed()) != 1 {
+		t.Fatalf("批量结果 created=%d failed=%d, want 2/1: %s",
+			len(res.GetCreated()), len(res.GetFailed()), raw)
 	}
 	t.Logf("批量创建 ✅（2 成功 + 1 失败，部分失败不回滚）")
 }
@@ -304,9 +306,25 @@ func TestWave1_7_ViewerReadOnly(t *testing.T) {
 	}
 	// 写：拒绝。
 	code, raw := callRaw(t, base, alice, http.MethodPost, "/v1/org-units",
-		map[string]any{"name": "X", "code": orgCode(), "type": "TEAM"})
+		map[string]any{"name": "X", "code": orgCode(), "type": "TYPE_TEAM"})
 	if code != http.StatusForbidden {
 		t.Fatalf("viewer 写 status=%d body=%s, want 403", code, raw)
 	}
 	t.Logf("viewer 只读 ✅（读 200 / 写 403）")
+}
+
+// errorReason 从框架错误体取 details[0].reason。
+//
+// 错误体走 web.ErrorResponse（**非** protojson），故仍是普通 JSON
+// （结构：{"code","message","details":[{"@type",reason,domain,metadata}]}）。
+func errorReason(raw []byte) string {
+	var e struct {
+		Details []struct {
+			Reason string `json:"reason"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(raw, &e); err != nil || len(e.Details) == 0 {
+		return ""
+	}
+	return e.Details[0].Reason
 }

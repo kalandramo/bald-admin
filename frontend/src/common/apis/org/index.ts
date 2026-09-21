@@ -1,80 +1,57 @@
-// 组织架构域 API（手写 gin 面，无 proto 契约）。
-// 路由与形状对齐 internal/apiserver/handler/gin/org.go：
-//   org_unit 7 条 + position 7 条，全部挂 /v1 分组（认证 + 授权）。
-// 列表无分页参数（biz 全量返回），故不做分页参数透传。
-import type { BatchCreateResponse, CountResponse, ListResponse, MutationResponse, OrgUnit, Position } from "./type"
-import { request } from "@/http/axios"
+// 组织架构域 API（Wave P0.5：已迁移为 A 轨 proto 契约）。
+//
+// **本文件保留为薄 re-export 层**——函数名与旧手写版一致，便于既有页面渐进迁移；
+// 实现全部来自 orval 生成的 client（契约单一真相源：api/protos/identity/v1）。
+// 新代码请直接 import `@/api/generated/org-unit-service` / `position-service`。
+//
+// 响应形状随契约变化（对照旧版）：
+//   - 列表：`{items}` → `{items, total}`
+//   - 单对象：裸对象 → `{org_unit}` / `{position}` 包装
+//   - 变更：`{message:"updated"}` → 返回更新后的对象
+import {
+  orgUnitServiceBatchCreateOrgUnits,
+  orgUnitServiceCountOrgUnits,
+  orgUnitServiceCreateOrgUnit,
+  orgUnitServiceDeleteOrgUnit,
+  orgUnitServiceGetOrgUnit,
+  orgUnitServiceListOrgUnits,
+  orgUnitServiceUpdateOrgUnit,
+} from "@/api/generated/org-unit-service"
+import {
+  positionServiceBatchCreatePositions,
+  positionServiceCountPositions,
+  positionServiceCreatePosition,
+  positionServiceDeletePosition,
+  positionServiceGetPosition,
+  positionServiceListPositions,
+  positionServiceUpdatePosition,
+} from "@/api/generated/position-service"
+
+export type {
+  CreateOrgUnitRequest,
+  CreatePositionRequest,
+  OrgUnit,
+  Position,
+  UpdateOrgUnitRequest,
+  UpdatePositionRequest,
+} from "@/api/generated/model"
 
 // ---- org_unit ----
 
-/** 创建组织单元（201，返回裸对象） */
-export function createOrgUnitApi(data: OrgUnit) {
-  return request<OrgUnit>({ url: "v1/org-units", method: "post", data })
-}
-
-/** 组织单元树（返回 {"items":[...]}，children 嵌套） */
-export function listOrgUnitsApi() {
-  return request<ListResponse<OrgUnit>>({ url: "v1/org-units", method: "get" })
-}
-
-/** 组织单元计数 */
-export function countOrgUnitsApi() {
-  return request<CountResponse>({ url: "v1/org-units/count", method: "get" })
-}
-
-/** 组织单元详情（按 code） */
-export function getOrgUnitApi(code: string) {
-  return request<OrgUnit>({ url: `v1/org-units/${code}`, method: "get" })
-}
-
-/** 更新组织单元（按 code） */
-export function updateOrgUnitApi(code: string, data: OrgUnit) {
-  return request<MutationResponse>({ url: `v1/org-units/${code}`, method: "put", data })
-}
-
-/** 删除组织单元（有子节点时报 400） */
-export function deleteOrgUnitApi(code: string) {
-  return request<MutationResponse>({ url: `v1/org-units/${code}`, method: "delete" })
-}
-
-/** 批量创建组织单元（部分成功语义） */
-export function batchCreateOrgUnitsApi(items: OrgUnit[]) {
-  return request<BatchCreateResponse<OrgUnit>>({ url: "v1/org-units/batch", method: "post", data: { items } })
-}
+export const createOrgUnitApi = orgUnitServiceCreateOrgUnit
+export const listOrgUnitsApi = orgUnitServiceListOrgUnits
+export const countOrgUnitsApi = orgUnitServiceCountOrgUnits
+export const getOrgUnitApi = orgUnitServiceGetOrgUnit
+export const updateOrgUnitApi = orgUnitServiceUpdateOrgUnit
+export const deleteOrgUnitApi = orgUnitServiceDeleteOrgUnit
+export const batchCreateOrgUnitsApi = orgUnitServiceBatchCreateOrgUnits
 
 // ---- position ----
 
-/** 创建岗位（201，返回裸对象） */
-export function createPositionApi(data: Position) {
-  return request<Position>({ url: "v1/positions", method: "post", data })
-}
-
-/** 岗位列表（返回 {"items":[...]}） */
-export function listPositionsApi() {
-  return request<ListResponse<Position>>({ url: "v1/positions", method: "get" })
-}
-
-/** 岗位计数 */
-export function countPositionsApi() {
-  return request<CountResponse>({ url: "v1/positions/count", method: "get" })
-}
-
-/** 岗位详情（按 code） */
-export function getPositionApi(code: string) {
-  return request<Position>({ url: `v1/positions/${code}`, method: "get" })
-}
-
-/** 更新岗位（按 code） */
-export function updatePositionApi(code: string, data: Position) {
-  return request<MutationResponse>({ url: `v1/positions/${code}`, method: "put", data })
-}
-
-/** 删除岗位（按 code） */
-export function deletePositionApi(code: string) {
-  return request<MutationResponse>({ url: `v1/positions/${code}`, method: "delete" })
-}
-
-/** 批量创建岗位（部分成功语义） */
-export function batchCreatePositionsApi(items: Position[]) {
-  return request<BatchCreateResponse<Position>>({ url: "v1/positions/batch", method: "post", data: { items } })
-}
+export const createPositionApi = positionServiceCreatePosition
+export const listPositionsApi = positionServiceListPositions
+export const countPositionsApi = positionServiceCountPositions
+export const getPositionApi = positionServiceGetPosition
+export const updatePositionApi = positionServiceUpdatePosition
+export const deletePositionApi = positionServiceDeletePosition
+export const batchCreatePositionsApi = positionServiceBatchCreatePositions

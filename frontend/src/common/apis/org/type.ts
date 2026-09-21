@@ -1,60 +1,10 @@
-// 组织架构域类型（手写 gin 面，无 proto 契约）。
-// 字段名逐字对齐后端 biz json tag（internal/apiserver/biz/v1/org/org.go）——
-// 后端 c.JSON 直接输出 Go struct，字段名即 json tag，不得自造。
+// 组织架构域类型（Wave P0.5：已迁移为 A 轨 proto 契约）。
+//
+// **类型来源改为 orval 生成的 model**（契约单一真相源：api/protos/identity/v1）。
+// 字段名为 snake_case（protojson UseProtoNames 输出），与线上响应逐字段对齐。
+//
+// 此前手写 interface 已删除——契约变更时无需手工同步类型（生成即同步）。
+export type { OrgUnit, Position } from "@/api/generated/model"
 
-/** 组织单元（树形，parent_id/children 构成层级） */
-export interface OrgUnit {
-  id: string
-  name: string
-  code: string
-  type: string
-  parent_id?: string
-  path?: string
-  status: string
-  sort_order: number
-  leader_id?: string
-  leader_name?: string
-  remark?: string
-  description?: string
-  children?: OrgUnit[]
-}
-
-/** 岗位（org_unit_id/org_unit_name 为关联回填） */
-export interface Position {
-  id: string
-  name: string
-  code: string
-  headcount: number
-  status: string
-  type: string
-  org_unit_id?: string
-  org_unit_name?: string
-  reports_to_position_id?: string
-  reports_to_position_name?: string
-  job_family?: string
-  job_grade?: string
-  level: number
-  is_key_position: boolean
-  remark?: string
-}
-
-/** 列表响应（handler 包成 {"items":[...]}） */
-export interface ListResponse<T> {
-  items: T[]
-}
-
-/** 计数响应（handler 包成 {"total":n}） */
-export interface CountResponse {
-  total: number
-}
-
-/** 变更确认响应（handler 包成 {"message":"..."}） */
-export interface MutationResponse {
-  message: string
-}
-
-/** 批量创建响应（部分成功语义，HTTP 恒 200） */
-export interface BatchCreateResponse<T> {
-  created: T[]
-  failed: string[]
-}
+// 枚举常量（供页面做下拉/比对，值即 protojson 输出的符号名）。
+export { OrgUnitStatus, OrgUnitType, PositionStatus, PositionType } from "@/api/generated/model"
