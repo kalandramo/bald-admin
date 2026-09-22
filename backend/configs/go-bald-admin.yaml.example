@@ -8,6 +8,15 @@ log: { level: "info", format: "json" }
 # redis 客户端，无法惰性化，故未注册）。写 "store,stream" 会在启动时报
 # `audit provider "stream" not registered`。
 audit: { backends: "store" }
+# 审计兜底租户（可选，缺省 t-default）：login 失败/permission 变更/data_access
+# 三类事件天然无租户（用户不存在时无从得知其租户；权限变更与 SQL 采集路径
+# 不带租户）。审计查询走租户隔离后，这些记录会因 tenant_id 为空而查不到——
+# 而「谁在试密码 / 谁改了权限」正是审计最需要的线索。故落库时兜底到此值。
+# 部署的默认租户若不叫 t-default，在此覆盖即可（无需改代码）。
+# 注意：用户名/动作等线索记在独立字段，不受此兜底影响。
+audit:
+  backends: "store"
+  fallback_tenant: "t-default"
 
 # ---- T0 新增：真实服务依赖（云端地址由用户填写）----
 database:

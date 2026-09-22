@@ -104,7 +104,9 @@ func (l *lazyStoreAuditor) resolve() audit.Auditor {
 				l.initErr = fmt.Errorf("audit-store: migrate default table: %w", err)
 			}
 		}
-		l.inner = auditstore.New(db, auditstore.WithRecordMapper(securityaudit.RecordMapper))
+		// 映射在构造期求值（NewRecordMapper），使兜底租户可经配置生效
+		// （audit.fallback_tenant → securityaudit.SetFallbackTenant）。
+		l.inner = auditstore.New(db, auditstore.WithRecordMapper(securityaudit.NewRecordMapper("")))
 	})
 	return l.inner
 }

@@ -328,6 +328,11 @@ func newApp(
 			// T0：注入真实依赖配置（业务自持 file.bucket；database/cache/storage
 			// 段已由透传 provider 消费，此处仅传桥接所需的余下配置）。
 			bootstrappkg.Configure(bootstrap, app.Config().GetString("file.bucket"))
+			// 审计兜底租户（可选，缺省 t-default）：login 失败/permission/
+			// data_access 三类事件天然无租户，落库时兜底到此值以保证在租户
+			// 隔离下仍可见（见 internal/security/audit/record_mapper.go）。
+			// **必须在 audit store 构造前调用**——映射在构造期求值。
+			securityaudit.SetFallbackTenant(app.Config().GetString("audit.fallback_tenant"))
 			// 在 bootstrap 包内装配 bald 桥接（P7/P8/P9 注册点）：M1+ 注入
 			// Authenticator / Authorizer / store.RegisterTenant / store.RegisterDataScope。
 			if err := bootstrappkg.InitBridges(ctx); err != nil {
