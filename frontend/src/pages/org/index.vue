@@ -113,6 +113,27 @@ function statusTag(status?: string) {
     : { type: "info" as const, label: "禁用" }
 }
 
+// typeLabel 把枚举符号名映射为中文标签。
+//
+// 为什么不直接显示原始枚举：`TYPE_DEPARTMENT`（15 字符）比迁移前的
+// `DEPARTMENT` 长，写死列宽会折行；且裸符号名对使用者不友好。对齐
+// tenants/index.vue 的既有惯例（枚举列用中文标签、不写死 width）。
+function typeLabel(type?: string) {
+  const labels: Record<string, string> = {
+    TYPE_COMPANY: "公司",
+    TYPE_DIVISION: "分部",
+    TYPE_DEPARTMENT: "部门",
+    TYPE_TEAM: "团队",
+    TYPE_PROJECT: "项目",
+    TYPE_COMMITTEE: "委员会",
+    TYPE_REGION: "区域",
+    TYPE_SUBSIDIARY: "子公司",
+    TYPE_BRANCH: "分支机构",
+    TYPE_OTHER: "其他"
+  }
+  return labels[type ?? ""] || type || "-"
+}
+
 onMounted(fetchList)
 </script>
 
@@ -135,7 +156,11 @@ onMounted(fetchList)
       >
         <el-table-column prop="name" label="组织名称" />
         <el-table-column prop="code" label="编码" align="center" />
-        <el-table-column prop="type" label="类型" align="center" width="120" />
+        <el-table-column label="类型" align="center">
+          <template #default="{ row }">
+            {{ typeLabel(row.type) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="leader_name" label="负责人" align="center" />
         <el-table-column label="状态" align="center" width="80">
           <template #default="{ row }">
