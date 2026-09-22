@@ -7,6 +7,7 @@
 package auditv1
 
 import (
+	v1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -296,15 +297,22 @@ func (x *AuditRecord) GetTime() *timestamppb.Timestamp {
 }
 
 type ListAuditRecordsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Category      string                 `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`                     // 非空 = 分类精确过滤（operation/login/api/data_access/permission）
-	Subject       string                 `protobuf:"bytes,2,opt,name=subject,proto3" json:"subject,omitempty"`                       // 非空 = 主体精确过滤
-	Object        string                 `protobuf:"bytes,3,opt,name=object,proto3" json:"object,omitempty"`                         // 非空 = 资源对象精确过滤
-	Action        string                 `protobuf:"bytes,4,opt,name=action,proto3" json:"action,omitempty"`                         // 非空 = 动作精确过滤
-	Result        string                 `protobuf:"bytes,5,opt,name=result,proto3" json:"result,omitempty"`                         // 非空 = 结果精确过滤（allow/deny/error）
-	Ip            string                 `protobuf:"bytes,6,opt,name=ip,proto3" json:"ip,omitempty"`                                 // 非空 = 客户端 IP 精确过滤
-	PageSize      uint32                 `protobuf:"varint,20,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`   // 页大小（默认 50，上限 200）
-	PageToken     string                 `protobuf:"bytes,21,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"` // 翻页令牌（上页响应 next_page_token；offset 编码）
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Category string                 `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"` // 非空 = 分类精确过滤（operation/login/api/data_access/permission）
+	Subject  string                 `protobuf:"bytes,2,opt,name=subject,proto3" json:"subject,omitempty"`   // 非空 = 主体精确过滤
+	Object   string                 `protobuf:"bytes,3,opt,name=object,proto3" json:"object,omitempty"`     // 非空 = 资源对象精确过滤
+	Action   string                 `protobuf:"bytes,4,opt,name=action,proto3" json:"action,omitempty"`     // 非空 = 动作精确过滤
+	Result   string                 `protobuf:"bytes,5,opt,name=result,proto3" json:"result,omitempty"`     // 非空 = 结果精确过滤（allow/deny/error）
+	Ip       string                 `protobuf:"bytes,6,opt,name=ip,proto3" json:"ip,omitempty"`             // 非空 = 客户端 IP 精确过滤
+	// 分页参数（框架标准契约，与 org 域一致）。
+	//
+	// **注意类型须用前导点号**：本文件 package 为 `go.bald.admin.audit.v1`，
+	// `bald` 是 `go.bald` 的首段——protobuf 名解析「首段匹配即停」会把
+	// `bald.store.v1.X` 误判为 `go.bald.store.v1.X`（不存在）。
+	//
+	// 原扁平字段 page_size/page_token 已移除（迁移到 PagingRequest，见本域
+	// 分页风格统一：与 identity/org_unit.proto 一致）。
+	Paging        *v1.PagingRequest `protobuf:"bytes,20,opt,name=paging,proto3" json:"paging,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -381,25 +389,19 @@ func (x *ListAuditRecordsRequest) GetIp() string {
 	return ""
 }
 
-func (x *ListAuditRecordsRequest) GetPageSize() uint32 {
+func (x *ListAuditRecordsRequest) GetPaging() *v1.PagingRequest {
 	if x != nil {
-		return x.PageSize
+		return x.Paging
 	}
-	return 0
-}
-
-func (x *ListAuditRecordsRequest) GetPageToken() string {
-	if x != nil {
-		return x.PageToken
-	}
-	return ""
+	return nil
 }
 
 type ListAuditRecordsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*AuditRecord         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
-	Total         uint32                 `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`                                       // 当前过滤条件下的总条数
-	NextPageToken string                 `protobuf:"bytes,3,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"` // 空串 = 已到末页
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Items []*AuditRecord         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	// 分页元数据：total（当前过滤条件下总数）/ total_pages / next_token 等。
+	// 原扁平字段 total/next_page_token 已并入此结构。
+	Meta          *v1.PaginationResponseMeta `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -441,18 +443,11 @@ func (x *ListAuditRecordsResponse) GetItems() []*AuditRecord {
 	return nil
 }
 
-func (x *ListAuditRecordsResponse) GetTotal() uint32 {
+func (x *ListAuditRecordsResponse) GetMeta() *v1.PaginationResponseMeta {
 	if x != nil {
-		return x.Total
+		return x.Meta
 	}
-	return 0
-}
-
-func (x *ListAuditRecordsResponse) GetNextPageToken() string {
-	if x != nil {
-		return x.NextPageToken
-	}
-	return ""
+	return nil
 }
 
 type GetAuditRecordRequest struct {
@@ -547,7 +542,7 @@ var File_audit_v1_audit_proto protoreflect.FileDescriptor
 
 const file_audit_v1_audit_proto_rawDesc = "" +
 	"\n" +
-	"\x14audit/v1/audit.proto\x12\x16go.bald.admin.audit.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xba\x06\n" +
+	"\x14audit/v1/audit.proto\x12\x16go.bald.admin.audit.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x19bald/store/v1/store.proto\"\xba\x06\n" +
 	"\vAuditRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1a\n" +
@@ -588,21 +583,18 @@ const file_audit_v1_audit_proto_rawDesc = "" +
 	"session_id\x18\x1a \x01(\tR\tsessionId\x12\x1d\n" +
 	"\n" +
 	"mfa_status\x18\x1b \x01(\tR\tmfaStatus\x12.\n" +
-	"\x04time\x18d \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xe3\x01\n" +
+	"\x04time\x18d \x01(\v2\x1a.google.protobuf.TimestampR\x04time\"\xdd\x01\n" +
 	"\x17ListAuditRecordsRequest\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x18\n" +
 	"\asubject\x18\x02 \x01(\tR\asubject\x12\x16\n" +
 	"\x06object\x18\x03 \x01(\tR\x06object\x12\x16\n" +
 	"\x06action\x18\x04 \x01(\tR\x06action\x12\x16\n" +
 	"\x06result\x18\x05 \x01(\tR\x06result\x12\x0e\n" +
-	"\x02ip\x18\x06 \x01(\tR\x02ip\x12\x1b\n" +
-	"\tpage_size\x18\x14 \x01(\rR\bpageSize\x12\x1d\n" +
-	"\n" +
-	"page_token\x18\x15 \x01(\tR\tpageToken\"\x93\x01\n" +
+	"\x02ip\x18\x06 \x01(\tR\x02ip\x124\n" +
+	"\x06paging\x18\x14 \x01(\v2\x1c.bald.store.v1.PagingRequestR\x06paging\"\x90\x01\n" +
 	"\x18ListAuditRecordsResponse\x129\n" +
-	"\x05items\x18\x01 \x03(\v2#.go.bald.admin.audit.v1.AuditRecordR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\rR\x05total\x12&\n" +
-	"\x0fnext_page_token\x18\x03 \x01(\tR\rnextPageToken\"'\n" +
+	"\x05items\x18\x01 \x03(\v2#.go.bald.admin.audit.v1.AuditRecordR\x05items\x129\n" +
+	"\x04meta\x18\x02 \x01(\v2%.bald.store.v1.PaginationResponseMetaR\x04meta\"'\n" +
 	"\x15GetAuditRecordRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"U\n" +
 	"\x16GetAuditRecordResponse\x12;\n" +
@@ -627,26 +619,30 @@ func file_audit_v1_audit_proto_rawDescGZIP() []byte {
 
 var file_audit_v1_audit_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_audit_v1_audit_proto_goTypes = []any{
-	(*AuditRecord)(nil),              // 0: go.bald.admin.audit.v1.AuditRecord
-	(*ListAuditRecordsRequest)(nil),  // 1: go.bald.admin.audit.v1.ListAuditRecordsRequest
-	(*ListAuditRecordsResponse)(nil), // 2: go.bald.admin.audit.v1.ListAuditRecordsResponse
-	(*GetAuditRecordRequest)(nil),    // 3: go.bald.admin.audit.v1.GetAuditRecordRequest
-	(*GetAuditRecordResponse)(nil),   // 4: go.bald.admin.audit.v1.GetAuditRecordResponse
-	(*timestamppb.Timestamp)(nil),    // 5: google.protobuf.Timestamp
+	(*AuditRecord)(nil),               // 0: go.bald.admin.audit.v1.AuditRecord
+	(*ListAuditRecordsRequest)(nil),   // 1: go.bald.admin.audit.v1.ListAuditRecordsRequest
+	(*ListAuditRecordsResponse)(nil),  // 2: go.bald.admin.audit.v1.ListAuditRecordsResponse
+	(*GetAuditRecordRequest)(nil),     // 3: go.bald.admin.audit.v1.GetAuditRecordRequest
+	(*GetAuditRecordResponse)(nil),    // 4: go.bald.admin.audit.v1.GetAuditRecordResponse
+	(*timestamppb.Timestamp)(nil),     // 5: google.protobuf.Timestamp
+	(*v1.PagingRequest)(nil),          // 6: bald.store.v1.PagingRequest
+	(*v1.PaginationResponseMeta)(nil), // 7: bald.store.v1.PaginationResponseMeta
 }
 var file_audit_v1_audit_proto_depIdxs = []int32{
 	5, // 0: go.bald.admin.audit.v1.AuditRecord.time:type_name -> google.protobuf.Timestamp
-	0, // 1: go.bald.admin.audit.v1.ListAuditRecordsResponse.items:type_name -> go.bald.admin.audit.v1.AuditRecord
-	0, // 2: go.bald.admin.audit.v1.GetAuditRecordResponse.record:type_name -> go.bald.admin.audit.v1.AuditRecord
-	1, // 3: go.bald.admin.audit.v1.AuditService.ListAuditRecords:input_type -> go.bald.admin.audit.v1.ListAuditRecordsRequest
-	3, // 4: go.bald.admin.audit.v1.AuditService.GetAuditRecord:input_type -> go.bald.admin.audit.v1.GetAuditRecordRequest
-	2, // 5: go.bald.admin.audit.v1.AuditService.ListAuditRecords:output_type -> go.bald.admin.audit.v1.ListAuditRecordsResponse
-	4, // 6: go.bald.admin.audit.v1.AuditService.GetAuditRecord:output_type -> go.bald.admin.audit.v1.GetAuditRecordResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	6, // 1: go.bald.admin.audit.v1.ListAuditRecordsRequest.paging:type_name -> bald.store.v1.PagingRequest
+	0, // 2: go.bald.admin.audit.v1.ListAuditRecordsResponse.items:type_name -> go.bald.admin.audit.v1.AuditRecord
+	7, // 3: go.bald.admin.audit.v1.ListAuditRecordsResponse.meta:type_name -> bald.store.v1.PaginationResponseMeta
+	0, // 4: go.bald.admin.audit.v1.GetAuditRecordResponse.record:type_name -> go.bald.admin.audit.v1.AuditRecord
+	1, // 5: go.bald.admin.audit.v1.AuditService.ListAuditRecords:input_type -> go.bald.admin.audit.v1.ListAuditRecordsRequest
+	3, // 6: go.bald.admin.audit.v1.AuditService.GetAuditRecord:input_type -> go.bald.admin.audit.v1.GetAuditRecordRequest
+	2, // 7: go.bald.admin.audit.v1.AuditService.ListAuditRecords:output_type -> go.bald.admin.audit.v1.ListAuditRecordsResponse
+	4, // 8: go.bald.admin.audit.v1.AuditService.GetAuditRecord:output_type -> go.bald.admin.audit.v1.GetAuditRecordResponse
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_audit_v1_audit_proto_init() }

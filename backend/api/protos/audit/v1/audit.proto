@@ -6,6 +6,7 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/audit/v1;auditv
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "bald/store/v1/store.proto";
 
 // AuditService 审计日志查询服务（T6，自 go-wind-admin audit 域精简移植）。
 //
@@ -15,6 +16,12 @@ import "google/protobuf/timestamp.proto";
 //
 // 数据来自 AuditRecord 单表（源 Operation/LoginAuditLog 双表 + Category 分类
 // 精简合并）；P9 归一化对象 "audit"（REST /v1/audit 与 gRPC AuditService 同源）。
+//
+// **分页与租户隔离（2026-09-22 统一）**：List 用框架标准 `bald.store.v1.PagingRequest`
+// （与 identity/org_unit.proto 一致），底层走 `Store.ListWithPaging`。由此带来一处
+// **行为变更**：框架 `mergeTenant` 强制注入租户隔离（无跳过机制），故本域从
+// 「跨租户全量查询」改为「仅本租户可见」——多租户下消除潜在信息泄露面。
+// 见 biz/v1/auditlog/auditlog.go 的包注释。
 service AuditService {
   // ListAuditRecords 分页查询审计日志（category/subject/object/action/result/ip 过滤）。
   //   REST: GET /v1/audit
@@ -89,14 +96,22 @@ message ListAuditRecordsRequest {
   string result = 5;   // 非空 = 结果精确过滤（allow/deny/error）
   string ip = 6;       // 非空 = 客户端 IP 精确过滤
 
-  uint32 page_size = 20;   // 页大小（默认 50，上限 200）
-  string page_token = 21;  // 翻页令牌（上页响应 next_page_token；offset 编码）
+  // 分页参数（框架标准契约，与 org 域一致）。
+  //
+  // **注意类型须用前导点号**：本文件 package 为 `go.bald.admin.audit.v1`，
+  // `bald` 是 `go.bald` 的首段——protobuf 名解析「首段匹配即停」会把
+  // `bald.store.v1.X` 误判为 `go.bald.store.v1.X`（不存在）。
+  //
+  // 原扁平字段 page_size/page_token 已移除（迁移到 PagingRequest，见本域
+  // 分页风格统一：与 identity/org_unit.proto 一致）。
+  .bald.store.v1.PagingRequest paging = 20;
 }
 
 message ListAuditRecordsResponse {
   repeated AuditRecord items = 1;
-  uint32 total = 2;           // 当前过滤条件下的总条数
-  string next_page_token = 3; // 空串 = 已到末页
+  // 分页元数据：total（当前过滤条件下总数）/ total_pages / next_token 等。
+  // 原扁平字段 total/next_page_token 已并入此结构。
+  .bald.store.v1.PaginationResponseMeta meta = 2;
 }
 
 message GetAuditRecordRequest {

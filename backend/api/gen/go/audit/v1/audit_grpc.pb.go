@@ -35,6 +35,12 @@ const (
 //
 // 数据来自 AuditRecord 单表（源 Operation/LoginAuditLog 双表 + Category 分类
 // 精简合并）；P9 归一化对象 "audit"（REST /v1/audit 与 gRPC AuditService 同源）。
+//
+// **分页与租户隔离（2026-09-22 统一）**：List 用框架标准 `bald.store.v1.PagingRequest`
+// （与 identity/org_unit.proto 一致），底层走 `Store.ListWithPaging`。由此带来一处
+// **行为变更**：框架 `mergeTenant` 强制注入租户隔离（无跳过机制），故本域从
+// 「跨租户全量查询」改为「仅本租户可见」——多租户下消除潜在信息泄露面。
+// 见 biz/v1/auditlog/auditlog.go 的包注释。
 type AuditServiceClient interface {
 	// ListAuditRecords 分页查询审计日志（category/subject/object/action/result/ip 过滤）。
 	//   REST: GET /v1/audit
@@ -84,6 +90,12 @@ func (c *auditServiceClient) GetAuditRecord(ctx context.Context, in *GetAuditRec
 //
 // 数据来自 AuditRecord 单表（源 Operation/LoginAuditLog 双表 + Category 分类
 // 精简合并）；P9 归一化对象 "audit"（REST /v1/audit 与 gRPC AuditService 同源）。
+//
+// **分页与租户隔离（2026-09-22 统一）**：List 用框架标准 `bald.store.v1.PagingRequest`
+// （与 identity/org_unit.proto 一致），底层走 `Store.ListWithPaging`。由此带来一处
+// **行为变更**：框架 `mergeTenant` 强制注入租户隔离（无跳过机制），故本域从
+// 「跨租户全量查询」改为「仅本租户可见」——多租户下消除潜在信息泄露面。
+// 见 biz/v1/auditlog/auditlog.go 的包注释。
 type AuditServiceServer interface {
 	// ListAuditRecords 分页查询审计日志（category/subject/object/action/result/ip 过滤）。
 	//   REST: GET /v1/audit
