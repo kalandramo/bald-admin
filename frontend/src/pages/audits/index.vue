@@ -22,9 +22,12 @@ const searchForm = reactive({
 async function fetchList(token?: string) {
   loading.value = true
   try {
+    // 分页参数用 grpc-gateway 约定（paging.*），与 org 域一致。
+    // 契约变更（2026-09-22 统一分页风格）：原扁平 page_size/page_token，
+    // 响应 total/next_page_token 移入 meta。
     const params: AuditServiceListAuditRecordsParams = {
-      page_size: 20,
-      page_token: token || undefined
+      "paging.page_size": 20,
+      "paging.token": token || undefined
     }
     if (searchForm.category) params.category = searchForm.category
     if (searchForm.subject) params.subject = searchForm.subject
@@ -35,7 +38,7 @@ async function fetchList(token?: string) {
 
     const res = await auditServiceListAuditRecords(params)
     list.value = res.items || []
-    nextPageToken.value = res.next_page_token || ""
+    nextPageToken.value = res.meta?.next_token || ""
   } finally {
     loading.value = false
   }

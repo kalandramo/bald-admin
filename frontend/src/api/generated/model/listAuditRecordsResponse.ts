@@ -4,9 +4,13 @@
  * OpenAPI spec version: 0.0.1
  */
 import type { AuditRecord } from './auditRecord.ts';
+import type { PaginationResponseMeta } from './paginationResponseMeta.ts';
 
 export interface ListAuditRecordsResponse {
   items?: AuditRecord[];
-  total?: number;
-  next_page_token?: string;
+  /**
+     * 分页元数据：total（当前过滤条件下总数）/ total_pages / next_token 等。
+     *  原扁平字段 total/next_page_token 已并入此结构。
+     */
+  meta?: PaginationResponseMeta;
 }

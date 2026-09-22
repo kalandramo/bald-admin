@@ -5,6 +5,7 @@
  */
 
 export * from './auditRecord.ts';
+export * from './auditServiceListAuditRecordsPagingFilterExprType.ts';
 export * from './auditServiceListAuditRecordsParams.ts';
 export * from './batchCreateLanguagesRequest.ts';
 export * from './batchCreateLanguagesResponse.ts';
