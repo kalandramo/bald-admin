@@ -6,6 +6,7 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/identity/v1;ide
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "bald/store/v1/store.proto";
 
 // OrgUnitService 组织单元管理（Wave P0.5，自 go-wind-admin identity 域
 // org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
@@ -23,17 +24,31 @@ import "google/protobuf/timestamp.proto";
 //     但 proto3 的 0 值必须是默认值——本实现改 `STATUS_UNSPECIFIED=0`（同 menu/tenant）。
 //  4. **`parent_id` 语义统一为「父节点 code」**：源 model 存完整主键、对外暴露
 //     也是完整主键（输入 code 输出主键，语义不对称）；本实现输入输出统一为 code。
-//  5. **不移植源的分页**：源 List 用 `pagination.PagingRequest`；本实现精简为全量
-//     （同 menu.proto 的 ListMenusRequest），分页列入后续迭代。
+//  5. **分页用框架自有 `bald.store.v1.PagingRequest`**：源用第三方
+//     `pagination.PagingRequest`（且源实现收了参数却全量返回，是「假分页」）。
+//     本实现改为**真分页**——用框架自有 `bald-bconf` 契约（与源字段结构逐项一致，
+//     见 buf.yaml），且因树形与分页语义冲突（分页会截断 children），采用
+//     **根节点分页 + 子节点懒加载**：ListOrgUnits 只返回根节点分页，
+//     展开节点时调 ListOrgUnitChildren 拉取直接子节点。
 //  6. **不移植** gnostic 注解 / `attributes` map / `business_scopes` /
 //     `permission_tags` / 法务与地理字段（源 40 字段 → 本实现 14 字段）：
 //     以本项目 model.OrgUnit 的实际字段集为准（用户要求「对齐本项目字段」）。
 service OrgUnitService {
-  // ListOrgUnits 列出组织单元（**返回树形**，children 递归嵌套）。
+  // ListOrgUnits 列出**根节点**（分页，children 不预填）。
+  // 子节点经 ListOrgUnitChildren 懒加载（树形展开用）。
   //   REST: GET /v1/org-units
   rpc ListOrgUnits(ListOrgUnitsRequest) returns (ListOrgUnitsResponse) {
     option (google.api.http) = {
       get: "/v1/org-units"
+    };
+  }
+
+  // ListOrgUnitChildren 列出某节点的**直接子节点**（分页，不递归）。
+  // 用于 el-table 懒加载：展开节点时按需拉取其下一层。
+  //   REST: GET /v1/org-units/{parent_id}/children
+  rpc ListOrgUnitChildren(ListOrgUnitChildrenRequest) returns (ListOrgUnitChildrenResponse) {
+    option (google.api.http) = {
+      get: "/v1/org-units/{parent_id}/children"
     };
   }
 
@@ -134,13 +149,29 @@ message OrgUnit {
 }
 
 message ListOrgUnitsRequest {
-  // 精简为全量树；源项目支持 pagination + treeTravel 开关，列入后续迭代。
+  // 分页参数。**仅作用于根节点**（parent_id 为空的节点）；
+  // 子节点经 ListOrgUnitChildren 懒加载（见该 rpc）。
+  // 注意：类型必须用**前导点号**的完全限定名——本文件 package 为
+  // `go.bald.admin.identity.v1`，而 `bald` 是 `go.bald` 的首段，
+  // protobuf 名解析「首段匹配即停」会把它解析成 `go.bald.store...`（不存在）。
+  .bald.store.v1.PagingRequest paging = 1;
 }
 
 message ListOrgUnitsResponse {
-  repeated OrgUnit items = 1; // 树根数组（children 递归嵌套）
-  // 全部节点数（含子孙，非根数）；uint32 避免 proto3 JSON int64 字符串化。
-  uint32 total = 2;
+  repeated OrgUnit items = 1; // 根节点数组（**children 不预填**，懒加载填充）
+  // 分页元数据：total（根节点总数，非全量节点数）/ total_pages / next_token 等。
+  .bald.store.v1.PaginationResponseMeta meta = 2;
+}
+
+message ListOrgUnitChildrenRequest {
+  string parent_id = 1; // 父节点 **code**（必填；空 → 400）
+  // 分页参数（作用于该父节点下的直接子节点）。
+  .bald.store.v1.PagingRequest paging = 2;
+}
+
+message ListOrgUnitChildrenResponse {
+  repeated OrgUnit items = 1; // 直接子节点（扁平，**不递归**）
+  .bald.store.v1.PaginationResponseMeta meta = 2;
 }
 
 message CountOrgUnitsRequest {}

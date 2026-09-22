@@ -657,8 +657,75 @@ paths:
         get:
             tags:
                 - OrgUnitService
-            description: "ListOrgUnits 列出组织单元（**返回树形**，children 递归嵌套）。\r\n   REST: GET /v1/org-units"
+            description: "ListOrgUnits 列出**根节点**（分页，children 不预填）。\r\n 子节点经 ListOrgUnitChildren 懒加载（树形展开用）。\r\n   REST: GET /v1/org-units"
             operationId: OrgUnitService_ListOrgUnits
+            parameters:
+                - name: paging.page
+                  in: query
+                  description: 当前页码（从1开始，默认1）
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: paging.page_size
+                  in: query
+                  description: 每页条数（默认10，建议设置上限如100）
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: paging.offset
+                  in: query
+                  description: 跳过的记录数（从0开始，默认0）
+                  schema:
+                    type: string
+                - name: paging.limit
+                  in: query
+                  description: 最多返回的记录数（默认10，建议设置上限如100）
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: paging.token
+                  in: query
+                  description: 上一页最后一条记录的游标（如ID/时间戳+ID，首次请求为空）
+                  schema:
+                    type: string
+                - name: paging.no_paging
+                  in: query
+                  description: 是否不分页，如果为true，则page和pageSize参数无效。
+                  schema:
+                    type: boolean
+                - name: paging.query
+                  in: query
+                  description: JSON字符串过滤条件，基础语法：{"field1":"val1", "field2___icontains":"val2"}。
+                  schema:
+                    type: string
+                - name: paging.filter
+                  in: query
+                  description: Google AIP规范字符串过滤条件。
+                  schema:
+                    type: string
+                - name: paging.filter_expr.type
+                  in: query
+                  description: 过滤表达式类型
+                  schema:
+                    enum:
+                        - EXPR_TYPE_UNSPECIFIED
+                        - AND
+                        - OR
+                    type: string
+                    format: enum
+                - name: paging.order_by
+                  in: query
+                  description: 排序条件（"val1,-val2" 风格，- 前缀表示降序；与 sorting 二选一）
+                  schema:
+                    type: string
+                - name: paging.field_mask
+                  in: query
+                  description: |-
+                    字段掩码，其作用为SELECT中的字段，其语法为使用逗号分隔字段名，例如：id,realName,userName。
+                     如果为空则选中所有字段，即SELECT *。
+                  schema:
+                    type: string
+                    format: field-mask
             responses:
                 "200":
                     description: OK
@@ -777,6 +844,91 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DeleteOrgUnitResponse'
+    /v1/org-units/{parent_id}/children:
+        get:
+            tags:
+                - OrgUnitService
+            description: "ListOrgUnitChildren 列出某节点的**直接子节点**（分页，不递归）。\r\n 用于 el-table 懒加载：展开节点时按需拉取其下一层。\r\n   REST: GET /v1/org-units/{parent_id}/children"
+            operationId: OrgUnitService_ListOrgUnitChildren
+            parameters:
+                - name: parent_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: paging.page
+                  in: query
+                  description: 当前页码（从1开始，默认1）
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: paging.page_size
+                  in: query
+                  description: 每页条数（默认10，建议设置上限如100）
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: paging.offset
+                  in: query
+                  description: 跳过的记录数（从0开始，默认0）
+                  schema:
+                    type: string
+                - name: paging.limit
+                  in: query
+                  description: 最多返回的记录数（默认10，建议设置上限如100）
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: paging.token
+                  in: query
+                  description: 上一页最后一条记录的游标（如ID/时间戳+ID，首次请求为空）
+                  schema:
+                    type: string
+                - name: paging.no_paging
+                  in: query
+                  description: 是否不分页，如果为true，则page和pageSize参数无效。
+                  schema:
+                    type: boolean
+                - name: paging.query
+                  in: query
+                  description: JSON字符串过滤条件，基础语法：{"field1":"val1", "field2___icontains":"val2"}。
+                  schema:
+                    type: string
+                - name: paging.filter
+                  in: query
+                  description: Google AIP规范字符串过滤条件。
+                  schema:
+                    type: string
+                - name: paging.filter_expr.type
+                  in: query
+                  description: 过滤表达式类型
+                  schema:
+                    enum:
+                        - EXPR_TYPE_UNSPECIFIED
+                        - AND
+                        - OR
+                    type: string
+                    format: enum
+                - name: paging.order_by
+                  in: query
+                  description: 排序条件（"val1,-val2" 风格，- 前缀表示降序；与 sorting 二选一）
+                  schema:
+                    type: string
+                - name: paging.field_mask
+                  in: query
+                  description: |-
+                    字段掩码，其作用为SELECT中的字段，其语法为使用逗号分隔字段名，例如：id,realName,userName。
+                     如果为空则选中所有字段，即SELECT *。
+                  schema:
+                    type: string
+                    format: field-mask
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListOrgUnitChildrenResponse'
     /v1/permission:
         get:
             tags:
@@ -2060,6 +2212,15 @@ components:
                     type: integer
                     description: 全部节点数（含子孙，非根数）；uint32 避免 proto3 JSON int64 字符串化。
                     format: uint32
+        ListOrgUnitChildrenResponse:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OrgUnit'
+                meta:
+                    $ref: '#/components/schemas/PaginationResponseMeta'
         ListOrgUnitsResponse:
             type: object
             properties:
@@ -2067,10 +2228,10 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/OrgUnit'
-                total:
-                    type: integer
-                    description: 全部节点数（含子孙，非根数）；uint32 避免 proto3 JSON int64 字符串化。
-                    format: uint32
+                meta:
+                    allOf:
+                        - $ref: '#/components/schemas/PaginationResponseMeta'
+                    description: 分页元数据：total（根节点总数，非全量节点数）/ total_pages / next_token 等。
         ListPermissionCodeResponse:
             type: object
             properties:
@@ -2265,6 +2426,35 @@ components:
                     type: string
                     format: date-time
             description: OrgUnit 组织单元。树形由 `parent_id` + `children` 表达。
+        PaginationResponseMeta:
+            type: object
+            properties:
+                total:
+                    type: string
+                    description: 总记录数（仅Page/Offset分页有效，Token分页通常不返回总数）
+                total_pages:
+                    type: integer
+                    description: 总页数（仅Page分页有效）
+                    format: uint32
+                current_page:
+                    type: integer
+                    description: 当前页码（仅Page分页有效）
+                    format: uint32
+                current_offset:
+                    type: string
+                    description: 当前偏移量（仅Offset分页有效）
+                next_token:
+                    type: string
+                    description: 下一页令牌（仅Token分页有效，无更多数据时为空）
+                page_size:
+                    type: integer
+                    description: 每页实际条数
+                    format: uint32
+                current_size:
+                    type: integer
+                    description: 当前页实际返回条数
+                    format: uint32
+            description: 分页响应元数据。
         Permission:
             type: object
             properties:
@@ -2775,7 +2965,7 @@ tags:
          菜单是前端导航树的数据源（自引用树，parent_id），同时是权限点可见性的挂载面
          （Permission.MenuIDs）。管理面操作仅授予 admin 角色（casbin 策略数据化装载）。
     - name: OrgUnitService
-      description: "OrgUnitService 组织单元管理（Wave P0.5，自 go-wind-admin identity 域\r\n org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。\r\n\r\n 本实现**对齐项目既有惯例**（与 dict/menu/tenant 一致），与源有多处显式偏差：\r\n\r\n  1. **主键用 string 业务键**（`code`，如 \"FIN-LEADER-001\"）而非源 `uint32 id`\r\n     ——源 ID 由 DB 自增生成；本项目 model.OrgUnit 主键即 `\"<tenant>:<code>\"`\r\n     （见 internal/apiserver/model/org.go），code 是跨系统同步的稳定标识。\r\n     proto 的 `id` 字段保留为**只读输出**（完整主键），供前端判断编辑态。\r\n  2. **请求体简化**：源的 `oneof query_by` / `FieldMask view_mask` /\r\n     `update_mask` / `allow_missing` 未移植——本项目 handler 用「非空字段即更新」\r\n     语义，并用 `*_set` 显式位区分「未设置」与「设为零值」（见 UpdateOrgUnitRequest）。\r\n  3. **枚举加前缀 + 补 0 值**：源 `Status{OFF=0,ON=1}` 的 0 值语义为「禁用」，\r\n     但 proto3 的 0 值必须是默认值——本实现改 `STATUS_UNSPECIFIED=0`（同 menu/tenant）。\r\n  4. **`parent_id` 语义统一为「父节点 code」**：源 model 存完整主键、对外暴露\r\n     也是完整主键（输入 code 输出主键，语义不对称）；本实现输入输出统一为 code。\r\n  5. **不移植源的分页**：源 List 用 `pagination.PagingRequest`；本实现精简为全量\r\n     （同 menu.proto 的 ListMenusRequest），分页列入后续迭代。\r\n  6. **不移植** gnostic 注解 / `attributes` map / `business_scopes` /\r\n     `permission_tags` / 法务与地理字段（源 40 字段 → 本实现 14 字段）：\r\n     以本项目 model.OrgUnit 的实际字段集为准（用户要求「对齐本项目字段」）。"
+      description: "OrgUnitService 组织单元管理（Wave P0.5，自 go-wind-admin identity 域\r\n org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。\r\n\r\n 本实现**对齐项目既有惯例**（与 dict/menu/tenant 一致），与源有多处显式偏差：\r\n\r\n  1. **主键用 string 业务键**（`code`，如 \"FIN-LEADER-001\"）而非源 `uint32 id`\r\n     ——源 ID 由 DB 自增生成；本项目 model.OrgUnit 主键即 `\"<tenant>:<code>\"`\r\n     （见 internal/apiserver/model/org.go），code 是跨系统同步的稳定标识。\r\n     proto 的 `id` 字段保留为**只读输出**（完整主键），供前端判断编辑态。\r\n  2. **请求体简化**：源的 `oneof query_by` / `FieldMask view_mask` /\r\n     `update_mask` / `allow_missing` 未移植——本项目 handler 用「非空字段即更新」\r\n     语义，并用 `*_set` 显式位区分「未设置」与「设为零值」（见 UpdateOrgUnitRequest）。\r\n  3. **枚举加前缀 + 补 0 值**：源 `Status{OFF=0,ON=1}` 的 0 值语义为「禁用」，\r\n     但 proto3 的 0 值必须是默认值——本实现改 `STATUS_UNSPECIFIED=0`（同 menu/tenant）。\r\n  4. **`parent_id` 语义统一为「父节点 code」**：源 model 存完整主键、对外暴露\r\n     也是完整主键（输入 code 输出主键，语义不对称）；本实现输入输出统一为 code。\r\n  5. **分页用框架自有 `bald.store.v1.PagingRequest`**：源用第三方\r\n     `pagination.PagingRequest`（且源实现收了参数却全量返回，是「假分页」）。\r\n     本实现改为**真分页**——用框架自有 `bald-bconf` 契约（与源字段结构逐项一致，\r\n     见 buf.yaml），且因树形与分页语义冲突（分页会截断 children），采用\r\n     **根节点分页 + 子节点懒加载**：ListOrgUnits 只返回根节点分页，\r\n     展开节点时调 ListOrgUnitChildren 拉取直接子节点。\r\n  6. **不移植** gnostic 注解 / `attributes` map / `business_scopes` /\r\n     `permission_tags` / 法务与地理字段（源 40 字段 → 本实现 14 字段）：\r\n     以本项目 model.OrgUnit 的实际字段集为准（用户要求「对齐本项目字段」）。"
     - name: PermissionService
       description: |-
         PermissionService 权限管理服务（T3，自 go-wind-admin permission 域精简移植）。

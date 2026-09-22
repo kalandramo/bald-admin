@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	OrgUnitService_ListOrgUnits_FullMethodName        = "/go.bald.admin.identity.v1.OrgUnitService/ListOrgUnits"
+	OrgUnitService_ListOrgUnitChildren_FullMethodName = "/go.bald.admin.identity.v1.OrgUnitService/ListOrgUnitChildren"
 	OrgUnitService_CountOrgUnits_FullMethodName       = "/go.bald.admin.identity.v1.OrgUnitService/CountOrgUnits"
 	OrgUnitService_GetOrgUnit_FullMethodName          = "/go.bald.admin.identity.v1.OrgUnitService/GetOrgUnit"
 	OrgUnitService_CreateOrgUnit_FullMethodName       = "/go.bald.admin.identity.v1.OrgUnitService/CreateOrgUnit"
@@ -48,15 +49,24 @@ const (
 //     但 proto3 的 0 值必须是默认值——本实现改 `STATUS_UNSPECIFIED=0`（同 menu/tenant）。
 //  4. **`parent_id` 语义统一为「父节点 code」**：源 model 存完整主键、对外暴露
 //     也是完整主键（输入 code 输出主键，语义不对称）；本实现输入输出统一为 code。
-//  5. **不移植源的分页**：源 List 用 `pagination.PagingRequest`；本实现精简为全量
-//     （同 menu.proto 的 ListMenusRequest），分页列入后续迭代。
+//  5. **分页用框架自有 `bald.store.v1.PagingRequest`**：源用第三方
+//     `pagination.PagingRequest`（且源实现收了参数却全量返回，是「假分页」）。
+//     本实现改为**真分页**——用框架自有 `bald-bconf` 契约（与源字段结构逐项一致，
+//     见 buf.yaml），且因树形与分页语义冲突（分页会截断 children），采用
+//     **根节点分页 + 子节点懒加载**：ListOrgUnits 只返回根节点分页，
+//     展开节点时调 ListOrgUnitChildren 拉取直接子节点。
 //  6. **不移植** gnostic 注解 / `attributes` map / `business_scopes` /
 //     `permission_tags` / 法务与地理字段（源 40 字段 → 本实现 14 字段）：
 //     以本项目 model.OrgUnit 的实际字段集为准（用户要求「对齐本项目字段」）。
 type OrgUnitServiceClient interface {
-	// ListOrgUnits 列出组织单元（**返回树形**，children 递归嵌套）。
+	// ListOrgUnits 列出**根节点**（分页，children 不预填）。
+	// 子节点经 ListOrgUnitChildren 懒加载（树形展开用）。
 	//   REST: GET /v1/org-units
 	ListOrgUnits(ctx context.Context, in *ListOrgUnitsRequest, opts ...grpc.CallOption) (*ListOrgUnitsResponse, error)
+	// ListOrgUnitChildren 列出某节点的**直接子节点**（分页，不递归）。
+	// 用于 el-table 懒加载：展开节点时按需拉取其下一层。
+	//   REST: GET /v1/org-units/{parent_id}/children
+	ListOrgUnitChildren(ctx context.Context, in *ListOrgUnitChildrenRequest, opts ...grpc.CallOption) (*ListOrgUnitChildrenResponse, error)
 	// CountOrgUnits 统计组织单元数量。
 	//   REST: GET /v1/org-units/count
 	// 注意：REST 路径 `/org-units/count` 必须注册在 `/org-units/{code}` **之前**
@@ -92,6 +102,16 @@ func (c *orgUnitServiceClient) ListOrgUnits(ctx context.Context, in *ListOrgUnit
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListOrgUnitsResponse)
 	err := c.cc.Invoke(ctx, OrgUnitService_ListOrgUnits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orgUnitServiceClient) ListOrgUnitChildren(ctx context.Context, in *ListOrgUnitChildrenRequest, opts ...grpc.CallOption) (*ListOrgUnitChildrenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOrgUnitChildrenResponse)
+	err := c.cc.Invoke(ctx, OrgUnitService_ListOrgUnitChildren_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -178,15 +198,24 @@ func (c *orgUnitServiceClient) BatchCreateOrgUnits(ctx context.Context, in *Batc
 //     但 proto3 的 0 值必须是默认值——本实现改 `STATUS_UNSPECIFIED=0`（同 menu/tenant）。
 //  4. **`parent_id` 语义统一为「父节点 code」**：源 model 存完整主键、对外暴露
 //     也是完整主键（输入 code 输出主键，语义不对称）；本实现输入输出统一为 code。
-//  5. **不移植源的分页**：源 List 用 `pagination.PagingRequest`；本实现精简为全量
-//     （同 menu.proto 的 ListMenusRequest），分页列入后续迭代。
+//  5. **分页用框架自有 `bald.store.v1.PagingRequest`**：源用第三方
+//     `pagination.PagingRequest`（且源实现收了参数却全量返回，是「假分页」）。
+//     本实现改为**真分页**——用框架自有 `bald-bconf` 契约（与源字段结构逐项一致，
+//     见 buf.yaml），且因树形与分页语义冲突（分页会截断 children），采用
+//     **根节点分页 + 子节点懒加载**：ListOrgUnits 只返回根节点分页，
+//     展开节点时调 ListOrgUnitChildren 拉取直接子节点。
 //  6. **不移植** gnostic 注解 / `attributes` map / `business_scopes` /
 //     `permission_tags` / 法务与地理字段（源 40 字段 → 本实现 14 字段）：
 //     以本项目 model.OrgUnit 的实际字段集为准（用户要求「对齐本项目字段」）。
 type OrgUnitServiceServer interface {
-	// ListOrgUnits 列出组织单元（**返回树形**，children 递归嵌套）。
+	// ListOrgUnits 列出**根节点**（分页，children 不预填）。
+	// 子节点经 ListOrgUnitChildren 懒加载（树形展开用）。
 	//   REST: GET /v1/org-units
 	ListOrgUnits(context.Context, *ListOrgUnitsRequest) (*ListOrgUnitsResponse, error)
+	// ListOrgUnitChildren 列出某节点的**直接子节点**（分页，不递归）。
+	// 用于 el-table 懒加载：展开节点时按需拉取其下一层。
+	//   REST: GET /v1/org-units/{parent_id}/children
+	ListOrgUnitChildren(context.Context, *ListOrgUnitChildrenRequest) (*ListOrgUnitChildrenResponse, error)
 	// CountOrgUnits 统计组织单元数量。
 	//   REST: GET /v1/org-units/count
 	// 注意：REST 路径 `/org-units/count` 必须注册在 `/org-units/{code}` **之前**
@@ -220,6 +249,9 @@ type UnimplementedOrgUnitServiceServer struct{}
 
 func (UnimplementedOrgUnitServiceServer) ListOrgUnits(context.Context, *ListOrgUnitsRequest) (*ListOrgUnitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListOrgUnits not implemented")
+}
+func (UnimplementedOrgUnitServiceServer) ListOrgUnitChildren(context.Context, *ListOrgUnitChildrenRequest) (*ListOrgUnitChildrenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOrgUnitChildren not implemented")
 }
 func (UnimplementedOrgUnitServiceServer) CountOrgUnits(context.Context, *CountOrgUnitsRequest) (*CountOrgUnitsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CountOrgUnits not implemented")
@@ -274,6 +306,24 @@ func _OrgUnitService_ListOrgUnits_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(OrgUnitServiceServer).ListOrgUnits(ctx, req.(*ListOrgUnitsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrgUnitService_ListOrgUnitChildren_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOrgUnitChildrenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrgUnitServiceServer).ListOrgUnitChildren(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrgUnitService_ListOrgUnitChildren_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrgUnitServiceServer).ListOrgUnitChildren(ctx, req.(*ListOrgUnitChildrenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -396,6 +446,10 @@ var OrgUnitService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListOrgUnits",
 			Handler:    _OrgUnitService_ListOrgUnits_Handler,
+		},
+		{
+			MethodName: "ListOrgUnitChildren",
+			Handler:    _OrgUnitService_ListOrgUnitChildren_Handler,
 		},
 		{
 			MethodName: "CountOrgUnits",

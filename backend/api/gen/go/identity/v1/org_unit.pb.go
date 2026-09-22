@@ -7,6 +7,7 @@
 package identityv1
 
 import (
+	v1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -303,7 +304,13 @@ func (x *OrgUnit) GetUpdatedAt() *timestamppb.Timestamp {
 }
 
 type ListOrgUnitsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 分页参数。**仅作用于根节点**（parent_id 为空的节点）；
+	// 子节点经 ListOrgUnitChildren 懒加载（见该 rpc）。
+	// 注意：类型必须用**前导点号**的完全限定名——本文件 package 为
+	// `go.bald.admin.identity.v1`，而 `bald` 是 `go.bald` 的首段，
+	// protobuf 名解析「首段匹配即停」会把它解析成 `go.bald.store...`（不存在）。
+	Paging        *v1.PagingRequest `protobuf:"bytes,1,opt,name=paging,proto3" json:"paging,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -338,11 +345,18 @@ func (*ListOrgUnitsRequest) Descriptor() ([]byte, []int) {
 	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{1}
 }
 
+func (x *ListOrgUnitsRequest) GetPaging() *v1.PagingRequest {
+	if x != nil {
+		return x.Paging
+	}
+	return nil
+}
+
 type ListOrgUnitsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Items []*OrgUnit             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"` // 树根数组（children 递归嵌套）
-	// 全部节点数（含子孙，非根数）；uint32 避免 proto3 JSON int64 字符串化。
-	Total         uint32 `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Items []*OrgUnit             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"` // 根节点数组（**children 不预填**，懒加载填充）
+	// 分页元数据：total（根节点总数，非全量节点数）/ total_pages / next_token 等。
+	Meta          *v1.PaginationResponseMeta `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -384,11 +398,116 @@ func (x *ListOrgUnitsResponse) GetItems() []*OrgUnit {
 	return nil
 }
 
-func (x *ListOrgUnitsResponse) GetTotal() uint32 {
+func (x *ListOrgUnitsResponse) GetMeta() *v1.PaginationResponseMeta {
 	if x != nil {
-		return x.Total
+		return x.Meta
 	}
-	return 0
+	return nil
+}
+
+type ListOrgUnitChildrenRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ParentId string                 `protobuf:"bytes,1,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"` // 父节点 **code**（必填；空 → 400）
+	// 分页参数（作用于该父节点下的直接子节点）。
+	Paging        *v1.PagingRequest `protobuf:"bytes,2,opt,name=paging,proto3" json:"paging,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOrgUnitChildrenRequest) Reset() {
+	*x = ListOrgUnitChildrenRequest{}
+	mi := &file_identity_v1_org_unit_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOrgUnitChildrenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOrgUnitChildrenRequest) ProtoMessage() {}
+
+func (x *ListOrgUnitChildrenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_v1_org_unit_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOrgUnitChildrenRequest.ProtoReflect.Descriptor instead.
+func (*ListOrgUnitChildrenRequest) Descriptor() ([]byte, []int) {
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListOrgUnitChildrenRequest) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
+}
+
+func (x *ListOrgUnitChildrenRequest) GetPaging() *v1.PagingRequest {
+	if x != nil {
+		return x.Paging
+	}
+	return nil
+}
+
+type ListOrgUnitChildrenResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Items         []*OrgUnit                 `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"` // 直接子节点（扁平，**不递归**）
+	Meta          *v1.PaginationResponseMeta `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOrgUnitChildrenResponse) Reset() {
+	*x = ListOrgUnitChildrenResponse{}
+	mi := &file_identity_v1_org_unit_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOrgUnitChildrenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOrgUnitChildrenResponse) ProtoMessage() {}
+
+func (x *ListOrgUnitChildrenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_v1_org_unit_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOrgUnitChildrenResponse.ProtoReflect.Descriptor instead.
+func (*ListOrgUnitChildrenResponse) Descriptor() ([]byte, []int) {
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListOrgUnitChildrenResponse) GetItems() []*OrgUnit {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *ListOrgUnitChildrenResponse) GetMeta() *v1.PaginationResponseMeta {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
 }
 
 type CountOrgUnitsRequest struct {
@@ -399,7 +518,7 @@ type CountOrgUnitsRequest struct {
 
 func (x *CountOrgUnitsRequest) Reset() {
 	*x = CountOrgUnitsRequest{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[3]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -411,7 +530,7 @@ func (x *CountOrgUnitsRequest) String() string {
 func (*CountOrgUnitsRequest) ProtoMessage() {}
 
 func (x *CountOrgUnitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[3]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -424,7 +543,7 @@ func (x *CountOrgUnitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountOrgUnitsRequest.ProtoReflect.Descriptor instead.
 func (*CountOrgUnitsRequest) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{3}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{5}
 }
 
 type CountOrgUnitsResponse struct {
@@ -436,7 +555,7 @@ type CountOrgUnitsResponse struct {
 
 func (x *CountOrgUnitsResponse) Reset() {
 	*x = CountOrgUnitsResponse{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[4]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -448,7 +567,7 @@ func (x *CountOrgUnitsResponse) String() string {
 func (*CountOrgUnitsResponse) ProtoMessage() {}
 
 func (x *CountOrgUnitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[4]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -461,7 +580,7 @@ func (x *CountOrgUnitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountOrgUnitsResponse.ProtoReflect.Descriptor instead.
 func (*CountOrgUnitsResponse) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{4}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CountOrgUnitsResponse) GetTotal() uint32 {
@@ -480,7 +599,7 @@ type GetOrgUnitRequest struct {
 
 func (x *GetOrgUnitRequest) Reset() {
 	*x = GetOrgUnitRequest{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[5]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -492,7 +611,7 @@ func (x *GetOrgUnitRequest) String() string {
 func (*GetOrgUnitRequest) ProtoMessage() {}
 
 func (x *GetOrgUnitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[5]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -505,7 +624,7 @@ func (x *GetOrgUnitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrgUnitRequest.ProtoReflect.Descriptor instead.
 func (*GetOrgUnitRequest) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{5}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetOrgUnitRequest) GetCode() string {
@@ -524,7 +643,7 @@ type GetOrgUnitResponse struct {
 
 func (x *GetOrgUnitResponse) Reset() {
 	*x = GetOrgUnitResponse{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[6]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -536,7 +655,7 @@ func (x *GetOrgUnitResponse) String() string {
 func (*GetOrgUnitResponse) ProtoMessage() {}
 
 func (x *GetOrgUnitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[6]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -549,7 +668,7 @@ func (x *GetOrgUnitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOrgUnitResponse.ProtoReflect.Descriptor instead.
 func (*GetOrgUnitResponse) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{6}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetOrgUnitResponse) GetOrgUnit() *OrgUnit {
@@ -576,7 +695,7 @@ type CreateOrgUnitRequest struct {
 
 func (x *CreateOrgUnitRequest) Reset() {
 	*x = CreateOrgUnitRequest{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[7]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -588,7 +707,7 @@ func (x *CreateOrgUnitRequest) String() string {
 func (*CreateOrgUnitRequest) ProtoMessage() {}
 
 func (x *CreateOrgUnitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[7]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -601,7 +720,7 @@ func (x *CreateOrgUnitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrgUnitRequest.ProtoReflect.Descriptor instead.
 func (*CreateOrgUnitRequest) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{7}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CreateOrgUnitRequest) GetCode() string {
@@ -676,7 +795,7 @@ type CreateOrgUnitResponse struct {
 
 func (x *CreateOrgUnitResponse) Reset() {
 	*x = CreateOrgUnitResponse{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[8]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -688,7 +807,7 @@ func (x *CreateOrgUnitResponse) String() string {
 func (*CreateOrgUnitResponse) ProtoMessage() {}
 
 func (x *CreateOrgUnitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[8]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -701,7 +820,7 @@ func (x *CreateOrgUnitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrgUnitResponse.ProtoReflect.Descriptor instead.
 func (*CreateOrgUnitResponse) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{8}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CreateOrgUnitResponse) GetOrgUnit() *OrgUnit {
@@ -729,7 +848,7 @@ type UpdateOrgUnitRequest struct {
 
 func (x *UpdateOrgUnitRequest) Reset() {
 	*x = UpdateOrgUnitRequest{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[9]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -741,7 +860,7 @@ func (x *UpdateOrgUnitRequest) String() string {
 func (*UpdateOrgUnitRequest) ProtoMessage() {}
 
 func (x *UpdateOrgUnitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[9]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -754,7 +873,7 @@ func (x *UpdateOrgUnitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateOrgUnitRequest.ProtoReflect.Descriptor instead.
 func (*UpdateOrgUnitRequest) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{9}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpdateOrgUnitRequest) GetCode() string {
@@ -836,7 +955,7 @@ type UpdateOrgUnitResponse struct {
 
 func (x *UpdateOrgUnitResponse) Reset() {
 	*x = UpdateOrgUnitResponse{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[10]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -848,7 +967,7 @@ func (x *UpdateOrgUnitResponse) String() string {
 func (*UpdateOrgUnitResponse) ProtoMessage() {}
 
 func (x *UpdateOrgUnitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[10]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -861,7 +980,7 @@ func (x *UpdateOrgUnitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateOrgUnitResponse.ProtoReflect.Descriptor instead.
 func (*UpdateOrgUnitResponse) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{10}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UpdateOrgUnitResponse) GetOrgUnit() *OrgUnit {
@@ -880,7 +999,7 @@ type DeleteOrgUnitRequest struct {
 
 func (x *DeleteOrgUnitRequest) Reset() {
 	*x = DeleteOrgUnitRequest{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[11]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -892,7 +1011,7 @@ func (x *DeleteOrgUnitRequest) String() string {
 func (*DeleteOrgUnitRequest) ProtoMessage() {}
 
 func (x *DeleteOrgUnitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[11]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -905,7 +1024,7 @@ func (x *DeleteOrgUnitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOrgUnitRequest.ProtoReflect.Descriptor instead.
 func (*DeleteOrgUnitRequest) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{11}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DeleteOrgUnitRequest) GetCode() string {
@@ -924,7 +1043,7 @@ type DeleteOrgUnitResponse struct {
 
 func (x *DeleteOrgUnitResponse) Reset() {
 	*x = DeleteOrgUnitResponse{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[12]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -936,7 +1055,7 @@ func (x *DeleteOrgUnitResponse) String() string {
 func (*DeleteOrgUnitResponse) ProtoMessage() {}
 
 func (x *DeleteOrgUnitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[12]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -949,7 +1068,7 @@ func (x *DeleteOrgUnitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOrgUnitResponse.ProtoReflect.Descriptor instead.
 func (*DeleteOrgUnitResponse) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{12}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DeleteOrgUnitResponse) GetDeleted() string {
@@ -968,7 +1087,7 @@ type BatchCreateOrgUnitsRequest struct {
 
 func (x *BatchCreateOrgUnitsRequest) Reset() {
 	*x = BatchCreateOrgUnitsRequest{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[13]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -980,7 +1099,7 @@ func (x *BatchCreateOrgUnitsRequest) String() string {
 func (*BatchCreateOrgUnitsRequest) ProtoMessage() {}
 
 func (x *BatchCreateOrgUnitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[13]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -993,7 +1112,7 @@ func (x *BatchCreateOrgUnitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchCreateOrgUnitsRequest.ProtoReflect.Descriptor instead.
 func (*BatchCreateOrgUnitsRequest) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{13}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *BatchCreateOrgUnitsRequest) GetItems() []*OrgUnit {
@@ -1013,7 +1132,7 @@ type BatchCreateOrgUnitsResponse struct {
 
 func (x *BatchCreateOrgUnitsResponse) Reset() {
 	*x = BatchCreateOrgUnitsResponse{}
-	mi := &file_identity_v1_org_unit_proto_msgTypes[14]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1025,7 +1144,7 @@ func (x *BatchCreateOrgUnitsResponse) String() string {
 func (*BatchCreateOrgUnitsResponse) ProtoMessage() {}
 
 func (x *BatchCreateOrgUnitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_org_unit_proto_msgTypes[14]
+	mi := &file_identity_v1_org_unit_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1038,7 +1157,7 @@ func (x *BatchCreateOrgUnitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchCreateOrgUnitsResponse.ProtoReflect.Descriptor instead.
 func (*BatchCreateOrgUnitsResponse) Descriptor() ([]byte, []int) {
-	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{14}
+	return file_identity_v1_org_unit_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *BatchCreateOrgUnitsResponse) GetCreated() []string {
@@ -1059,7 +1178,7 @@ var File_identity_v1_org_unit_proto protoreflect.FileDescriptor
 
 const file_identity_v1_org_unit_proto_rawDesc = "" +
 	"\n" +
-	"\x1aidentity/v1/org_unit.proto\x12\x19go.bald.admin.identity.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd5\x06\n" +
+	"\x1aidentity/v1/org_unit.proto\x12\x19go.bald.admin.identity.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x19bald/store/v1/store.proto\"\xd5\x06\n" +
 	"\aOrgUnit\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x12\n" +
@@ -1098,11 +1217,18 @@ const file_identity_v1_org_unit_proto_rawDesc = "" +
 	"\x0fTYPE_SUBSIDIARY\x10\b\x12\x0f\n" +
 	"\vTYPE_BRANCH\x10\t\x12\x0e\n" +
 	"\n" +
-	"TYPE_OTHER\x10d\"\x15\n" +
-	"\x13ListOrgUnitsRequest\"f\n" +
+	"TYPE_OTHER\x10d\"K\n" +
+	"\x13ListOrgUnitsRequest\x124\n" +
+	"\x06paging\x18\x01 \x01(\v2\x1c.bald.store.v1.PagingRequestR\x06paging\"\x8b\x01\n" +
 	"\x14ListOrgUnitsResponse\x128\n" +
-	"\x05items\x18\x01 \x03(\v2\".go.bald.admin.identity.v1.OrgUnitR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\rR\x05total\"\x16\n" +
+	"\x05items\x18\x01 \x03(\v2\".go.bald.admin.identity.v1.OrgUnitR\x05items\x129\n" +
+	"\x04meta\x18\x02 \x01(\v2%.bald.store.v1.PaginationResponseMetaR\x04meta\"o\n" +
+	"\x1aListOrgUnitChildrenRequest\x12\x1b\n" +
+	"\tparent_id\x18\x01 \x01(\tR\bparentId\x124\n" +
+	"\x06paging\x18\x02 \x01(\v2\x1c.bald.store.v1.PagingRequestR\x06paging\"\x92\x01\n" +
+	"\x1bListOrgUnitChildrenResponse\x128\n" +
+	"\x05items\x18\x01 \x03(\v2\".go.bald.admin.identity.v1.OrgUnitR\x05items\x129\n" +
+	"\x04meta\x18\x02 \x01(\v2%.bald.store.v1.PaginationResponseMetaR\x04meta\"\x16\n" +
 	"\x14CountOrgUnitsRequest\"-\n" +
 	"\x15CountOrgUnitsResponse\x12\x14\n" +
 	"\x05total\x18\x01 \x01(\rR\x05total\"'\n" +
@@ -1146,9 +1272,10 @@ const file_identity_v1_org_unit_proto_rawDesc = "" +
 	"\x05items\x18\x01 \x03(\v2\".go.bald.admin.identity.v1.OrgUnitR\x05items\"O\n" +
 	"\x1bBatchCreateOrgUnitsResponse\x12\x18\n" +
 	"\acreated\x18\x01 \x03(\tR\acreated\x12\x16\n" +
-	"\x06failed\x18\x02 \x03(\tR\x06failed2\x94\b\n" +
+	"\x06failed\x18\x02 \x03(\tR\x06failed2\xc7\t\n" +
 	"\x0eOrgUnitService\x12\x86\x01\n" +
-	"\fListOrgUnits\x12..go.bald.admin.identity.v1.ListOrgUnitsRequest\x1a/.go.bald.admin.identity.v1.ListOrgUnitsResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/org-units\x12\x8f\x01\n" +
+	"\fListOrgUnits\x12..go.bald.admin.identity.v1.ListOrgUnitsRequest\x1a/.go.bald.admin.identity.v1.ListOrgUnitsResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/org-units\x12\xb0\x01\n" +
+	"\x13ListOrgUnitChildren\x125.go.bald.admin.identity.v1.ListOrgUnitChildrenRequest\x1a6.go.bald.admin.identity.v1.ListOrgUnitChildrenResponse\"*\x82\xd3\xe4\x93\x02$\x12\"/v1/org-units/{parent_id}/children\x12\x8f\x01\n" +
 	"\rCountOrgUnits\x12/.go.bald.admin.identity.v1.CountOrgUnitsRequest\x1a0.go.bald.admin.identity.v1.CountOrgUnitsResponse\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/org-units/count\x12\x87\x01\n" +
 	"\n" +
 	"GetOrgUnit\x12,.go.bald.admin.identity.v1.GetOrgUnitRequest\x1a-.go.bald.admin.identity.v1.GetOrgUnitResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/org-units/{code}\x12\x8c\x01\n" +
@@ -1171,61 +1298,72 @@ func file_identity_v1_org_unit_proto_rawDescGZIP() []byte {
 }
 
 var file_identity_v1_org_unit_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_identity_v1_org_unit_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_identity_v1_org_unit_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_identity_v1_org_unit_proto_goTypes = []any{
 	(OrgUnit_Status)(0),                 // 0: go.bald.admin.identity.v1.OrgUnit.Status
 	(OrgUnit_Type)(0),                   // 1: go.bald.admin.identity.v1.OrgUnit.Type
 	(*OrgUnit)(nil),                     // 2: go.bald.admin.identity.v1.OrgUnit
 	(*ListOrgUnitsRequest)(nil),         // 3: go.bald.admin.identity.v1.ListOrgUnitsRequest
 	(*ListOrgUnitsResponse)(nil),        // 4: go.bald.admin.identity.v1.ListOrgUnitsResponse
-	(*CountOrgUnitsRequest)(nil),        // 5: go.bald.admin.identity.v1.CountOrgUnitsRequest
-	(*CountOrgUnitsResponse)(nil),       // 6: go.bald.admin.identity.v1.CountOrgUnitsResponse
-	(*GetOrgUnitRequest)(nil),           // 7: go.bald.admin.identity.v1.GetOrgUnitRequest
-	(*GetOrgUnitResponse)(nil),          // 8: go.bald.admin.identity.v1.GetOrgUnitResponse
-	(*CreateOrgUnitRequest)(nil),        // 9: go.bald.admin.identity.v1.CreateOrgUnitRequest
-	(*CreateOrgUnitResponse)(nil),       // 10: go.bald.admin.identity.v1.CreateOrgUnitResponse
-	(*UpdateOrgUnitRequest)(nil),        // 11: go.bald.admin.identity.v1.UpdateOrgUnitRequest
-	(*UpdateOrgUnitResponse)(nil),       // 12: go.bald.admin.identity.v1.UpdateOrgUnitResponse
-	(*DeleteOrgUnitRequest)(nil),        // 13: go.bald.admin.identity.v1.DeleteOrgUnitRequest
-	(*DeleteOrgUnitResponse)(nil),       // 14: go.bald.admin.identity.v1.DeleteOrgUnitResponse
-	(*BatchCreateOrgUnitsRequest)(nil),  // 15: go.bald.admin.identity.v1.BatchCreateOrgUnitsRequest
-	(*BatchCreateOrgUnitsResponse)(nil), // 16: go.bald.admin.identity.v1.BatchCreateOrgUnitsResponse
-	(*timestamppb.Timestamp)(nil),       // 17: google.protobuf.Timestamp
+	(*ListOrgUnitChildrenRequest)(nil),  // 5: go.bald.admin.identity.v1.ListOrgUnitChildrenRequest
+	(*ListOrgUnitChildrenResponse)(nil), // 6: go.bald.admin.identity.v1.ListOrgUnitChildrenResponse
+	(*CountOrgUnitsRequest)(nil),        // 7: go.bald.admin.identity.v1.CountOrgUnitsRequest
+	(*CountOrgUnitsResponse)(nil),       // 8: go.bald.admin.identity.v1.CountOrgUnitsResponse
+	(*GetOrgUnitRequest)(nil),           // 9: go.bald.admin.identity.v1.GetOrgUnitRequest
+	(*GetOrgUnitResponse)(nil),          // 10: go.bald.admin.identity.v1.GetOrgUnitResponse
+	(*CreateOrgUnitRequest)(nil),        // 11: go.bald.admin.identity.v1.CreateOrgUnitRequest
+	(*CreateOrgUnitResponse)(nil),       // 12: go.bald.admin.identity.v1.CreateOrgUnitResponse
+	(*UpdateOrgUnitRequest)(nil),        // 13: go.bald.admin.identity.v1.UpdateOrgUnitRequest
+	(*UpdateOrgUnitResponse)(nil),       // 14: go.bald.admin.identity.v1.UpdateOrgUnitResponse
+	(*DeleteOrgUnitRequest)(nil),        // 15: go.bald.admin.identity.v1.DeleteOrgUnitRequest
+	(*DeleteOrgUnitResponse)(nil),       // 16: go.bald.admin.identity.v1.DeleteOrgUnitResponse
+	(*BatchCreateOrgUnitsRequest)(nil),  // 17: go.bald.admin.identity.v1.BatchCreateOrgUnitsRequest
+	(*BatchCreateOrgUnitsResponse)(nil), // 18: go.bald.admin.identity.v1.BatchCreateOrgUnitsResponse
+	(*timestamppb.Timestamp)(nil),       // 19: google.protobuf.Timestamp
+	(*v1.PagingRequest)(nil),            // 20: bald.store.v1.PagingRequest
+	(*v1.PaginationResponseMeta)(nil),   // 21: bald.store.v1.PaginationResponseMeta
 }
 var file_identity_v1_org_unit_proto_depIdxs = []int32{
 	1,  // 0: go.bald.admin.identity.v1.OrgUnit.type:type_name -> go.bald.admin.identity.v1.OrgUnit.Type
 	0,  // 1: go.bald.admin.identity.v1.OrgUnit.status:type_name -> go.bald.admin.identity.v1.OrgUnit.Status
 	2,  // 2: go.bald.admin.identity.v1.OrgUnit.children:type_name -> go.bald.admin.identity.v1.OrgUnit
-	17, // 3: go.bald.admin.identity.v1.OrgUnit.created_at:type_name -> google.protobuf.Timestamp
-	17, // 4: go.bald.admin.identity.v1.OrgUnit.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 5: go.bald.admin.identity.v1.ListOrgUnitsResponse.items:type_name -> go.bald.admin.identity.v1.OrgUnit
-	2,  // 6: go.bald.admin.identity.v1.GetOrgUnitResponse.org_unit:type_name -> go.bald.admin.identity.v1.OrgUnit
-	1,  // 7: go.bald.admin.identity.v1.CreateOrgUnitRequest.type:type_name -> go.bald.admin.identity.v1.OrgUnit.Type
-	0,  // 8: go.bald.admin.identity.v1.CreateOrgUnitRequest.status:type_name -> go.bald.admin.identity.v1.OrgUnit.Status
-	2,  // 9: go.bald.admin.identity.v1.CreateOrgUnitResponse.org_unit:type_name -> go.bald.admin.identity.v1.OrgUnit
-	1,  // 10: go.bald.admin.identity.v1.UpdateOrgUnitRequest.type:type_name -> go.bald.admin.identity.v1.OrgUnit.Type
-	0,  // 11: go.bald.admin.identity.v1.UpdateOrgUnitRequest.status:type_name -> go.bald.admin.identity.v1.OrgUnit.Status
-	2,  // 12: go.bald.admin.identity.v1.UpdateOrgUnitResponse.org_unit:type_name -> go.bald.admin.identity.v1.OrgUnit
-	2,  // 13: go.bald.admin.identity.v1.BatchCreateOrgUnitsRequest.items:type_name -> go.bald.admin.identity.v1.OrgUnit
-	3,  // 14: go.bald.admin.identity.v1.OrgUnitService.ListOrgUnits:input_type -> go.bald.admin.identity.v1.ListOrgUnitsRequest
-	5,  // 15: go.bald.admin.identity.v1.OrgUnitService.CountOrgUnits:input_type -> go.bald.admin.identity.v1.CountOrgUnitsRequest
-	7,  // 16: go.bald.admin.identity.v1.OrgUnitService.GetOrgUnit:input_type -> go.bald.admin.identity.v1.GetOrgUnitRequest
-	9,  // 17: go.bald.admin.identity.v1.OrgUnitService.CreateOrgUnit:input_type -> go.bald.admin.identity.v1.CreateOrgUnitRequest
-	11, // 18: go.bald.admin.identity.v1.OrgUnitService.UpdateOrgUnit:input_type -> go.bald.admin.identity.v1.UpdateOrgUnitRequest
-	13, // 19: go.bald.admin.identity.v1.OrgUnitService.DeleteOrgUnit:input_type -> go.bald.admin.identity.v1.DeleteOrgUnitRequest
-	15, // 20: go.bald.admin.identity.v1.OrgUnitService.BatchCreateOrgUnits:input_type -> go.bald.admin.identity.v1.BatchCreateOrgUnitsRequest
-	4,  // 21: go.bald.admin.identity.v1.OrgUnitService.ListOrgUnits:output_type -> go.bald.admin.identity.v1.ListOrgUnitsResponse
-	6,  // 22: go.bald.admin.identity.v1.OrgUnitService.CountOrgUnits:output_type -> go.bald.admin.identity.v1.CountOrgUnitsResponse
-	8,  // 23: go.bald.admin.identity.v1.OrgUnitService.GetOrgUnit:output_type -> go.bald.admin.identity.v1.GetOrgUnitResponse
-	10, // 24: go.bald.admin.identity.v1.OrgUnitService.CreateOrgUnit:output_type -> go.bald.admin.identity.v1.CreateOrgUnitResponse
-	12, // 25: go.bald.admin.identity.v1.OrgUnitService.UpdateOrgUnit:output_type -> go.bald.admin.identity.v1.UpdateOrgUnitResponse
-	14, // 26: go.bald.admin.identity.v1.OrgUnitService.DeleteOrgUnit:output_type -> go.bald.admin.identity.v1.DeleteOrgUnitResponse
-	16, // 27: go.bald.admin.identity.v1.OrgUnitService.BatchCreateOrgUnits:output_type -> go.bald.admin.identity.v1.BatchCreateOrgUnitsResponse
-	21, // [21:28] is the sub-list for method output_type
-	14, // [14:21] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	19, // 3: go.bald.admin.identity.v1.OrgUnit.created_at:type_name -> google.protobuf.Timestamp
+	19, // 4: go.bald.admin.identity.v1.OrgUnit.updated_at:type_name -> google.protobuf.Timestamp
+	20, // 5: go.bald.admin.identity.v1.ListOrgUnitsRequest.paging:type_name -> bald.store.v1.PagingRequest
+	2,  // 6: go.bald.admin.identity.v1.ListOrgUnitsResponse.items:type_name -> go.bald.admin.identity.v1.OrgUnit
+	21, // 7: go.bald.admin.identity.v1.ListOrgUnitsResponse.meta:type_name -> bald.store.v1.PaginationResponseMeta
+	20, // 8: go.bald.admin.identity.v1.ListOrgUnitChildrenRequest.paging:type_name -> bald.store.v1.PagingRequest
+	2,  // 9: go.bald.admin.identity.v1.ListOrgUnitChildrenResponse.items:type_name -> go.bald.admin.identity.v1.OrgUnit
+	21, // 10: go.bald.admin.identity.v1.ListOrgUnitChildrenResponse.meta:type_name -> bald.store.v1.PaginationResponseMeta
+	2,  // 11: go.bald.admin.identity.v1.GetOrgUnitResponse.org_unit:type_name -> go.bald.admin.identity.v1.OrgUnit
+	1,  // 12: go.bald.admin.identity.v1.CreateOrgUnitRequest.type:type_name -> go.bald.admin.identity.v1.OrgUnit.Type
+	0,  // 13: go.bald.admin.identity.v1.CreateOrgUnitRequest.status:type_name -> go.bald.admin.identity.v1.OrgUnit.Status
+	2,  // 14: go.bald.admin.identity.v1.CreateOrgUnitResponse.org_unit:type_name -> go.bald.admin.identity.v1.OrgUnit
+	1,  // 15: go.bald.admin.identity.v1.UpdateOrgUnitRequest.type:type_name -> go.bald.admin.identity.v1.OrgUnit.Type
+	0,  // 16: go.bald.admin.identity.v1.UpdateOrgUnitRequest.status:type_name -> go.bald.admin.identity.v1.OrgUnit.Status
+	2,  // 17: go.bald.admin.identity.v1.UpdateOrgUnitResponse.org_unit:type_name -> go.bald.admin.identity.v1.OrgUnit
+	2,  // 18: go.bald.admin.identity.v1.BatchCreateOrgUnitsRequest.items:type_name -> go.bald.admin.identity.v1.OrgUnit
+	3,  // 19: go.bald.admin.identity.v1.OrgUnitService.ListOrgUnits:input_type -> go.bald.admin.identity.v1.ListOrgUnitsRequest
+	5,  // 20: go.bald.admin.identity.v1.OrgUnitService.ListOrgUnitChildren:input_type -> go.bald.admin.identity.v1.ListOrgUnitChildrenRequest
+	7,  // 21: go.bald.admin.identity.v1.OrgUnitService.CountOrgUnits:input_type -> go.bald.admin.identity.v1.CountOrgUnitsRequest
+	9,  // 22: go.bald.admin.identity.v1.OrgUnitService.GetOrgUnit:input_type -> go.bald.admin.identity.v1.GetOrgUnitRequest
+	11, // 23: go.bald.admin.identity.v1.OrgUnitService.CreateOrgUnit:input_type -> go.bald.admin.identity.v1.CreateOrgUnitRequest
+	13, // 24: go.bald.admin.identity.v1.OrgUnitService.UpdateOrgUnit:input_type -> go.bald.admin.identity.v1.UpdateOrgUnitRequest
+	15, // 25: go.bald.admin.identity.v1.OrgUnitService.DeleteOrgUnit:input_type -> go.bald.admin.identity.v1.DeleteOrgUnitRequest
+	17, // 26: go.bald.admin.identity.v1.OrgUnitService.BatchCreateOrgUnits:input_type -> go.bald.admin.identity.v1.BatchCreateOrgUnitsRequest
+	4,  // 27: go.bald.admin.identity.v1.OrgUnitService.ListOrgUnits:output_type -> go.bald.admin.identity.v1.ListOrgUnitsResponse
+	6,  // 28: go.bald.admin.identity.v1.OrgUnitService.ListOrgUnitChildren:output_type -> go.bald.admin.identity.v1.ListOrgUnitChildrenResponse
+	8,  // 29: go.bald.admin.identity.v1.OrgUnitService.CountOrgUnits:output_type -> go.bald.admin.identity.v1.CountOrgUnitsResponse
+	10, // 30: go.bald.admin.identity.v1.OrgUnitService.GetOrgUnit:output_type -> go.bald.admin.identity.v1.GetOrgUnitResponse
+	12, // 31: go.bald.admin.identity.v1.OrgUnitService.CreateOrgUnit:output_type -> go.bald.admin.identity.v1.CreateOrgUnitResponse
+	14, // 32: go.bald.admin.identity.v1.OrgUnitService.UpdateOrgUnit:output_type -> go.bald.admin.identity.v1.UpdateOrgUnitResponse
+	16, // 33: go.bald.admin.identity.v1.OrgUnitService.DeleteOrgUnit:output_type -> go.bald.admin.identity.v1.DeleteOrgUnitResponse
+	18, // 34: go.bald.admin.identity.v1.OrgUnitService.BatchCreateOrgUnits:output_type -> go.bald.admin.identity.v1.BatchCreateOrgUnitsResponse
+	27, // [27:35] is the sub-list for method output_type
+	19, // [19:27] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_identity_v1_org_unit_proto_init() }
@@ -1239,7 +1377,7 @@ func file_identity_v1_org_unit_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_identity_v1_org_unit_proto_rawDesc), len(file_identity_v1_org_unit_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
