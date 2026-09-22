@@ -377,10 +377,15 @@ func InitBridges(ctx context.Context) error {
 	DictEntryStore = store.NewStore[authmodel.DictEntry](baldgorm.NewGormProvider(db, func(e *authmodel.DictEntry) string { return e.ID }))
 	LanguageStore = store.NewStore[authmodel.Language](baldgorm.NewGormProvider(db, func(l *authmodel.Language) string { return l.ID }))
 	FileStore = store.NewStore[authmodel.File](baldgorm.NewGormProvider(db, func(f *authmodel.File) string { return f.ID }))
-	// T6：审计查询仓储（自增主键；审计表全量记录不走租户读隔离，ID 提取器照常）。
+	// T6：审计查询仓储（自增主键）。2026-09-22 统一分页风格后走
+	// ListWithPaging，页大小经 WithPageSize/WithMaxPageSize 配置——
+	// 保持原 auditlog 业务常量 50/200（审计记录量大，防大结果集拖垮查询；
+	// 框架默认 10/100 会让每页从 50 掉到 10，是行为回退）。
+	// 注意：租户隔离由 translate→mergeTenant 自动注入（本域原为跨租户全量，
+	// 现为仅本租户可见，见 biz/v1/auditlog 包注释）。
 	AuditStore = store.NewStore[authmodel.AuditRecord](baldgorm.NewGormProvider(db, func(r *authmodel.AuditRecord) string {
 		return strconv.FormatUint(uint64(r.ID), 10)
-	}))
+	}), store.WithPageSize[authmodel.AuditRecord](50), store.WithMaxPageSize[authmodel.AuditRecord](200))
 	// Wave 1.5：MFA 因子仓储（业务键主键，同 RolePolicy 范式）。
 	MFAFactorStore = store.NewStore[authmodel.UserMFAFactor](baldgorm.NewGormProvider(db,
 		func(f *authmodel.UserMFAFactor) string { return f.ID }))

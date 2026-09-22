@@ -39,7 +39,8 @@ func RegisterAudit(
 	)
 
 	authed.GET("/audit", authzMW, func(c *gingonic.Context) {
-		pageSize, _ := strconv.ParseUint(c.Query("page_size"), 10, 32)
+		// GET 无 body，分页参数从 query 读（pagingFromQuery 定义在同包的
+		// org.go——参数名以 grpc-gateway 约定为准：paging.page_size 等）。
 		res, err := biz.List(c.Request.Context(), auditbiz.ListFilter{
 			Category: c.Query("category"),
 			Subject:  c.Query("subject"),
@@ -47,7 +48,7 @@ func RegisterAudit(
 			Action:   c.Query("action"),
 			Result:   c.Query("result"),
 			IP:       c.Query("ip"),
-		}, auditbiz.Page{Size: uint32(pageSize), Token: c.Query("page_token")})
+		}, pagingFromQuery(c))
 		if err != nil {
 			writeBizErr(c, err)
 			return
@@ -56,10 +57,10 @@ func RegisterAudit(
 		for _, r := range res.Items {
 			items = append(items, toAuditPB(r))
 		}
+		// 分页元数据由 biz 侧 ListWithPaging 填充（total/next_token 等）。
 		writePB(c, http.StatusOK, &auditv1.ListAuditRecordsResponse{
-			Items:         items,
-			Total:         uint32(res.Total),
-			NextPageToken: res.NextPageToken,
+			Items: items,
+			Meta:  res.Meta,
 		})
 	})
 

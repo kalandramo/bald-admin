@@ -28,6 +28,8 @@ func NewAuditServer(biz *auditbiz.Biz) auditv1.AuditServiceServer {
 }
 
 func (s *auditService) ListAuditRecords(ctx context.Context, req *auditv1.ListAuditRecordsRequest) (*auditv1.ListAuditRecordsResponse, error) {
+	// gRPC 侧直接透传 proto 的 paging（已是框架标准 PagingRequest），
+	// 无需像 REST 侧那样从 query 构造。
 	res, err := s.biz.List(ctx, auditbiz.ListFilter{
 		Category: req.GetCategory(),
 		Subject:  req.GetSubject(),
@@ -35,7 +37,7 @@ func (s *auditService) ListAuditRecords(ctx context.Context, req *auditv1.ListAu
 		Action:   req.GetAction(),
 		Result:   req.GetResult(),
 		IP:       req.GetIp(),
-	}, auditbiz.Page{Size: req.GetPageSize(), Token: req.GetPageToken()})
+	}, req.GetPaging())
 	if err != nil {
 		return nil, err
 	}
@@ -44,9 +46,8 @@ func (s *auditService) ListAuditRecords(ctx context.Context, req *auditv1.ListAu
 		items = append(items, toAuditPBGRPC(r))
 	}
 	return &auditv1.ListAuditRecordsResponse{
-		Items:         items,
-		Total:         uint32(res.Total),
-		NextPageToken: res.NextPageToken,
+		Items: items,
+		Meta:  res.Meta,
 	}, nil
 }
 
