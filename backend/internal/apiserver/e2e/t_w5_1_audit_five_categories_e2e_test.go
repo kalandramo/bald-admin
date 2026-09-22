@@ -55,7 +55,7 @@ func TestWave5_1_APICategoryAutoCollected(t *testing.T) {
 		}
 	}
 	if hit == nil {
-		t.Fatalf("category=api 未采集到本次请求的审计（UA=%s），total=%d", ua, list.GetTotal())
+		t.Fatalf("category=api 未采集到本次请求的审计（UA=%s），total=%d", ua, list.GetMeta().GetTotal().GetValue())
 	}
 	// api 类专属字段：method/path/status_code。
 	if hit.GetHttpMethod() != "GET" {
@@ -88,7 +88,7 @@ func TestWave5_1_DataAccessCategory(t *testing.T) {
 	// 等待异步采集（若有）。
 	time.Sleep(200 * time.Millisecond)
 	list := listAudit(t, base, tok, "?category=data_access")
-	if list.GetTotal() == 0 {
+	if list.GetMeta().GetTotal().GetValue() == 0 {
 		t.Fatalf("category=data_access 无记录（SQL 采集未接线，Wave 5.2 目标）")
 	}
 	rec := list.GetItems()[0]
@@ -120,7 +120,7 @@ func TestWave5_1_PermissionCategory(t *testing.T) {
 	}
 
 	list := listAudit(t, base, admin, "?category=permission")
-	if list.GetTotal() == 0 {
+	if list.GetMeta().GetTotal().GetValue() == 0 {
 		t.Fatalf("category=permission 无记录（权限变更未接审计）")
 	}
 	rec := list.GetItems()[0]

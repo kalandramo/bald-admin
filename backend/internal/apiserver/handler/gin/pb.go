@@ -68,6 +68,10 @@ func writeBizErr(c *gingonic.Context, err error) {
 			err = berrors.NotFound("not_found").WithCause(err)
 		case errors.Is(err, store.ErrConflict):
 			err = berrors.AlreadyExists("already_exists").WithCause(err)
+		case errors.Is(err, store.ErrInvalidToken):
+			// 分页游标非法（框架 tokenPaginator 对非 base64/非十进制 token 返回
+			// 此哨兵）→ 400。不映射会落兜底 500，把客户端错误报成服务端错误。
+			err = berrors.BadRequest("invalid_page_token").WithCause(err)
 		}
 	}
 	web.ErrorResponse(c, err)

@@ -126,8 +126,8 @@ func TestAuditREST_LoginAuditFields(t *testing.T) {
 
 	// 3. 查询 deny 条目：IP/UA/原因落独立列。
 	list := listAudit(t, base, tok, "?category=login&subject=t6-deny-user")
-	if list.GetTotal() != 1 {
-		t.Fatalf("deny login total=%d, want 1", list.GetTotal())
+	if list.GetMeta().GetTotal().GetValue() != 1 {
+		t.Fatalf("deny login total=%d, want 1", list.GetMeta().GetTotal().GetValue())
 	}
 	deny := list.GetItems()[0]
 	if deny.GetResult() != "deny" || deny.GetAction() != "login" || deny.GetObject() != "auth" {
@@ -142,8 +142,8 @@ func TestAuditREST_LoginAuditFields(t *testing.T) {
 
 	// 4. 查询 allow 条目（subject=admin 累计可能多条，断言存在 allow 且字段完整）。
 	list = listAudit(t, base, tok, "?category=login&subject=admin&result=allow")
-	if list.GetTotal() < 1 {
-		t.Fatalf("allow login total=%d", list.GetTotal())
+	if list.GetMeta().GetTotal().GetValue() < 1 {
+		t.Fatalf("allow login total=%d", list.GetMeta().GetTotal().GetValue())
 	}
 	allow := list.GetItems()[0]
 	if allow.GetUserAgent() != "t6-ok-agent/1.0" || allow.GetError() != "" {
@@ -164,8 +164,8 @@ func TestAuditREST_OperationAudit(t *testing.T) {
 	}
 
 	list := listAudit(t, base, tok, "?category=operation&object=tenant&action=post")
-	if list.GetTotal() < 1 {
-		t.Fatalf("operation audit total=%d", list.GetTotal())
+	if list.GetMeta().GetTotal().GetValue() < 1 {
+		t.Fatalf("operation audit total=%d", list.GetMeta().GetTotal().GetValue())
 	}
 	rec := list.GetItems()[0]
 	if rec.GetResult() != "allow" || rec.GetSubject() != "u-admin" {
@@ -190,25 +190,29 @@ func TestAuditREST_PaginationAndInvalidToken(t *testing.T) {
 		}
 	}
 
-	// 页 1：page_size=2，total=5，next_page_token 非空。
-	list := listAudit(t, base, tok, "?category=login&subject=t6-page-user&page_size=2")
-	if list.GetTotal() != 5 || list.GetNextPageToken() == "" || len(list.GetItems()) != 2 {
-		t.Fatalf("page1: total=%d next=%q items=%d", list.GetTotal(), list.GetNextPageToken(), len(list.GetItems()))
+	// 页 1：paging.page_size=2，total=5，next_token 非空。
+	// 2026-09-22 统一分页风格：参数名改 paging.*（grpc-gateway 约定），
+	// total/next_token 移入 meta。
+	list := listAudit(t, base, tok, "?category=login&subject=t6-page-user&paging.page_size=2")
+	if list.GetMeta().GetTotal().GetValue() != 5 || list.GetMeta().GetNextToken() == "" || len(list.GetItems()) != 2 {
+		t.Fatalf("page1: total=%d next=%q items=%d",
+			list.GetMeta().GetTotal().GetValue(), list.GetMeta().GetNextToken(), len(list.GetItems()))
 	}
-	// 页 2：带 token 翻页。
-	list = listAudit(t, base, tok, "?category=login&subject=t6-page-user&page_size=2&page_token="+list.GetNextPageToken())
-	if len(list.GetItems()) != 2 || list.GetNextPageToken() == "" {
-		t.Fatalf("page2: items=%d next=%q", len(list.GetItems()), list.GetNextPageToken())
+	// 页 2：带 token 翻页（token 现在是 base64 编码的 offset）。
+	list = listAudit(t, base, tok, "?category=login&subject=t6-page-user&paging.page_size=2&paging.token="+list.GetMeta().GetNextToken())
+	if len(list.GetItems()) != 2 || list.GetMeta().GetNextToken() == "" {
+		t.Fatalf("page2: items=%d next=%q", len(list.GetItems()), list.GetMeta().GetNextToken())
 	}
-	// 页 3（末页）：只剩 1 条，next_page_token 为空。
-	list = listAudit(t, base, tok, "?category=login&subject=t6-page-user&page_size=2&page_token="+list.GetNextPageToken())
-	if len(list.GetItems()) != 1 || list.GetNextPageToken() != "" {
-		t.Fatalf("page3: items=%d next=%q", len(list.GetItems()), list.GetNextPageToken())
+	// 页 3（末页）：只剩 1 条，next_token 为空。
+	list = listAudit(t, base, tok, "?category=login&subject=t6-page-user&paging.page_size=2&paging.token="+list.GetMeta().GetNextToken())
+	if len(list.GetItems()) != 1 || list.GetMeta().GetNextToken() != "" {
+		t.Fatalf("page3: items=%d next=%q", len(list.GetItems()), list.GetMeta().GetNextToken())
 	}
 
-	// 非法 page_token → 400。
-	if code, _ := postJSON(t, base, http.MethodGet, "/v1/audit?page_token=not-a-number", "", tok, ""); code != http.StatusBadRequest {
-		t.Fatalf("invalid page_token status=%d", code)
+	// 非法 token → 400（框架 tokenPaginator 返回 store.ErrInvalidToken，
+	// 经 writeBizErr 映射为 BadRequest；不映射会落兜底 500）。
+	if code, _ := postJSON(t, base, http.MethodGet, "/v1/audit?paging.token=not-a-number", "", tok, ""); code != http.StatusBadRequest {
+		t.Fatalf("invalid paging.token status=%d, want 400", code)
 	}
 }
 
@@ -222,8 +226,8 @@ func TestAuditREST_GetAuditRecord(t *testing.T) {
 		t.Fatalf("bad login status=%d", code)
 	}
 	list := listAudit(t, base, tok, "?category=login&subject=t6-get-user")
-	if list.GetTotal() != 1 {
-		t.Fatalf("total=%d", list.GetTotal())
+	if list.GetMeta().GetTotal().GetValue() != 1 {
+		t.Fatalf("total=%d", list.GetMeta().GetTotal().GetValue())
 	}
 	id := list.GetItems()[0].GetId()
 	if _, err := strconv.ParseUint(id, 10, 64); err != nil {

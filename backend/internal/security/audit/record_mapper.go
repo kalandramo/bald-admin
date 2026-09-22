@@ -26,13 +26,34 @@ import (
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 )
 
+// DefaultTenantID 是审计事件缺租户时的兜底值。
+//
+// 为什么需要兜底（2026-09-22）：审计查询改为租户隔离后（走 ListWithPaging →
+// mergeTenant 自动注入 tenant_id 条件），落库时 TenantID 为空的事件**查不到**。
+// 有三类事件天然拿不到租户：
+//   - login 失败（用户不存在/限流/熔断——无从得知用户所属租户）；
+//   - permission 变更（auditPermission 未设 TenantID）；
+//   - data_access（sqlaudit gorm 插件采集，事件里无租户）。
+//
+// 这些恰是审计最需要的线索（谁在试密码 / 谁改了权限 / 谁访问了敏感表）。
+// 故在**落库汇聚点**统一兜底——RecordMapper 是所有审计事件的必经之路，
+// 一处覆盖全部调用方（优于在各调用点逐个打补丁）。
+//
+// 取值与 bootstrap.go 的种子租户 t-default 一致。用户名/动作等线索记在
+// Subject/Action 等独立字段，不受此兜底影响。
+const DefaultTenantID = "t-default"
+
 // RecordMapper 是事件 → 业务审计表记录的映射（供 auditstore.WithRecordMapper）。
 //
 // 返回值须为 `*authmodel.AuditRecord`——`bootstrap` 的 AutoMigrate 已迁移该表
 // （`internal/bootstrap/bootstrap.go:295`），列结构与之一致。
 func RecordMapper(ev audit.AuditEvent) any {
+	tenantID := ev.TenantID
+	if tenantID == "" {
+		tenantID = DefaultTenantID // 见 DefaultTenantID 注释
+	}
 	return &authmodel.AuditRecord{
-		TenantID: ev.TenantID,
+		TenantID: tenantID,
 		Time:     ev.Time.UnixNano(),
 		Subject:  ev.Subject,
 		Object:   ev.Object,

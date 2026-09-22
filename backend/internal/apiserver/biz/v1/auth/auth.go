@@ -917,6 +917,11 @@ func (b *Biz) queryWithRetry(ctx context.Context,
 
 // auditLogin 记录登录审计事件（category=login，Object/Action 用 P9 归一化
 // "auth"/"login"；IP/UA 经 Meta 传递由落库后端提取为独立列）。
+//
+// 登录失败路径（用户不存在/限流/熔断）传空 tenantID——用户所属租户未知。
+// 空租户的兜底在落库侧（security/audit 的 RecordMapper.DefaultTenantID），
+// 那里是所有审计事件的汇聚点，覆盖 login/permission/data_access 三类。
+// 注意 Subject（用户名）与 TenantID 是两个独立字段，兜底不影响用户名记录。
 func auditLogin(ctx context.Context, c Credential, tenantID string, result audit.Result, errMsg string) {
 	ev := audit.AuditEvent{
 		Time:     time.Now(),
