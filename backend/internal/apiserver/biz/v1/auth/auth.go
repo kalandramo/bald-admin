@@ -7,14 +7,11 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
@@ -420,8 +417,13 @@ func (b *Biz) BlockToken(ctx context.Context, userID, token, jti, reason string,
 	if b.tokenStore == nil {
 		return time.Time{}, ErrTokenStoreUnavailable
 	}
-	// 契约提供 oneof {token, jti}——bald 的 JWT 无 jti（缺陷 D6），故 jti 实际
-	// 承载「token 指纹」或就是 token 本身。两者都接受：优先 token，回退 jti。
+	// 契约提供 oneof {token, jti}——吊销名单的存储键是 fingerprint(token)
+	//（见 security/token 的 keyRevoked/keyBlocked），故**必须用 token 值**；
+	// jti 标识的是「签发事件」，不能用于吊销定位（同一 token 可被多次引用）。
+	// 两者都接受以兼容调用方：优先 token，回退 jti（当作 token 值）。
+	//
+	// 注：框架 D6 已修（toJWT 现签发 jti），但本处语义不变——jti 与「吊销
+	// 目标」是两回事，不受该修复影响。
 	target := token
 	if target == "" {
 		target = jti
@@ -578,9 +580,6 @@ func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 		TenantID: u.TenantID,
 		Roles:    u.RolesList(),
 		Name:     u.Username,
-		// nonce scope：绕开框架「同秒同 claims 产生相同 token」的缺陷（见 newNonce）。
-		// 无它则同一秒内两次登录拿到同一 token——登出其一即吊销两者。
-		Scopes: []string{"nonce:" + newNonce()},
 	}
 	// 签发由 Signer 完成（非对称：仅持私钥的签发实例，验证方只持公钥）。
 	token, err := b.signer.IssueToken(claims, ttl)
@@ -625,11 +624,6 @@ func (b *Biz) issueRefresh(ctx context.Context, subject string) (string, error) 
 	rt, err := b.signer.IssueToken(authn.AuthClaims{
 		Issuer:  "go-bald-admin",
 		Subject: subject,
-		// nonce scope：**关键**——刷新令牌是一次性的（ConsumeRefresh 用 GETDEL
-		// 读取即删）。若轮换时签发出与旧令牌**字节相同**的新令牌，则旧的刚被删除、
-		// 新的又与它同值，等于「删除后又存在」，一次性语义被破坏（旧令牌仍可用）。
-		// 根因见 newNonce 注释（框架不设 jti）。
-		Scopes: []string{"nonce:" + newNonce()},
 	}, ttl)
 	if err != nil {
 		return "", fmt.Errorf("auth: issue refresh token: %w", err)
@@ -639,36 +633,6 @@ func (b *Biz) issueRefresh(ctx context.Context, subject string) (string, error) 
 	}
 	return rt, nil
 }
-
-// newNonce 生成 128 位随机 nonce，用作签发时的唯一性来源。
-//
-// **框架缺陷绕行**（Wave 1d 实测，待上游确认）：
-// bald/contrib/authn-jwt 的 toJWT（jwt.go:208-221）不设置 RegisteredClaims.ID
-//（即 JWT 标准 jti），且 iat/nbf/exp 均为**秒级** NumericDate（jwt.go:298-305）。
-// 在 RSA 签名确定性（RS256 对同一输入恒等）的前提下，**同一秒内对相同 claims
-// 签发会得到字节完全相同的 token**。
-//
-// 后果（本会话实测）：快速连续刷新时新 access_token 与旧的相同（有效期不延展，
-// 客户端拿到的「新」令牌立刻过期）；更严重的是轮换出的 refresh_token 可能与
-// 刚被消费的旧值重合，使一次性语义失效。
-//
-// 应用层绕行：把 nonce 放进 Scopes（唯一可由业务控制的字段），让每次签发
-// claims 不同。**这不能修框架**——只是让业务在框架缺陷下仍正确工作。
-// 正确修复应在上游给 toJWT 填 ID（jti = 随机 UUID），届时本绕行可移除。
-func newNonce() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		// crypto/rand 失败极罕见（系统熵源故障）；退化为时间戳 + 进程内原子
-		// 计数器。**不能只用纳秒时间戳**——Windows 上 `time.Now().UnixNano()`
-		// 分辨率约 0.5–1ms（实测连续两次调用 99999/100000 同值），连续签发会
-		// 撞 nonce，反而重现本函数要绕开的「同 token」缺陷。
-		return fmt.Sprintf("%s-%d", strconv.FormatInt(time.Now().UnixNano(), 36), nonceSeq.Add(1))
-	}
-	return hex.EncodeToString(b[:])
-}
-
-// nonceSeq 是 newNonce fallback 路径的进程内单调计数器。
-var nonceSeq atomic.Uint64
 
 // Logout 登出（Wave 1d，对应源 authentication.proto L28）。
 //
@@ -754,8 +718,6 @@ func (b *Biz) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair
 		TenantID: u.TenantID,
 		Roles:    u.RolesList(),
 		Name:     u.Username,
-		// nonce scope：绕开框架的「同秒同 claims 产生相同 token」缺陷（见下）。
-		Scopes: []string{"nonce:" + newNonce()},
 	}, ttl)
 	if err != nil {
 		auditRefresh(ctx, subject, audit.ResultError, err.Error())

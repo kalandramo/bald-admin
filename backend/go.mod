@@ -38,7 +38,7 @@ require (
 	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0
 	github.com/kalandramo/bald/contrib/audit-store v0.1.0
 	github.com/kalandramo/bald/contrib/audit-stream v0.1.0
-	github.com/kalandramo/bald/contrib/authn-jwt v0.1.0
+	github.com/kalandramo/bald/contrib/authn-jwt v0.1.2
 	github.com/kalandramo/bald/contrib/authz-casbin v0.1.0
 	github.com/kalandramo/bald/contrib/observability-otlp v0.2.0
 	github.com/kalandramo/bald/contrib/store-gorm v0.1.0

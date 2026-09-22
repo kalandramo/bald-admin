@@ -541,8 +541,8 @@ github.com/kalandramo/bald/contrib/audit-store v0.1.0 h1:Qep73IPqtPoUfeB4ZKJORZr
 github.com/kalandramo/bald/contrib/audit-store v0.1.0/go.mod h1:4XP0NmxJpfrCkOFdygr6f9Q+DSxys7N6D/Btub/FAEw=
 github.com/kalandramo/bald/contrib/audit-stream v0.1.0 h1:S08HEfs7UPiyLJahsdJkDk90pqGGA7iDtcIiQBSWmRw=
 github.com/kalandramo/bald/contrib/audit-stream v0.1.0/go.mod h1:ARrwGCoshACDoYniKAZDWEbpmHBdzpbN3WUAi24ANBU=
-github.com/kalandramo/bald/contrib/authn-jwt v0.1.0 h1:hOjZJ3fLfaV1yw/oXfph++zw9/sz1TAn76QRglxfwnc=
-github.com/kalandramo/bald/contrib/authn-jwt v0.1.0/go.mod h1:sY8kLVzhdpkbmZHJNHRsUw1Lvae1gdGIkApG2tbi3jM=
+github.com/kalandramo/bald/contrib/authn-jwt v0.1.2 h1:vp2aCcBoMvEZFZZNZ088Sn7iueSGNUaEyS2JuafSJPM=
+github.com/kalandramo/bald/contrib/authn-jwt v0.1.2/go.mod h1:gGMbhN3E2/ZjrY8vA/5qPCNTuedIXxaOBSH9/i/wr0M=
 github.com/kalandramo/bald/contrib/authz-casbin v0.1.0 h1:3i2Ls9H1xGXx2lz+t6+VfGKLzeUn5P6QHhDJ4RRiCZs=
 github.com/kalandramo/bald/contrib/authz-casbin v0.1.0/go.mod h1:hSu8aAuJLRX18TBOfzUOKt2PeEudgsz5CP88Untfet0=
 github.com/kalandramo/bald/contrib/observability-otlp v0.2.0 h1:gCNNnW4bA3HnnScD0yqycRBbEdbYNKTtwyWgqAv1rlg=
