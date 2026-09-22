@@ -13,10 +13,12 @@ package gin
 
 import (
 	"net/http"
+	"strconv"
 
 	gingonic "github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 	mid "github.com/kalandramo/bald/pkg/middleware/gin"
@@ -79,14 +81,10 @@ func RegisterOrg(
 	})
 
 	authed.GET("/org-units", authzMW, func(c *gingonic.Context) {
-		var req identityv1.ListOrgUnitsRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
+		// GET 无 body，分页参数从 query 读（见 pagingFromQuery 的踩坑说明）。
 		// items = **根节点分页**（children 不预填，由前端 el-table 懒加载组装）；
 		// meta.total = 根节点总数（非全量节点数——语义变更，见 proto 头注）。
-		items, meta, err := biz.ListOrgUnits(c.Request.Context(), req.GetPaging())
+		items, meta, err := biz.ListOrgUnits(c.Request.Context(), pagingFromQuery(c))
 		if err != nil {
 			writeBizErr(c, err)
 			return
@@ -102,17 +100,8 @@ func RegisterOrg(
 	// 注意：/org-units/:code/children 与 /org-units/:code 不冲突（gin 路由树按段匹配），
 	// 但注册在 :code 之前更清晰（同 /count 的显式排序约定）。
 	authed.GET("/org-units/:code/children", authzMW, func(c *gingonic.Context) {
-		var req identityv1.ListOrgUnitChildrenRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		// 路径参数 :code 即父节点 code（proto 的 parent_id 语义）；优先取路径值。
 		parentCode := c.Param("code")
-		if parentCode == "" {
-			parentCode = req.GetParentId()
-		}
-		items, meta, err := biz.ListOrgUnitChildren(c.Request.Context(), tid(c), parentCode, req.GetPaging())
+		items, meta, err := biz.ListOrgUnitChildren(c.Request.Context(), tid(c), parentCode, pagingFromQuery(c))
 		if err != nil {
 			writeBizErr(c, err)
 			return
@@ -338,6 +327,70 @@ func RegisterOrg(
 		})
 	})
 }
+
+// pagingFromQuery 从 URL query 构造 PagingRequest（GET 列表用）。
+//
+// 为什么不能靠 bindPB：bindPB 只读 request **body**（pb.go:26-37），GET 请求
+// 无 body，故分页参数不会被绑定——实测踩坑：page_size=2 时仍返回全部
+// （meta.page_size=10 默认值）。项目既有惯例是 GET 手工读 query
+// （见 audit.go 的 c.Query("page_size")），本函数把该惯例收敛为一处。
+//
+// 参数命名以 **grpc-gateway 约定**为准（嵌套消息字段展开为点号路径，见
+// assets/openapi.yaml 生成的 `paging.page_size` 等）——这样直连 gin 与经
+// gateway 转码的请求**参数名一致**，前端一套参数两处通用。为兼容手工调用
+// （curl/调试）同时接受扁平别名。
+func pagingFromQuery(c *gingonic.Context) *storev1.PagingRequest {
+	req := &storev1.PagingRequest{}
+	// queryAny 依次尝试多个候选参数名，返回首个非空值。
+	queryAny := func(names ...string) string {
+		for _, n := range names {
+			if v := c.Query(n); v != "" {
+				return v
+			}
+		}
+		return ""
+	}
+
+	// 页码分页：给 page_size 时按 Page 策略（detectStrategy 优先级：
+	// NoPaging > Token > Page > Offset > 默认页码）。
+	if ps := queryAny("paging.page_size", "page_size"); ps != "" {
+		if n, err := strconv.ParseUint(ps, 10, 32); err == nil && n > 0 {
+			req.Page = uint32Ptr(1)
+			req.PageSize = uint32Ptr(uint32(n))
+		}
+	}
+	if pg := queryAny("paging.page", "page"); pg != "" {
+		if n, err := strconv.ParseUint(pg, 10, 32); err == nil && n > 0 {
+			req.Page = uint32Ptr(uint32(n))
+		}
+	}
+	// 游标分页：token 优先于 page（见 detectStrategy 优先级）。
+	if tok := queryAny("paging.token", "page_token", "token"); tok != "" {
+		req.Token = strPtr(tok)
+	}
+	if off := queryAny("paging.offset", "offset"); off != "" {
+		if n, err := strconv.ParseUint(off, 10, 64); err == nil {
+			req.Offset = uint64Ptr(n)
+		}
+	}
+	if lim := queryAny("paging.limit", "limit"); lim != "" {
+		if n, err := strconv.ParseUint(lim, 10, 32); err == nil {
+			req.Limit = uint32Ptr(uint32(n))
+		}
+	}
+	if queryAny("paging.no_paging", "no_paging") == "true" {
+		req.NoPaging = boolPtr(true)
+	}
+	if ob := queryAny("paging.order_by", "order_by"); ob != "" {
+		req.OrderBy = strPtr(ob)
+	}
+	return req
+}
+
+func uint32Ptr(v uint32) *uint32 { return &v }
+func uint64Ptr(v uint64) *uint64 { return &v }
+func strPtr(v string) *string    { return &v }
+func boolPtr(v bool) *bool       { return &v }
 
 // positionFromCreate 把 CreatePositionRequest 转为 biz 入参。
 func positionFromCreate(req *identityv1.CreatePositionRequest) orgbiz.Position {

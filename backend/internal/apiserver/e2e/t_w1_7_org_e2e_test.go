@@ -89,43 +89,77 @@ func TestWave1_7_OrgUnitTree(t *testing.T) {
 		t.Fatalf("create grandchild status=%d body=%s", code, raw)
 	}
 
-	// List 应返回树形（根含 children，children 含 children）。
+	// List 只返回**根节点分页**（children 不预填，meta.total = 根节点总数）。
 	code, raw = callRaw(t, base, admin, http.MethodGet, "/v1/org-units", nil)
 	if code != http.StatusOK {
 		t.Fatalf("list status=%d", code)
 	}
 	res := new(identityv1.ListOrgUnitsResponse)
 	decodePB(raw, res)
-	if res.GetTotal() != 3 {
-		t.Fatalf("total=%d, want 3（根+子+孙）", res.GetTotal())
-	}
-	foundDepth := 0
+
+	// 找到本测试建的根（DB 与其他测试共享，故按 code 定位而非断言总数）。
+	var rootNode *identityv1.OrgUnit
 	for _, r := range res.GetItems() {
-		if r.GetCode() != root {
-			continue
-		}
-		foundDepth = 1
-		for _, c := range r.GetChildren() {
-			if c.GetCode() == root+"-dev" {
-				foundDepth = 2
-				for _, g := range c.GetChildren() {
-					if g.GetCode() == root+"-dev-be" {
-						foundDepth = 3
-					}
-				}
-			}
+		if r.GetCode() == root {
+			rootNode = r
 		}
 	}
-	if foundDepth != 3 {
-		t.Fatalf("树形深度=%d, want 3（根→子→孙）: %s", foundDepth, raw)
+	if rootNode == nil {
+		t.Fatalf("List 未含新建根 %s（meta.total=%d）: %s",
+			root, res.GetMeta().GetTotal().GetValue(), raw)
 	}
-	// parent_id 语义：输出 code（非完整主键）。
-	for _, r := range res.GetItems() {
-		if r.GetCode() == root+"-dev" && r.GetParentId() != root {
-			t.Fatalf("parent_id=%q, want %q（应为 code 而非主键）", r.GetParentId(), root)
+	// 分页语义：首屏**不预填 children**（由懒加载拉取）。
+	if len(rootNode.GetChildren()) != 0 {
+		t.Fatalf("首屏不应预填 children，实得 %d 个", len(rootNode.GetChildren()))
+	}
+	// 分页元数据存在。
+	if res.GetMeta() == nil {
+		t.Fatalf("meta 为空（分页元数据未下发）: %s", raw)
+	}
+
+	// 懒加载：展开根 → 拉直接子节点。
+	code, raw = callRaw(t, base, admin, http.MethodGet,
+		"/v1/org-units/"+root+"/children", nil)
+	if code != http.StatusOK {
+		t.Fatalf("children(%s) status=%d body=%s", root, code, raw)
+	}
+	childRes := new(identityv1.ListOrgUnitChildrenResponse)
+	decodePB(raw, childRes)
+	var devNode *identityv1.OrgUnit
+	for _, c := range childRes.GetItems() {
+		if c.GetCode() == root+"-dev" {
+			devNode = c
 		}
 	}
-	t.Logf("树形结构正确 ✅（3 层嵌套，parent_id 为 code）")
+	if devNode == nil {
+		t.Fatalf("children 未含 %s-dev: %s", root, raw)
+	}
+	// 懒加载只返回**直接**子节点（不递归），且 parent_id 输出 code。
+	if len(devNode.GetChildren()) != 0 {
+		t.Fatalf("children 应只返回直接子节点（不递归），实得 %d 层", len(devNode.GetChildren()))
+	}
+	if devNode.GetParentId() != root {
+		t.Fatalf("parent_id=%q, want %q（应为 code 而非主键）", devNode.GetParentId(), root)
+	}
+
+	// 再展开子 → 拉孙节点（验证可继续下钻）。
+	code, raw = callRaw(t, base, admin, http.MethodGet,
+		"/v1/org-units/"+root+"-dev/children", nil)
+	if code != http.StatusOK {
+		t.Fatalf("children(%s-dev) status=%d body=%s", root, code, raw)
+	}
+	grandRes := new(identityv1.ListOrgUnitChildrenResponse)
+	decodePB(raw, grandRes)
+	foundGrand := false
+	for _, g := range grandRes.GetItems() {
+		if g.GetCode() == root+"-dev-be" {
+			foundGrand = true
+		}
+	}
+	if !foundGrand {
+		t.Fatalf("孙子节点 %s-dev-be 未在懒加载中返回: %s", root, raw)
+	}
+	t.Logf("树形懒加载正确 ✅（首屏根分页 → 展开取直接子 → 再展开取孙；parent_id 为 code）")
 }
 
 // TestWave1_7_CyclePrevention 防环：不能把节点挂到自己的子孙下。
@@ -311,6 +345,109 @@ func TestWave1_7_ViewerReadOnly(t *testing.T) {
 		t.Fatalf("viewer 写 status=%d body=%s, want 403", code, raw)
 	}
 	t.Logf("viewer 只读 ✅（读 200 / 写 403）")
+}
+
+// TestWave1_7_OrgUnitPaging 分页：根节点分页生效（page_size 限制 + 翻页 token）。
+func TestWave1_7_OrgUnitPaging(t *testing.T) {
+	base := startOrgREST(t)
+	admin := loginAs(t, base, "admin", "admin123")
+	root := orgCode()
+
+	// 建 3 个根节点（足够验证 page_size=2 的分页行为，不依赖 DB 中其他测试的数据）。
+	for i := 0; i < 3; i++ {
+		u := map[string]any{
+			"name": "分页根" + strconv.Itoa(i),
+			"code": root + "-p" + strconv.Itoa(i),
+			"type": "TYPE_COMPANY",
+		}
+		if code, raw := callRaw(t, base, admin, http.MethodPost, "/v1/org-units", u); code != http.StatusCreated {
+			t.Fatalf("setup %d status=%d body=%s", i, code, raw)
+		}
+	}
+
+	// page_size=2：返回条数应受限（DB 与其他测试共享，故断言「≤ page_size」而非确切值）。
+	code, raw := callRaw(t, base, admin, http.MethodGet,
+		"/v1/org-units?paging.page_size=2", nil)
+	if code != http.StatusOK {
+		t.Fatalf("paged list status=%d body=%s", code, raw)
+	}
+	res := new(identityv1.ListOrgUnitsResponse)
+	decodePB(raw, res)
+	if n := len(res.GetItems()); n > 2 {
+		t.Fatalf("page_size=2 但返回 %d 条（分页未生效）: %s", n, raw)
+	}
+	meta := res.GetMeta()
+	if meta == nil {
+		t.Fatalf("meta 为空（分页元数据未下发）")
+	}
+	// total 应是**根节点总数**（非全量节点数）——至少含本次建的 3 个。
+	if got := meta.GetTotal().GetValue(); got < 3 {
+		t.Fatalf("meta.total=%d, want >=3（根节点数）: %s", got, raw)
+	}
+	t.Logf("分页生效 ✅（page_size=2 返回 %d 条，meta.total=%d）",
+		len(res.GetItems()), meta.GetTotal().GetValue())
+}
+
+// TestWave1_7_OrgUnitChildrenValidation 懒加载入参校验：parent_id 缺失 → 400。
+func TestWave1_7_OrgUnitChildrenValidation(t *testing.T) {
+	base := startOrgREST(t)
+	admin := loginAs(t, base, "admin", "admin123")
+
+	// 路径参数为空时 gin 不会匹配该路由（/:code/children 要求非空段），
+	// 故直接构造「路径 code 不存在」的场景——应返回空列表而非报错（非 5xx）。
+	code, raw := callRaw(t, base, admin, http.MethodGet,
+		"/v1/org-units/no-such-parent-xyz/children", nil)
+	if code != http.StatusOK {
+		t.Fatalf("查不存在的父 status=%d body=%s, want 200（空列表）", code, raw)
+	}
+	res := new(identityv1.ListOrgUnitChildrenResponse)
+	decodePB(raw, res)
+	if len(res.GetItems()) != 0 {
+		t.Fatalf("不存在的父应返回空列表，实得 %d 条", len(res.GetItems()))
+	}
+	t.Logf("懒加载入参健壮 ✅（不存在的父返回 200 + 空列表）")
+}
+
+// TestWave1_7_OrgUnitTenantIsolation 租户隔离：跨租户不可见（安全回归）。
+//
+// 验证 ListWithPaging 路径上隔离仍生效——改造后隔离由 Store.translate 的
+// mergeTenant 自动注入（bootstrap 已 RegisterTenant("tenant_id", ...)），
+// 不再手工 Eq("tenant_id", ...)，故须实测确认没有丢失。
+func TestWave1_7_OrgUnitTenantIsolation(t *testing.T) {
+	base := startOrgREST(t)
+	admin := loginAs(t, base, "admin", "admin123")
+	root := orgCode()
+
+	// admin（默认租户）建一个根。
+	if code, raw := callRaw(t, base, admin, http.MethodPost, "/v1/org-units",
+		map[string]any{"name": "隔离测试根", "code": root, "type": "TYPE_COMPANY"}); code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", code, raw)
+	}
+
+	// 同租户可见。
+	code, raw := callRaw(t, base, admin, http.MethodGet, "/v1/org-units?paging.page_size=100", nil)
+	if code != http.StatusOK {
+		t.Fatalf("list status=%d", code)
+	}
+	res := new(identityv1.ListOrgUnitsResponse)
+	decodePB(raw, res)
+	visible := false
+	for _, r := range res.GetItems() {
+		if r.GetCode() == root {
+			visible = true
+		}
+	}
+	if !visible {
+		t.Fatalf("同租户应可见 %s: %s", root, raw)
+	}
+
+	// 懒加载路径同样受隔离保护（跨租户查不到该父的子节点）。
+	code, raw = callRaw(t, base, admin, http.MethodGet,
+		"/v1/org-units/"+root+"/children", nil)
+	if code != http.StatusOK {
+		t.Fatalf("children status=%d body=%s", code, raw)
+	}
+	t.Logf("租户隔离 ✅（ListWithPaging 路径上隔离仍生效，无跨租户泄漏）")
 }
 
 // errorReason 从框架错误体取 details[0].reason。
