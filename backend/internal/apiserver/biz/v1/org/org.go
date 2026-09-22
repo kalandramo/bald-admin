@@ -84,6 +84,39 @@ type OrgUnit struct {
 
 func orgID(tenantID, code string) string { return tenantID + ":" + code }
 
+// withParentFilter 给分页请求附加「parent_id = key」过滤（保留调用方已有条件）。
+//
+// 为什么走 filter_expr 而非外部 Filters：`Store.ListWithPaging` 的 translate
+// （bald/pkg/store/store.go）只从 PagingRequest 构造 where（Sorting + FilterExpr），
+// **不接受外部附加的 Filters**——故业务过滤必须编码进 req.FilterExpr。
+//
+// 两个易错点：
+//   - filter_expr 是 PagingRequest 的 **oneof** 字段，必须用
+//     `&storev1.PagingRequest_FilterExpr{...}` 包装，直接赋 req.FilterExpr 编译不过；
+//   - 框架已有条件构造辅助 store.Eq，不必手写 FilterCondition。
+//
+// key 语义：空串 = 根节点（model.ParentID 存空串）；非空 = 父节点**主键**
+// （`orgID(tenant, code)`，见 parentKey——model 存主键而非 code）。
+//
+// 租户隔离由 Store.translate 的 mergeTenant 自动注入（bootstrap 已
+// RegisterTenant("tenant_id", ...)），走 where.Filters 通道，与本函数的
+// where.Expr 通道按 AND 组合，互不覆盖。
+func withParentFilter(req *storev1.PagingRequest, parentKey string) *storev1.PagingRequest {
+	if req == nil {
+		req = &storev1.PagingRequest{}
+	}
+	expr := &storev1.FilterExpr{
+		Type:       storev1.ExprType_AND,
+		Conditions: []*storev1.FilterCondition{store.Eq("parent_id", parentKey)},
+	}
+	if prev := req.GetFilterExpr(); prev != nil {
+		// 与调用方条件按 AND 合并（避免覆盖前端传入的过滤）。
+		expr.Groups = []*storev1.FilterExpr{prev}
+	}
+	req.FilteringType = &storev1.PagingRequest_FilterExpr{FilterExpr: expr}
+	return req
+}
+
 // CreateOrgUnit 创建组织单元（源 Create）。Path 由 ParentID 自动推导。
 func (b *Biz) CreateOrgUnit(ctx context.Context, tenantID string, u OrgUnit) (*OrgUnit, error) {
 	if u.Name == "" || u.Code == "" {
@@ -154,44 +187,49 @@ func (b *Biz) GetOrgUnit(ctx context.Context, tenantID, code string) (*OrgUnit, 
 	return ou, nil
 }
 
-// ListOrgUnits 列出组织单元（源 List）——**返回树形**。
+// ListOrgUnits 列出**根节点**（分页，children 不预填）。
 //
-// 树的构建方式：取全量 → 按 ParentID 建索引 → 挂 children。
-// 源用 repo 的树查询，本实现手工构建（数据量小、语义更显式）。
-func (b *Biz) ListOrgUnits(ctx context.Context, tenantID string) ([]*OrgUnit, error) {
-	items, _, err := bootstrappkg.OrgUnitStore.List(ctx, &store.Where{
-		Filters: []*storev1.FilterCondition{store.Eq("tenant_id", tenantID)},
-	})
+// 与旧实现（全量 + 手工建树）的差异：树形改由前端 el-table 懒加载组装——
+// 首屏只取根节点分页，展开节点时调 ListOrgUnitChildren。这样避免了
+// 「分页截断 children 导致树不完整」的语义冲突。
+//
+// 租户隔离由 Store.translate 自动注入（无需手工 Eq("tenant_id", ...)）。
+func (b *Biz) ListOrgUnits(ctx context.Context,
+	req *storev1.PagingRequest) ([]*OrgUnit, *storev1.PaginationResponseMeta, error) {
+	// 根节点 = parent_id 为空串（见 withParentFilter 的 key 语义）。
+	result, err := bootstrappkg.OrgUnitStore.ListWithPaging(ctx, withParentFilter(req, ""))
 	if err != nil {
-		return nil, fmt.Errorf("org: list org units: %w", err)
+		return nil, nil, fmt.Errorf("org: list org units: %w", err)
 	}
-	all := make([]*OrgUnit, 0, len(items))
-	for _, m := range items {
-		all = append(all, toOrgUnit(m))
+	out := make([]*OrgUnit, 0, len(result.Items))
+	for _, m := range result.Items {
+		out = append(out, toOrgUnit(m))
 	}
 	// 批量回填 leader_name（**一次查询**，非逐个）。
-	b.enrichOrgUnits(ctx, all)
+	b.enrichOrgUnits(ctx, out)
+	return out, result.Meta, nil
+}
 
-	// 建树（**按 code 匹配**——DTO 的 ParentID 与 Code 同为 code 语义；
-	// 用主键 Index 会全部失配导致树被展平）。
-	byCode := make(map[string]*OrgUnit, len(all))
-	for _, ou := range all {
-		byCode[ou.Code] = ou
+// ListOrgUnitChildren 列出某节点的**直接子节点**（分页，不递归）。
+//
+// parentCode 是父节点 **code**（对外语义）；model 的 parent_id 存的是**主键**，
+// 故须经 orgID 转码后再过滤（见 withParentFilter 的 key 语义）。
+func (b *Biz) ListOrgUnitChildren(ctx context.Context, tenantID, parentCode string,
+	req *storev1.PagingRequest) ([]*OrgUnit, *storev1.PaginationResponseMeta, error) {
+	if parentCode == "" {
+		return nil, nil, badRequest("org/invalid_request", "parent_id required")
 	}
-	var roots []*OrgUnit
-	for _, ou := range all {
-		if ou.ParentID == "" {
-			roots = append(roots, ou)
-			continue
-		}
-		if p, ok := byCode[ou.ParentID]; ok {
-			p.Children = append(p.Children, ou)
-		} else {
-			// 父不在本租户结果集（跨租户/数据不一致）：作为根返回，不丢数据。
-			roots = append(roots, ou)
-		}
+	result, err := bootstrappkg.OrgUnitStore.ListWithPaging(ctx,
+		withParentFilter(req, orgID(tenantID, parentCode)))
+	if err != nil {
+		return nil, nil, fmt.Errorf("org: list children: %w", err)
 	}
-	return roots, nil
+	out := make([]*OrgUnit, 0, len(result.Items))
+	for _, m := range result.Items {
+		out = append(out, toOrgUnit(m))
+	}
+	b.enrichOrgUnits(ctx, out)
+	return out, result.Meta, nil
 }
 
 // UpdateOrgUnit 更新（源 Update）。**防环**：不能把自己挂到自己的子孙下。

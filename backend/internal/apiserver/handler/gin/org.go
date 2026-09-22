@@ -79,27 +79,49 @@ func RegisterOrg(
 	})
 
 	authed.GET("/org-units", authzMW, func(c *gingonic.Context) {
-		tree, err := biz.ListOrgUnits(c.Request.Context(), tid(c))
+		var req identityv1.ListOrgUnitsRequest
+		if err := bindPB(c, &req); err != nil {
+			bindErr(c, err)
+			return
+		}
+		// items = **根节点分页**（children 不预填，由前端 el-table 懒加载组装）；
+		// meta.total = 根节点总数（非全量节点数——语义变更，见 proto 头注）。
+		items, meta, err := biz.ListOrgUnits(c.Request.Context(), req.GetPaging())
 		if err != nil {
 			writeBizErr(c, err)
 			return
 		}
-		// items = **树根数组**（每个根含递归 children，由 toOrgUnitPB 填充）；
-		// total = 全部节点数（含子孙，非根数）。
-		items := make([]*identityv1.OrgUnit, 0, len(tree))
-		var total uint32
-		var count func(nodes []*orgbiz.OrgUnit)
-		count = func(nodes []*orgbiz.OrgUnit) {
-			for _, n := range nodes {
-				total++
-				count(n.Children)
-			}
+		out := make([]*identityv1.OrgUnit, 0, len(items))
+		for _, n := range items {
+			out = append(out, toOrgUnitPB(n))
 		}
-		count(tree)
-		for _, n := range tree {
-			items = append(items, toOrgUnitPB(n))
+		writePB(c, http.StatusOK, &identityv1.ListOrgUnitsResponse{Items: out, Meta: meta})
+	})
+
+	// 懒加载：展开节点时拉取其直接子节点（el-table lazy/load）。
+	// 注意：/org-units/:code/children 与 /org-units/:code 不冲突（gin 路由树按段匹配），
+	// 但注册在 :code 之前更清晰（同 /count 的显式排序约定）。
+	authed.GET("/org-units/:code/children", authzMW, func(c *gingonic.Context) {
+		var req identityv1.ListOrgUnitChildrenRequest
+		if err := bindPB(c, &req); err != nil {
+			bindErr(c, err)
+			return
 		}
-		writePB(c, http.StatusOK, &identityv1.ListOrgUnitsResponse{Items: items, Total: total})
+		// 路径参数 :code 即父节点 code（proto 的 parent_id 语义）；优先取路径值。
+		parentCode := c.Param("code")
+		if parentCode == "" {
+			parentCode = req.GetParentId()
+		}
+		items, meta, err := biz.ListOrgUnitChildren(c.Request.Context(), tid(c), parentCode, req.GetPaging())
+		if err != nil {
+			writeBizErr(c, err)
+			return
+		}
+		out := make([]*identityv1.OrgUnit, 0, len(items))
+		for _, n := range items {
+			out = append(out, toOrgUnitPB(n))
+		}
+		writePB(c, http.StatusOK, &identityv1.ListOrgUnitChildrenResponse{Items: out, Meta: meta})
 	})
 
 	// 注意：/org-units/count 必须注册在 /org-units/:code **之前**——gin 的路由树
