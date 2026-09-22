@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { OrgUnit } from "@@/apis/org/type"
 import { OrgUnitStatus, OrgUnitType } from "@@/apis/org/type"
-import { createOrgUnitApi, deleteOrgUnitApi, listOrgUnitsApi, updateOrgUnitApi } from "@@/apis/org"
+import { createOrgUnitApi, deleteOrgUnitApi, listOrgUnitChildrenApi, listOrgUnitsApi, updateOrgUnitApi } from "@@/apis/org"
 import { useConfirmAction } from "@@/composables/useConfirmAction"
 
 defineOptions({ name: "OrgUnits" })
@@ -9,7 +9,7 @@ defineOptions({ name: "OrgUnits" })
 const { handleDelete } = useConfirmAction({ confirmMessage: "确认删除该组织单元？" })
 
 const loading = ref(false)
-const tree = ref<OrgUnit[]>([])
+const tree = ref<OrgUnitRow[]>([])
 const dialogVisible = ref(false)
 const dialogTitle = ref("")
 const submitting = ref(false)
@@ -41,13 +41,42 @@ const rules = {
   name: [{ required: true, message: "请输入组织名称", trigger: "blur" }]
 }
 
+// OrgUnitRow 是表格行：契约的 OrgUnit 加上 el-table 懒加载所需的 hasChildren 标记。
+type OrgUnitRow = OrgUnit & { hasChildren?: boolean }
+
+const PAGE_SIZE = 20
+
+// fetchList 首屏：只取**根节点分页**（children 不预填）。
+//
+// 真分页 + 懒加载：后端 ListOrgUnits 返回根节点分页，展开节点时由
+// loadChildren 拉取其直接子节点（见 listOrgUnitChildrenApi）。
+// 参数名用 grpc-gateway 约定（paging.page_size，与 openapi 生成的一致）。
 async function fetchList() {
   loading.value = true
   try {
-    const res = await listOrgUnitsApi()
-    tree.value = res.items || []
+    const res = await listOrgUnitsApi({ "paging.page_size": PAGE_SIZE })
+    // hasChildren 统一置 true：契约未下发该标记，展开后若为空 el-table 显示「暂无数据」。
+    tree.value = (res.items || []).map(it => ({ ...it, hasChildren: true }))
   } finally {
     loading.value = false
+  }
+}
+
+// loadChildren 是 el-table 的 lazy 回调：用户展开某节点时拉取其**直接子节点**。
+//
+// 注意 el-table 的 lazy 契约：必须调用 resolve(rows) 结束加载（否则该行一直
+// 显示 loading）；rows 为空数组时表格显示「暂无数据」。
+async function loadChildren(row: OrgUnitRow, _treeNode: unknown, resolve: (rows: OrgUnitRow[]) => void) {
+  if (!row.code) {
+    resolve([])
+    return
+  }
+  try {
+    const res = await listOrgUnitChildrenApi(row.code, { "paging.page_size": PAGE_SIZE })
+    resolve((res.items || []).map(it => ({ ...it, hasChildren: true })))
+  } catch {
+    // 拉取失败也要 resolve（否则该行卡在 loading）——错误提示由 request 拦截器统一处理。
+    resolve([])
   }
 }
 
@@ -148,11 +177,12 @@ onMounted(fetchList)
       <el-table
         v-loading="loading"
         :data="tree"
-        row-key="id"
+        row-key="code"
         border
         stripe
-        default-expand-all
-        :tree-props="{ children: 'children' }"
+        lazy
+        :load="loadChildren"
+        :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       >
         <el-table-column prop="name" label="组织名称" />
         <el-table-column prop="code" label="编码" align="center" />

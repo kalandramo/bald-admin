@@ -11,7 +11,10 @@ import type {
   CreateOrgUnitResponse,
   DeleteOrgUnitResponse,
   GetOrgUnitResponse,
+  ListOrgUnitChildrenResponse,
   ListOrgUnitsResponse,
+  OrgUnitServiceListOrgUnitChildrenParams,
+  OrgUnitServiceListOrgUnitsParams,
   UpdateOrgUnitRequest,
   UpdateOrgUnitResponse
 } from './model';
@@ -22,14 +25,16 @@ import { request } from '../../http/axios.ts';
 
 
   /**
- * ListOrgUnits 列出组织单元（**返回树形**，children 递归嵌套）。
+ * ListOrgUnits 列出**根节点**（分页，children 不预填）。
+ *  子节点经 ListOrgUnitChildren 懒加载（树形展开用）。
  *    REST: GET /v1/org-units
  */
 export const orgUnitServiceListOrgUnits = (
-
+    params?: OrgUnitServiceListOrgUnitsParams,
  ) => {
       return request<ListOrgUnitsResponse>(
-      {url: `/v1/org-units`, method: 'GET'
+      {url: `/v1/org-units`, method: 'GET',
+        params
     },
       );
     }
@@ -115,6 +120,21 @@ export const orgUnitServiceDeleteOrgUnit = (
     },
       );
     }
+  /**
+ * ListOrgUnitChildren 列出某节点的**直接子节点**（分页，不递归）。
+ *  用于 el-table 懒加载：展开节点时按需拉取其下一层。
+ *    REST: GET /v1/org-units/{parent_id}/children
+ */
+export const orgUnitServiceListOrgUnitChildren = (
+    parentId: string,
+    params?: OrgUnitServiceListOrgUnitChildrenParams,
+ ) => {
+      return request<ListOrgUnitChildrenResponse>(
+      {url: `/v1/org-units/${parentId}/children`, method: 'GET',
+        params
+    },
+      );
+    }
   export type OrgUnitServiceListOrgUnitsResult = NonNullable<Awaited<ReturnType<typeof orgUnitServiceListOrgUnits>>>
 export type OrgUnitServiceCreateOrgUnitResult = NonNullable<Awaited<ReturnType<typeof orgUnitServiceCreateOrgUnit>>>
 export type OrgUnitServiceBatchCreateOrgUnitsResult = NonNullable<Awaited<ReturnType<typeof orgUnitServiceBatchCreateOrgUnits>>>
@@ -122,3 +142,4 @@ export type OrgUnitServiceCountOrgUnitsResult = NonNullable<Awaited<ReturnType<t
 export type OrgUnitServiceGetOrgUnitResult = NonNullable<Awaited<ReturnType<typeof orgUnitServiceGetOrgUnit>>>
 export type OrgUnitServiceUpdateOrgUnitResult = NonNullable<Awaited<ReturnType<typeof orgUnitServiceUpdateOrgUnit>>>
 export type OrgUnitServiceDeleteOrgUnitResult = NonNullable<Awaited<ReturnType<typeof orgUnitServiceDeleteOrgUnit>>>
+export type OrgUnitServiceListOrgUnitChildrenResult = NonNullable<Awaited<ReturnType<typeof orgUnitServiceListOrgUnitChildren>>>

@@ -14,6 +14,7 @@ import {
   orgUnitServiceCreateOrgUnit,
   orgUnitServiceDeleteOrgUnit,
   orgUnitServiceGetOrgUnit,
+  orgUnitServiceListOrgUnitChildren,
   orgUnitServiceListOrgUnits,
   orgUnitServiceUpdateOrgUnit,
 } from "@/api/generated/org-unit-service"
@@ -40,6 +41,8 @@ export type {
 
 export const createOrgUnitApi = orgUnitServiceCreateOrgUnit
 export const listOrgUnitsApi = orgUnitServiceListOrgUnits
+// listOrgUnitChildrenApi 懒加载某节点的直接子节点（树形展开用，见 el-table lazy）。
+export const listOrgUnitChildrenApi = orgUnitServiceListOrgUnitChildren
 export const countOrgUnitsApi = orgUnitServiceCountOrgUnits
 export const getOrgUnitApi = orgUnitServiceGetOrgUnit
 export const updateOrgUnitApi = orgUnitServiceUpdateOrgUnit

@@ -6,8 +6,7 @@
 import type { OrgUnit } from './orgUnit.ts';
 import type { PaginationResponseMeta } from './paginationResponseMeta.ts';
 
-export interface ListOrgUnitsResponse {
+export interface ListOrgUnitChildrenResponse {
   items?: OrgUnit[];
-  /** 分页元数据：total（根节点总数，非全量节点数）/ total_pages / next_token 等。 */
   meta?: PaginationResponseMeta;
 }
