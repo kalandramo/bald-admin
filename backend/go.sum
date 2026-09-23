@@ -527,6 +527,12 @@ github.com/kalandramo/bald/broker v0.1.0 h1:45IVKPwlYr2ejL6CO5qKKzLmYsy0f9zcNyNH
 github.com/kalandramo/bald/broker v0.1.0/go.mod h1:VXefefdxOZoGneOJ3K6Fur6gI88nwakNvwF5uu/O/QM=
 github.com/kalandramo/bald/broker/redis v0.1.0 h1:+5GyYuaVq/SkHsqdw29pFRngIexHLWg9CPDALDYmsAY=
 github.com/kalandramo/bald/broker/redis v0.1.0/go.mod h1:W4psgZj/B9lYp34GtrxSK0CojPHDUbTgCmik3t0XsLU=
+github.com/kalandramo/bald/broker/redis v0.1.1 h1:bVNoZtYfpIV87JjuIpWSfx0UiU8PCb/Qvf1+Py3ZPPU=
+github.com/kalandramo/bald/broker/redis v0.1.1/go.mod h1:W4psgZj/B9lYp34GtrxSK0CojPHDUbTgCmik3t0XsLU=
+github.com/kalandramo/bald/broker/redis v0.1.2 h1:Rx3LbIbszFXVWlr1/DbbiAFu/bp7Y0cY2y2dj+DWhpo=
+github.com/kalandramo/bald/broker/redis v0.1.2/go.mod h1:W4psgZj/B9lYp34GtrxSK0CojPHDUbTgCmik3t0XsLU=
+github.com/kalandramo/bald/broker/redis v0.1.3 h1:s7FMLkhgBWra6Ua2tAYGs2qjuNmDfF5o1mee7I3zGH8=
+github.com/kalandramo/bald/broker/redis v0.1.3/go.mod h1:W4psgZj/B9lYp34GtrxSK0CojPHDUbTgCmik3t0XsLU=
 github.com/kalandramo/bald/cache v0.1.1 h1:FD2fxd+mxgRfV7ppCkTnuyWX+1QFEH//Sfr/s7/4fIY=
 github.com/kalandramo/bald/cache v0.1.1/go.mod h1:cLUjMSZKJDnP3wxrY2XtrqIBKe7JjbQ78e3LLvszTYw=
 github.com/kalandramo/bald/cache/loadable v0.2.0 h1:6/C+mZofSNttjT2vHevzjtCCvXJvpU7h6vQcp7LkJ1Y=

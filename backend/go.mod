@@ -30,7 +30,7 @@ require (
 	github.com/kalandramo/bald/berrors v0.1.1
 	github.com/kalandramo/bald/bootstrap v0.8.0
 	github.com/kalandramo/bald/broker v0.1.0
-	github.com/kalandramo/bald/broker/redis v0.1.0
+	github.com/kalandramo/bald/broker/redis v0.1.3
 	github.com/kalandramo/bald/cache v0.1.1
 	github.com/kalandramo/bald/cache/loadable v0.2.0
 	github.com/kalandramo/bald/cache/redis v0.1.0

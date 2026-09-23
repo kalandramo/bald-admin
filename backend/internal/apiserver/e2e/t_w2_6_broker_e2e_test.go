@@ -23,17 +23,19 @@ package e2e
 // 1. **`NewBroker` 不调用 `Init`**——`addr` 只在 `Init()` 里赋值。
 //    只 `NewBroker(...)` + `Connect()` → `b.addr` 为空 → `DialURL("")`
 //    → `invalid redis URL scheme:`（一个极具误导性的错误信息）。
-// 2. **`Connect()` 在 Redis 不可用时返回 nil（假成功）**——`Dial` 是懒执行，
-//    故障延迟到首次 `Publish`/`Subscribe` 才暴露。调用方若在启动期检查
-//    `Connect()` 的返回值，会误判为「已连通」。
+// 2. ~~**`Connect()` 在 Redis 不可用时返回 nil（假成功）**~~ —— **已于
+//    broker/redis v0.1.1 修复**（Connect 取连接 PING 探活，失败即报错）。
+//    本波原勘探记录：`Dial` 是懒执行，故障延迟到首次 `Publish`/`Subscribe`
+//    才暴露；调用方若在启动期检查 `Connect()` 返回值会误判「已连通」。
+//    修复后 v0.1.2 又补了探活失败路径的 Disconnect nil 防护（v0.1.1 会
+//    panic）。本文件的 `TestWave2_6_BrokerDegrade` 已由「记录缺陷」转为
+//    「守护修复」。
 
 import (
 	"context"
 	"strings"
 	"testing"
 	"time"
-
-	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/kalandramo/bald/broker"
 	redisbroker "github.com/kalandramo/bald/broker/redis"
@@ -44,18 +46,34 @@ import (
 // 2026-09-22：由常量改为函数——支持经 BALD_E2E_REDIS_ADDR 指向非本地实例。
 func brokerTestAddr() string { return redisTestURL() }
 
-// requireRedis 独立探测 broker 测试依赖的 Redis（地址经 BALD_E2E_REDIS_ADDR
-// 可覆盖，默认本地 127.0.0.1:6379）。
+// requireRedis 探测 broker 测试依赖的 Redis（地址经 BALD_E2E_REDIS_ADDR
+// 可覆盖，默认本地 127.0.0.1:6379）。不可达则 Skip。
 //
-// **不能依赖 `broker.Connect()` 的返回值判断可达性**——D13.2 实测 `Connect()`
-// 对不可达 Redis 返回 nil（假成功），用它做 Skip 判据会让测试在不该继续时继续，
-// 故障延迟到 `Subscribe` 才暴露成 **FAIL**（而非环境缺失应有的 SKIP）。
-// 这与本仓其余 e2e 的「环境缺失 → Skip，不伪装通过」约定一致。
+// **2026-09-23 更新（原绕行探测已消除）**：此处曾用 go-redis 独立 Ping
+// 探测，因为 D13.2 实测 `broker.Connect()` 对不可达 Redis 返回 nil（假成功），
+// 用它做 Skip 判据会让测试在不该继续时继续，故障延迟到 `Subscribe` 才暴露
+// 成 FAIL（而非环境缺失应有的 SKIP）。
+//
+// 依赖升级到 broker/redis v0.1.2 后，`Connect()` 已做真实探活（取连接 PING），
+// 且实测能区分三种情况（探针验证）：
+//   - 不可达      → dial tcp ... connection refused
+//   - 认证失败    → WRONGPASS invalid username-password pair
+//   - 正常        → nil
+// 故改用 `Connect()` 判可达性——判据单一（与测试主体同一条代码路径），
+// 且顺带覆盖 `Init()`（D13.1 的 addr 赋值），比旁路 Ping 更贴近真实用法。
+//
+// 选 v0.1.2 而非 v0.1.1 的原因：v0.1.1 的探活失败路径会丢弃 pool
+// （`b.pool = nil`）但 Disconnect 无 nil 防护 → 调用即 panic。本函数
+// 探测后要 Disconnect，故必须有该防护（v0.1.2 修复）。
 func requireRedis(t *testing.T) {
 	t.Helper()
-	rdb := goredis.NewClient(redisTestOptions(0))
-	defer func() { _ = rdb.Close() }()
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
+	b := redisbroker.NewBroker(option.DriverTypePubSub, broker.WithAddress(brokerTestAddr()))
+	if err := b.Init(); err != nil {
+		t.Skipf("redis %s 初始化失败，跳过（环境缺失，非验证失败）: %v", redisTestAddr(), err)
+	}
+	// Connect 失败后 pool 可能已被丢弃——v0.1.2 起 Disconnect 对 nil pool 安全。
+	defer func() { _ = b.Disconnect() }()
+	if err := b.Connect(); err != nil {
 		t.Skipf("redis %s 不可达，跳过（环境缺失，非验证失败）: %v", redisTestAddr(), err)
 	}
 }
@@ -125,41 +143,45 @@ func TestWave2_6_BrokerCrossInstance(t *testing.T) {
 	}
 }
 
-// TestWave2_6_BrokerRequiresInit —— D13.1 回归：不调 Init 则 Subscribe 失败。
+// TestWave2_6_BrokerRequiresInit —— D13.1 回归：不调 Init 则连接失败。
 //
 // 锁住该约束，防止后人误以为 NewBroker 已完成初始化。
 //
-// 注意：本测试断言的是「不调 Init → Subscribe 报 `invalid redis URL scheme`」。
-// 若 Redis 不可达，Subscribe 也会报错（但原因不同），会让本测试**假绿**——
-// 故必须先 requireRedis 保证可达，使失败原因唯一归因于「未 Init」。
+// **2026-09-23 更新（断言随 D13.2 修复前移）**：本测试原断言「不调 Init →
+// Connect 假成功返回 nil，错误延迟到 Subscribe 才报 `invalid redis URL scheme`」。
+// D13.2 让 Connect 做真实探活后，空 addr 在 **Connect 阶段**即失败
+// （fail-fast）——这是行为改进，非回归。断言随之前移到 Connect。
+//
+// **因此本测试不再需要 Redis 环境**：空 addr 在任何网络操作前就失败，
+// 与 Redis 可达性无关。原先的 requireRedis 反而会掩盖断言（无 Redis 时
+// 整个测试被 SKIP，从未真正执行）。
 func TestWave2_6_BrokerRequiresInit(t *testing.T) {
-	requireRedis(t)
-	// 刻意**不调 Init**。
+	// 刻意**不调 Init**——addr 为空。
 	b := redisbroker.NewBroker(option.DriverTypePubSub, broker.WithAddress(brokerTestAddr()))
-	if err := b.Connect(); err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
-	defer b.Disconnect()
 
-	_, err := b.Subscribe("t.init-check",
-		func(context.Context, broker.Event) error { return nil },
-		func() any { var x []byte; return &x })
+	// D13.2 起：Connect 立即失败（fail-fast），不再假成功。
+	err := b.Connect()
 	if err == nil {
-		t.Fatal("不调 Init 应失败（D13.1 已修复？请核实框架行为变化）")
+		t.Fatal("不调 Init 时 Connect 应失败（D13.1 约束被破坏？addr 为空应报错）")
 	}
+	t.Logf("确认 D13.1（Connect 阶段暴露）: %v", err)
 	// 错误信息是误导性的 `invalid redis URL scheme:`——addr 为空所致。
-	if !strings.Contains(err.Error(), "URL scheme") {
-		t.Logf("错误信息已变化（原为 'invalid redis URL scheme:'）: %v", err)
-	} else {
-		t.Logf("确认 D13.1：%v", err)
+	// 不硬断言文案（框架可能改进措辞），仅记录。
+	if strings.Contains(err.Error(), "URL scheme") {
+		t.Log("错误文案仍为 'invalid redis URL scheme:'（addr 为空所致，具误导性）")
 	}
 }
 
 // TestWave2_6_BrokerDegrade —— 降级路径（计划 2.6 的验收项）。
 //
-// **核心发现（D13.2）**：`Connect()` 对不可达 Redis 返回 **nil**（假成功），
-// 故障延迟到首次 Publish/Subscribe。这是本波最有价值的勘探结果——
-// 调用方若信任 `Connect()` 的返回值，会在启动期误判「已连通」。
+// **原勘探结果（D13.2）**：`Connect()` 曾对不可达 Redis 返回 **nil**（假成功），
+// 故障延迟到首次 Publish/Subscribe——调用方信任返回值会在启动期误判「已连通」。
+//
+// **2026-09-23 更新**：D13.2 已在 broker/redis v0.1.1 修复（Connect 取连接
+// PING 探活），本测试**由「记录缺陷」转为「守护修复」**——断言反转为
+// 「Connect 必须报错」。
+//
+// 本测试**不依赖 Redis 环境**（指向无监听的 6399 端口），故不受 env 影响。
 func TestWave2_6_BrokerDegrade(t *testing.T) {
 	// 指向无服务监听的端口。
 	b := redisbroker.NewBroker(option.DriverTypePubSub,
@@ -168,13 +190,14 @@ func TestWave2_6_BrokerDegrade(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 
-	// D13.2：Connect 假成功。
-	if err := b.Connect(); err != nil {
-		t.Fatalf("Connect 预期返回 nil（假成功，D13.2），实际: %v", err)
+	// D13.2 已修：Connect 对不可达 Redis 必须报错（原为假成功返回 nil）。
+	if err := b.Connect(); err == nil {
+		t.Fatal("Connect 对不可达 Redis 应返回 error（D13.2 已在 v0.1.1 修复，nil 即回归）")
+	} else {
+		t.Logf("确认 D13.2 已修：Connect() 报错 = %v", err)
 	}
-	t.Log("确认 D13.2：Connect() 对不可达 Redis 返回 nil（假成功）")
 
-	// 真实故障在首次操作时暴露。
+	// 真实故障在首次操作时暴露（此路径不受 D13.2 影响，保留）。
 	_, err := b.Subscribe("t.degrade",
 		func(context.Context, broker.Event) error { return nil },
 		func() any { var x []byte; return &x })
@@ -188,9 +211,11 @@ func TestWave2_6_BrokerDegrade(t *testing.T) {
 		t.Fatal("Publish 对不可达 Redis 应报错")
 	}
 
-	// Disconnect 不应挂起（已验证不阻塞）。
+	// Disconnect 不应挂起，且**不得 panic**。
+	// 关键：Connect 探活失败会丢弃 pool（b.pool = nil），若 Disconnect 无
+	// nil 防护则 panic——v0.1.1 有此缺陷，v0.1.2 修复。本断言即其端到端守护。
 	done := make(chan struct{})
-	go func() { b.Disconnect(); close(done) }()
+	go func() { _ = b.Disconnect(); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(3 * time.Second):
