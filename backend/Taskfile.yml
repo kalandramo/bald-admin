@@ -69,6 +69,15 @@ tasks:
     cmds:
       - go test {{.TEST_FLAGS}} ./internal/apiserver/... -run 'TestFileREST'
 
+  test:redis:
+    desc: 仅跑需 Redis 的 e2e（token/captcha/MFA/broker；地址经 BALD_E2E_REDIS_* env 注入，缺省回落本地 6379，不可达则自动 Skip）
+    dir: "{{.MOD}}"
+    env:
+      BALD_E2E_REDIS_ADDR: "{{.REDIS_TEST_ADDR}}"
+      BALD_E2E_REDIS_PASSWORD: "{{.REDIS_TEST_PASSWORD}}"
+    cmds:
+      - go test {{.TEST_FLAGS}} ./internal/apiserver/e2e/ -run 'TestWave1d|TestWave1_5|TestWave2_6'
+
   smoke:nacos:
     desc: T7 冒烟：契约路径注册→12s 心跳窗口→注销（真实云端 Nacos，秒级完成）
     dir: "{{.MOD}}"

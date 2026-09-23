@@ -134,6 +134,27 @@ task build         # go build ./...
 go test -shuffle=on ./...
 ```
 
+### 需要外部依赖的测试
+
+部分 e2e 依赖真实外部服务。**未配置时自动 Skip**（打印「环境缺失，非验证失败」，
+不会伪装通过）；要真跑需经环境变量注入地址：
+
+| 依赖 | Task 目标 | 注入的 env |
+|---|---|---|
+| Redis（token/captcha/MFA/broker） | `task test:redis` | `BALD_E2E_REDIS_ADDR`（默认 `127.0.0.1:6379`）、`BALD_E2E_REDIS_PASSWORD` |
+| MinIO（文件模块） | `task test:file` | `BALD_ADMIN_TEST_MINIO_ENDPOINT` 等 |
+
+```bash
+# 指向非本地 Redis（如集群内实例；受管实例通常强制鉴权，必须带密码）
+task test:redis REDIS_TEST_ADDR=10.82.138.249:30967 REDIS_TEST_PASSWORD=***
+
+# 或直接 go（env 名同左表）
+BALD_E2E_REDIS_ADDR=10.82.138.249:30967 BALD_E2E_REDIS_PASSWORD=*** \
+  go test ./internal/apiserver/e2e/ -run TestWave1d
+```
+
+Redis 测试按 **DB 12-15** 隔离（各测试用不同 DB，互不污染）。
+
 ## 里程碑
 
 | 里程碑 | 内容 | 状态 |
