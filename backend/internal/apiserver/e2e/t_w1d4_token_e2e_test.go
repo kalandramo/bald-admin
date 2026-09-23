@@ -75,7 +75,7 @@ func startTokenMgmtREST(t *testing.T, ts token.Store) string {
 // newTestTokenStoreDB13 用 DB 16（与 Wave 1d-1 的 DB 15 隔离，避免测试间干扰）。
 func newTestTokenStoreDB13(t *testing.T) *token.RedisStore {
 	t.Helper()
-	rdb := goredis.NewClient(&goredis.Options{Addr: "127.0.0.1:6379", DB: 13})
+	rdb := goredis.NewClient(redisTestOptions(13))
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		t.Skipf("redis 不可达，跳过（环境缺失）: %v", err)
 	}

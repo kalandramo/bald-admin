@@ -45,7 +45,7 @@ import (
 // Redis 不可达 → t.Skip（区分环境缺失与验证失败）。DB 15 隔离，用完清空。
 func newTestTokenStore(t *testing.T) *token.RedisStore {
 	t.Helper()
-	rdb := goredis.NewClient(&goredis.Options{Addr: "127.0.0.1:6379", DB: 15})
+	rdb := goredis.NewClient(redisTestOptions(15))
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		t.Skipf("redis 127.0.0.1:6379 不可达，跳过（环境缺失，非验证失败）: %v", err)
 	}

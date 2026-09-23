@@ -25,7 +25,7 @@ import (
 
 func newTestCaptchaStore(t *testing.T) *captcha.RedisStore {
 	t.Helper()
-	rdb := goredis.NewClient(&goredis.Options{Addr: "127.0.0.1:6379", DB: 14})
+	rdb := goredis.NewClient(redisTestOptions(14))
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		t.Skipf("redis 不可达，跳过（环境缺失）: %v", err)
 	}

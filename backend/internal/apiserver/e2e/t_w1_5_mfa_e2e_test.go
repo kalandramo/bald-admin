@@ -47,7 +47,7 @@ import (
 // newTestMFAStore 用 DB 12（与其他 wave 错开）。
 func newTestMFAStore(t *testing.T) *mfa.RedisChallengeStore {
 	t.Helper()
-	rdb := goredis.NewClient(&goredis.Options{Addr: "127.0.0.1:6379", DB: 12})
+	rdb := goredis.NewClient(redisTestOptions(12))
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		t.Skipf("redis 不可达，跳过（环境缺失）: %v", err)
 	}
