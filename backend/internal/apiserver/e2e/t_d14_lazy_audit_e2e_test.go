@@ -25,7 +25,7 @@ import (
 	"context"
 	"testing"
 
-	auditstore "github.com/kalandramo/bald/contrib/audit-store"
+	auditgorm "github.com/kalandramo/bald/contrib/audit-gorm"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/store"
 	gormpkg "gorm.io/gorm"
@@ -55,12 +55,12 @@ func (l *lazyProbeAuditor) Record(ctx context.Context, ev audit.AuditEvent) {
 		l.once = true
 		db := l.dbFn()
 		if db == nil {
-			l.inner = auditstore.New(nil)
+			l.inner = auditgorm.New(nil)
 		} else {
 			if l.migrate {
-				_ = db.AutoMigrate(auditstore.DefaultModel())
+				_ = db.AutoMigrate(auditgorm.DefaultModel())
 			}
-			l.inner = auditstore.New(db)
+			l.inner = auditgorm.New(db)
 		}
 	}
 	l.inner.Record(ctx, ev)
@@ -97,8 +97,8 @@ func TestD14_LazyAuditorDefersDBResolution(t *testing.T) {
 
 // TestD14_NilDBFailsOpen —— **DB 不可用时 fail-open**（不 panic、不阻断调用方）。
 //
-// 依据：`auditstore.New(nil)` 的 Record 走 fallback
-// （`bald/contrib/audit-store/store.go`：「db 为 nil 时 Record 全部走
+// 依据：`auditgorm.New(nil)` 的 Record 走 fallback
+// （`bald/contrib/audit-gorm/store.go`：「db 为 nil 时 Record 全部走
 // fallback（旁路不 panic）」）。
 func TestD14_NilDBFailsOpen(t *testing.T) {
 	la := newLazyStoreAuditorForTest(func() *gormpkg.DB { return nil }, false)

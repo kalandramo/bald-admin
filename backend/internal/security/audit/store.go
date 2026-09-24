@@ -3,11 +3,11 @@ package audit
 import (
 	"gorm.io/gorm"
 
-	"github.com/kalandramo/bald/contrib/audit-store"
+	"github.com/kalandramo/bald/contrib/audit-gorm"
 	"github.com/kalandramo/bald/pkg/audit"
 )
 
-// NewStore 构造落库审计后端（转发 contrib/audit-store）。
+// NewStore 构造落库审计后端（转发 contrib/audit-gorm）。
 //
 // 框架默认表模型与既有 authmodel.AuditRecord 的 12 个基础列字段/列名对齐
 // （同一 audit_records 表，migrate 无冲突）；落库失败/panic 降级 fallback
@@ -21,5 +21,5 @@ import (
 // 2026-09-22：映射改为构造期求值的工厂（NewRecordMapper），使兜底租户可经
 // SetFallbackTenant 配置。此处传空串 → 取当前生效的兜底租户。
 func NewStore(db *gorm.DB) audit.Auditor {
-	return auditstore.New(db, auditstore.WithRecordMapper(NewRecordMapper("")))
+	return auditgorm.New(db, auditgorm.WithRecordMapper(NewRecordMapper("")))
 }

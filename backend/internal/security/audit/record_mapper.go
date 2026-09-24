@@ -4,11 +4,11 @@ package audit
 //
 // ## 为何需要自定义映射
 //
-// 框架 `contrib/audit-store` 的默认映射（`defaultRecord`）只填 12 个基础列。
+// 框架 `contrib/audit-gorm` 的默认映射（`defaultRecord`）只填 12 个基础列。
 // Wave 5.1 为承载源 go-wind-admin 的**五类审计**（operation/login/api/
 // data_access/permission）在 `authmodel.AuditRecord` 上扩了 15 个 nullable 列
 // （见 model/audit.go）。本映射把 `AuditEvent.Meta` 里的分类专属字段提取到
-// 对应列——**零框架改动**（`auditstore.WithRecordMapper` 是框架提供的扩展点）。
+// 对应列——**零框架改动**（`auditgorm.WithRecordMapper` 是框架提供的扩展点）。
 //
 // ## 为何下沉到本包（而非留在 cmd/go-bald-admin）
 //
@@ -78,7 +78,7 @@ func currentFallbackTenant() string {
 }
 
 // NewRecordMapper 返回一个把审计事件映射为 authmodel.AuditRecord 的映射函数
-// （供 auditstore.WithRecordMapper）。
+// （供 auditgorm.WithRecordMapper）。
 //
 // **为什么是工厂而非直接暴露函数**：框架的 `WithRecordMapper` 签名是
 // `func(audit.AuditEvent) any`——没有配置注入位。工厂模式让调用方在构造期

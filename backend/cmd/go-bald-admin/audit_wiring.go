@@ -25,9 +25,9 @@
 // 这条路径成立的依据（均已核实）：
 //   - `audit.Auditor` 是**单方法接口**（`Record(ctx, AuditEvent)`），
 //     `bald/pkg/audit/audit.go`——包装成本极低；
-//   - `auditstore.New(db)` **接受 nil db**：`Record` 内
+//   - `auditgorm.New(db)` **接受 nil db**：`Record` 内
 //     `if a.db == nil { recordFallback; return }`
-//     （`bald/contrib/audit-store/store.go:70` 注释：「db 为 nil 时 Record
+//     （`bald/contrib/audit-gorm/store.go:70` 注释：「db 为 nil 时 Record
 //     全部走 fallback（旁路不 panic）」）——故即便 DB 始终不可用也不丢审计
 //     （降级到 LoggerAuditor），**fail-open 而非静默丢弃**。
 //
@@ -56,8 +56,8 @@ import (
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/appkit"
 
-	auditstore "github.com/kalandramo/bald/contrib/audit-store"
-	storecontract "github.com/kalandramo/bald/contrib/audit-store/contract"
+	auditgorm "github.com/kalandramo/bald/contrib/audit-gorm"
+	storecontract "github.com/kalandramo/bald/contrib/audit-gorm/contract"
 	gormpkg "gorm.io/gorm"
 
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
@@ -95,18 +95,18 @@ func (l *lazyStoreAuditor) resolve() audit.Auditor {
 		if db == nil {
 			// DB 仍不可用：构造 nil-db 的 StoreAuditor——其 Record 走
 			// fallback（LoggerAuditor），**不 panic 也不丢痕迹**。
-			l.inner = auditstore.New(nil)
+			l.inner = auditgorm.New(nil)
 			return
 		}
 		if l.migrate {
-			if err := db.AutoMigrate(auditstore.DefaultModel()); err != nil {
+			if err := db.AutoMigrate(auditgorm.DefaultModel()); err != nil {
 				// 迁移失败不阻断：记录错误，仍构造 auditor（Record 会降级）。
-				l.initErr = fmt.Errorf("audit-store: migrate default table: %w", err)
+				l.initErr = fmt.Errorf("audit-gorm: migrate default table: %w", err)
 			}
 		}
 		// 映射在构造期求值（NewRecordMapper），使兜底租户可经配置生效
 		// （audit.fallback_tenant → securityaudit.SetFallbackTenant）。
-		l.inner = auditstore.New(db, auditstore.WithRecordMapper(securityaudit.NewRecordMapper("")))
+		l.inner = auditgorm.New(db, auditgorm.WithRecordMapper(securityaudit.NewRecordMapper("")))
 	})
 	return l.inner
 }

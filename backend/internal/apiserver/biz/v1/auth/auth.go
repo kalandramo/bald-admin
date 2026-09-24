@@ -121,6 +121,23 @@ type Biz struct {
 	refreshTTL time.Duration
 	// captchaStore 验证码存储（Wave 1d-2）。nil = 不可用（生成/校验返回 503）。
 	captchaStore captcha.Store
+	// platformResolver 判定某用户是否为**平台级身份**（跨租户视图）。
+	//
+	// 语义（与 bald 框架的 AuthClaims.Platform 对接）：
+	//   - 返回 true → 签发的 JWT 带 Platform=true → pkg/store 的租户隔离
+	//     对该请求整体跳过（可查跨租户数据，如平台级审计视图）。
+	//   - 它只回答「是否按租户切分数据」，**不是授权判定**——细粒度授权
+	//     仍由 casbin 策略负责（二者正交）。
+	//
+	// **nil = 禁用态（默认）**：不签发平台标记，所有请求按租户隔离。
+	// 生产环境的「平台管理员」身份定义（按角色 / 按租户 / 白名单）属业务
+	// 决策，由 main.go 经 SetPlatformResolver 注入；未注入时本能力不生效。
+	//
+	// 为什么不硬编码判据：种子数据中 admin 属 t-default 租户、角色仅
+	// admin/viewer，**没有现成的平台身份载体**。硬编码（如「TenantID ==
+	// platform」）会把隐式约定写死，与框架侧「显式声明、绝不隐式推断」的
+	// 纪律相悖。
+	platformResolver func(*authmodel.User) bool
 }
 
 // RetryOnTransientDBError 是登录 DB 查询的重试分类器（Wave 1c）：
@@ -140,6 +157,20 @@ func RetryOnTransientDBError(err error) bool {
 // New 构造认证 Biz。signer 来自 bootstrap（bald-authn-jwt 签发实例）。
 func New(signer authnjwt.Signer) *Biz {
 	return &Biz{signer: signer}
+}
+
+// SetPlatformResolver 注入平台身份判据（判定某用户是否签发 Platform 标记）。
+//
+// **nil 不覆盖**——保留禁用态语义（不签发平台标记，全部按租户隔离）。
+// 与 SetLoginLimiter/SetTokenStore 同款的运行期注入：判据可能需要读配置或
+// DB（如角色表），而那些在 BeforeStart 才就绪。
+//
+// 生产身份定义（按角色 / 按租户 / 白名单）属业务决策，见 Biz.platformResolver
+// 字段注释。未注入时，平台级视图能力在本服务不生效（fail-closed）。
+func (b *Biz) SetPlatformResolver(fn func(*authmodel.User) bool) {
+	if fn != nil {
+		b.platformResolver = fn
+	}
 }
 
 // SetLoginLimiter 运行期注入登录限流器（main.go 在装配后调用；测试可注入
@@ -581,6 +612,11 @@ func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 		Roles:    u.RolesList(),
 		Name:     u.Username,
 	}
+	// 平台身份（跨租户视图）：判据由 SetPlatformResolver 注入。
+	// 未注入时恒 false（fail-closed，全部按租户隔离）。
+	if b.platformResolver != nil && b.platformResolver(u) {
+		claims.Platform = true
+	}
 	// 签发由 Signer 完成（非对称：仅持私钥的签发实例，验证方只持公钥）。
 	token, err := b.signer.IssueToken(claims, ttl)
 	if err != nil {
@@ -718,6 +754,9 @@ func (b *Biz) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair
 		TenantID: u.TenantID,
 		Roles:    u.RolesList(),
 		Name:     u.Username,
+		// 平台身份必须随刷新一并重建——否则平台管理员刷新一次令牌就
+		// 丢失跨租户能力（与登录路径不对称）。判据同登录（platformResolver）。
+		Platform: b.platformResolver != nil && b.platformResolver(u),
 	}, ttl)
 	if err != nil {
 		auditRefresh(ctx, subject, audit.ResultError, err.Error())
