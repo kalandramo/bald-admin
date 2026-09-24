@@ -123,7 +123,7 @@ func (b *Biz) Update(ctx context.Context, id string, in UpdateInput) (*authmodel
 		m.SortOrder = *in.SortOrder
 	}
 	m.UpdatedAt = time.Now()
-	if err := b.langStore().Update(ctx, m); err != nil {
+	if _, err := b.langStore().Update(ctx, m); err != nil {
 		return nil, fmt.Errorf("language: update: %w", err)
 	}
 	return m, nil
@@ -137,7 +137,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (string, error) {
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", m.ID))
-	if err := b.langStore().Delete(ctx, w); err != nil {
+	if _, err := b.langStore().Delete(ctx, w); err != nil {
 		return "", fmt.Errorf("language: delete: %w", err)
 	}
 	return m.ID, nil

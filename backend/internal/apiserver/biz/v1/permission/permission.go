@@ -86,7 +86,7 @@ func (b *Biz) UpdatePermission(ctx context.Context, code, name string, menuIDs [
 	if remark != "" {
 		p.Remark = remark
 	}
-	if err := b.permStore().Update(ctx, p); err != nil {
+	if _, err := b.permStore().Update(ctx, p); err != nil {
 		return nil, fmt.Errorf("permission.Update(%s): %w", code, err)
 	}
 	return p, nil
@@ -104,7 +104,7 @@ func (b *Biz) DeletePermission(ctx context.Context, code string) (bool, error) {
 		}
 		return false, fmt.Errorf("permission.Delete(%s): %w", code, err)
 	}
-	if err := b.permStore().Delete(ctx, w); err != nil {
+	if _, err := b.permStore().Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("permission.Delete(%s): %w", code, err)
 	}
 	return true, nil
@@ -152,7 +152,7 @@ func (b *Biz) DeleteRolePolicy(ctx context.Context, id string) (bool, error) {
 		}
 		return false, fmt.Errorf("permission.DeleteRolePolicy(%s): %w", id, err)
 	}
-	if err := b.policyStore().Delete(ctx, w); err != nil {
+	if _, err := b.policyStore().Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("permission.DeleteRolePolicy(%s): %w", id, err)
 	}
 	// Wave 5.1：permission 类审计（源 PermissionAuditLog 的 REVOKE 语义）。

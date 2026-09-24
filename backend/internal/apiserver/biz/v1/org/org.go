@@ -145,7 +145,7 @@ func (b *Biz) CreateOrgUnit(ctx context.Context, tenantID string, u OrgUnit) (*O
 	}
 	// Path 需要自己的 ID，创建后回填（源的 path 含自身）。
 	m.Path = path + "/" + m.ID
-	_ = bootstrappkg.OrgUnitStore.Update(ctx, m)
+	_, _ = bootstrappkg.OrgUnitStore.Update(ctx, m) // best-effort（v0.11.0 起返回 (rows, error)）
 	return toOrgUnit(m), nil
 }
 
@@ -277,7 +277,7 @@ func (b *Biz) UpdateOrgUnit(ctx context.Context, tenantID, code string, u OrgUni
 			m.ParentID = newParent
 		}
 	}
-	if err := bootstrappkg.OrgUnitStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.OrgUnitStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("org: update org unit: %w", err)
 	}
 	return nil
@@ -319,7 +319,7 @@ func (b *Biz) DeleteOrgUnit(ctx context.Context, tenantID, code string) error {
 	if len(children) > 0 {
 		return badRequest("org/has_children", "has %d children, delete them first", len(children))
 	}
-	if err := bootstrappkg.OrgUnitStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.OrgUnitStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("org: delete org unit: %w", err)
@@ -593,7 +593,7 @@ func (b *Biz) UpdatePosition(ctx context.Context, tenantID, code string, p Posit
 	if p.ReportsToPositionID != "" {
 		m.ReportsToPositionID = posID(tenantID, p.ReportsToPositionID)
 	}
-	if err := bootstrappkg.PositionStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.PositionStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("org: update position: %w", err)
 	}
 	return nil
@@ -601,7 +601,7 @@ func (b *Biz) UpdatePosition(ctx context.Context, tenantID, code string, p Posit
 
 // DeletePosition 删除（源 Delete）。
 func (b *Biz) DeletePosition(ctx context.Context, tenantID, code string) error {
-	if err := bootstrappkg.PositionStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.PositionStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", posID(tenantID, code))},
 	}); err != nil {
 		return fmt.Errorf("org: delete position: %w", err)

@@ -396,10 +396,15 @@ func TestWave1_5_DisableAndRevoke(t *testing.T) {
 //
 // **不变量的违反点**：`biz.Disable` 在 credentialID 为空时按 (tenant,user)
 // 删**集合**（源语义：「不传 credentialID 时清空该用户全部该方法因子」）。
-// 但 `Store.Delete` 对 0 行匹配返回 ErrNotFound——用户禁用**本就未启用**的
+// 旧 `Store.Delete` 对 0 行匹配返回 ErrNotFound——用户禁用**本就未启用**的
 // 方法时，删 0 行是合法结果，却被误报为 not found。
 //
 // RED 判据：未修复时 Disable 返回错误；修复后返回 nil。
+//
+// **2026-09-23 决策更新**：`Store.Delete` 已改为**幂等语义**（0 行返回 (0, nil)，
+// 签名带受影响行数，见 D12 修复）。因此**精确单条删除的 not-found 语义也一并
+// 放宽**——`RevokeDevice` 对不存在的 credentialID 现应幂等成功（返回 nil），
+// 与 `Disable` 的集合删除一致。需要「必须存在才能删」的调用方须自行判 rows == 0。
 func TestWave1_5_DisableIdempotent(t *testing.T) {
 	cs := newTestMFAStore(t)
 	base := startMFAREST(t, cs)
@@ -418,9 +423,9 @@ func TestWave1_5_DisableIdempotent(t *testing.T) {
 		t.Fatalf("重复禁用应幂等成功，实际报错: %v", err)
 	}
 
-	// 但按具体 credentialID 删除不存在的因子 → 仍应报 not found
-	// （精确单条删除的 ErrNotFound 语义是正确的，不能一并放宽）。
-	if err := biz.RevokeDevice(ctx, "t-default", uid, "no-such-cred"); err == nil {
-		t.Fatalf("按不存在 credentialID 撤销应报错（精确单条语义）")
+	// 按具体 credentialID 撤销不存在的因子 → 幂等成功（2026-09-23 决策：
+	// Delete 统一幂等，精确单条语义不再保留 ErrNotFound）。
+	if err := biz.RevokeDevice(ctx, "t-default", uid, "no-such-cred"); err != nil {
+		t.Fatalf("按不存在 credentialID 撤销应幂等成功（Delete 已幂等化），实际报错: %v", err)
 	}
 }

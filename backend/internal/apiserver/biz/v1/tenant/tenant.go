@@ -82,7 +82,7 @@ func (b *Biz) Update(ctx context.Context, id, name, status, remark string) (*aut
 	if remark != "" {
 		t.Remark = remark
 	}
-	if err := b.store().Update(ctx, t); err != nil {
+	if _, err := b.store().Update(ctx, t); err != nil {
 		return nil, fmt.Errorf("tenant.Update(%s): %w", id, err)
 	}
 	return t, nil
@@ -100,7 +100,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (bool, error) {
 	if _, err := b.store().Get(ctx, w); err != nil {
 		return false, fmt.Errorf("tenant.Delete(%s): %w", id, err)
 	}
-	if err := b.store().Delete(ctx, w); err != nil {
+	if _, err := b.store().Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("tenant.Delete(%s): %w", id, err)
 	}
 	return true, nil

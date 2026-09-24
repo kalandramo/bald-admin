@@ -131,7 +131,7 @@ func (b *Biz) CreateGroup(ctx context.Context, tenantID, code string, g Group) (
 	}
 	// 3) 回填 path —— 格式 `/父path/自身ID/`，含自身、首尾带 `/`（对齐源）。
 	m.Path = computePath(parentPath, m.ID)
-	if err := bootstrappkg.PermGroupStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.PermGroupStore.Update(ctx, m); err != nil {
 		return nil, fmt.Errorf("permgroup: backfill path: %w", err)
 	}
 	return toGroup(m), nil
@@ -226,7 +226,7 @@ func (b *Biz) UpdateGroup(ctx context.Context, id string, g Group) error {
 	if g.Remark != "" {
 		m.Remark = g.Remark
 	}
-	if err := bootstrappkg.PermGroupStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.PermGroupStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("permgroup: update: %w", err)
 	}
 	return nil
@@ -246,7 +246,7 @@ func (b *Biz) DeleteGroup(ctx context.Context, id string) error {
 	if len(children) > 0 {
 		return fmt.Errorf("%w: has %d children, delete them first", ErrValidation, len(children))
 	}
-	if err := bootstrappkg.PermGroupStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.PermGroupStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("permgroup: delete: %w", err)

@@ -144,7 +144,7 @@ func (b *Biz) UpdateType(ctx context.Context, id, typeName string, sortOrder int
 	if remark != "" {
 		t.Remark = remark
 	}
-	if err := b.typeStore().Update(ctx, t); err != nil {
+	if _, err := b.typeStore().Update(ctx, t); err != nil {
 		return nil, fmt.Errorf("dict.UpdateType(%s): %w", id, err)
 	}
 	return t, nil
@@ -164,13 +164,13 @@ func (b *Biz) DeleteType(ctx context.Context, id string) (int, error) {
 	for _, e := range entries {
 		w := &store.Where{}
 		w.Filters = append(w.Filters, store.Eq("id", e.ID))
-		if err := b.entryStore().Delete(ctx, w.T(ctx)); err != nil {
+		if _, err := b.entryStore().Delete(ctx, w.T(ctx)); err != nil {
 			return 0, fmt.Errorf("dict.DeleteType(%s): cascade entry %s: %w", id, e.ID, err)
 		}
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if err := b.typeStore().Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.typeStore().Delete(ctx, w.T(ctx)); err != nil {
 		return 0, fmt.Errorf("dict.DeleteType(%s): %w", id, err)
 	}
 	b.invalidate(ctx, id)
@@ -269,7 +269,7 @@ func (b *Biz) UpdateEntry(ctx context.Context, id, label string, numeric *int32,
 	if remark != "" {
 		e.Remark = remark
 	}
-	if err := b.entryStore().Update(ctx, e); err != nil {
+	if _, err := b.entryStore().Update(ctx, e); err != nil {
 		return nil, fmt.Errorf("dict.UpdateEntry(%s): %w", id, err)
 	}
 	b.invalidate(ctx, e.TypeCode)
@@ -284,7 +284,7 @@ func (b *Biz) DeleteEntry(ctx context.Context, id string) (bool, error) {
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if err := b.entryStore().Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.entryStore().Delete(ctx, w.T(ctx)); err != nil {
 		return false, fmt.Errorf("dict.DeleteEntry(%s): %w", id, err)
 	}
 	b.invalidate(ctx, e.TypeCode)

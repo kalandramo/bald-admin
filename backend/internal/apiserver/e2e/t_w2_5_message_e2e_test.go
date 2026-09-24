@@ -141,7 +141,7 @@ func TestWave2_5_SendIdempotent(t *testing.T) {
 
 	biz := msgbiz.New()
 	ctx := context.Background()
-	tenant := "default"
+	tenant := "t-default"
 
 	// 单收件人发送。
 	res, err := biz.SendMessage(ctx, tenant, "u-sender", "发送者", msgbiz.SendRequest{
@@ -265,7 +265,7 @@ func TestWave2_5_InboxLifecycle(t *testing.T) {
 	ctx := context.Background()
 	uid := "u-lifecycle-" + msgSuffix()
 
-	res, err := biz.SendMessage(ctx, "default", "u-sender", "s", msgbiz.SendRequest{
+	res, err := biz.SendMessage(ctx, "t-default", "u-sender", "s", msgbiz.SendRequest{
 		Title: "生命周期", Content: "c", RecipientUserID: uid,
 	})
 	if err != nil {
@@ -326,7 +326,7 @@ func TestWave2_5_Revoke(t *testing.T) {
 	suffix := msgSuffix()
 	u1, u2 := "u-rv1-"+suffix, "u-rv2-"+suffix
 
-	res, err := biz.SendMessage(ctx, "default", "u-s", "s", msgbiz.SendRequest{
+	res, err := biz.SendMessage(ctx, "t-default", "u-s", "s", msgbiz.SendRequest{
 		Title: "撤销测试", Content: "c", TargetUserIDs: []string{u1, u2},
 	})
 	if err != nil {
@@ -376,7 +376,7 @@ func TestWave2_5_MessageCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	// 创建草稿。
-	m, err := biz.CreateMessage(ctx, "default", "u-1", "n", msgbiz.Message{
+	m, err := biz.CreateMessage(ctx, "t-default", "u-1", "n", msgbiz.Message{
 		Title: "草稿", Content: "c",
 	})
 	if err != nil {
@@ -387,7 +387,7 @@ func TestWave2_5_MessageCRUD(t *testing.T) {
 	}
 
 	// 空标题 → 校验错。
-	if _, err := biz.CreateMessage(ctx, "default", "u-1", "n", msgbiz.Message{}); err == nil {
+	if _, err := biz.CreateMessage(ctx, "t-default", "u-1", "n", msgbiz.Message{}); err == nil {
 		t.Fatalf("空标题应报错")
 	}
 
@@ -401,7 +401,7 @@ func TestWave2_5_MessageCRUD(t *testing.T) {
 	}
 
 	// 投递 2 人后删消息 → 收件记录应级联删除（避免悬挂）。
-	if _, err := biz.SendMessage(ctx, "default", "u-1", "n", msgbiz.SendRequest{
+	if _, err := biz.SendMessage(ctx, "t-default", "u-1", "n", msgbiz.SendRequest{
 		Title: "级联", Content: "c", TargetUserIDs: []string{"cu-1", "cu-2"},
 	}); err != nil {
 		t.Fatalf("SendMessage: %v", err)

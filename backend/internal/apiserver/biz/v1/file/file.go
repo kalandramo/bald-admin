@@ -196,7 +196,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (string, error) {
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if err := b.fileStore().Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.fileStore().Delete(ctx, w.T(ctx)); err != nil {
 		return "", fmt.Errorf("file: delete record: %w", err)
 	}
 	return id, nil

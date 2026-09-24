@@ -157,7 +157,7 @@ func (b *Biz) UpdatePlan(ctx context.Context, id string, p Plan) error {
 	if p.Remark != "" {
 		m.Remark = p.Remark
 	}
-	if err := bootstrappkg.PlanStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.PlanStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("plan: update: %w", err)
 	}
 	return nil
@@ -170,20 +170,20 @@ func (b *Biz) UpdatePlan(ctx context.Context, id string, p Plan) error {
 // 本项目手工实现：**先删子（modules/quotas）、再删父**——顺序重要，
 // 否则父删成功而子删除失败会留下悬挂引用。
 func (b *Biz) DeletePlan(ctx context.Context, id string) error {
-	// 1) 级联删 modules。
-	if err := bootstrappkg.PlanModuleStore.Delete(ctx, &store.Where{
+	// 1) 级联删 modules（集合删除：0 行是合法结果，Delete 现为幂等语义）。
+	if _, err := bootstrappkg.PlanModuleStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("plan_id", id)},
-	}); err != nil && !errors.Is(err, store.ErrNotFound) {
+	}); err != nil {
 		return fmt.Errorf("plan: cascade delete modules: %w", err)
 	}
 	// 2) 级联删 quotas。
-	if err := bootstrappkg.PlanQuotaStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.PlanQuotaStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("plan_id", id)},
-	}); err != nil && !errors.Is(err, store.ErrNotFound) {
+	}); err != nil {
 		return fmt.Errorf("plan: cascade delete quotas: %w", err)
 	}
 	// 3) 删父。
-	if err := bootstrappkg.PlanStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.PlanStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("plan: delete: %w", err)
@@ -266,7 +266,7 @@ func (b *Biz) UpdateModule(ctx context.Context, id, module string) error {
 		return err
 	}
 	m.Module = module
-	if err := bootstrappkg.PlanModuleStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.PlanModuleStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("plan: update module: %w", err)
 	}
 	return nil
@@ -274,7 +274,7 @@ func (b *Biz) UpdateModule(ctx context.Context, id, module string) error {
 
 // DeleteModule 删除模块（源 Delete）。
 func (b *Biz) DeleteModule(ctx context.Context, id string) error {
-	if err := bootstrappkg.PlanModuleStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.PlanModuleStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("plan: delete module: %w", err)
@@ -333,7 +333,7 @@ func (b *Biz) UpdateQuota(ctx context.Context, id string, value uint64) error {
 		return err
 	}
 	m.QuotaValue = value
-	if err := bootstrappkg.PlanQuotaStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.PlanQuotaStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("plan: update quota: %w", err)
 	}
 	return nil
@@ -341,7 +341,7 @@ func (b *Biz) UpdateQuota(ctx context.Context, id string, value uint64) error {
 
 // DeleteQuota 删除配额（源 Delete）。
 func (b *Biz) DeleteQuota(ctx context.Context, id string) error {
-	if err := bootstrappkg.PlanQuotaStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.PlanQuotaStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("plan: delete quota: %w", err)

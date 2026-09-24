@@ -220,7 +220,7 @@ func (b *Biz) setCredential(ctx context.Context, identityType, identifier, newPa
 		return err
 	}
 	m.Credential = string(h)
-	if err := bootstrappkg.CredentialStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.CredentialStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("identity: update credential: %w", err)
 	}
 	return nil
@@ -228,7 +228,7 @@ func (b *Biz) setCredential(ctx context.Context, identityType, identifier, newPa
 
 // DeleteCredential 删除凭证（源 Delete）。
 func (b *Biz) DeleteCredential(ctx context.Context, id string) error {
-	if err := bootstrappkg.CredentialStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.CredentialStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("identity: delete credential: %w", err)
@@ -328,7 +328,7 @@ func (b *Biz) GetPolicy(ctx context.Context, id string) (*Policy, error) {
 
 // DeletePolicy 删除策略（源 Delete）。
 func (b *Biz) DeletePolicy(ctx context.Context, id string) error {
-	if err := bootstrappkg.LoginPolicyStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.LoginPolicyStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("identity: delete policy: %w", err)

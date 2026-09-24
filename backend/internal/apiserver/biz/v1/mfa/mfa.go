@@ -228,11 +228,10 @@ func (b *Biz) Disable(ctx context.Context, tenantID, userID, credentialID string
 	if credentialID != "" {
 		w.Filters = append(w.Filters, store.Eq("id", credentialID))
 	}
-	// **容忍 0 行匹配**：不传 credentialID 时这是**集合删除**（清空该用户全部
-	// 该方法因子）。`Store.Delete` 对 0 行返回 ErrNotFound——那是「按主键删单条」
-	// 的语义，用在集合删除上会误报：用户禁用**本就未启用**的方法时，删 0 行
-	// 是合法结果。（此缺陷由 Wave 2.5 的同不变量排查捕获，见 t_w1_5 回归测试。）
-	if err := bootstrappkg.MFAFactorStore.Delete(ctx, w); err != nil && !errors.Is(err, store.ErrNotFound) {
+	// 不传 credentialID 时这是**集合删除**（清空该用户全部该方法因子）。
+	// `Store.Delete` 现为幂等语义（0 行返回 (0, nil)，2026-09-23 决策，D12 修复）：
+	// 用户禁用**本就未启用**的方法时删 0 行是合法结果，不再需要容忍样板。
+	if _, err := bootstrappkg.MFAFactorStore.Delete(ctx, w); err != nil {
 		return fmt.Errorf("mfa: disable factor: %w", err)
 	}
 	return nil
@@ -248,7 +247,7 @@ func (b *Biz) RevokeDevice(ctx context.Context, tenantID, userID, credentialID s
 		store.Eq("user_id", userID),
 		store.Eq("id", credentialID),
 	}}
-	if err := bootstrappkg.MFAFactorStore.Delete(ctx, w); err != nil {
+	if _, err := bootstrappkg.MFAFactorStore.Delete(ctx, w); err != nil {
 		return fmt.Errorf("mfa: revoke device: %w", err)
 	}
 	return nil
@@ -303,7 +302,7 @@ func (b *Biz) VerifyChallenge(ctx context.Context, opID, code string) (*authmode
 	}
 	now := time.Now()
 	target.LastUsedAt = &now
-	_ = bootstrappkg.MFAFactorStore.Update(ctx, target) // best-effort
+	_, _ = bootstrappkg.MFAFactorStore.Update(ctx, target) // best-effort（v0.11.0 起返回 (rows, error)）
 	return target, nil
 }
 

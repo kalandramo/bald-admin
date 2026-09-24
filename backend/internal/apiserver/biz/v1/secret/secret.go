@@ -153,7 +153,7 @@ func (b *SecretBiz) Delete(ctx context.Context, id string) (bool, error) {
 	if _, err := b.store().Get(ctx, w); err != nil {
 		return false, fmt.Errorf("secret.Delete(%s): %w", id, err)
 	}
-	if err := b.store().Delete(ctx, w); err != nil {
+	if _, err := b.store().Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("secret.Delete(%s): %w", id, err)
 	}
 	if b.cache != nil {

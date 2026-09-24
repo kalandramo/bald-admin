@@ -513,8 +513,14 @@ github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfV
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/kalandramo/bald v0.8.2 h1:SRb+KT0I8sj7RErRfZsLcgzX9rOdcLCHBoEq8cWYAYs=
 github.com/kalandramo/bald v0.8.2/go.mod h1:3SWPQE4dhPH6SJ2croMTGycchJmkw54996T99oN8Ha0=
+github.com/kalandramo/bald v0.11.0 h1:K6Us2Ypinwwy9MAdRjRqkA4Q5uB5KPIenFK0ceRqEis=
+github.com/kalandramo/bald v0.11.0/go.mod h1:3SWPQE4dhPH6SJ2croMTGycchJmkw54996T99oN8Ha0=
+github.com/kalandramo/bald v0.12.0 h1:biJh/yqAKLmWtJK+DCiYQegGZtgc38IvkMs6qFlS47A=
+github.com/kalandramo/bald v0.12.0/go.mod h1:Mx5r3BdVufj7Im9cWe2Y4K6KkNFvb4mxxo7keAsqN6Y=
 github.com/kalandramo/bald-crud/viewer v0.1.0 h1:Trtt0xJt88NS1KZQRqbhL094tQA4sFxFWfoJRSFlvK4=
 github.com/kalandramo/bald-crud/viewer v0.1.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
+github.com/kalandramo/bald-crud/viewer v0.2.0 h1:EbnoeJ7EFAd1T6RG0uwBtiaz5/t3bgAau/DcRB7DS0U=
+github.com/kalandramo/bald-crud/viewer v0.2.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
 github.com/kalandramo/bald/bconf v0.7.2 h1:9kajZIh3i9wonO2ShsgFe3iUFbiETyDQ2mWmA3Td/p8=
 github.com/kalandramo/bald/bconf v0.7.2/go.mod h1:XzgRroT/H+YpQOUeYC7Ect7bQOUiKc5m7/PeB7PmcD8=
 github.com/kalandramo/bald/bconfig v0.1.0 h1:3KqvdeIL02JgCIKGnXSstvm8Euql+mRwDIaKCWU9+V8=
@@ -555,6 +561,8 @@ github.com/kalandramo/bald/contrib/observability-otlp v0.2.0 h1:gCNNnW4bA3HnnScD
 github.com/kalandramo/bald/contrib/observability-otlp v0.2.0/go.mod h1:cVSs8bdvqkMdmjsIStmAstcbTUX6aYo0yWIfngTdnsc=
 github.com/kalandramo/bald/contrib/store-gorm v0.1.0 h1:zcWBEhfDbIqf0tsBW/pNsrHZQ6dmc8WMqIELEzzUBJE=
 github.com/kalandramo/bald/contrib/store-gorm v0.1.0/go.mod h1:WhNbI9WipKn22RnWh1n+bMiOqfEw1bRtjybfaDz6zXQ=
+github.com/kalandramo/bald/contrib/store-gorm v0.1.4 h1:LnGu36nZHqAgNpB5pmlJWpW0UQ7Kifk7jL4peP33AZk=
+github.com/kalandramo/bald/contrib/store-gorm v0.1.4/go.mod h1:ooIPuZCgD1ZV8YP3kDndQltj6auJ3S5vgnFpp9mb6fo=
 github.com/kalandramo/bald/encoding v0.1.0 h1:oQZwHnjBD/rSG6QHvhv7Myx8GI+9T3V2lxiWzcBPUUY=
 github.com/kalandramo/bald/encoding v0.1.0/go.mod h1:RWT+lGgXHZJElSVwSri1AVaImHK6Ju0vohD4iZxn6QA=
 github.com/kalandramo/bald/encoding/json v0.1.1 h1:PVZFFF583qhtYtJK5QZ9YFQihFkbz7U4nDk7FsSE9ko=

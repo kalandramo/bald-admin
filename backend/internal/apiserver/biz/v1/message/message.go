@@ -176,7 +176,7 @@ func (b *Biz) UpdateMessage(ctx context.Context, id string, m Message) error {
 	if m.Status != "" {
 		model.Status = m.Status
 	}
-	if err := bootstrappkg.MessageStore.Update(ctx, model); err != nil {
+	if _, err := bootstrappkg.MessageStore.Update(ctx, model); err != nil {
 		return fmt.Errorf("message: update: %w", err)
 	}
 	return nil
@@ -185,18 +185,17 @@ func (b *Biz) UpdateMessage(ctx context.Context, id string, m Message) error {
 // DeleteMessage 删除消息本体（源 DeleteMessage）。
 // 同时删除其全部收件记录（避免悬挂——源用事务保证）。
 //
-// **容忍级联删除的 ErrNotFound**：`Store.Delete(ctx, where)` 对 **0 行匹配**
-// 返回 `store.ErrNotFound`——那是为「按主键删单条」设计的语义，用在
-// 「按条件删集合」上会误报。无收件记录的消息（如草稿）删除时，级联删除
-// 匹配 0 行是**合法结果而非错误**。（此缺陷由本波 e2e 测试捕获。）
+// 级联删除是**集合删除**（按 message_id 匹配）。`Store.Delete` 现为幂等语义
+// （0 行返回 (0, nil)，2026-09-23 决策，D12 修复）——无收件记录的消息（如草稿）
+// 删 0 行是合法结果，不再需要容忍 ErrNotFound 的样板。
 func (b *Biz) DeleteMessage(ctx context.Context, id string) error {
 	// 先删收件记录（无外键约束下的手工级联；顺序重要：先子后父）。
-	if err := bootstrappkg.RecipientStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.RecipientStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("message_id", id)},
-	}); err != nil && !errors.Is(err, store.ErrNotFound) {
+	}); err != nil {
 		return fmt.Errorf("message: delete recipients: %w", err)
 	}
-	if err := bootstrappkg.MessageStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.MessageStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("message: delete: %w", err)
@@ -357,7 +356,7 @@ func (b *Biz) RevokeMessage(ctx context.Context, messageID, userID string) error
 			continue // 指定用户时只撤该用户的
 		}
 		r.Status = RecipientRevoked
-		if uerr := bootstrappkg.RecipientStore.Update(ctx, r); uerr != nil {
+		if _, uerr := bootstrappkg.RecipientStore.Update(ctx, r); uerr != nil {
 			return fmt.Errorf("message: revoke recipient: %w", uerr)
 		}
 	}
@@ -369,7 +368,7 @@ func (b *Biz) RevokeMessage(ctx context.Context, messageID, userID string) error
 		return err
 	}
 	m.Status = StatusRevoked
-	if err := bootstrappkg.MessageStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.MessageStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("message: revoke: %w", err)
 	}
 	return nil
@@ -473,7 +472,7 @@ func (b *Biz) UpdateCategory(ctx context.Context, id string, c Category) error {
 		m.Name = c.Name
 	}
 	m.Enabled = c.Enabled
-	if err := bootstrappkg.MessageCategoryStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.MessageCategoryStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("message: update category: %w", err)
 	}
 	return nil
@@ -481,7 +480,7 @@ func (b *Biz) UpdateCategory(ctx context.Context, id string, c Category) error {
 
 // DeleteCategory 删除（源 Delete）。
 func (b *Biz) DeleteCategory(ctx context.Context, id string) error {
-	if err := bootstrappkg.MessageCategoryStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.MessageCategoryStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("message: delete category: %w", err)
@@ -572,7 +571,7 @@ func (b *Biz) MarkAsRead(ctx context.Context, id string) error {
 	now := time.Now()
 	m.Status = RecipientRead
 	m.ReadAt = &now
-	if err := bootstrappkg.RecipientStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.RecipientStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("message: mark read: %w", err)
 	}
 	return nil
@@ -595,7 +594,7 @@ func (b *Biz) MarkStatus(ctx context.Context, ids []string, status string) error
 			now := time.Now()
 			m.ReadAt = &now
 		}
-		if uerr := bootstrappkg.RecipientStore.Update(ctx, m); uerr != nil {
+		if _, uerr := bootstrappkg.RecipientStore.Update(ctx, m); uerr != nil {
 			return fmt.Errorf("message: mark status: %w", uerr)
 		}
 	}
@@ -612,7 +611,7 @@ func (b *Biz) DeleteFromInbox(ctx context.Context, id string) error {
 		return err
 	}
 	m.Status = RecipientDeleted
-	if err := bootstrappkg.RecipientStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.RecipientStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("message: delete from inbox: %w", err)
 	}
 	return nil

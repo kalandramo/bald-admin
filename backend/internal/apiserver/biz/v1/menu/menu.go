@@ -152,7 +152,7 @@ func (b *Biz) Update(ctx context.Context, id, parentID, typ, name, path, compone
 	if remark != "" {
 		m.Remark = remark
 	}
-	if err := b.store().Update(ctx, m); err != nil {
+	if _, err := b.store().Update(ctx, m); err != nil {
 		return nil, fmt.Errorf("menu.Update(%s): %w", id, err)
 	}
 	return m, nil
@@ -179,7 +179,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (int, error) {
 	for _, mid := range ids {
 		w := &store.Where{}
 		w.Filters = append(w.Filters, store.Eq("id", mid))
-		if err := b.store().Delete(ctx, w); err != nil {
+		if _, err := b.store().Delete(ctx, w); err != nil {
 			return deleted, fmt.Errorf("menu.Delete(%s): %w", mid, err)
 		}
 		deleted++

@@ -366,16 +366,16 @@ func InitBridges(ctx context.Context) error {
 		}
 	}
 	UserStore = store.NewStore[authmodel.User](baldgorm.NewGormProvider(db, func(u *authmodel.User) string { return u.ID }))
-	RoleStore = store.NewStore[authmodel.Role](baldgorm.NewGormProvider(db, func(r *authmodel.Role) string { return r.ID }))
+	RoleStore = store.NewStore[authmodel.Role](baldgorm.NewGormProvider(db, func(r *authmodel.Role) string { return r.ID }), store.WithPlatformLevel[authmodel.Role]())
 	SecretStore = store.NewStore[authmodel.Secret](baldgorm.NewGormProvider(db, func(s *authmodel.Secret) string { return s.ID }))
-	TenantStore = store.NewStore[authmodel.Tenant](baldgorm.NewGormProvider(db, func(t *authmodel.Tenant) string { return t.ID }))
-	MenuStore = store.NewStore[authmodel.Menu](baldgorm.NewGormProvider(db, func(m *authmodel.Menu) string { return m.ID }))
-	PermissionStore = store.NewStore[authmodel.Permission](baldgorm.NewGormProvider(db, func(p *authmodel.Permission) string { return p.ID }))
+	TenantStore = store.NewStore[authmodel.Tenant](baldgorm.NewGormProvider(db, func(t *authmodel.Tenant) string { return t.ID }), store.WithPlatformLevel[authmodel.Tenant]())
+	MenuStore = store.NewStore[authmodel.Menu](baldgorm.NewGormProvider(db, func(m *authmodel.Menu) string { return m.ID }), store.WithPlatformLevel[authmodel.Menu]())
+	PermissionStore = store.NewStore[authmodel.Permission](baldgorm.NewGormProvider(db, func(p *authmodel.Permission) string { return p.ID }), store.WithPlatformLevel[authmodel.Permission]())
 	RolePolicyStore = store.NewStore[authmodel.RolePolicy](baldgorm.NewGormProvider(db,
-		func(p *authmodel.RolePolicy) string { return p.ID }))
+		func(p *authmodel.RolePolicy) string { return p.ID }), store.WithPlatformLevel[authmodel.RolePolicy]())
 	DictTypeStore = store.NewStore[authmodel.DictType](baldgorm.NewGormProvider(db, func(t *authmodel.DictType) string { return t.ID }))
 	DictEntryStore = store.NewStore[authmodel.DictEntry](baldgorm.NewGormProvider(db, func(e *authmodel.DictEntry) string { return e.ID }))
-	LanguageStore = store.NewStore[authmodel.Language](baldgorm.NewGormProvider(db, func(l *authmodel.Language) string { return l.ID }))
+	LanguageStore = store.NewStore[authmodel.Language](baldgorm.NewGormProvider(db, func(l *authmodel.Language) string { return l.ID }), store.WithPlatformLevel[authmodel.Language]())
 	FileStore = store.NewStore[authmodel.File](baldgorm.NewGormProvider(db, func(f *authmodel.File) string { return f.ID }))
 	// T6：审计查询仓储（自增主键）。2026-09-22 统一分页风格后走
 	// ListWithPaging，页大小经 WithPageSize/WithMaxPageSize 配置——

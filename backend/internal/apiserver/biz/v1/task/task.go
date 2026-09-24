@@ -212,7 +212,7 @@ func (b *Biz) UpdateTask(ctx context.Context, typeName string, t Task) error {
 		m.Remark = t.Remark
 	}
 	m.Enable = t.Enable
-	if err := bootstrappkg.TaskStore.Update(ctx, m); err != nil {
+	if _, err := bootstrappkg.TaskStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("task: update: %w", err)
 	}
 	return nil
@@ -223,7 +223,7 @@ func (b *Biz) DeleteTask(ctx context.Context, typeName string) error {
 	if b.isRunning(typeName) {
 		_ = b.StopTask(ctx, typeName)
 	}
-	if err := bootstrappkg.TaskStore.Delete(ctx, &store.Where{
+	if _, err := bootstrappkg.TaskStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", typeName)},
 	}); err != nil {
 		return fmt.Errorf("task: delete: %w", err)

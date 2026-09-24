@@ -105,7 +105,7 @@ func (b *Biz) Update(ctx context.Context, id, username string, roles []string, p
 		}
 		u.PasswordHash = string(hash)
 	}
-	if err := b.store().Update(ctx, u); err != nil {
+	if _, err := b.store().Update(ctx, u); err != nil {
 		return nil, fmt.Errorf("user.Update(%s): %w", id, err)
 	}
 	return u, nil
@@ -118,7 +118,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (bool, error) {
 	if _, err := b.store().Get(ctx, w.T(ctx)); err != nil {
 		return false, fmt.Errorf("user.Delete(%s): %w", id, err)
 	}
-	if err := b.store().Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.store().Delete(ctx, w.T(ctx)); err != nil {
 		return false, fmt.Errorf("user.Delete(%s): %w", id, err)
 	}
 	return true, nil
