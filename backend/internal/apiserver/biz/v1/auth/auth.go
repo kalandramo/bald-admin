@@ -130,13 +130,16 @@ type Biz struct {
 	//     仍由 casbin 策略负责（二者正交）。
 	//
 	// **nil = 禁用态（默认）**：不签发平台标记，所有请求按租户隔离。
-	// 生产环境的「平台管理员」身份定义（按角色 / 按租户 / 白名单）属业务
-	// 决策，由 main.go 经 SetPlatformResolver 注入；未注入时本能力不生效。
+	// 生产判据见 authmodel.IsPlatformUser（按 superadmin 角色），由 main.go
+	// 经 SetPlatformResolver 注入；未注入时本能力不生效（fail-closed）。
 	//
-	// 为什么不硬编码判据：种子数据中 admin 属 t-default 租户、角色仅
-	// admin/viewer，**没有现成的平台身份载体**。硬编码（如「TenantID ==
-	// platform」）会把隐式约定写死，与框架侧「显式声明、绝不隐式推断」的
-	// 纪律相悖。
+	// 判据选择沿革：最初种子数据中 admin 属 t-default 租户、角色仅
+	// admin/viewer，**没有现成的平台身份载体**，故留空待定。2026-09-24 定案
+	// 为**新增 superadmin 角色**——角色是可枚举、可管理的显式声明，比「按
+	// 用户名」或「按租户值」更符合框架侧「显式声明、绝不隐式推断」的纪律。
+	//
+	// 判据实现放在 authmodel 而非本包：bootstrap 播种角色时也要用它，而
+	// bootstrap 不能 import 本包（成环）。见 authmodel.RoleSuperAdmin 注释。
 	platformResolver func(*authmodel.User) bool
 }
 
@@ -165,8 +168,8 @@ func New(signer authnjwt.Signer) *Biz {
 // 与 SetLoginLimiter/SetTokenStore 同款的运行期注入：判据可能需要读配置或
 // DB（如角色表），而那些在 BeforeStart 才就绪。
 //
-// 生产身份定义（按角色 / 按租户 / 白名单）属业务决策，见 Biz.platformResolver
-// 字段注释。未注入时，平台级视图能力在本服务不生效（fail-closed）。
+// 生产判据为 authmodel.IsPlatformUser（superadmin 角色）；未注入时本能力
+// 不生效（fail-closed）。
 func (b *Biz) SetPlatformResolver(fn func(*authmodel.User) bool) {
 	if fn != nil {
 		b.platformResolver = fn

@@ -45,6 +45,7 @@ import (
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
+	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
 	"github.com/kalandramo/bald-admin/internal/security/token"
@@ -377,6 +378,15 @@ func newApp(
 			if r := buildLoginRetrier(app.Config()); r != nil {
 				bizSet.Auth.SetLoginRetrier(r)
 			}
+			// 平台级身份判据（跨租户视图）：持有 superadmin 角色的用户签发
+			// Platform=true 的令牌，bald pkg/store 据此跳过租户隔离。
+			//
+			// 判据放在 authmodel.IsPlatformUser（而非此处内联）：测试要复用
+			// 同一判据断言，且 bootstrap 播种角色时也引用同一常量。
+			//
+			// **无条件注入**（不像上面几个 setter 有 nil 分支）——判据是纯函数，
+			// 无外部依赖、无时序要求，不存在「未就绪」状态。
+			bizSet.Auth.SetPlatformResolver(authmodel.IsPlatformUser)
 			// Wave 1d：令牌存储 + 校验器接线（Logout 吊销 / RefreshToken 刷新 /
 			// ValidateToken 校验）。
 			//

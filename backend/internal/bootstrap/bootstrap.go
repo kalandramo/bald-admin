@@ -473,6 +473,11 @@ func seed(ctx context.Context) error {
 	roles := []*authmodel.Role{
 		{ID: "admin", Perms: "secret:get,secret:delete,auth:get,SecretService.GetSecret:call,SecretService.DeleteSecret:call,UserService.ListUsers:call,AuthService.WhoAmI:call"},
 		{ID: "viewer", Perms: "secret:get,auth:get,SecretService.GetSecret:call,UserService.ListUsers:call"},
+		// superadmin 是**平台级身份标记**，刻意不给 Perms——它只回答「是否按
+		// 租户切分数据」（见 authmodel.RoleSuperAdmin 的语义边界），
+		// 不参与 casbin 授权。给它权限需另外加 RolePolicy 行（当前刻意不加，
+		// 保持「平台身份」与「权限等级」两个维度正交）。
+		{ID: authmodel.RoleSuperAdmin, Perms: ""},
 	}
 	for _, r := range roles {
 		if err := RoleStore.Create(ctx, r); err != nil && err != store.ErrConflict {
@@ -489,7 +494,10 @@ func seed(ctx context.Context) error {
 		return err
 	}
 	users := []*authmodel.User{
-		{ID: "u-admin", Username: "admin", PasswordHash: string(adminHash), TenantID: "t-default", Roles: "admin"},
+		// u-admin 带 superadmin 角色 → 签发 Platform=true 的令牌（跨租户视图）。
+		// **admin 保持在首位**：RolesList()[0] 被 store_login_e2e_test 断言为
+		// "admin"（见该测试 :64），追加角色不得改变首位。
+		{ID: "u-admin", Username: "admin", PasswordHash: string(adminHash), TenantID: "t-default", Roles: "admin," + authmodel.RoleSuperAdmin},
 		{ID: "u-alice", Username: "alice", PasswordHash: string(aliceHash), TenantID: "t-default", Roles: "viewer"},
 		// 第二租户用户：无 secret 权限，用于验证多租户隔离（越权跨租户检索被拦）。
 		{ID: "u-bob", Username: "bob", PasswordHash: string(aliceHash), TenantID: "t-other", Roles: "viewer"},
