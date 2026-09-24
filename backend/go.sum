@@ -545,6 +545,8 @@ github.com/kalandramo/bald/contrib/authn-jwt v0.1.2 h1:vp2aCcBoMvEZFZZNZ088Sn7iu
 github.com/kalandramo/bald/contrib/authn-jwt v0.1.2/go.mod h1:gGMbhN3E2/ZjrY8vA/5qPCNTuedIXxaOBSH9/i/wr0M=
 github.com/kalandramo/bald/contrib/authn-jwt v0.1.3 h1:na9bNZcu467WgQz2Dypy8CFKu98LrvsVGNEUfcRkyK4=
 github.com/kalandramo/bald/contrib/authn-jwt v0.1.3/go.mod h1:gGMbhN3E2/ZjrY8vA/5qPCNTuedIXxaOBSH9/i/wr0M=
+github.com/kalandramo/bald/contrib/authn-jwt v0.1.4 h1:JGrDbdxYYsgdYCkpiwgEQfFXtK4Z2+CP7ehF0JCh8sM=
+github.com/kalandramo/bald/contrib/authn-jwt v0.1.4/go.mod h1:a45ewvm48NHe+6hV9ranj1cT+cKDZPmD/C0X9RBczVU=
 github.com/kalandramo/bald/contrib/authz-casbin v0.1.0 h1:3i2Ls9H1xGXx2lz+t6+VfGKLzeUn5P6QHhDJ4RRiCZs=
 github.com/kalandramo/bald/contrib/authz-casbin v0.1.0/go.mod h1:hSu8aAuJLRX18TBOfzUOKt2PeEudgsz5CP88Untfet0=
 github.com/kalandramo/bald/contrib/observability-otlp v0.2.0 h1:gCNNnW4bA3HnnScD0yqycRBbEdbYNKTtwyWgqAv1rlg=
