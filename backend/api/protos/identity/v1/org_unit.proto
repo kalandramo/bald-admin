@@ -7,6 +7,7 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/identity/v1;ide
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 import "bald/store/v1/store.proto";
+import "buf/validate/validate.proto";
 
 // OrgUnitService 组织单元管理（Wave P0.5，自 go-wind-admin identity 域
 // org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
@@ -188,9 +189,24 @@ message GetOrgUnitResponse {
   OrgUnit org_unit = 1;
 }
 
+// CreateOrgUnitRequest 创建组织单元入参。
+//
+// **字段校验（Wave 校验层契约化）**：code/name 的必填与长度以 buf.validate
+// 注解表达，运行时由 protovalidate 读取执行（gRPC 面经 ValidatorInterceptor、
+// gin 面经 handler 显式校验，两处共用同一份规则）。业务不变量（parent 存在性、
+// 防环）注解表达不了，仍归 biz——见 biz/v1/org/org.go。
+//
+// 注：**注解只加在本专用输入消息上**，不加在共享的 OrgUnit（它同时用于响应与
+// BatchCreateOrgUnitsRequest.items——加注解会让历史数据的列表接口全线报错）。
 message CreateOrgUnitRequest {
-  string code = 1;      // 唯一编码（业务键）
-  string name = 2;      // 名称
+  string code = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 64
+  }]; // 唯一编码（业务键）
+  string name = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 128
+  }]; // 名称
   OrgUnit.Type type = 3;
   string parent_id = 4; // 父节点 code（空 = 根）
   OrgUnit.Status status = 5; // UNSPECIFIED → 服务端默认 STATUS_ON
@@ -204,9 +220,15 @@ message CreateOrgUnitResponse {
   OrgUnit org_unit = 1;
 }
 
+// UpdateOrgUnitRequest 更新组织单元入参。
+//
+// **校验语义与 Create 的关键差异**：更新采用「非空字段即更新」语义，name 为空
+// 表示「不改」——故 name **只加 max_len、不加 min_len**（加 min_len 会把
+// 「只改其他字段、不传 name」这种正常操作误判为非法）。code 是路径参数定位，
+// 同样不强制非空（路由保证非空段）。
 message UpdateOrgUnitRequest {
-  string code = 1;      // 组织单元编码（路径参数，定位）
-  string name = 2;      // 空 = 不改
+  string code = 1; // 组织单元编码（路径参数，定位）
+  string name = 2 [(buf.validate.field).string = {max_len: 128}]; // 空 = 不改
   OrgUnit.Type type = 3;   // UNSPECIFIED = 不改
   string parent_id = 4;    // 空 = 不改（变更时做防环校验）
   OrgUnit.Status status = 5; // UNSPECIFIED = 不改

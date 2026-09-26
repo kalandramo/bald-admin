@@ -6,6 +6,7 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/identity/v1;ide
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "buf/validate/validate.proto";
 
 // PositionService 职位管理（Wave P0.5，自 go-wind-admin identity 域
 // position.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
@@ -150,9 +151,19 @@ message GetPositionResponse {
   Position position = 1;
 }
 
+// CreatePositionRequest 创建职位入参。
+// **字段校验**：code/name 的必填与长度以 buf.validate 注解表达（同
+// CreateOrgUnitRequest 的说明——只加专用输入消息，不碰共享 Position）。
+// org_unit_id 的**存在性**校验依赖查库，注解表达不了，仍归 biz。
 message CreatePositionRequest {
-  string code = 1;      // 唯一编码（业务键）
-  string name = 2;      // 职位名称
+  string code = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 64
+  }]; // 唯一编码（业务键）
+  string name = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 128
+  }]; // 职位名称
   int32 headcount = 3;
   int32 sort_order = 4;
   Position.Status status = 5; // UNSPECIFIED → 服务端默认 STATUS_ON
@@ -172,9 +183,11 @@ message CreatePositionResponse {
   Position position = 1;
 }
 
+// UpdatePositionRequest 更新职位入参。
+// **校验语义同 UpdateOrgUnitRequest**：name 为空 = 不改，故只加 max_len 不加 min_len。
 message UpdatePositionRequest {
-  string code = 1;      // 职位编码（路径参数，定位）
-  string name = 2;      // 空 = 不改
+  string code = 1; // 职位编码（路径参数，定位）
+  string name = 2 [(buf.validate.field).string = {max_len: 128}]; // 空 = 不改
   int32 headcount = 3;  // 见 headcount_set
   bool headcount_set = 4;
   int32 sort_order = 5; // 见 sort_order_set

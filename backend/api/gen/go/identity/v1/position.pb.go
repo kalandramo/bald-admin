@@ -7,6 +7,7 @@
 package identityv1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -586,6 +587,10 @@ func (x *GetPositionResponse) GetPosition() *Position {
 	return nil
 }
 
+// CreatePositionRequest 创建职位入参。
+// **字段校验**：code/name 的必填与长度以 buf.validate 注解表达（同
+// CreateOrgUnitRequest 的说明——只加专用输入消息，不碰共享 Position）。
+// org_unit_id 的**存在性**校验依赖查库，注解表达不了，仍归 biz。
 type CreatePositionRequest struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Code                string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"` // 唯一编码（业务键）
@@ -786,6 +791,8 @@ func (x *CreatePositionResponse) GetPosition() *Position {
 	return nil
 }
 
+// UpdatePositionRequest 更新职位入参。
+// **校验语义同 UpdateOrgUnitRequest**：name 为空 = 不改，故只加 max_len 不加 min_len。
 type UpdatePositionRequest struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Code                string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`            // 职位编码（路径参数，定位）
@@ -1198,7 +1205,7 @@ var File_identity_v1_position_proto protoreflect.FileDescriptor
 
 const file_identity_v1_position_proto_rawDesc = "" +
 	"\n" +
-	"\x1aidentity/v1/position.proto\x12\x19go.bald.admin.identity.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdd\a\n" +
+	"\x1aidentity/v1/position.proto\x12\x19go.bald.admin.identity.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bbuf/validate/validate.proto\"\xdd\a\n" +
 	"\bPosition\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x12\n" +
@@ -1249,10 +1256,11 @@ const file_identity_v1_position_proto_rawDesc = "" +
 	"\x12GetPositionRequest\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\"V\n" +
 	"\x13GetPositionResponse\x12?\n" +
-	"\bposition\x18\x01 \x01(\v2#.go.bald.admin.identity.v1.PositionR\bposition\"\xbe\x04\n" +
-	"\x15CreatePositionRequest\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
+	"\bposition\x18\x01 \x01(\v2#.go.bald.admin.identity.v1.PositionR\bposition\"\xd5\x04\n" +
+	"\x15CreatePositionRequest\x12\x1d\n" +
+	"\x04code\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18@R\x04code\x12\x1e\n" +
+	"\x04name\x18\x02 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01\x18\x80\x01R\x04name\x12\x1c\n" +
 	"\theadcount\x18\x03 \x01(\x05R\theadcount\x12\x1d\n" +
 	"\n" +
 	"sort_order\x18\x04 \x01(\x05R\tsortOrder\x12B\n" +
@@ -1270,10 +1278,10 @@ const file_identity_v1_position_proto_rawDesc = "" +
 	"\x16reports_to_position_id\x18\x0e \x01(\tR\x13reportsToPositionId\x125\n" +
 	"\bstart_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\astartAt\"Y\n" +
 	"\x16CreatePositionResponse\x12?\n" +
-	"\bposition\x18\x01 \x01(\v2#.go.bald.admin.identity.v1.PositionR\bposition\"\x9e\x05\n" +
+	"\bposition\x18\x01 \x01(\v2#.go.bald.admin.identity.v1.PositionR\bposition\"\xa8\x05\n" +
 	"\x15UpdatePositionRequest\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12\x1c\n" +
+	"\x04name\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01R\x04name\x12\x1c\n" +
 	"\theadcount\x18\x03 \x01(\x05R\theadcount\x12#\n" +
 	"\rheadcount_set\x18\x04 \x01(\bR\fheadcountSet\x12\x1d\n" +
 	"\n" +

@@ -7,6 +7,7 @@
 package identityv1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	v1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -678,6 +679,15 @@ func (x *GetOrgUnitResponse) GetOrgUnit() *OrgUnit {
 	return nil
 }
 
+// CreateOrgUnitRequest 创建组织单元入参。
+//
+// **字段校验（Wave 校验层契约化）**：code/name 的必填与长度以 buf.validate
+// 注解表达，运行时由 protovalidate 读取执行（gRPC 面经 ValidatorInterceptor、
+// gin 面经 handler 显式校验，两处共用同一份规则）。业务不变量（parent 存在性、
+// 防环）注解表达不了，仍归 biz——见 biz/v1/org/org.go。
+//
+// 注：**注解只加在本专用输入消息上**，不加在共享的 OrgUnit（它同时用于响应与
+// BatchCreateOrgUnitsRequest.items——加注解会让历史数据的列表接口全线报错）。
 type CreateOrgUnitRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"` // 唯一编码（业务键）
@@ -830,6 +840,12 @@ func (x *CreateOrgUnitResponse) GetOrgUnit() *OrgUnit {
 	return nil
 }
 
+// UpdateOrgUnitRequest 更新组织单元入参。
+//
+// **校验语义与 Create 的关键差异**：更新采用「非空字段即更新」语义，name 为空
+// 表示「不改」——故 name **只加 max_len、不加 min_len**（加 min_len 会把
+// 「只改其他字段、不传 name」这种正常操作误判为非法）。code 是路径参数定位，
+// 同样不强制非空（路由保证非空段）。
 type UpdateOrgUnitRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`                                                    // 组织单元编码（路径参数，定位）
@@ -1178,7 +1194,7 @@ var File_identity_v1_org_unit_proto protoreflect.FileDescriptor
 
 const file_identity_v1_org_unit_proto_rawDesc = "" +
 	"\n" +
-	"\x1aidentity/v1/org_unit.proto\x12\x19go.bald.admin.identity.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x19bald/store/v1/store.proto\"\xd5\x06\n" +
+	"\x1aidentity/v1/org_unit.proto\x12\x19go.bald.admin.identity.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x19bald/store/v1/store.proto\x1a\x1bbuf/validate/validate.proto\"\xd5\x06\n" +
 	"\aOrgUnit\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x12\n" +
@@ -1235,10 +1251,11 @@ const file_identity_v1_org_unit_proto_rawDesc = "" +
 	"\x11GetOrgUnitRequest\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\"S\n" +
 	"\x12GetOrgUnitResponse\x12=\n" +
-	"\borg_unit\x18\x01 \x01(\v2\".go.bald.admin.identity.v1.OrgUnitR\aorgUnit\"\xd1\x02\n" +
-	"\x14CreateOrgUnitRequest\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12;\n" +
+	"\borg_unit\x18\x01 \x01(\v2\".go.bald.admin.identity.v1.OrgUnitR\aorgUnit\"\xe8\x02\n" +
+	"\x14CreateOrgUnitRequest\x12\x1d\n" +
+	"\x04code\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18@R\x04code\x12\x1e\n" +
+	"\x04name\x18\x02 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01\x18\x80\x01R\x04name\x12;\n" +
 	"\x04type\x18\x03 \x01(\x0e2'.go.bald.admin.identity.v1.OrgUnit.TypeR\x04type\x12\x1b\n" +
 	"\tparent_id\x18\x04 \x01(\tR\bparentId\x12A\n" +
 	"\x06status\x18\x05 \x01(\x0e2).go.bald.admin.identity.v1.OrgUnit.StatusR\x06status\x12\x1d\n" +
@@ -1248,10 +1265,10 @@ const file_identity_v1_org_unit_proto_rawDesc = "" +
 	"\x06remark\x18\b \x01(\tR\x06remark\x12 \n" +
 	"\vdescription\x18\t \x01(\tR\vdescription\"V\n" +
 	"\x15CreateOrgUnitResponse\x12=\n" +
-	"\borg_unit\x18\x01 \x01(\v2\".go.bald.admin.identity.v1.OrgUnitR\aorgUnit\"\xf7\x02\n" +
+	"\borg_unit\x18\x01 \x01(\v2\".go.bald.admin.identity.v1.OrgUnitR\aorgUnit\"\x81\x03\n" +
 	"\x14UpdateOrgUnitRequest\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12;\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12\x1c\n" +
+	"\x04name\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01R\x04name\x12;\n" +
 	"\x04type\x18\x03 \x01(\x0e2'.go.bald.admin.identity.v1.OrgUnit.TypeR\x04type\x12\x1b\n" +
 	"\tparent_id\x18\x04 \x01(\tR\bparentId\x12A\n" +
 	"\x06status\x18\x05 \x01(\x0e2).go.bald.admin.identity.v1.OrgUnit.StatusR\x06status\x12\x1d\n" +

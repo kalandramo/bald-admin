@@ -18,6 +18,12 @@ managed:
       module: buf.build/gnostic/gnostic
     - file_option: go_package
       module: buf.build/kalandramo/bald-bconf
+    # protovalidate（Wave 校验层契约化引入）：与上面注释预告的一致——
+    # 不豁免则 buf 为 buf/validate/validate.proto 生成本地副本，与
+    # protovalidate 官方库注册的同一 proto 冲突，运行时直接 panic：
+    #   proto: file "buf/validate/validate.proto" is already registered
+    - file_option: go_package
+      module: buf.build/bufbuild/protovalidate
   override:
     # 生成物按语言分层（gen/go/...），与 go-wind-admin 的 gen/go 结构对齐——
     # 未来若有第二语言/生成面（如 gen/typescript），语言维度即目录维度。
