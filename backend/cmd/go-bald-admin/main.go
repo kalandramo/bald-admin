@@ -38,6 +38,7 @@ import (
 	auditv1 "github.com/kalandramo/bald-admin/api/gen/go/audit/v1"
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
 	filev1 "github.com/kalandramo/bald-admin/api/gen/go/file/v1"
+	identityv1 "github.com/kalandramo/bald-admin/api/gen/go/identity/v1"
 	menuv1 "github.com/kalandramo/bald-admin/api/gen/go/menu/v1"
 	permissionv1 "github.com/kalandramo/bald-admin/api/gen/go/permission/v1"
 	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/secret/v1"
@@ -253,6 +254,10 @@ func newApp(
 		dictv1.RegisterDictEntryServiceServer(s, secretgrpc.NewDictEntryServer(bizSet.Dict))
 		filev1.RegisterFileServiceServer(s, secretgrpc.NewFileServer(bizSet.File))        // T5
 		auditv1.RegisterAuditServiceServer(s, secretgrpc.NewAuditServer(bizSet.AuditLog)) // T6
+		// Wave 1.7 补齐：组织架构（org_unit 7 rpc + position 7 rpc）。
+		// 授权 object 经别名层落到策略 "org-units"/"positions"（见 bootstrap.grpcObjectAliases）。
+		identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(bizSet.Org))
+		identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(bizSet.Org))
 	}
 
 	// app 先声明再进闭包：WithBeforeStart 在 Run 期才执行，届时已赋值
@@ -1137,6 +1142,13 @@ func registerGateway(ctx context.Context, conn *grpc.ClientConn) (http.Handler, 
 		return nil, err
 	}
 	if err := auditv1.RegisterAuditServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	// Wave 1.7 补齐：组织架构网关转码面（复用同一 gRPC 拦截器链）。
+	if err := identityv1.RegisterOrgUnitServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := identityv1.RegisterPositionServiceHandler(ctx, mux, conn); err != nil {
 		return nil, err
 	}
 	return mux, nil

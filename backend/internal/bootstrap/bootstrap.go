@@ -53,6 +53,30 @@ var Signer authnjwt.Signer
 // Authorizer 授权器（M6.1 起由 casbin 桥接 authz.Authorizer 实现）。
 var Authorizer authz.Authorizer
 
+// grpcObjectAliases 是 gRPC 归一化名 → 策略 object 名的别名表（Wave 1.7）。
+//
+// 为什么需要：P9 归一化把 gRPC Service 名压成无分隔小写（DefaultGRPCObject：
+// 取 Service 段、去 "Service" 后缀、ToLower），而 seedPolicies 的 object 沿用
+// HTTP 路径段风格；casbin 精确匹配（r.obj == p.obj）下两者不等 → gRPC 面 403。
+// 实测复现：OrgUnitService→"orgunit" vs 策略 "org-units"；DictTypeService→
+// "dicttype" vs "dict_type"（dict 域 gRPC 面已挂载，故此前已是 403 静默失效）。
+//
+// **只列多词 service**——单词域（SecretService→"secret"、MenuService→"menu"、
+// TenantService→"tenant"、UserService→"user"、PermissionService→"permission"、
+// FileService→"file"、AuditService→"audit"、LanguageService→"language"）天然
+// 与策略一致，不入表（避免冗余映射掩盖真实命名问题）。
+//
+// 未挂 gRPC 但 proto 已存在的域（adminportal / rediscachemonitor）提前入表，
+// 防止「将来注册即中招」——见 Wave 3 的不变量测试。
+var grpcObjectAliases = map[string]string{
+	"orgunit":           "org-units",
+	"position":          "positions",
+	"dicttype":          "dict_type",
+	"dictentry":         "dict_entry",
+	"adminportal":       "admin_portal",
+	"rediscachemonitor": "redis-cache-monitor",
+}
+
 // lazyAuthn / lazyAuthz 把上面的包级桥接变量适配为接口——路由/服务在 main 装配期
 // 注册（此时 Authenticator/Authorizer 尚为 nil，InitBridges 在 appkit.BeforeStart
 // 才赋值），而认证/授权中间件在请求期才真正调用。请求期经本适配器读取最新值。
@@ -448,7 +472,13 @@ func InitBridges(ctx context.Context) error {
 	reloadable := appauthz.NewReloadable(az, func() (authz.Authorizer, error) {
 		return BuildAuthorizer(context.Background())
 	})
-	Authorizer = reloadable
+	// Wave 1.7：再包一层 object 别名装饰器。P9 归一化把 gRPC Service 名压成
+	// 无分隔小写（OrgUnitService→"orgunit"），而策略 object 沿用 HTTP 路径段
+	// 命名（"org-units"）；casbin 精确匹配下 gRPC 面恒 403（实测复现）。
+	// 装饰器在内层**明确拒绝**后按别名重试一次，不放宽任何语义边界。
+	// 详见 internal/security/authz/alias.go 头注与 grpcObjectAliases 的对应说明。
+	Authorizer = appauthz.NewObjectAlias(reloadable, grpcObjectAliases)
+	// 热重载仍指向内层：别名层无状态，重建策略快照即可。
 	SetPolicyReloader(reloadable.Reload)
 
 	log.Info(ctx, "bridges initialized",
@@ -650,16 +680,27 @@ func seedPolicies(ctx context.Context) error {
 		{Role: "viewer", Object: "credentials", Action: "post"},
 		// Wave 1.7：组织架构（org_unit / position）。
 		// admin 全权；viewer 只读（组织架构是全员可见的公共组织信息）。
+		// 动作**六元组**（对齐 dict 域先例，见下方 dict_type/dict_entry）：REST 归一化
+		// 为 HTTP 动词小写（DefaultHTTPAction → get/post/put/delete），gRPC 归一化为
+		// get/list/write（DefaultGRPCAction：Create/Update/BatchCreate→write，List→list）。
+		// 此前只有 get/post/put/delete 四条——补 gRPC 面时 ListOrgUnits(→list) 与
+		// CreateOrgUnit(→write) 会因无策略行而 403（实测复现）。
 		{Role: "admin", Object: "org-units", Action: "get"},
 		{Role: "admin", Object: "org-units", Action: "post"},
 		{Role: "admin", Object: "org-units", Action: "put"},
 		{Role: "admin", Object: "org-units", Action: "delete"},
+		{Role: "admin", Object: "org-units", Action: "list"},
+		{Role: "admin", Object: "org-units", Action: "write"},
 		{Role: "admin", Object: "positions", Action: "get"},
 		{Role: "admin", Object: "positions", Action: "post"},
 		{Role: "admin", Object: "positions", Action: "put"},
 		{Role: "admin", Object: "positions", Action: "delete"},
+		{Role: "admin", Object: "positions", Action: "list"},
+		{Role: "admin", Object: "positions", Action: "write"},
 		{Role: "viewer", Object: "org-units", Action: "get"},
+		{Role: "viewer", Object: "org-units", Action: "list"},
 		{Role: "viewer", Object: "positions", Action: "get"},
+		{Role: "viewer", Object: "positions", Action: "list"},
 		// Wave 2.3：任务调度——**仅 admin**（启停任务影响后台作业，属运维面）。
 		{Role: "admin", Object: "tasks", Action: "get"},
 		{Role: "admin", Object: "tasks", Action: "post"},
