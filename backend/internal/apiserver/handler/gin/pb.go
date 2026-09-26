@@ -22,6 +22,8 @@ import (
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/store"
 	web "github.com/kalandramo/bald/transport/web"
+
+	validation "github.com/kalandramo/bald-admin/internal/security/validation"
 )
 
 // bindPB 按 proto3 JSON 规范把请求体绑定到 proto 消息（DiscardUnknown 兼容宽松客户端）。
@@ -54,6 +56,28 @@ func writePB(c *gingonic.Context, code int, msg proto.Message) {
 func bindErr(c *gingonic.Context, err error) {
 	web.ErrorResponse(c, berrors.BadRequest("").WithMessage("%s", err))
 }
+
+// validatePB 对已绑定的 proto 消息执行 buf.validate 注解校验（Wave 校验层契约化）。
+//
+// 为什么 gin 面需要显式调用：gRPC 面经 ValidatorInterceptor 统一拦截，而 gin
+// 直连路径不经过 gRPC 拦截器链——两侧必须各自触发同一份注解规则（规则本身
+// 只有一份，在 proto 契约里）。gateway 转码面走 gRPC，天然被拦截器覆盖。
+//
+// 返回 true 表示校验通过；false 表示已写出错误响应（调用方直接 return）。
+// 与 bindErr 同形：错误经 web.ErrorResponse 出口，保证三面错误体结构一致。
+//
+// 校验器为包级单例（protovalidate 实例预热 CEL 编译，构造一次复用）。
+func validatePB(c *gingonic.Context, msg proto.Message) bool {
+	if err := pbValidator.Validate(c.Request.Context(), msg); err != nil {
+		web.ErrorResponse(c, err)
+		return false
+	}
+	return true
+}
+
+// pbValidator 是 gin 面共享的校验器单例（懒初始化，构造失败时 panic —— 注解
+// 写错应当在首次使用时立即暴露，而非静默放行全部请求）。
+var pbValidator = validation.MustNew()
 
 // writeBizErr 统一 biz 错误 → 决策⑧错误体（T2 起的三层判定语义保持）：
 //   - *berrors.Error → 框架 ErrorResponse 主路径（httperr.CodeToHTTP 映射，

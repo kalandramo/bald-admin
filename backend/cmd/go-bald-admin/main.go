@@ -54,6 +54,7 @@ import (
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
+	validation "github.com/kalandramo/bald-admin/internal/security/validation"
 	bconf "github.com/kalandramo/bald/bconf"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	baldbootstrap "github.com/kalandramo/bald/bootstrap"
@@ -73,6 +74,7 @@ import (
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
+	grpcmw "github.com/kalandramo/bald/pkg/middleware/grpc"
 	nacoscontract "github.com/kalandramo/bald/registry/nacos/contract"
 	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/transport"
@@ -1065,7 +1067,18 @@ func newGRPCServerOptions() []grpc.ServerOption {
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
 		bundle.Normalized(), // P9：FullMethod → 与 HTTP 同源的权限点
 	)
-	return grpcBundle.GRPCChain()
+	// Wave 校验层契约化：把 protovalidate 校验追加到链**尾**（Authz 之后）。
+	//
+	// 为什么自行追加而非用 GRPCChain()：bundle 不支持注入 validator（其链序
+	// 固化为 Error→…→Authz，无校验层位置）。GRPCInterceptors() 是导出的，
+	// 取回后追加一层即可——语义正确：先认证授权，再校验参数（未授权请求
+	// 不会有机会探测校验规则）。
+	//
+	// MustNew 在装配期构造：protovalidate.New() 预编译注解里的 CEL 表达式，
+	// 注解写错会在此处 panic（fail fast），而非等第一个请求才炸。
+	chain := append(grpcBundle.GRPCInterceptors(),
+		grpcmw.ValidatorInterceptor(validation.MustNew().Validate))
+	return []grpc.ServerOption{grpc.ChainUnaryInterceptor(chain...)}
 }
 
 // buildGateway 构造 grpc-gateway 第三服务器（U1：gRPC/HTTP 归 WithGRPC/WithHTTP

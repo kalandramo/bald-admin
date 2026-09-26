@@ -66,6 +66,9 @@ func RegisterOrg(
 			bindErr(c, err)
 			return
 		}
+		if !validatePB(c, &req) {
+			return
+		}
 		m, err := biz.CreateOrgUnit(c.Request.Context(), tid(c), orgbiz.OrgUnit{
 			Code: req.GetCode(), Name: req.GetName(),
 			Type: req.GetType().String(), ParentID: req.GetParentId(),
@@ -139,6 +142,9 @@ func RegisterOrg(
 			bindErr(c, err)
 			return
 		}
+		if !validatePB(c, &req) {
+			return
+		}
 		in := orgbiz.OrgUnit{
 			Name: req.GetName(), ParentID: req.GetParentId(),
 			LeaderID: req.GetLeaderId(), Remark: req.GetRemark(),
@@ -181,6 +187,9 @@ func RegisterOrg(
 			bindErr(c, err)
 			return
 		}
+		if !validatePB(c, &req) {
+			return
+		}
 		ins := make([]orgbiz.OrgUnit, 0, len(req.GetItems()))
 		for _, it := range req.GetItems() {
 			ins = append(ins, orgbiz.OrgUnit{
@@ -207,6 +216,9 @@ func RegisterOrg(
 		var req identityv1.CreatePositionRequest
 		if err := bindPB(c, &req); err != nil {
 			bindErr(c, err)
+			return
+		}
+		if !validatePB(c, &req) {
 			return
 		}
 		m, err := biz.CreatePosition(c.Request.Context(), tid(c), positionFromCreate(&req))
@@ -252,6 +264,9 @@ func RegisterOrg(
 		var req identityv1.UpdatePositionRequest
 		if err := bindPB(c, &req); err != nil {
 			bindErr(c, err)
+			return
+		}
+		if !validatePB(c, &req) {
 			return
 		}
 		in := orgbiz.Position{
@@ -303,6 +318,9 @@ func RegisterOrg(
 		var req identityv1.BatchCreatePositionsRequest
 		if err := bindPB(c, &req); err != nil {
 			bindErr(c, err)
+			return
+		}
+		if !validatePB(c, &req) {
 			return
 		}
 		ins := make([]orgbiz.Position, 0, len(req.GetItems()))
