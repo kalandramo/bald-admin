@@ -186,7 +186,6 @@ Redis 测试按 **DB 12-15** 隔离（各测试用不同 DB，互不污染）。
 examples/go-bald-admin/                 (独立 go module)
 ├── cmd/bald-admin/main.go          入口：appkit.Run + 拦截器链序 + metrics/audit/nacos 接线
 ├── cmd/bald-admin/wire*.go         业务装配（wire 声明 + 生成实现；BizSet 定义在 apiserver/bizset.go）
-├── cmd/probe/main.go                  T7 冒烟探针（契约路径注册→心跳→注销，task smoke:nacos）
 ├── configs/bald-admin.yaml         契约驱动配置（bconf BootstrapConfig，proto 为唯一真相源）
 ├── api/                               业务契约（T2 收敛：proto + buf 生成物 api/gen/）
 ├── internal/

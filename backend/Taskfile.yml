@@ -78,12 +78,6 @@ tasks:
     cmds:
       - go test {{.TEST_FLAGS}} ./internal/apiserver/e2e/ -run 'TestWave1d|TestWave1_5|TestWave2_6'
 
-  smoke:nacos:
-    desc: T7 冒烟：契约路径注册→12s 心跳窗口→注销（真实云端 Nacos，秒级完成）
-    dir: "{{.MOD}}"
-    cmds:
-      - go run ./cmd/probe
-
   run:
     desc: 本地起服务（默认配置）
     dir: "{{.MOD}}"

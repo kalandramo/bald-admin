@@ -410,6 +410,9 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
   契约路径注册 → 12s 心跳窗口（API 核对 grpc/http 双实例
   healthy=true/ephemeral=true/metadata kind+version）→ Deregister；
   main.go 装配路径 "appkit registered" 日志含三 endpoint；appkit/bootstrap
+  > **现状（2026-09-27）**：`cmd/probe` 与 `task smoke:nacos` 已删除（该探针
+  > 的能力由 `internal/bootstrap` 的 Nacos 装配路径覆盖，且它依赖真实云端
+  > Nacos 无法进 CI）。以上为当时执行记录，保留作历史。
   /bconf/nacos 全模块 build+test 回归绿。
 - **遗留（T8 已清）**：遗留实例与 T7 冒烟临时副本进程已清理，端口释放；
   README env/端口/架构/目录段已在 T8 全面修正（env 前缀实为 `GO_BALD_ADMIN_`，
@@ -446,6 +449,8 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
 - **README 全面修正**：运行段 env（`GO_BALD_ADMIN_` 三覆盖手段）、端口表、架构段
   （PG/策略数据化/文件/Nacos/审计热切换）、目录段（`api/` 收敛 + cmd/probe +
   契约驱动配置）。
+  > **现状（2026-09-27）**：`cmd/probe` 已删除，该目录段的 `cmd/probe` 条目
+  > 与 `task smoke:nacos` 一并移除（原因见上方同节标注）。
 - **§9 序列同步修正**：登录字段/种子 ID/路径风格按实测校正（见上）。
 - **`task verify` 全绿**（apiserver/bootstrap/audit/casbin 全 ok）；main.go doc 注释
   中 viper 时代 `BALD_HTTP_ADDR`/`BALD_SERVER_HTTP_ADDR` 陈旧残留一并清理。
