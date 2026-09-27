@@ -85,6 +85,36 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// 2. 约定装配（U1）：Bind×3 / 配置装载+校验 / 日志两阶段 / 热更新 / registrar /
+	//    可观测性 / 停机 Effect 全部由 FromBootstrap 内化（详见 newApp）。
+	//    Wave 4.1：biz 构造 + 路由注册 + gRPC 服务注册在 newApp 内的 Run 期
+	//    装配钩子里完成（依赖 InitBridges 建立的 store / Redis）。
+	//    Wave 4.3：装配编排抽到 buildApp，使端到端装配测试复用**同一条**生产路径。
+	app, _, err := buildApp(bootstrap, svrOpts, cfgReg)
+	if err != nil {
+		return err
+	}
+
+	// 3. 运行。
+	if err := app.Run(context.Background()); err != nil {
+		baldlog.Error(context.Background(), "bald-admin exited", "error", err)
+		return err
+	}
+	return nil
+}
+
+// buildApp 执行**生产装配路径**（构造期骨架 + newApp 内的运行期钩子装配），
+// 返回未启动的 AppKit（与 appRef）。
+//
+// 抽出理由（Wave 4.3）：端到端装配测试需要驱动**真实**的装配路径——历史上多个
+// 真 bug（M10.1 认证静默失效、Wave 1d 吊销检查失效）之所以未被拦截，正是因 e2e
+// 自行拼装、绕过了 main。把编排抽成函数后，测试与生产共用同一实现，装配缺陷不
+// 再有藏身处。
+func buildApp(
+	bootstrap *bootstrapv1.BootstrapConfig,
+	svrOpts *options.ServerOptions,
+	cfgReg *baldbootstrap.Registry,
+) (*appkit.AppKit, *appRefT, error) {
 	// 1. 构造期只建伺服面骨架（router + 全局中间件）。**业务装配**（biz 构造、
 	//    路由注册、gRPC 服务注册）移至 Run 期装配钩子（见 newApp）——Wave 4.1：
 	//    消除「构造期消费运行期资源（store / Redis）」的时序倒置。
@@ -121,22 +151,12 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	router := gin.New()
 	router.Use(ginBundle.Gin()...)
 
-	// 2. 约定装配（U1）：Bind×3 / 配置装载+校验 / 日志两阶段 / 热更新 / registrar /
-	//    可观测性 / 停机 Effect 全部由 FromBootstrap 内化（详见 newApp）。
-	//    Wave 4.1：biz 构造 + 路由注册 + gRPC 服务注册在 newApp 内的 Run 期
-	//    装配钩子里完成（依赖 InitBridges 建立的 store / Redis）。
 	app, err := newApp(bootstrap, router, cfgReg, healthChecker, svrOpts, appRef, componentFactories)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	appRef.set(app) // M10.2：管理面 handler 经 appRef 请求期取 AppKit（规避装配时序）
-
-	// 3. 运行。
-	if err := app.Run(context.Background()); err != nil {
-		baldlog.Error(context.Background(), "bald-admin exited", "error", err)
-		return err
-	}
-	return nil
+	return app, appRef, nil
 }
 
 // NewCommand 构造 bald-admin 根命令。
