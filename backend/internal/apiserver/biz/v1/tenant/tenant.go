@@ -12,24 +12,23 @@ import (
 	"github.com/kalandramo/bald/berrors"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/pkg/store"
 )
 
-// Biz 租户管理业务。仓储经 store() 请求期读取（wire 构造期 bootstrap.TenantStore
-// 尚未初始化，构造期快照会把 nil 固化进来——见 SecretBiz 同款时序约定）。
-type Biz struct{}
+// Biz 租户管理业务。store 是租户仓储（Wave 3：构造期注入，替代请求期读包级
+// 变量——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+type Biz struct {
+	store *store.Store[authmodel.Tenant]
+}
 
-// New 构造租户业务。
-func New() *Biz { return &Biz{} }
-
-func (b *Biz) store() *store.Store[authmodel.Tenant] { return bootstrappkg.TenantStore }
+// New 构造租户业务。st 是租户仓储（Wave 3 构造期注入）。
+func New(st *store.Store[authmodel.Tenant]) *Biz { return &Biz{store: st} }
 
 // Get 取租户（按编码）。不存在返回 ErrNotFound。
 func (b *Biz) Get(ctx context.Context, id string) (*authmodel.Tenant, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	t, err := b.store().Get(ctx, w)
+	t, err := b.store.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("tenant.Get(%s): %w", id, err)
 	}
@@ -38,7 +37,7 @@ func (b *Biz) Get(ctx context.Context, id string) (*authmodel.Tenant, error) {
 
 // List 全量列出租户（平台语义，不分页——量级小，分页列后续迭代）。
 func (b *Biz) List(ctx context.Context) ([]*authmodel.Tenant, error) {
-	ts, _, err := b.store().List(ctx, &store.Where{})
+	ts, _, err := b.store.List(ctx, &store.Where{})
 	if err != nil {
 		return nil, fmt.Errorf("tenant.List: %w", err)
 	}
@@ -52,7 +51,7 @@ func (b *Biz) Create(ctx context.Context, id, name, remark string) (*authmodel.T
 			WithMessage("tenant.Create: id and name are required")
 	}
 	t := &authmodel.Tenant{ID: id, Name: name, Status: "ON", Remark: remark}
-	if err := b.store().Create(ctx, t); err != nil {
+	if err := b.store.Create(ctx, t); err != nil {
 		return nil, fmt.Errorf("tenant.Create(%s): %w", id, err)
 	}
 	return t, nil
@@ -63,7 +62,7 @@ func (b *Biz) Create(ctx context.Context, id, name, remark string) (*authmodel.T
 func (b *Biz) Update(ctx context.Context, id, name, status, remark string) (*authmodel.Tenant, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	t, err := b.store().Get(ctx, w)
+	t, err := b.store.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("tenant.Update(%s): %w", id, err)
 	}
@@ -82,7 +81,7 @@ func (b *Biz) Update(ctx context.Context, id, name, status, remark string) (*aut
 	if remark != "" {
 		t.Remark = remark
 	}
-	if _, err := b.store().Update(ctx, t); err != nil {
+	if _, err := b.store.Update(ctx, t); err != nil {
 		return nil, fmt.Errorf("tenant.Update(%s): %w", id, err)
 	}
 	return t, nil
@@ -97,10 +96,10 @@ func (b *Biz) Delete(ctx context.Context, id string) (bool, error) {
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.store().Get(ctx, w); err != nil {
+	if _, err := b.store.Get(ctx, w); err != nil {
 		return false, fmt.Errorf("tenant.Delete(%s): %w", id, err)
 	}
-	if _, err := b.store().Delete(ctx, w); err != nil {
+	if _, err := b.store.Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("tenant.Delete(%s): %w", id, err)
 	}
 	return true, nil

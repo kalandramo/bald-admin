@@ -23,7 +23,6 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
 // ErrValidation 入参校验失败（handler 归 400）。
@@ -67,13 +66,18 @@ type Scheduler interface {
 
 // Biz 是任务调度业务。
 type Biz struct {
+	// store 是任务仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	store     *store.Store[authmodel.Task]
 	scheduler Scheduler
 	// running 记录运行中的任务（typeName → entryID）。
 	running map[string]string
 }
 
-// New 构造 Biz。
-func New() *Biz { return &Biz{running: map[string]string{}} }
+// New 构造 Biz。st 是任务仓储（Wave 3 构造期注入——InitializeBiz 现于
+// InitBridges 之后执行，store 已就绪）。
+func New(st *store.Store[authmodel.Task]) *Biz {
+	return &Biz{store: st, running: map[string]string{}}
+}
 
 // SetScheduler 运行期注入调度器（nil 不覆盖）。
 func (b *Biz) SetScheduler(s Scheduler) {
@@ -140,7 +144,7 @@ func (b *Biz) CreateTask(ctx context.Context, tenantID string, t Task) (*Task, e
 		CronSpec: t.CronSpec, TaskPayload: t.TaskPayload, Enable: t.Enable,
 		TaskOptions: t.TaskOptions, Remark: t.Remark,
 	}
-	if err := bootstrappkg.TaskStore.Create(ctx, m); err != nil {
+	if err := b.store.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, fmt.Errorf("%w: task already exists", ErrConflict)
 		}
@@ -151,7 +155,7 @@ func (b *Biz) CreateTask(ctx context.Context, tenantID string, t Task) (*Task, e
 
 // GetTask 查询（源 Get）。
 func (b *Biz) GetTask(ctx context.Context, typeName string) (*Task, error) {
-	m, err := bootstrappkg.TaskStore.Get(ctx, &store.Where{
+	m, err := b.store.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", typeName)},
 	})
 	if err != nil {
@@ -168,7 +172,7 @@ func (b *Biz) ListTasks(ctx context.Context, tenantID string) ([]Task, error) {
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	items, _, err := bootstrappkg.TaskStore.List(ctx, w)
+	items, _, err := b.store.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("task: list: %w", err)
 	}
@@ -187,7 +191,7 @@ func (b *Biz) CountTasks(ctx context.Context, tenantID string) (int64, error) {
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	n, err := bootstrappkg.TaskStore.Count(ctx, w)
+	n, err := b.store.Count(ctx, w)
 	if err != nil {
 		return 0, fmt.Errorf("task: count: %w", err)
 	}
@@ -196,7 +200,7 @@ func (b *Biz) CountTasks(ctx context.Context, tenantID string) (int64, error) {
 
 // UpdateTask 更新（源 Update）。
 func (b *Biz) UpdateTask(ctx context.Context, typeName string, t Task) error {
-	m, err := bootstrappkg.TaskStore.Get(ctx, &store.Where{
+	m, err := b.store.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", typeName)},
 	})
 	if err != nil {
@@ -212,7 +216,7 @@ func (b *Biz) UpdateTask(ctx context.Context, typeName string, t Task) error {
 		m.Remark = t.Remark
 	}
 	m.Enable = t.Enable
-	if _, err := bootstrappkg.TaskStore.Update(ctx, m); err != nil {
+	if _, err := b.store.Update(ctx, m); err != nil {
 		return fmt.Errorf("task: update: %w", err)
 	}
 	return nil
@@ -223,7 +227,7 @@ func (b *Biz) DeleteTask(ctx context.Context, typeName string) error {
 	if b.isRunning(typeName) {
 		_ = b.StopTask(ctx, typeName)
 	}
-	if _, err := bootstrappkg.TaskStore.Delete(ctx, &store.Where{
+	if _, err := b.store.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", typeName)},
 	}); err != nil {
 		return fmt.Errorf("task: delete: %w", err)
@@ -248,7 +252,7 @@ func (b *Biz) StartTask(ctx context.Context, typeName string) error {
 	if !b.hasScheduler() {
 		return ErrNoScheduler
 	}
-	m, err := bootstrappkg.TaskStore.Get(ctx, &store.Where{
+	m, err := b.store.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", typeName)},
 	})
 	if err != nil {
@@ -306,7 +310,7 @@ func (b *Biz) StartAllTasks(ctx context.Context) (int, error) {
 	if !b.hasScheduler() {
 		return 0, ErrNoScheduler
 	}
-	items, _, err := bootstrappkg.TaskStore.List(ctx, &store.Where{})
+	items, _, err := b.store.List(ctx, &store.Where{})
 	if err != nil {
 		return 0, fmt.Errorf("task: list for start: %w", err)
 	}

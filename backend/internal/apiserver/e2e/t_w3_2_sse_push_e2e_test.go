@@ -52,7 +52,7 @@ func (f *fakePublisher) TryPublish(stream, event string, _ any) bool {
 func TestWave3_2_DeliverTriggersPush(t *testing.T) {
 	initMsgBridges(t)
 	pub := &fakePublisher{}
-	biz := msgbiz.NewWithPublisher(pub)
+	biz := msgbiz.NewWithPublisher(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore, pub)
 	ctx := context.Background()
 
 	uid := "u-push-" + time.Now().Format("150405.000000")
@@ -80,7 +80,7 @@ func TestWave3_2_DeliverTriggersPush(t *testing.T) {
 // TestWave3_2_NilPublisherDegrades —— 未装配 SSE 时降级：投递成功但无推送。
 func TestWave3_2_NilPublisherDegrades(t *testing.T) {
 	initMsgBridges(t)
-	biz := msgbiz.New() // 无 publisher
+	biz := msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore) // 无 publisher
 	ctx := context.Background()
 
 	uid := "u-nopub-" + time.Now().Format("150405.000000")
@@ -105,7 +105,7 @@ func TestWave3_2_NilPublisherDegrades(t *testing.T) {
 func TestWave3_2_MultipleRecipientsPushEach(t *testing.T) {
 	initMsgBridges(t)
 	pub := &fakePublisher{}
-	biz := msgbiz.NewWithPublisher(pub)
+	biz := msgbiz.NewWithPublisher(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore, pub)
 	ctx := context.Background()
 
 	sfx := time.Now().Format("150405.000000")
@@ -138,7 +138,7 @@ func TestWave3_2_MultipleRecipientsPushEach(t *testing.T) {
 func TestWave3_2_IdempotentDeliverDoesNotDoublePush(t *testing.T) {
 	initMsgBridges(t)
 	pub := &fakePublisher{}
-	biz := msgbiz.NewWithPublisher(pub)
+	biz := msgbiz.NewWithPublisher(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore, pub)
 	ctx := context.Background()
 
 	uid := "u-idem-" + time.Now().Format("150405.000000")

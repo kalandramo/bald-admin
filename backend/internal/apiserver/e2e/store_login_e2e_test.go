@@ -23,7 +23,7 @@ func TestStoreLogin_M2(t *testing.T) {
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	biz := authbiz.New(bootstrappkg.Signer)
+	biz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
 
 	// admin 登录成功，签发 token 含角色。
 	pair, err := biz.Login(context.Background(), authbiz.Credential{Username: "admin", Password: "admin123"})

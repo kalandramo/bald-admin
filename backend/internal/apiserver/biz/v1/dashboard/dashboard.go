@@ -32,14 +32,22 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
 // Biz 是 dashboard 业务（只读聚合）。
-type Biz struct{}
+type Biz struct {
+	// auditStore / roleStore / userStore 是审计/角色/用户仓储
+	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	auditStore *store.Store[authmodel.AuditRecord]
+	roleStore  *store.Store[authmodel.Role]
+	userStore  *store.Store[authmodel.User]
+}
 
-// New 构造 Biz。
-func New() *Biz { return &Biz{} }
+// New 构造 Biz。as/rs/us 是审计/角色/用户仓储（Wave 3 构造期注入——
+// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+func New(as *store.Store[authmodel.AuditRecord], rs *store.Store[authmodel.Role], us *store.Store[authmodel.User]) *Biz {
+	return &Biz{auditStore: as, roleStore: rs, userStore: us}
+}
 
 // Overview 是概览卡数据（源 DashboardOverviewResponse）。
 type Overview struct {
@@ -77,13 +85,13 @@ func (b *Biz) GetOverview(ctx context.Context, tenantID string) (*Overview, erro
 	if tenantID != "" {
 		userWhere.Filters = append(userWhere.Filters, store.Eq("tenant_id", tenantID))
 	}
-	userCount, err := bootstrappkg.UserStore.Count(ctx, userWhere)
+	userCount, err := b.userStore.Count(ctx, userWhere)
 	if err != nil {
 		return nil, fmt.Errorf("dashboard: count users: %w", err)
 	}
 
 	// 2) 角色数（源 CountRoles）。角色是全局的（无 TenantID 字段）。
-	roleCount, err := bootstrappkg.RoleStore.Count(ctx, &store.Where{})
+	roleCount, err := b.roleStore.Count(ctx, &store.Where{})
 	if err != nil {
 		return nil, fmt.Errorf("dashboard: count roles: %w", err)
 	}
@@ -222,7 +230,7 @@ func (b *Biz) auditRecords(ctx context.Context, tenantID string) ([]*authmodel.A
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	records, _, err := bootstrappkg.AuditStore.List(ctx, w)
+	records, _, err := b.auditStore.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("dashboard: list audit records: %w", err)
 	}

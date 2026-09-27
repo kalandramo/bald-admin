@@ -20,7 +20,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald-admin/internal/security/loginpolicy"
 )
 
@@ -37,10 +36,18 @@ var ErrConflict = store.ErrConflict
 var ErrValidation = errors.New("identity: validation failed")
 
 // Biz 是 identity 扩展业务。
-type Biz struct{}
+type Biz struct {
+	// credentialStore / loginPolicyStore 是凭证/登录策略仓储
+	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	credentialStore  *store.Store[authmodel.UserCredential]
+	loginPolicyStore *store.Store[authmodel.LoginPolicy]
+}
 
-// New 构造 Biz。
-func New() *Biz { return &Biz{} }
+// New 构造 Biz。cs/lps 是凭证/登录策略仓储（Wave 3 构造期注入——
+// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+func New(cs *store.Store[authmodel.UserCredential], lps *store.Store[authmodel.LoginPolicy]) *Biz {
+	return &Biz{credentialStore: cs, loginPolicyStore: lps}
+}
 
 // ---- user_credential ----
 
@@ -103,7 +110,7 @@ func (b *Biz) CreateCredential(ctx context.Context, c Credential, plainPassword 
 		Credential:     stored,
 		Status:         status,
 	}
-	if err := bootstrappkg.CredentialStore.Create(ctx, m); err != nil {
+	if err := b.credentialStore.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, fmt.Errorf("%w: credential already exists", ErrConflict)
 		}
@@ -114,7 +121,7 @@ func (b *Biz) CreateCredential(ctx context.Context, c Credential, plainPassword 
 
 // GetCredential 按 id 查询（源 Get）。
 func (b *Biz) GetCredential(ctx context.Context, id string) (*Credential, error) {
-	m, err := bootstrappkg.CredentialStore.Get(ctx, &store.Where{
+	m, err := b.credentialStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -126,7 +133,7 @@ func (b *Biz) GetCredential(ctx context.Context, id string) (*Credential, error)
 // GetCredentialByIdentifier 按身份类型 + 标识查询（源 GetByIdentifier）。
 // 这是登录流程的核心查询：用「邮箱+密码」登录时先按 identifier 找到凭证。
 func (b *Biz) GetCredentialByIdentifier(ctx context.Context, identityType, identifier string) (*Credential, error) {
-	m, err := bootstrappkg.CredentialStore.Get(ctx, &store.Where{
+	m, err := b.credentialStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{
 			store.Eq("identity_type", identityType),
 			store.Eq("identifier", identifier),
@@ -140,7 +147,7 @@ func (b *Biz) GetCredentialByIdentifier(ctx context.Context, identityType, ident
 
 // ListCredentials 列出某用户的凭证（源 List）。
 func (b *Biz) ListCredentials(ctx context.Context, userID string) ([]Credential, error) {
-	items, _, err := bootstrappkg.CredentialStore.List(ctx, &store.Where{
+	items, _, err := b.credentialStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("user_id", userID)},
 	})
 	if err != nil {
@@ -169,7 +176,7 @@ func (b *Biz) VerifyCredential(ctx context.Context, identityType, identifier, pl
 	if c.Status != "ENABLED" {
 		return false, c.UserID, nil // 状态不允许认证
 	}
-	m, err := bootstrappkg.CredentialStore.Get(ctx, &store.Where{
+	m, err := b.credentialStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", c.ID)},
 	})
 	if err != nil {
@@ -210,7 +217,7 @@ func (b *Biz) setCredential(ctx context.Context, identityType, identifier, newPa
 	if err != nil {
 		return fmt.Errorf("identity: hash password: %w", err)
 	}
-	m, err := bootstrappkg.CredentialStore.Get(ctx, &store.Where{
+	m, err := b.credentialStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{
 			store.Eq("identity_type", identityType),
 			store.Eq("identifier", identifier),
@@ -220,7 +227,7 @@ func (b *Biz) setCredential(ctx context.Context, identityType, identifier, newPa
 		return err
 	}
 	m.Credential = string(h)
-	if _, err := bootstrappkg.CredentialStore.Update(ctx, m); err != nil {
+	if _, err := b.credentialStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("identity: update credential: %w", err)
 	}
 	return nil
@@ -228,7 +235,7 @@ func (b *Biz) setCredential(ctx context.Context, identityType, identifier, newPa
 
 // DeleteCredential 删除凭证（源 Delete）。
 func (b *Biz) DeleteCredential(ctx context.Context, id string) error {
-	if _, err := bootstrappkg.CredentialStore.Delete(ctx, &store.Where{
+	if _, err := b.credentialStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("identity: delete credential: %w", err)
@@ -289,7 +296,7 @@ func (b *Biz) CreatePolicy(ctx context.Context, tenantID, operatorID string, p P
 		CreatedBy: operatorID,
 		UpdatedBy: operatorID,
 	}
-	if err := bootstrappkg.LoginPolicyStore.Create(ctx, m); err != nil {
+	if err := b.loginPolicyStore.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, fmt.Errorf("%w: policy already exists", ErrConflict)
 		}
@@ -304,7 +311,7 @@ func (b *Biz) ListPolicies(ctx context.Context, tenantID string) ([]Policy, erro
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	items, _, err := bootstrappkg.LoginPolicyStore.List(ctx, w)
+	items, _, err := b.loginPolicyStore.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("identity: list policies: %w", err)
 	}
@@ -317,7 +324,7 @@ func (b *Biz) ListPolicies(ctx context.Context, tenantID string) ([]Policy, erro
 
 // GetPolicy 按 id 查询（源 Get）。
 func (b *Biz) GetPolicy(ctx context.Context, id string) (*Policy, error) {
-	m, err := bootstrappkg.LoginPolicyStore.Get(ctx, &store.Where{
+	m, err := b.loginPolicyStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -328,7 +335,7 @@ func (b *Biz) GetPolicy(ctx context.Context, id string) (*Policy, error) {
 
 // DeletePolicy 删除策略（源 Delete）。
 func (b *Biz) DeletePolicy(ctx context.Context, id string) error {
-	if _, err := bootstrappkg.LoginPolicyStore.Delete(ctx, &store.Where{
+	if _, err := b.loginPolicyStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("identity: delete policy: %w", err)
@@ -342,7 +349,7 @@ func (b *Biz) CountPolicies(ctx context.Context, tenantID string) (int64, error)
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	n, err := bootstrappkg.LoginPolicyStore.Count(ctx, w)
+	n, err := b.loginPolicyStore.Count(ctx, w)
 	if err != nil {
 		return 0, fmt.Errorf("identity: count policies: %w", err)
 	}

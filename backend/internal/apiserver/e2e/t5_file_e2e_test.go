@@ -90,12 +90,12 @@ func startFileREST(t *testing.T) (string, *filebiz.Biz, *miniooss.Storage) {
 		t.Fatalf("minio unreachable: %v", err)
 	}
 
-	fb := filebiz.New(mc, bucket)
+	fb := filebiz.New(bootstrappkg.FileStore, mc, bucket)
 	e := gingonic.New()
 	apiserver.RegisterRoutes(e, &apiserver.BizSet{
-		Auth: authbiz.New(bootstrappkg.Signer), Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
-		User: userbiz.New(), Menu: menubiz.New(), Permission: permissionbiz.New(),
-		Dict: dictbiz.New(nil), File: fb, AuditLog: auditlogbiz.New(),
+		Auth: authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies), Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
+		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
+		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: fb, AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)

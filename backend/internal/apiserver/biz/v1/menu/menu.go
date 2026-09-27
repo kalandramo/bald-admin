@@ -13,24 +13,23 @@ import (
 	"github.com/kalandramo/bald/berrors"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/pkg/store"
 )
 
-// Biz 菜单管理业务。仓储经 store() 请求期读取（wire 构造期 bootstrap.MenuStore
-// 尚未初始化——T0 确立的时序约定：biz 引用 bootstrap 包级桥接禁止构造期快照）。
-type Biz struct{}
+// Biz 菜单管理业务。store 是菜单仓储（Wave 3：构造期注入，替代请求期读包级
+// 变量——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+type Biz struct {
+	store *store.Store[authmodel.Menu]
+}
 
-// New 构造菜单业务。
-func New() *Biz { return &Biz{} }
-
-func (b *Biz) store() *store.Store[authmodel.Menu] { return bootstrappkg.MenuStore }
+// New 构造菜单业务。st 是菜单仓储（Wave 3 构造期注入）。
+func New(st *store.Store[authmodel.Menu]) *Biz { return &Biz{store: st} }
 
 // Get 取菜单节点。不存在返回 error（上层转 404/NotFound）。
 func (b *Biz) Get(ctx context.Context, id string) (*authmodel.Menu, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	m, err := b.store().Get(ctx, w)
+	m, err := b.store.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("menu.Get(%s): %w", id, err)
 	}
@@ -41,7 +40,7 @@ func (b *Biz) Get(ctx context.Context, id string) (*authmodel.Menu, error) {
 // 根 = ParentID 空，孤儿节点跳过），各层按 Order 升序稳定排序，返回根数组。
 // total 为全部节点数（含子孙）。
 func (b *Biz) ListTree(ctx context.Context) ([]*authmodel.Menu, int, error) {
-	ms, _, err := b.store().List(ctx, &store.Where{})
+	ms, _, err := b.store.List(ctx, &store.Where{})
 	if err != nil {
 		return nil, 0, fmt.Errorf("menu.ListTree: %w", err)
 	}
@@ -71,7 +70,7 @@ func (b *Biz) Create(ctx context.Context, id, parentID, typ, name, path, compone
 		Component: component, Title: title, Icon: icon, Order: order,
 		Status: "ON", Remark: remark,
 	}
-	if err := b.store().Create(ctx, m); err != nil {
+	if err := b.store.Create(ctx, m); err != nil {
 		return nil, fmt.Errorf("menu.Create(%s): %w", id, err)
 	}
 	return m, nil
@@ -82,7 +81,7 @@ func (b *Biz) Create(ctx context.Context, id, parentID, typ, name, path, compone
 func (b *Biz) Update(ctx context.Context, id, parentID, typ, name, path, component, title, icon string, order int32, orderSet bool, status, remark string) (*authmodel.Menu, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	m, err := b.store().Get(ctx, w)
+	m, err := b.store.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("menu.Update(%s): %w", id, err)
 	}
@@ -97,7 +96,7 @@ func (b *Biz) Update(ctx context.Context, id, parentID, typ, name, path, compone
 		// 环检测：沿候选父节点的祖先链上溯，回到自身即拒绝（此前仅防 self-parent，
 		// menu-a→menu-b→menu-a 成环后两节点从 buildTree 的根可达集中静默消失——
 		// 数据在库而 API 不可达）。全表读出建索引后 O(链长) 判定。
-		all, _, err := b.store().List(ctx, &store.Where{})
+		all, _, err := b.store.List(ctx, &store.Where{})
 		if err != nil {
 			return nil, fmt.Errorf("menu.Update(%s): %w", id, err)
 		}
@@ -152,7 +151,7 @@ func (b *Biz) Update(ctx context.Context, id, parentID, typ, name, path, compone
 	if remark != "" {
 		m.Remark = remark
 	}
-	if _, err := b.store().Update(ctx, m); err != nil {
+	if _, err := b.store.Update(ctx, m); err != nil {
 		return nil, fmt.Errorf("menu.Update(%s): %w", id, err)
 	}
 	return m, nil
@@ -161,7 +160,7 @@ func (b *Biz) Update(ctx context.Context, id, parentID, typ, name, path, compone
 // Delete 删除菜单节点（级联删子树——源 QueryAllChildrenIds 语义：全表读出后
 // BFS 收集子孙 ID 逐个删除）。返回实际删除数。
 func (b *Biz) Delete(ctx context.Context, id string) (int, error) {
-	all, _, err := b.store().List(ctx, &store.Where{})
+	all, _, err := b.store.List(ctx, &store.Where{})
 	if err != nil {
 		return 0, fmt.Errorf("menu.Delete(%s): %w", id, err)
 	}
@@ -179,7 +178,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (int, error) {
 	for _, mid := range ids {
 		w := &store.Where{}
 		w.Filters = append(w.Filters, store.Eq("id", mid))
-		if _, err := b.store().Delete(ctx, w); err != nil {
+		if _, err := b.store.Delete(ctx, w); err != nil {
 			return deleted, fmt.Errorf("menu.Delete(%s): %w", mid, err)
 		}
 		deleted++

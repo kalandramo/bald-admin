@@ -26,9 +26,8 @@ import (
 	"github.com/kalandramo/bald/pkg/contextx"
 	"github.com/kalandramo/bald/pkg/store"
 
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 )
 
 // 错误 reason 稳定标识（handler 预检与 biz 校验共用，前端按此程序化消费）。
@@ -43,20 +42,23 @@ const (
 // bucket）。构造入口保留 `New(mc *miniooss.Storage, ...)` 以零回归既有调用方
 // （10+ e2e + wire），内部自动包成 MinioAdapter；s3 路径经 SetObjectStorage 注入。
 type Biz struct {
+	// fileStore 是文件元数据仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	fileStore     *store.Store[authmodel.File]
 	store         filestore.ObjectStorage
 	defaultBucket string // file.bucket 配置：files 类内容的兜底桶名
 }
 
-// New 构造 File biz（mc 由 bootstrap 桥接装配；defaultBucket 为 file.bucket 配置，
-// 空 = 沿用源默认 "files"）。
+// New 构造 File biz。st 是文件元数据仓储（Wave 3 构造期注入——InitializeBiz 现于
+// InitBridges 之后执行，FileStore 已就绪）；mc 由 bootstrap 桥接装配；defaultBucket
+// 为 file.bucket 配置，空 = 沿用源默认 "files"。
 //
-// 注意：InitializeBiz 在 main 早期执行，此时值拷贝 bootstrap.MinioStorage /
-// FileBucket 必为 nil（InitBridges 在 appkit.BeforeStart 才赋值）——e2e 测试因
-// 装配时序不同无法暴露该盲区，T8 §9 全序列真调时发现主链路 storage_unavailable。
-// 因此构造后必须在 BeforeStart（InitBridges 之后）调用 SetStorage 补注
-// （对齐 appkit.SetRegistrar 的"构造期 nil + 运行期接线"模式）。
-func New(mc *miniooss.Storage, defaultBucket string) *Biz {
-	return &Biz{store: filestore.NewMinioAdapter(mc), defaultBucket: defaultBucket}
+// 注意（对象存储仍为运行期接线）：storage.minio / storage.s3 段经契约 provider 在
+// FromBootstrap 阶段 B 构造，故构造期值拷贝 mc 可能为 nil——此处构造后仍须在
+// BeforeStart（InitBridges 之后）调用 SetStorage / SetObjectStorage 补注
+// （对齐 appkit.SetRegistrar 的「构造期 nil + 运行期接线」模式）。**仓储**已不再
+// 有此问题（Wave 3 起构造期注入），仅对象存储实例保留该约定。
+func New(st *store.Store[authmodel.File], mc *miniooss.Storage, defaultBucket string) *Biz {
+	return &Biz{fileStore: st, store: filestore.NewMinioAdapter(mc), defaultBucket: defaultBucket}
 }
 
 // SetStorage 运行期注入 MinIO 存储依赖（main.go BeforeStart 在 InitBridges 之后调用）。
@@ -76,11 +78,6 @@ func (b *Biz) SetObjectStorage(s filestore.ObjectStorage, defaultBucket string) 
 	}
 	b.store = s
 	b.defaultBucket = defaultBucket
-}
-
-// fileStore 请求期读取（InitBridges 装配后可用），避免构造期对全局的强依赖。
-func (b *Biz) fileStore() *store.Store[authmodel.File] {
-	return bootstrappkg.FileStore
 }
 
 // Upload 上传文件（语义对齐源 UploadFile）：校验 → 分桶 → 建桶 → PutObject →
@@ -131,7 +128,7 @@ func (b *Biz) Upload(ctx context.Context, fileName, fileDirectory string, conten
 		MimeType:      mimeType,
 		CreatedBy:     contextx.UserIDFromContext(ctx),
 	}
-	if err := b.fileStore().Create(ctx, m); err != nil {
+	if err := b.fileStore.Create(ctx, m); err != nil {
 		return nil, fmt.Errorf("file: create record: %w", err)
 	}
 	return m, nil
@@ -163,7 +160,7 @@ func (b *Biz) Download(ctx context.Context, id string) (*authmodel.File, []byte,
 func (b *Biz) Get(ctx context.Context, id string) (*authmodel.File, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	m, err := b.fileStore().Get(ctx, w.T(ctx))
+	m, err := b.fileStore.Get(ctx, w.T(ctx))
 	if err != nil || m == nil {
 		return nil, berrors.NotFound("file/not_found")
 	}
@@ -179,7 +176,7 @@ func (b *Biz) List(ctx context.Context, fileName, mimeType string) ([]*authmodel
 	if mimeType != "" {
 		w.Filters = append(w.Filters, store.Eq("mime_type", mimeType))
 	}
-	return b.fileStore().List(ctx, w.T(ctx))
+	return b.fileStore.List(ctx, w.T(ctx))
 }
 
 // Delete 删除文件（语义对齐源 Delete）：先删对象，再删元数据。
@@ -196,7 +193,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (string, error) {
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.fileStore().Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.fileStore.Delete(ctx, w.T(ctx)); err != nil {
 		return "", fmt.Errorf("file: delete record: %w", err)
 	}
 	return id, nil

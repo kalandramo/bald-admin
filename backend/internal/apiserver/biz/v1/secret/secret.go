@@ -17,27 +17,26 @@ import (
 	berrs "github.com/kalandramo/bald/berrors"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald-admin/internal/cachekit"
 )
 
 // SecretBiz Secret 业务服务。
 type SecretBiz struct {
+	// store 是 Secret 仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	// nil 容错保留（测试可传 nil 表达「无仓储」），生产路径由装配保证非 nil。
+	store *store.Store[authmodel.Secret]
 	// cache 是读穿透缓存（cache/loadable 组合器）；nil = 禁用，直连 store。
 	// D1 迁移：原 contrib/cache-redis 的请求期 loader 由构造期 loader 承接
 	// （SetCache 时绑定，loader 从 key 反解 id/tenant）。
 	cache *loadable.Cache
 }
 
-// New 构造 SecretBiz。backend 是通用 KV 缓存（cache.Cache）；非 nil 时包装为
-// loadable 读穿透缓存（loader 构造期绑定，从 key 反解 id/tenant）。nil = 禁用。
-//
-// 注意：store 依赖不在构造期快照——wire 的 InitializeBiz 在 main 构造期执行，
-// 彼时 InitBridges 尚未赋值 bootstrappkg.SecretStore，构造期快照会把 nil 固化
-// 进 Biz（Get/Delete 即 nil panic，与 Signer 时序错位同款）；仓储改由请求期经
-// store() 读取最新值（与 auth biz 直读包级变量同范式）。loader 闭包捕获 b 指针
-// 而非 store 快照，故此处绑定是安全的。
-func New(backend cache.Cache) *SecretBiz {
-	b := &SecretBiz{}
+// New 构造 SecretBiz。st 是 Secret 仓储（Wave 3 构造期注入——InitializeBiz 现
+// 在 InitBridges 之后执行，store 已就绪，不再需要「请求期读包级变量」绕行）。
+// backend 是通用 KV 缓存（cache.Cache）；非 nil 时包装为 loadable 读穿透缓存
+// （loader 构造期绑定，从 key 反解 id/tenant）。nil = 禁用。
+func New(st *store.Store[authmodel.Secret], backend cache.Cache) *SecretBiz {
+	b := &SecretBiz{store: st}
 	b.wrapCache(backend)
 	return b
 }
@@ -49,7 +48,7 @@ func (b *SecretBiz) wrapCache(backend cache.Cache) {
 		return
 	}
 	b.cache = loadable.New(backend, b.loadSecret,
-		loadable.WithTTL(bootstrappkg.DefaultCacheTTL),
+		loadable.WithTTL(cachekit.DefaultCacheTTL),
 		loadable.WithDegradeOnError(), // Redis 故障降级直连 store（T4 语义）
 	)
 }
@@ -70,13 +69,13 @@ func (b *SecretBiz) SetCache(c cache.Cache) {
 // 键/上下文不一致导致读错数据），故前缀校验失败即报错。
 func (b *SecretBiz) loadSecret(ctx context.Context, key string) ([]byte, error) {
 	tenant := contextx.TenantIDFromContext(ctx)
-	id, err := bootstrappkg.CutCacheKeyPrefix(key, bootstrappkg.CacheKeyPrefix("secret", tenant))
+	id, err := cachekit.CutCacheKeyPrefix(key, cachekit.CacheKeyPrefix("secret", tenant))
 	if err != nil {
 		return nil, fmt.Errorf("secret.loadSecret: %w", err)
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	s, err := b.store().Get(ctx, w.T(ctx))
+	s, err := b.store.Get(ctx, w.T(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("secret.Get(%s): %w", id, err)
 	}
@@ -88,7 +87,6 @@ func (b *SecretBiz) loadSecret(ctx context.Context, key string) ([]byte, error) 
 }
 
 // store 请求期解析仓储（读 bootstrap 包级桥接最新值）。
-func (b *SecretBiz) store() *store.Store[authmodel.Secret] { return bootstrappkg.SecretStore }
 
 // Item 是单个 Secret 的展示结构（供 handler 序列化）。
 type Item struct {
@@ -103,7 +101,7 @@ type Item struct {
 // D1：cache 为 loadable 组合器，未命中经 loadSecret 回填（键由本方法构造）。
 func (b *SecretBiz) Get(ctx context.Context, id string) (*Item, error) {
 	tenant := contextx.TenantIDFromContext(ctx)
-	key := bootstrappkg.CacheKey("secret", tenant, id)
+	key := cachekit.CacheKey("secret", tenant, id)
 
 	var (
 		raw []byte
@@ -131,7 +129,7 @@ func (b *SecretBiz) Get(ctx context.Context, id string) (*Item, error) {
 
 // List 列出调用方租户下的全部 Secret。
 func (b *SecretBiz) List(ctx context.Context) ([]*Item, error) {
-	ss, _, err := b.store().List(ctx, (&store.Where{}).T(ctx))
+	ss, _, err := b.store.List(ctx, (&store.Where{}).T(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("secret.List: %w", err)
 	}
@@ -150,15 +148,15 @@ func (b *SecretBiz) Delete(ctx context.Context, id string) (bool, error) {
 	w = w.T(ctx)
 
 	// 先确认存在（命中租户隔离），不存在按 NotFound 处理。
-	if _, err := b.store().Get(ctx, w); err != nil {
+	if _, err := b.store.Get(ctx, w); err != nil {
 		return false, fmt.Errorf("secret.Delete(%s): %w", id, err)
 	}
-	if _, err := b.store().Delete(ctx, w); err != nil {
+	if _, err := b.store.Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("secret.Delete(%s): %w", id, err)
 	}
 	if b.cache != nil {
 		tenant := contextx.TenantIDFromContext(ctx)
-		_ = b.cache.Delete(ctx, bootstrappkg.CacheKey("secret", tenant, id))
+		_ = b.cache.Delete(ctx, cachekit.CacheKey("secret", tenant, id))
 	}
 	return true, nil
 }

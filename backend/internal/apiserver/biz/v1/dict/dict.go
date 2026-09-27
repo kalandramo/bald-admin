@@ -21,22 +21,28 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald-admin/internal/cachekit"
 )
 
 // Biz 字典管理业务。cache 可选（nil/禁用时直连 store）；仓储经 store() 请求期
 // 读取（T0 确立的时序约定：biz 引用 bootstrap 包级桥接禁止构造期快照）。
 type Biz struct {
+	// typeStore / entryStore 是字典类型/条目仓储（Wave 3：构造期注入，
+	// 替代请求期读包级变量）。nil 容错保留（测试可传 nil），生产由装配保证。
+	typeStore  *store.Store[authmodel.DictType]
+	entryStore *store.Store[authmodel.DictEntry]
 	// cache 是读穿透缓存（cache/loadable 组合器）；nil = 禁用，直连 store。
 	// D1 迁移：原 contrib/cache-redis 的请求期 loader 由构造期 loader 承接
 	// （SetCache 时绑定，loader 从 key 反解 typeCode）。
 	cache *loadable.Cache
 }
 
-// New 构造字典业务。backend 是通用 KV 缓存（cache.Cache）；非 nil 时包装为
-// loadable 读穿透缓存（loader 构造期绑定，从 key 反解 typeCode）。nil = 禁用。
-func New(backend cache.Cache) *Biz {
-	b := &Biz{}
+// New 构造字典业务。ts/es 是字典类型/条目仓储（Wave 3 构造期注入——InitializeBiz
+// 现于 InitBridges 之后执行，store 已就绪）。backend 是通用 KV 缓存（cache.Cache）；
+// 非 nil 时包装为 loadable 读穿透缓存（loader 构造期绑定，从 key 反解 typeCode）。
+// nil = 禁用。
+func New(ts *store.Store[authmodel.DictType], es *store.Store[authmodel.DictEntry], backend cache.Cache) *Biz {
+	b := &Biz{typeStore: ts, entryStore: es}
 	b.wrapCache(backend)
 	return b
 }
@@ -48,7 +54,7 @@ func (b *Biz) wrapCache(backend cache.Cache) {
 		return
 	}
 	b.cache = loadable.New(backend, b.loadEntries,
-		loadable.WithTTL(bootstrappkg.DefaultCacheTTL),
+		loadable.WithTTL(cachekit.DefaultCacheTTL),
 		loadable.WithDegradeOnError(), // Redis 故障降级直连 store（T4 语义）
 	)
 }
@@ -69,8 +75,8 @@ func (b *Biz) SetCache(c cache.Cache) {
 // ctx（与写键同源），故前缀校验失败即报错。
 func (b *Biz) loadEntries(ctx context.Context, key string) ([]byte, error) {
 	tenant := contextx.TenantIDFromContext(ctx)
-	typeCode, err := bootstrappkg.CutCacheKeyPrefix(key,
-		bootstrappkg.CacheKeyPrefix("dict:entries", tenant))
+	typeCode, err := cachekit.CutCacheKeyPrefix(key,
+		cachekit.CacheKeyPrefix("dict:entries", tenant))
 	if err != nil {
 		return nil, fmt.Errorf("dict.loadEntries: %w", err)
 	}
@@ -85,14 +91,12 @@ func (b *Biz) loadEntries(ctx context.Context, key string) ([]byte, error) {
 	return buf, nil
 }
 
-func (b *Biz) typeStore() *store.Store[authmodel.DictType]   { return bootstrappkg.DictTypeStore }
-func (b *Biz) entryStore() *store.Store[authmodel.DictEntry] { return bootstrappkg.DictEntryStore }
 
 // ---- 字典类型 ----
 
 // ListTypes 列出调用方租户的字典类型，SortOrder 升序稳定排序。
 func (b *Biz) ListTypes(ctx context.Context) ([]*authmodel.DictType, int, error) {
-	ts, total, err := b.typeStore().List(ctx, (&store.Where{}).T(ctx))
+	ts, total, err := b.typeStore.List(ctx, (&store.Where{}).T(ctx))
 	if err != nil {
 		return nil, 0, fmt.Errorf("dict.ListTypes: %w", err)
 	}
@@ -104,7 +108,7 @@ func (b *Biz) ListTypes(ctx context.Context) ([]*authmodel.DictType, int, error)
 func (b *Biz) GetType(ctx context.Context, id string) (*authmodel.DictType, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	t, err := b.typeStore().Get(ctx, w.T(ctx))
+	t, err := b.typeStore.Get(ctx, w.T(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("dict.GetType(%s): %w", id, err)
 	}
@@ -120,7 +124,7 @@ func (b *Biz) CreateType(ctx context.Context, id, typeName string, sortOrder int
 	t := &authmodel.DictType{
 		ID: id, TypeName: typeName, SortOrder: sortOrder, Enabled: true, Remark: remark,
 	}
-	if err := b.typeStore().Create(ctx, t); err != nil {
+	if err := b.typeStore.Create(ctx, t); err != nil {
 		return nil, fmt.Errorf("dict.CreateType(%s): %w", id, err)
 	}
 	return t, nil
@@ -144,7 +148,7 @@ func (b *Biz) UpdateType(ctx context.Context, id, typeName string, sortOrder int
 	if remark != "" {
 		t.Remark = remark
 	}
-	if _, err := b.typeStore().Update(ctx, t); err != nil {
+	if _, err := b.typeStore.Update(ctx, t); err != nil {
 		return nil, fmt.Errorf("dict.UpdateType(%s): %w", id, err)
 	}
 	return t, nil
@@ -164,13 +168,13 @@ func (b *Biz) DeleteType(ctx context.Context, id string) (int, error) {
 	for _, e := range entries {
 		w := &store.Where{}
 		w.Filters = append(w.Filters, store.Eq("id", e.ID))
-		if _, err := b.entryStore().Delete(ctx, w.T(ctx)); err != nil {
+		if _, err := b.entryStore.Delete(ctx, w.T(ctx)); err != nil {
 			return 0, fmt.Errorf("dict.DeleteType(%s): cascade entry %s: %w", id, e.ID, err)
 		}
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.typeStore().Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.typeStore.Delete(ctx, w.T(ctx)); err != nil {
 		return 0, fmt.Errorf("dict.DeleteType(%s): %w", id, err)
 	}
 	b.invalidate(ctx, id)
@@ -184,7 +188,7 @@ func (b *Biz) DeleteType(ctx context.Context, id string) (int, error) {
 // 故障降级）经 loader 读 store 回填。typeCode 为空全量直连（跨类型聚合不缓存）。
 func (b *Biz) ListEntries(ctx context.Context, typeCode string) ([]*authmodel.DictEntry, int, error) {
 	if typeCode == "" {
-		es, total, err := b.entryStore().List(ctx, (&store.Where{}).T(ctx))
+		es, total, err := b.entryStore.List(ctx, (&store.Where{}).T(ctx))
 		if err != nil {
 			return nil, 0, fmt.Errorf("dict.ListEntries: %w", err)
 		}
@@ -195,7 +199,7 @@ func (b *Biz) ListEntries(ctx context.Context, typeCode string) ([]*authmodel.Di
 		return nil, 0, fmt.Errorf("dict.ListEntries: type %s: %w", typeCode, err)
 	}
 	tenant := contextx.TenantIDFromContext(ctx)
-	key := bootstrappkg.CacheKey("dict:entries", tenant, typeCode)
+	key := cachekit.CacheKey("dict:entries", tenant, typeCode)
 	var (
 		raw []byte
 		err error
@@ -219,7 +223,7 @@ func (b *Biz) ListEntries(ctx context.Context, typeCode string) ([]*authmodel.Di
 func (b *Biz) GetEntry(ctx context.Context, id string) (*authmodel.DictEntry, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	e, err := b.entryStore().Get(ctx, w.T(ctx))
+	e, err := b.entryStore.Get(ctx, w.T(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("dict.GetEntry(%s): %w", id, err)
 	}
@@ -240,7 +244,7 @@ func (b *Biz) CreateEntry(ctx context.Context, typeCode, value, label string, nu
 		ID: typeCode + ":" + value, TypeCode: typeCode, Value: value,
 		Label: label, Numeric: numeric, SortOrder: sortOrder, Enabled: true, Remark: remark,
 	}
-	if err := b.entryStore().Create(ctx, e); err != nil {
+	if err := b.entryStore.Create(ctx, e); err != nil {
 		return nil, fmt.Errorf("dict.CreateEntry(%s): %w", e.ID, err)
 	}
 	b.invalidate(ctx, typeCode)
@@ -269,7 +273,7 @@ func (b *Biz) UpdateEntry(ctx context.Context, id, label string, numeric *int32,
 	if remark != "" {
 		e.Remark = remark
 	}
-	if _, err := b.entryStore().Update(ctx, e); err != nil {
+	if _, err := b.entryStore.Update(ctx, e); err != nil {
 		return nil, fmt.Errorf("dict.UpdateEntry(%s): %w", id, err)
 	}
 	b.invalidate(ctx, e.TypeCode)
@@ -284,7 +288,7 @@ func (b *Biz) DeleteEntry(ctx context.Context, id string) (bool, error) {
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.entryStore().Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.entryStore.Delete(ctx, w.T(ctx)); err != nil {
 		return false, fmt.Errorf("dict.DeleteEntry(%s): %w", id, err)
 	}
 	b.invalidate(ctx, e.TypeCode)
@@ -295,7 +299,7 @@ func (b *Biz) DeleteEntry(ctx context.Context, id string) (bool, error) {
 func (b *Biz) listEntriesDirect(ctx context.Context, typeCode string) ([]*authmodel.DictEntry, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("type_code", typeCode))
-	es, _, err := b.entryStore().List(ctx, w.T(ctx))
+	es, _, err := b.entryStore.List(ctx, w.T(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("dict.listEntriesDirect(%s): %w", typeCode, err)
 	}
@@ -315,5 +319,5 @@ func (b *Biz) invalidate(ctx context.Context, typeCode string) {
 		return
 	}
 	tenant := contextx.TenantIDFromContext(ctx)
-	_ = b.cache.Delete(ctx, bootstrappkg.CacheKey("dict:entries", tenant, typeCode))
+	_ = b.cache.Delete(ctx, cachekit.CacheKey("dict:entries", tenant, typeCode))
 }

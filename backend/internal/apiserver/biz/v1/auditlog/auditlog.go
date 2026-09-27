@@ -9,17 +9,16 @@ package auditlog
 // 框架无跳过机制。故现为「仅本租户可见」，admin 不再能查到其他租户的审计。
 // 用户决策：接受隔离（多租户下「全量跨租户」是潜在信息泄露面）。
 //
-// store 经请求期包级引用（bootstrap.AuditStore，InitBridges 装配后可用）。
+// store 经构造期注入（Wave 3：替代请求期读包级变量 bootstrap.AuditStore）。
 
 import (
 	"context"
 
-	"github.com/kalandramo/bald/berrors"
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
+	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
 // 分页边界：默认页大小与上限由 `AuditStore` 的 WithPageSize/WithMaxPageSize
@@ -47,15 +46,14 @@ type ListResult struct {
 }
 
 // Biz 审计查询业务。
-type Biz struct{}
-
-// New 构造审计查询 biz。
-func New() *Biz { return &Biz{} }
-
-// auditStore 请求期读取（InitBridges 装配后可用）。
-func (b *Biz) auditStore() *store.Store[authmodel.AuditRecord] {
-	return bootstrappkg.AuditStore
+type Biz struct {
+	// auditStore 是审计日志仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	auditStore *store.Store[authmodel.AuditRecord]
 }
+
+// New 构造审计查询 biz。st 是审计日志仓储（Wave 3 构造期注入——InitializeBiz
+// 现于 InitBridges 之后执行，store 已就绪）。
+func New(st *store.Store[authmodel.AuditRecord]) *Biz { return &Biz{auditStore: st} }
 
 // List 分页查询审计日志（框架标准分页，2026-09-22 统一）。
 //
@@ -114,7 +112,7 @@ func (b *Biz) List(ctx context.Context, f ListFilter,
 		req.Sorting = []*storev1.Sorting{store.SortDesc("time")}
 	}
 
-	result, err := b.auditStore().ListWithPaging(ctx, req)
+	result, err := b.auditStore.ListWithPaging(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +123,7 @@ func (b *Biz) List(ctx context.Context, f ListFilter,
 func (b *Biz) Get(ctx context.Context, id string) (*authmodel.AuditRecord, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	m, err := b.auditStore().Get(ctx, w)
+	m, err := b.auditStore.Get(ctx, w)
 	if err != nil || m == nil {
 		return nil, berrors.NotFound("audit/not_found")
 	}

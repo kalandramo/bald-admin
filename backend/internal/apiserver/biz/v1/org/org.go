@@ -7,6 +7,7 @@
 //  1. extractRelationIDs：递归收集所有节点引用的用户 ID；
 //  2. fetchRelationInfo：**批量**查询（避免 N+1）；
 //  3. bindRelations：递归回填到每个节点（含 children）。
+//
 // 本实现逐条对齐——批量查询是源的精髓，逐个查会退化成 N+1。
 package org
 
@@ -17,12 +18,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kalandramo/bald/berrors"
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
+	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
 // ErrValidation 入参校验失败（handler 归 400）。
@@ -55,10 +55,19 @@ func conflict(reason, format string, args ...any) error {
 }
 
 // Biz 是组织架构业务。
-type Biz struct{}
+type Biz struct {
+	// orgUnitStore / positionStore / userStore 是组织单元/职位/用户仓储
+	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	orgUnitStore  *store.Store[authmodel.OrgUnit]
+	positionStore *store.Store[authmodel.Position]
+	userStore     *store.Store[authmodel.User]
+}
 
-// New 构造 Biz。
-func New() *Biz { return &Biz{} }
+// New 构造 Biz。ous/ps/us 是组织单元/职位/用户仓储（Wave 3 构造期注入——
+// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+func New(ous *store.Store[authmodel.OrgUnit], ps *store.Store[authmodel.Position], us *store.Store[authmodel.User]) *Biz {
+	return &Biz{orgUnitStore: ous, positionStore: ps, userStore: us}
+}
 
 // ---- org_unit ----
 
@@ -137,7 +146,7 @@ func (b *Biz) CreateOrgUnit(ctx context.Context, tenantID string, u OrgUnit) (*O
 		Status: status, SortOrder: u.SortOrder,
 		LeaderID: u.LeaderID, Remark: u.Remark, Description: u.Description,
 	}
-	if err := bootstrappkg.OrgUnitStore.Create(ctx, m); err != nil {
+	if err := b.orgUnitStore.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, conflict("org/conflict", "org unit already exists")
 		}
@@ -145,7 +154,7 @@ func (b *Biz) CreateOrgUnit(ctx context.Context, tenantID string, u OrgUnit) (*O
 	}
 	// Path 需要自己的 ID，创建后回填（源的 path 含自身）。
 	m.Path = path + "/" + m.ID
-	_, _ = bootstrappkg.OrgUnitStore.Update(ctx, m) // best-effort（v0.11.0 起返回 (rows, error)）
+	_, _ = b.orgUnitStore.Update(ctx, m) // best-effort（v0.11.0 起返回 (rows, error)）
 	return toOrgUnit(m), nil
 }
 
@@ -154,7 +163,7 @@ func (b *Biz) buildPath(ctx context.Context, tenantID, parentCode string) (strin
 	if parentCode == "" {
 		return "", nil // 根节点：path 为空，创建后补自身
 	}
-	p, err := bootstrappkg.OrgUnitStore.Get(ctx, &store.Where{
+	p, err := b.orgUnitStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", orgID(tenantID, parentCode))},
 	})
 	if err != nil {
@@ -176,7 +185,7 @@ func parentKey(tenantID, parentCode string) string {
 
 // GetOrgUnit 按 code 查询（源 Get）。
 func (b *Biz) GetOrgUnit(ctx context.Context, tenantID, code string) (*OrgUnit, error) {
-	m, err := bootstrappkg.OrgUnitStore.Get(ctx, &store.Where{
+	m, err := b.orgUnitStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", orgID(tenantID, code))},
 	})
 	if err != nil {
@@ -197,7 +206,7 @@ func (b *Biz) GetOrgUnit(ctx context.Context, tenantID, code string) (*OrgUnit, 
 func (b *Biz) ListOrgUnits(ctx context.Context,
 	req *storev1.PagingRequest) ([]*OrgUnit, *storev1.PaginationResponseMeta, error) {
 	// 根节点 = parent_id 为空串（见 withParentFilter 的 key 语义）。
-	result, err := bootstrappkg.OrgUnitStore.ListWithPaging(ctx, withParentFilter(req, ""))
+	result, err := b.orgUnitStore.ListWithPaging(ctx, withParentFilter(req, ""))
 	if err != nil {
 		return nil, nil, fmt.Errorf("org: list org units: %w", err)
 	}
@@ -219,7 +228,7 @@ func (b *Biz) ListOrgUnitChildren(ctx context.Context, tenantID, parentCode stri
 	if parentCode == "" {
 		return nil, nil, badRequest("org/invalid_request", "parent_id required")
 	}
-	result, err := bootstrappkg.OrgUnitStore.ListWithPaging(ctx,
+	result, err := b.orgUnitStore.ListWithPaging(ctx,
 		withParentFilter(req, orgID(tenantID, parentCode)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("org: list children: %w", err)
@@ -234,7 +243,7 @@ func (b *Biz) ListOrgUnitChildren(ctx context.Context, tenantID, parentCode stri
 
 // UpdateOrgUnit 更新（源 Update）。**防环**：不能把自己挂到自己的子孙下。
 func (b *Biz) UpdateOrgUnit(ctx context.Context, tenantID, code string, u OrgUnit) error {
-	m, err := bootstrappkg.OrgUnitStore.Get(ctx, &store.Where{
+	m, err := b.orgUnitStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", orgID(tenantID, code))},
 	})
 	if err != nil {
@@ -277,7 +286,7 @@ func (b *Biz) UpdateOrgUnit(ctx context.Context, tenantID, code string, u OrgUni
 			m.ParentID = newParent
 		}
 	}
-	if _, err := bootstrappkg.OrgUnitStore.Update(ctx, m); err != nil {
+	if _, err := b.orgUnitStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("org: update org unit: %w", err)
 	}
 	return nil
@@ -293,7 +302,7 @@ func (b *Biz) isDescendant(ctx context.Context, candidate, ancestor string) (boo
 		if cur == ancestor {
 			return true, nil
 		}
-		m, err := bootstrappkg.OrgUnitStore.Get(ctx, &store.Where{
+		m, err := b.orgUnitStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("id", cur)},
 		})
 		if err != nil {
@@ -310,7 +319,7 @@ func (b *Biz) isDescendant(ctx context.Context, candidate, ancestor string) (boo
 // DeleteOrgUnit 删除（源 Delete）。**有子节点时拒绝**——否则产生悬挂引用。
 func (b *Biz) DeleteOrgUnit(ctx context.Context, tenantID, code string) error {
 	id := orgID(tenantID, code)
-	children, _, err := bootstrappkg.OrgUnitStore.List(ctx, &store.Where{
+	children, _, err := b.orgUnitStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("parent_id", id)},
 	})
 	if err != nil {
@@ -319,7 +328,7 @@ func (b *Biz) DeleteOrgUnit(ctx context.Context, tenantID, code string) error {
 	if len(children) > 0 {
 		return badRequest("org/has_children", "has %d children, delete them first", len(children))
 	}
-	if _, err := bootstrappkg.OrgUnitStore.Delete(ctx, &store.Where{
+	if _, err := b.orgUnitStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("org: delete org unit: %w", err)
@@ -343,7 +352,7 @@ func (b *Biz) BatchCreateOrgUnits(ctx context.Context, tenantID string, items []
 
 // CountOrgUnits 统计（源 Count）。
 func (b *Biz) CountOrgUnits(ctx context.Context, tenantID string) (int64, error) {
-	n, err := bootstrappkg.OrgUnitStore.Count(ctx, &store.Where{
+	n, err := b.orgUnitStore.Count(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("tenant_id", tenantID)},
 	})
 	if err != nil {
@@ -366,7 +375,7 @@ func (b *Biz) enrichOrgUnits(ctx context.Context, units []*OrgUnit) {
 	// **一次批量查询**（源的 fetchRelationInfo 语义；逐个查会 N+1）。
 	names := make(map[string]string, len(ids))
 	for id := range ids {
-		u, err := bootstrappkg.UserStore.Get(ctx, &store.Where{
+		u, err := b.userStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 		})
 		if err == nil {
@@ -442,7 +451,7 @@ func (b *Biz) CreatePosition(ctx context.Context, tenantID string, p Position) (
 	orgIDRef := ""
 	if p.OrgUnitID != "" {
 		// 校验组织单元存在（避免悬挂引用）。
-		if _, err := bootstrappkg.OrgUnitStore.Get(ctx, &store.Where{
+		if _, err := b.orgUnitStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("id", orgID(tenantID, p.OrgUnitID))},
 		}); err != nil {
 			return nil, badRequest("org/invalid_request", "org unit not found: %s", p.OrgUnitID)
@@ -458,14 +467,14 @@ func (b *Biz) CreatePosition(ctx context.Context, tenantID string, p Position) (
 		Name: p.Name, Code: p.Code, Headcount: p.Headcount,
 		Status: status, Type: p.Type, OrgUnitID: orgIDRef,
 		JobFamily: p.JobFamily, JobGrade: p.JobGrade, Level: p.Level,
-		SortOrder: p.SortOrder, // O2 修复：接入（此前全链路零写入）
+		SortOrder:     p.SortOrder, // O2 修复：接入（此前全链路零写入）
 		IsKeyPosition: p.IsKeyPosition, Remark: p.Remark,
 		Description: p.Description, StartAt: p.StartAt,
 	}
 	if p.ReportsToPositionID != "" {
 		m.ReportsToPositionID = posID(tenantID, p.ReportsToPositionID)
 	}
-	if err := bootstrappkg.PositionStore.Create(ctx, m); err != nil {
+	if err := b.positionStore.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, conflict("org/conflict", "position already exists")
 		}
@@ -478,7 +487,7 @@ func (b *Biz) CreatePosition(ctx context.Context, tenantID string, p Position) (
 
 // GetPosition 按 code 查询（源 Get）。
 func (b *Biz) GetPosition(ctx context.Context, tenantID, code string) (*Position, error) {
-	m, err := bootstrappkg.PositionStore.Get(ctx, &store.Where{
+	m, err := b.positionStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", posID(tenantID, code))},
 	})
 	if err != nil {
@@ -494,7 +503,7 @@ func (b *Biz) GetPosition(ctx context.Context, tenantID, code string) (*Position
 // O3 修复：返回 `[]*Position`（此前是 `[]Position` 值切片，与 ListOrgUnits 的
 // `[]*OrgUnit` 不对称，且需手工把回填结果同步回值切片——纯属冗余）。
 func (b *Biz) ListPositions(ctx context.Context, tenantID string) ([]*Position, error) {
-	items, _, err := bootstrappkg.PositionStore.List(ctx, &store.Where{
+	items, _, err := b.positionStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("tenant_id", tenantID)},
 	})
 	if err != nil {
@@ -525,7 +534,7 @@ func (b *Biz) enrichPositions(ctx context.Context, tenantID string, ps []*Positi
 	}
 	orgNames := make(map[string]string, len(orgIDs))
 	for id := range orgIDs {
-		if m, err := bootstrappkg.OrgUnitStore.Get(ctx, &store.Where{
+		if m, err := b.orgUnitStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 		}); err == nil {
 			orgNames[id] = m.Name
@@ -533,7 +542,7 @@ func (b *Biz) enrichPositions(ctx context.Context, tenantID string, ps []*Positi
 	}
 	posNames := make(map[string]string, len(posIDs))
 	for id := range posIDs {
-		if m, err := bootstrappkg.PositionStore.Get(ctx, &store.Where{
+		if m, err := b.positionStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 		}); err == nil {
 			posNames[id] = m.Name
@@ -551,7 +560,7 @@ func (b *Biz) enrichPositions(ctx context.Context, tenantID string, ps []*Positi
 
 // UpdatePosition 更新（源 Update）。「非空即更新」语义（同 UpdateOrgUnit）。
 func (b *Biz) UpdatePosition(ctx context.Context, tenantID, code string, p Position) error {
-	m, err := bootstrappkg.PositionStore.Get(ctx, &store.Where{
+	m, err := b.positionStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", posID(tenantID, code))},
 	})
 	if err != nil {
@@ -593,7 +602,7 @@ func (b *Biz) UpdatePosition(ctx context.Context, tenantID, code string, p Posit
 	if p.ReportsToPositionID != "" {
 		m.ReportsToPositionID = posID(tenantID, p.ReportsToPositionID)
 	}
-	if _, err := bootstrappkg.PositionStore.Update(ctx, m); err != nil {
+	if _, err := b.positionStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("org: update position: %w", err)
 	}
 	return nil
@@ -601,7 +610,7 @@ func (b *Biz) UpdatePosition(ctx context.Context, tenantID, code string, p Posit
 
 // DeletePosition 删除（源 Delete）。
 func (b *Biz) DeletePosition(ctx context.Context, tenantID, code string) error {
-	if _, err := bootstrappkg.PositionStore.Delete(ctx, &store.Where{
+	if _, err := b.positionStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", posID(tenantID, code))},
 	}); err != nil {
 		return fmt.Errorf("org: delete position: %w", err)
@@ -624,7 +633,7 @@ func (b *Biz) BatchCreatePositions(ctx context.Context, tenantID string, items [
 
 // CountPositions 统计（源 Count）。
 func (b *Biz) CountPositions(ctx context.Context, tenantID string) (int64, error) {
-	n, err := bootstrappkg.PositionStore.Count(ctx, &store.Where{
+	n, err := b.positionStore.Count(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("tenant_id", tenantID)},
 	})
 	if err != nil {

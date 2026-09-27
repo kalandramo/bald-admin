@@ -57,15 +57,15 @@ func startCacheMonitorREST(t *testing.T) string {
 		bootstrappkg.RedisClient = rdb
 	}
 
-	authBiz := authbiz.New(bootstrappkg.Signer)
+	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.LazyAuthenticator())
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.LazyAuthenticator(), &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
-		User: userbiz.New(), Menu: menubiz.New(), Permission: permissionbiz.New(),
-		Dict: dictbiz.New(nil), File: filebiz.New(nil, ""), AuditLog: auditlogbiz.New(),
-		CacheMonitor: cmbiz.New(),
+		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
+		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
+		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		CacheMonitor: cmbiz.New(bootstrappkg.RedisClient),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)

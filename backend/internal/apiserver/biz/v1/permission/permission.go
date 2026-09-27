@@ -15,22 +15,24 @@ import (
 
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/audit"
+	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
-	"github.com/kalandramo/bald/pkg/store"
 )
 
-// Biz 权限管理业务。仓储请求期读取（时序约定同 Tenant/Menu Biz）。
-type Biz struct{}
+// Biz 权限管理业务。两个仓储均构造期注入（Wave 3：替代请求期读包级变量
+// bootstrap.PermissionStore / RolePolicyStore）。
+type Biz struct {
+	// permStore 是权限点仓储（权限码 → 名称/菜单可见性）。
+	permStore *store.Store[authmodel.Permission]
+	// policyStore 是角色策略仓储（casbin p 行的数据化持久层，D3）。
+	policyStore *store.Store[authmodel.RolePolicy]
+}
 
-// New 构造权限业务。
-func New() *Biz { return &Biz{} }
-
-func (b *Biz) permStore() *store.Store[authmodel.Permission] { return bootstrappkg.PermissionStore }
-
-func (b *Biz) policyStore() *store.Store[authmodel.RolePolicy] {
-	return bootstrappkg.RolePolicyStore
+// New 构造权限业务。ps 是权限点仓储，rps 是角色策略仓储（Wave 3 构造期注入
+// ——InitializeBiz 现于 InitBridges 之后执行，两个 store 均已就绪）。
+func New(ps *store.Store[authmodel.Permission], rps *store.Store[authmodel.RolePolicy]) *Biz {
+	return &Biz{permStore: ps, policyStore: rps}
 }
 
 // ---- 权限点注册表 ----
@@ -39,7 +41,7 @@ func (b *Biz) policyStore() *store.Store[authmodel.RolePolicy] {
 func (b *Biz) GetPermission(ctx context.Context, code string) (*authmodel.Permission, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", code))
-	p, err := b.permStore().Get(ctx, w)
+	p, err := b.permStore.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("permission.Get(%s): %w", code, err)
 	}
@@ -48,7 +50,7 @@ func (b *Biz) GetPermission(ctx context.Context, code string) (*authmodel.Permis
 
 // ListPermissions 全量列出权限点。
 func (b *Biz) ListPermissions(ctx context.Context) ([]*authmodel.Permission, error) {
-	ps, _, err := b.permStore().List(ctx, &store.Where{})
+	ps, _, err := b.permStore.List(ctx, &store.Where{})
 	if err != nil {
 		return nil, fmt.Errorf("permission.List: %w", err)
 	}
@@ -62,7 +64,7 @@ func (b *Biz) CreatePermission(ctx context.Context, code, name string, menuIDs [
 			WithMessage("permission.Create: code is required")
 	}
 	p := &authmodel.Permission{ID: code, Name: name, MenuIDs: joinCSV(menuIDs), Remark: remark}
-	if err := b.permStore().Create(ctx, p); err != nil {
+	if err := b.permStore.Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("permission.Create(%s): %w", code, err)
 	}
 	return p, nil
@@ -73,7 +75,7 @@ func (b *Biz) CreatePermission(ctx context.Context, code, name string, menuIDs [
 func (b *Biz) UpdatePermission(ctx context.Context, code, name string, menuIDs []string, menuIDsSet bool, remark string) (*authmodel.Permission, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", code))
-	p, err := b.permStore().Get(ctx, w)
+	p, err := b.permStore.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("permission.Update(%s): %w", code, err)
 	}
@@ -86,7 +88,7 @@ func (b *Biz) UpdatePermission(ctx context.Context, code, name string, menuIDs [
 	if remark != "" {
 		p.Remark = remark
 	}
-	if _, err := b.permStore().Update(ctx, p); err != nil {
+	if _, err := b.permStore.Update(ctx, p); err != nil {
 		return nil, fmt.Errorf("permission.Update(%s): %w", code, err)
 	}
 	return p, nil
@@ -98,13 +100,13 @@ func (b *Biz) UpdatePermission(ctx context.Context, code, name string, menuIDs [
 func (b *Biz) DeletePermission(ctx context.Context, code string) (bool, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", code))
-	if _, err := b.permStore().Get(ctx, w); err != nil {
+	if _, err := b.permStore.Get(ctx, w); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return false, nil
 		}
 		return false, fmt.Errorf("permission.Delete(%s): %w", code, err)
 	}
-	if _, err := b.permStore().Delete(ctx, w); err != nil {
+	if _, err := b.permStore.Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("permission.Delete(%s): %w", code, err)
 	}
 	return true, nil
@@ -118,7 +120,7 @@ func (b *Biz) ListRolePolicies(ctx context.Context, role string) ([]*authmodel.R
 	if role != "" {
 		w.Filters = append(w.Filters, store.Eq("role", role))
 	}
-	ps, _, err := b.policyStore().List(ctx, w)
+	ps, _, err := b.policyStore.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("permission.ListRolePolicies(%s): %w", role, err)
 	}
@@ -133,7 +135,7 @@ func (b *Biz) CreateRolePolicy(ctx context.Context, role, object, action string)
 			WithMessage("permission.CreateRolePolicy: role/object/action are required")
 	}
 	p := &authmodel.RolePolicy{ID: role + ":" + object + ":" + action, Role: role, Object: object, Action: action}
-	if err := b.policyStore().Create(ctx, p); err != nil {
+	if err := b.policyStore.Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("permission.CreateRolePolicy(%s,%s,%s): %w", role, object, action, err)
 	}
 	// Wave 5.1：permission 类审计（源 PermissionAuditLog 的 GRANT 语义）。
@@ -145,14 +147,14 @@ func (b *Biz) CreateRolePolicy(ctx context.Context, role, object, action string)
 func (b *Biz) DeleteRolePolicy(ctx context.Context, id string) (bool, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	old, err := b.policyStore().Get(ctx, w)
+	old, err := b.policyStore.Get(ctx, w)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return false, nil
 		}
 		return false, fmt.Errorf("permission.DeleteRolePolicy(%s): %w", id, err)
 	}
-	if _, err := b.policyStore().Delete(ctx, w); err != nil {
+	if _, err := b.policyStore.Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("permission.DeleteRolePolicy(%s): %w", id, err)
 	}
 	// Wave 5.1：permission 类审计（源 PermissionAuditLog 的 REVOKE 语义）。

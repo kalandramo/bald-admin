@@ -15,7 +15,6 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
 )
 
@@ -27,12 +26,16 @@ var ErrTooFrequent = errors.New("mfa: enroll too frequent, retry later")
 
 // Biz 是 MFA 业务。
 type Biz struct {
-	challenges mfa.ChallengeStore
+	// factorStore 是 MFA 因子仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	factorStore *store.Store[authmodel.UserMFAFactor]
+	challenges  mfa.ChallengeStore
 }
 
-// New 构造 MFA Biz。
-func New(challenges mfa.ChallengeStore) *Biz {
-	return &Biz{challenges: challenges}
+// New 构造 MFA Biz。st 是 MFA 因子仓储（Wave 3 构造期注入——InitializeBiz 现于
+// InitBridges 之后执行，MFAFactorStore 已就绪）；challenges 为挑战存储，nil =
+// 运行期经 SetChallenges 补注。
+func New(st *store.Store[authmodel.UserMFAFactor], challenges mfa.ChallengeStore) *Biz {
+	return &Biz{factorStore: st, challenges: challenges}
 }
 
 // SetChallenges 运行期注入挑战存储（nil 不覆盖）。
@@ -67,7 +70,7 @@ type Status struct {
 // listFactors 列出某用户的全部因子（租户隔离由 Store 自动注入，此处显式传租户
 // 是因为 MFA 管理面可能由管理员操作他人——需要跨用户查询能力）。
 func (b *Biz) listFactors(ctx context.Context, tenantID, userID string) ([]*authmodel.UserMFAFactor, error) {
-	items, _, err := bootstrappkg.MFAFactorStore.List(ctx, &store.Where{
+	items, _, err := b.factorStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{
 			store.Eq("tenant_id", tenantID),
 			store.Eq("user_id", userID),
@@ -208,7 +211,7 @@ func (b *Biz) ConfirmEnroll(ctx context.Context, tenantID, userID, opID, code, d
 		Display:  display,
 		Enabled:  true,
 	}
-	if err := bootstrappkg.MFAFactorStore.Create(ctx, f); err != nil {
+	if err := b.factorStore.Create(ctx, f); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return "", mfa.ErrEnrollExists
 		}
@@ -231,7 +234,7 @@ func (b *Biz) Disable(ctx context.Context, tenantID, userID, credentialID string
 	// 不传 credentialID 时这是**集合删除**（清空该用户全部该方法因子）。
 	// `Store.Delete` 现为幂等语义（0 行返回 (0, nil)，2026-09-23 决策，D12 修复）：
 	// 用户禁用**本就未启用**的方法时删 0 行是合法结果，不再需要容忍样板。
-	if _, err := bootstrappkg.MFAFactorStore.Delete(ctx, w); err != nil {
+	if _, err := b.factorStore.Delete(ctx, w); err != nil {
 		return fmt.Errorf("mfa: disable factor: %w", err)
 	}
 	return nil
@@ -247,7 +250,7 @@ func (b *Biz) RevokeDevice(ctx context.Context, tenantID, userID, credentialID s
 		store.Eq("user_id", userID),
 		store.Eq("id", credentialID),
 	}}
-	if _, err := bootstrappkg.MFAFactorStore.Delete(ctx, w); err != nil {
+	if _, err := b.factorStore.Delete(ctx, w); err != nil {
 		return fmt.Errorf("mfa: revoke device: %w", err)
 	}
 	return nil
@@ -302,7 +305,7 @@ func (b *Biz) VerifyChallenge(ctx context.Context, opID, code string) (*authmode
 	}
 	now := time.Now()
 	target.LastUsedAt = &now
-	_, _ = bootstrappkg.MFAFactorStore.Update(ctx, target) // best-effort（v0.11.0 起返回 (rows, error)）
+	_, _ = b.factorStore.Update(ctx, target) // best-effort（v0.11.0 起返回 (rows, error)）
 	return target, nil
 }
 

@@ -34,22 +34,26 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
 // ErrNoUser 无法从上下文取到当前用户（未认证）。
 var ErrNoUser = errors.New("portal: no authenticated user in context")
 
 // Biz 管理面聚合业务。
-type Biz struct{}
+type Biz struct {
+	// userStore / roleStore / permStore / menuStore 是聚合链依赖的四域仓储
+	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	userStore *store.Store[authmodel.User]
+	roleStore *store.Store[authmodel.Role]
+	permStore *store.Store[authmodel.Permission]
+	menuStore *store.Store[authmodel.Menu]
+}
 
-// New 构造 portal 业务。
-func New() *Biz { return &Biz{} }
-
-func (b *Biz) userStore() *store.Store[authmodel.User]       { return bootstrappkg.UserStore }
-func (b *Biz) roleStore() *store.Store[authmodel.Role]       { return bootstrappkg.RoleStore }
-func (b *Biz) permStore() *store.Store[authmodel.Permission] { return bootstrappkg.PermissionStore }
-func (b *Biz) menuStore() *store.Store[authmodel.Menu]       { return bootstrappkg.MenuStore }
+// New 构造 portal 业务。us/rs/ps/ms 是用户/角色/权限/菜单仓储（Wave 3
+// 构造期注入——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+func New(us *store.Store[authmodel.User], rs *store.Store[authmodel.Role], ps *store.Store[authmodel.Permission], ms *store.Store[authmodel.Menu]) *Biz {
+	return &Biz{userStore: us, roleStore: rs, permStore: ps, menuStore: ms}
+}
 
 // RouteItem 是前端路由项（扁平结构，见 proto 头注）。
 type RouteItem struct {
@@ -122,7 +126,7 @@ func (b *Biz) GetNavigation(ctx context.Context, userID string) ([]*RouteItem, e
 	}
 
 	// 取全部菜单（平台级数据，无租户维度），过滤出授权 ID 集合内的项。
-	all, _, err := b.menuStore().List(ctx, &store.Where{})
+	all, _, err := b.menuStore.List(ctx, &store.Where{})
 	if err != nil {
 		return nil, fmt.Errorf("portal: list menus: %w", err)
 	}
@@ -175,7 +179,7 @@ func CurrentUserID(ctx context.Context) (string, error) {
 func (b *Biz) getUser(ctx context.Context, id string) (*authmodel.User, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	u, err := b.userStore().Get(ctx, w)
+	u, err := b.userStore.Get(ctx, w)
 	if err != nil || u == nil {
 		return nil, berrors.NotFound("portal/user_not_found")
 	}
@@ -186,14 +190,14 @@ func (b *Biz) getUser(ctx context.Context, id string) (*authmodel.User, error) {
 func (b *Biz) getRole(ctx context.Context, name string) (*authmodel.Role, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", name))
-	return b.roleStore().Get(ctx, w)
+	return b.roleStore.Get(ctx, w)
 }
 
 // getPermission 按权限码取权限点。
 func (b *Biz) getPermission(ctx context.Context, code string) (*authmodel.Permission, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", code))
-	return b.permStore().Get(ctx, w)
+	return b.permStore.Get(ctx, w)
 }
 
 // buildRoutes 把菜单列表组树为路由项（ParentID 嵌套，Order 升序）。

@@ -29,7 +29,6 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
 // ErrValidation 入参校验失败（handler 归 400）。
@@ -42,10 +41,19 @@ var ErrNotFound = store.ErrNotFound
 var ErrConflict = store.ErrConflict
 
 // Biz 是套餐三件套业务。
-type Biz struct{}
+type Biz struct {
+	// planStore / moduleStore / quotaStore 是套餐/模块/配额仓储
+	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	planStore   *store.Store[authmodel.Plan]
+	moduleStore *store.Store[authmodel.PlanModule]
+	quotaStore  *store.Store[authmodel.PlanQuota]
+}
 
-// New 构造 Biz。
-func New() *Biz { return &Biz{} }
+// New 构造 Biz。ps/ms/qs 是套餐/模块/配额仓储（Wave 3 构造期注入——
+// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+func New(ps *store.Store[authmodel.Plan], ms *store.Store[authmodel.PlanModule], qs *store.Store[authmodel.PlanQuota]) *Biz {
+	return &Biz{planStore: ps, moduleStore: ms, quotaStore: qs}
+}
 
 // Plan 是对外套餐。
 type Plan struct {
@@ -94,7 +102,7 @@ func (b *Biz) CreatePlan(ctx context.Context, tenantID, code string, p Plan) (*P
 		Name: p.Name, Version: p.Version, ExpiryPolicy: p.ExpiryPolicy,
 		DataRetentionDays: p.DataRetentionDays, Status: status, Remark: p.Remark,
 	}
-	if err := bootstrappkg.PlanStore.Create(ctx, m); err != nil {
+	if err := b.planStore.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, fmt.Errorf("%w: plan already exists: %s", ErrConflict, code)
 		}
@@ -105,7 +113,7 @@ func (b *Biz) CreatePlan(ctx context.Context, tenantID, code string, p Plan) (*P
 
 // GetPlan 按 id 查询（源 Get）。
 func (b *Biz) GetPlan(ctx context.Context, id string) (*Plan, error) {
-	m, err := bootstrappkg.PlanStore.Get(ctx, &store.Where{
+	m, err := b.planStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -120,7 +128,7 @@ func (b *Biz) ListPlans(ctx context.Context, tenantID string) ([]Plan, error) {
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	items, _, err := bootstrappkg.PlanStore.List(ctx, w)
+	items, _, err := b.planStore.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("plan: list: %w", err)
 	}
@@ -133,7 +141,7 @@ func (b *Biz) ListPlans(ctx context.Context, tenantID string) ([]Plan, error) {
 
 // UpdatePlan 更新（源 Update）。
 func (b *Biz) UpdatePlan(ctx context.Context, id string, p Plan) error {
-	m, err := bootstrappkg.PlanStore.Get(ctx, &store.Where{
+	m, err := b.planStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -157,7 +165,7 @@ func (b *Biz) UpdatePlan(ctx context.Context, id string, p Plan) error {
 	if p.Remark != "" {
 		m.Remark = p.Remark
 	}
-	if _, err := bootstrappkg.PlanStore.Update(ctx, m); err != nil {
+	if _, err := b.planStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("plan: update: %w", err)
 	}
 	return nil
@@ -171,19 +179,19 @@ func (b *Biz) UpdatePlan(ctx context.Context, id string, p Plan) error {
 // 否则父删成功而子删除失败会留下悬挂引用。
 func (b *Biz) DeletePlan(ctx context.Context, id string) error {
 	// 1) 级联删 modules（集合删除：0 行是合法结果，Delete 现为幂等语义）。
-	if _, err := bootstrappkg.PlanModuleStore.Delete(ctx, &store.Where{
+	if _, err := b.moduleStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("plan_id", id)},
 	}); err != nil {
 		return fmt.Errorf("plan: cascade delete modules: %w", err)
 	}
 	// 2) 级联删 quotas。
-	if _, err := bootstrappkg.PlanQuotaStore.Delete(ctx, &store.Where{
+	if _, err := b.quotaStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("plan_id", id)},
 	}); err != nil {
 		return fmt.Errorf("plan: cascade delete quotas: %w", err)
 	}
 	// 3) 删父。
-	if _, err := bootstrappkg.PlanStore.Delete(ctx, &store.Where{
+	if _, err := b.planStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("plan: delete: %w", err)
@@ -216,10 +224,10 @@ func (b *Biz) CreateModule(ctx context.Context, tenantID, planID, module string)
 	}
 	// 主键含 plan+module → 同一套餐同一模块重复添加自然冲突（幂等语义）。
 	m := &authmodel.PlanModule{
-		ID: tenantID + ":pm:" + planID + ":" + module,
+		ID:       tenantID + ":pm:" + planID + ":" + module,
 		TenantID: tenantID, PlanID: planID, Module: module,
 	}
-	if err := bootstrappkg.PlanModuleStore.Create(ctx, m); err != nil {
+	if err := b.moduleStore.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, fmt.Errorf("%w: module already in plan: %s", ErrConflict, module)
 		}
@@ -230,7 +238,7 @@ func (b *Biz) CreateModule(ctx context.Context, tenantID, planID, module string)
 
 // ListModules 列出某套餐的模块（源 List）。
 func (b *Biz) ListModules(ctx context.Context, planID string) ([]Module, error) {
-	items, _, err := bootstrappkg.PlanModuleStore.List(ctx, &store.Where{
+	items, _, err := b.moduleStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("plan_id", planID)},
 	})
 	if err != nil {
@@ -245,7 +253,7 @@ func (b *Biz) ListModules(ctx context.Context, planID string) ([]Module, error) 
 
 // GetModule 按 id 查询（源 Get）。
 func (b *Biz) GetModule(ctx context.Context, id string) (*Module, error) {
-	m, err := bootstrappkg.PlanModuleStore.Get(ctx, &store.Where{
+	m, err := b.moduleStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -259,14 +267,14 @@ func (b *Biz) UpdateModule(ctx context.Context, id, module string) error {
 	if module == "" {
 		return fmt.Errorf("%w: module required", ErrValidation)
 	}
-	m, err := bootstrappkg.PlanModuleStore.Get(ctx, &store.Where{
+	m, err := b.moduleStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
 		return err
 	}
 	m.Module = module
-	if _, err := bootstrappkg.PlanModuleStore.Update(ctx, m); err != nil {
+	if _, err := b.moduleStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("plan: update module: %w", err)
 	}
 	return nil
@@ -274,7 +282,7 @@ func (b *Biz) UpdateModule(ctx context.Context, id, module string) error {
 
 // DeleteModule 删除模块（源 Delete）。
 func (b *Biz) DeleteModule(ctx context.Context, id string) error {
-	if _, err := bootstrappkg.PlanModuleStore.Delete(ctx, &store.Where{
+	if _, err := b.moduleStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("plan: delete module: %w", err)
@@ -296,11 +304,11 @@ func (b *Biz) CreateQuota(ctx context.Context, tenantID, planID, quotaType strin
 		return nil, err
 	}
 	m := &authmodel.PlanQuota{
-		ID: tenantID + ":pq:" + planID + ":" + quotaType,
+		ID:       tenantID + ":pq:" + planID + ":" + quotaType,
 		TenantID: tenantID, PlanID: planID,
 		QuotaType: quotaType, QuotaValue: value,
 	}
-	if err := bootstrappkg.PlanQuotaStore.Create(ctx, m); err != nil {
+	if err := b.quotaStore.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, fmt.Errorf("%w: quota already exists: %s", ErrConflict, quotaType)
 		}
@@ -311,7 +319,7 @@ func (b *Biz) CreateQuota(ctx context.Context, tenantID, planID, quotaType strin
 
 // ListQuotas 列出某套餐的配额（源 List）。
 func (b *Biz) ListQuotas(ctx context.Context, planID string) ([]Quota, error) {
-	items, _, err := bootstrappkg.PlanQuotaStore.List(ctx, &store.Where{
+	items, _, err := b.quotaStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("plan_id", planID)},
 	})
 	if err != nil {
@@ -326,14 +334,14 @@ func (b *Biz) ListQuotas(ctx context.Context, planID string) ([]Quota, error) {
 
 // UpdateQuota 更新配额值（源 Update）。
 func (b *Biz) UpdateQuota(ctx context.Context, id string, value uint64) error {
-	m, err := bootstrappkg.PlanQuotaStore.Get(ctx, &store.Where{
+	m, err := b.quotaStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
 		return err
 	}
 	m.QuotaValue = value
-	if _, err := bootstrappkg.PlanQuotaStore.Update(ctx, m); err != nil {
+	if _, err := b.quotaStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("plan: update quota: %w", err)
 	}
 	return nil
@@ -341,7 +349,7 @@ func (b *Biz) UpdateQuota(ctx context.Context, id string, value uint64) error {
 
 // DeleteQuota 删除配额（源 Delete）。
 func (b *Biz) DeleteQuota(ctx context.Context, id string) error {
-	if _, err := bootstrappkg.PlanQuotaStore.Delete(ctx, &store.Where{
+	if _, err := b.quotaStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("plan: delete quota: %w", err)

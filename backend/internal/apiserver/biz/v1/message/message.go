@@ -8,14 +8,14 @@
 //
 // ## 核心语义（对齐源）
 //
-// 1. **一条消息发给 N 人 = 1 条 message + N 条 recipient**（源同此分层）；
-// 2. **投递幂等靠 (message_id, recipient_user_id) 唯一约束**——源注释原话
-//    「重试幂等性由 (message_id, recipient_user_id) 唯一约束 + CreateBulk 的
-//    ON CONFLICT DO NOTHING 保证」。本实现用业务键主键表达该约束；
-// 3. **撤销在同一事务**（源 `RevokeMessageWithMessage`）——避免半成功留下
-//    「幽灵收件记录」（消息本体已删但收件记录还在）；
-// 4. **SendMessage 三模式**：全员广播（源走 asynq，进程重启后自动重试）/
-//    单收件人 / 多收件人（同步，上报失败数而非静默丢弃）。
+//  1. **一条消息发给 N 人 = 1 条 message + N 条 recipient**（源同此分层）；
+//  2. **投递幂等靠 (message_id, recipient_user_id) 唯一约束**——源注释原话
+//     「重试幂等性由 (message_id, recipient_user_id) 唯一约束 + CreateBulk 的
+//     ON CONFLICT DO NOTHING 保证」。本实现用业务键主键表达该约束；
+//  3. **撤销在同一事务**（源 `RevokeMessageWithMessage`）——避免半成功留下
+//     「幽灵收件记录」（消息本体已删但收件记录还在）；
+//  4. **SendMessage 三模式**：全员广播（源走 asynq，进程重启后自动重试）/
+//     单收件人 / 多收件人（同步，上报失败数而非静默丢弃）。
 //
 // **本波不实现 SSE 实时推送**（源的 publishNotification）——那是 Wave 3 的传输轴，
 // 本波只做「落库 + 收件箱读取」。
@@ -34,7 +34,6 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
 // ErrValidation 入参校验失败（handler 归 400）。
@@ -73,15 +72,26 @@ type Publisher interface {
 
 // Biz 是站内消息业务。
 type Biz struct {
+	// messageStore / categoryStore / recipientStore / userStore 是消息本体/分类/
+	// 收件记录/用户仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	messageStore   *store.Store[authmodel.InternalMessage]
+	categoryStore  *store.Store[authmodel.InternalMessageCategory]
+	recipientStore *store.Store[authmodel.InternalMessageRecipient]
+	userStore      *store.Store[authmodel.User]
 	// publisher 可为 nil（SSE 未装配时降级为「只落库、不推送」）。
 	publisher Publisher
 }
 
-// New 构造 Biz（无 SSE 推送能力）。
-func New() *Biz { return &Biz{} }
+// New 构造 Biz（无 SSE 推送能力）。ms/cs/rs/us 是消息本体/分类/收件记录/用户仓储
+// （Wave 3 构造期注入——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+func New(ms *store.Store[authmodel.InternalMessage], cs *store.Store[authmodel.InternalMessageCategory], rs *store.Store[authmodel.InternalMessageRecipient], us *store.Store[authmodel.User]) *Biz {
+	return &Biz{messageStore: ms, categoryStore: cs, recipientStore: rs, userStore: us}
+}
 
 // NewWithPublisher 构造带 SSE 推送能力的 Biz。
-func NewWithPublisher(p Publisher) *Biz { return &Biz{publisher: p} }
+func NewWithPublisher(ms *store.Store[authmodel.InternalMessage], cs *store.Store[authmodel.InternalMessageCategory], rs *store.Store[authmodel.InternalMessageRecipient], us *store.Store[authmodel.User], p Publisher) *Biz {
+	return &Biz{messageStore: ms, categoryStore: cs, recipientStore: rs, userStore: us, publisher: p}
+}
 
 // SetPublisher 注入/替换推送能力（源用同名注册方法）。
 func (b *Biz) SetPublisher(p Publisher) { b.publisher = p }
@@ -125,7 +135,7 @@ func (b *Biz) CreateMessage(ctx context.Context, tenantID, senderID, senderName 
 		Title: m.Title, Content: m.Content, Status: status, Type: m.Type,
 		SenderID: senderID, SenderName: senderName, CategoryID: m.CategoryID,
 	}
-	if err := bootstrappkg.MessageStore.Create(ctx, model); err != nil {
+	if err := b.messageStore.Create(ctx, model); err != nil {
 		return nil, fmt.Errorf("message: create: %w", err)
 	}
 	return toMessage(model), nil
@@ -133,7 +143,7 @@ func (b *Biz) CreateMessage(ctx context.Context, tenantID, senderID, senderName 
 
 // GetMessage 查询（源 GetMessage）。
 func (b *Biz) GetMessage(ctx context.Context, id string) (*Message, error) {
-	m, err := bootstrappkg.MessageStore.Get(ctx, &store.Where{
+	m, err := b.messageStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -148,7 +158,7 @@ func (b *Biz) ListMessages(ctx context.Context, tenantID string) ([]Message, err
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	items, _, err := bootstrappkg.MessageStore.List(ctx, w)
+	items, _, err := b.messageStore.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("message: list: %w", err)
 	}
@@ -161,7 +171,7 @@ func (b *Biz) ListMessages(ctx context.Context, tenantID string) ([]Message, err
 
 // UpdateMessage 更新（源 UpdateMessage）。
 func (b *Biz) UpdateMessage(ctx context.Context, id string, m Message) error {
-	model, err := bootstrappkg.MessageStore.Get(ctx, &store.Where{
+	model, err := b.messageStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -176,7 +186,7 @@ func (b *Biz) UpdateMessage(ctx context.Context, id string, m Message) error {
 	if m.Status != "" {
 		model.Status = m.Status
 	}
-	if _, err := bootstrappkg.MessageStore.Update(ctx, model); err != nil {
+	if _, err := b.messageStore.Update(ctx, model); err != nil {
 		return fmt.Errorf("message: update: %w", err)
 	}
 	return nil
@@ -190,12 +200,12 @@ func (b *Biz) UpdateMessage(ctx context.Context, id string, m Message) error {
 // 删 0 行是合法结果，不再需要容忍 ErrNotFound 的样板。
 func (b *Biz) DeleteMessage(ctx context.Context, id string) error {
 	// 先删收件记录（无外键约束下的手工级联；顺序重要：先子后父）。
-	if _, err := bootstrappkg.RecipientStore.Delete(ctx, &store.Where{
+	if _, err := b.recipientStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("message_id", id)},
 	}); err != nil {
 		return fmt.Errorf("message: delete recipients: %w", err)
 	}
-	if _, err := bootstrappkg.MessageStore.Delete(ctx, &store.Where{
+	if _, err := b.messageStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("message: delete: %w", err)
@@ -210,28 +220,28 @@ type SendRequest struct {
 	Type       string
 	CategoryID string
 	// TargetAll=true 时全员广播；否则按 RecipientUserID / TargetUserIDs 定向。
-	TargetAll      bool
+	TargetAll       bool
 	RecipientUserID string
 	TargetUserIDs   []string
 }
 
 // SendResult 是发送结果。
 type SendResult struct {
-	MessageID    string `json:"message_id"`
-	Delivered    int    `json:"delivered"`
-	Failed       int    `json:"failed"`
-	Broadcast    bool   `json:"broadcast"`
+	MessageID string `json:"message_id"`
+	Delivered int    `json:"delivered"`
+	Failed    int    `json:"failed"`
+	Broadcast bool   `json:"broadcast"`
 }
 
 // SendMessage 发送消息（源 SendMessage）——**三模式**。
 //
-// 1. **全员广播**（TargetAll）：消息本体落库后，为**全部活跃用户**建收件记录。
-//    源走 asynq 异步扇出（进程重启后未完成投递自动重试）；本实现**同步**执行
-//    （本项目当前用户量小，同步更简单且可立即验证）——**这是一个设计偏差**，
-//    已在注释与提交信息中记录：若用户量大应改为 asynq 任务。
-// 2. **单收件人**（RecipientUserID）：直接投递。
-// 3. **多收件人**（TargetUserIDs）：逐个投递，**上报失败数而非静默丢弃**
-//    （源注释：「同样上报错误而非全部丢弃」）。
+//  1. **全员广播**（TargetAll）：消息本体落库后，为**全部活跃用户**建收件记录。
+//     源走 asynq 异步扇出（进程重启后未完成投递自动重试）；本实现**同步**执行
+//     （本项目当前用户量小，同步更简单且可立即验证）——**这是一个设计偏差**，
+//     已在注释与提交信息中记录：若用户量大应改为 asynq 任务。
+//  2. **单收件人**（RecipientUserID）：直接投递。
+//  3. **多收件人**（TargetUserIDs）：逐个投递，**上报失败数而非静默丢弃**
+//     （源注释：「同样上报错误而非全部丢弃」）。
 //
 // 幂等：`(message_id, recipient_user_id)` 主键冲突即「已投递」——重复调用
 // 不会产生重复收件记录（源用唯一约束 + ON CONFLICT DO NOTHING）。
@@ -252,7 +262,7 @@ func (b *Biz) SendMessage(ctx context.Context, tenantID, senderID, senderName st
 	case req.TargetAll:
 		res.Broadcast = true
 		// 取全部用户（源按页拉取；本实现一次取全——量小）。
-		users, _, uerr := bootstrappkg.UserStore.List(ctx, &store.Where{})
+		users, _, uerr := b.userStore.List(ctx, &store.Where{})
 		if uerr != nil {
 			return nil, fmt.Errorf("message: list users for broadcast: %w", uerr)
 		}
@@ -296,7 +306,7 @@ func (b *Biz) Deliver(ctx context.Context, tenantID string, msg *Message, recipi
 		Content:         msg.Content,
 		Status:          RecipientUnread,
 	}
-	if err := bootstrappkg.RecipientStore.Create(ctx, r); err != nil {
+	if err := b.recipientStore.Create(ctx, r); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil // 已投递（幂等）
 		}
@@ -345,7 +355,7 @@ func (b *Biz) RevokeMessage(ctx context.Context, messageID, userID string) error
 		return fmt.Errorf("%w: message_id required", ErrValidation)
 	}
 	// 1) 把该消息的收件记录标为 REVOKED（保留记录供审计，而非物理删除）。
-	items, _, err := bootstrappkg.RecipientStore.List(ctx, &store.Where{
+	items, _, err := b.recipientStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("message_id", messageID)},
 	})
 	if err != nil {
@@ -356,19 +366,19 @@ func (b *Biz) RevokeMessage(ctx context.Context, messageID, userID string) error
 			continue // 指定用户时只撤该用户的
 		}
 		r.Status = RecipientRevoked
-		if _, uerr := bootstrappkg.RecipientStore.Update(ctx, r); uerr != nil {
+		if _, uerr := b.recipientStore.Update(ctx, r); uerr != nil {
 			return fmt.Errorf("message: revoke recipient: %w", uerr)
 		}
 	}
 	// 2) 消息本体标 REVOKED（不物理删除——保留审计痕迹）。
-	m, err := bootstrappkg.MessageStore.Get(ctx, &store.Where{
+	m, err := b.messageStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", messageID)},
 	})
 	if err != nil {
 		return err
 	}
 	m.Status = StatusRevoked
-	if _, err := bootstrappkg.MessageStore.Update(ctx, m); err != nil {
+	if _, err := b.messageStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("message: revoke: %w", err)
 	}
 	return nil
@@ -410,7 +420,7 @@ func (b *Biz) CreateCategory(ctx context.Context, tenantID string, c Category) (
 		Name: c.Name, Code: c.Code, SortOrder: c.SortOrder,
 		Enabled: c.Enabled, Remark: c.Remark,
 	}
-	if err := bootstrappkg.MessageCategoryStore.Create(ctx, m); err != nil {
+	if err := b.categoryStore.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, fmt.Errorf("%w: category already exists", ErrConflict)
 		}
@@ -425,7 +435,7 @@ func (b *Biz) ListCategories(ctx context.Context, tenantID string) ([]Category, 
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	items, _, err := bootstrappkg.MessageCategoryStore.List(ctx, w)
+	items, _, err := b.categoryStore.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("message: list categories: %w", err)
 	}
@@ -442,7 +452,7 @@ func (b *Biz) CountCategories(ctx context.Context, tenantID string) (int64, erro
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	n, err := bootstrappkg.MessageCategoryStore.Count(ctx, w)
+	n, err := b.categoryStore.Count(ctx, w)
 	if err != nil {
 		return 0, fmt.Errorf("message: count categories: %w", err)
 	}
@@ -451,7 +461,7 @@ func (b *Biz) CountCategories(ctx context.Context, tenantID string) (int64, erro
 
 // GetCategory 按 id 查询（源 Get）。
 func (b *Biz) GetCategory(ctx context.Context, id string) (*Category, error) {
-	m, err := bootstrappkg.MessageCategoryStore.Get(ctx, &store.Where{
+	m, err := b.categoryStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -462,7 +472,7 @@ func (b *Biz) GetCategory(ctx context.Context, id string) (*Category, error) {
 
 // UpdateCategory 更新（源 Update）。
 func (b *Biz) UpdateCategory(ctx context.Context, id string, c Category) error {
-	m, err := bootstrappkg.MessageCategoryStore.Get(ctx, &store.Where{
+	m, err := b.categoryStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -472,7 +482,7 @@ func (b *Biz) UpdateCategory(ctx context.Context, id string, c Category) error {
 		m.Name = c.Name
 	}
 	m.Enabled = c.Enabled
-	if _, err := bootstrappkg.MessageCategoryStore.Update(ctx, m); err != nil {
+	if _, err := b.categoryStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("message: update category: %w", err)
 	}
 	return nil
@@ -480,7 +490,7 @@ func (b *Biz) UpdateCategory(ctx context.Context, id string, c Category) error {
 
 // DeleteCategory 删除（源 Delete）。
 func (b *Biz) DeleteCategory(ctx context.Context, id string) error {
-	if _, err := bootstrappkg.MessageCategoryStore.Delete(ctx, &store.Where{
+	if _, err := b.categoryStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("message: delete category: %w", err)
@@ -514,7 +524,7 @@ type Recipient struct {
 //
 // 语义：DELETED 的记录是「用户从收件箱移除」，不应出现在列表里。
 func (b *Biz) ListUserInbox(ctx context.Context, userID string) ([]Recipient, error) {
-	items, _, err := bootstrappkg.RecipientStore.List(ctx, &store.Where{
+	items, _, err := b.recipientStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("recipient_user_id", userID)},
 	})
 	if err != nil {
@@ -532,7 +542,7 @@ func (b *Biz) ListUserInbox(ctx context.Context, userID string) ([]Recipient, er
 
 // GetRecipient 按 id 查询（源 Get）。
 func (b *Biz) GetRecipient(ctx context.Context, id string) (*Recipient, error) {
-	m, err := bootstrappkg.RecipientStore.Get(ctx, &store.Where{
+	m, err := b.recipientStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -545,7 +555,7 @@ func (b *Biz) GetRecipient(ctx context.Context, id string) (*Recipient, error) {
 func (b *Biz) GetRecipientsByIDs(ctx context.Context, ids []string) ([]Recipient, error) {
 	out := make([]Recipient, 0, len(ids))
 	for _, id := range ids {
-		m, err := bootstrappkg.RecipientStore.Get(ctx, &store.Where{
+		m, err := b.recipientStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 		})
 		if err != nil {
@@ -559,7 +569,7 @@ func (b *Biz) GetRecipientsByIDs(ctx context.Context, ids []string) ([]Recipient
 // MarkAsRead 标记已读（源 MarkNotificationAsRead）。
 // **幂等**：已读的再标仍返回成功（不重复更新 ReadAt）。
 func (b *Biz) MarkAsRead(ctx context.Context, id string) error {
-	m, err := bootstrappkg.RecipientStore.Get(ctx, &store.Where{
+	m, err := b.recipientStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -571,7 +581,7 @@ func (b *Biz) MarkAsRead(ctx context.Context, id string) error {
 	now := time.Now()
 	m.Status = RecipientRead
 	m.ReadAt = &now
-	if _, err := bootstrappkg.RecipientStore.Update(ctx, m); err != nil {
+	if _, err := b.recipientStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("message: mark read: %w", err)
 	}
 	return nil
@@ -583,7 +593,7 @@ func (b *Biz) MarkStatus(ctx context.Context, ids []string, status string) error
 		return fmt.Errorf("%w: status required", ErrValidation)
 	}
 	for _, id := range ids {
-		m, err := bootstrappkg.RecipientStore.Get(ctx, &store.Where{
+		m, err := b.recipientStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 		})
 		if err != nil {
@@ -594,7 +604,7 @@ func (b *Biz) MarkStatus(ctx context.Context, ids []string, status string) error
 			now := time.Now()
 			m.ReadAt = &now
 		}
-		if _, uerr := bootstrappkg.RecipientStore.Update(ctx, m); uerr != nil {
+		if _, uerr := b.recipientStore.Update(ctx, m); uerr != nil {
 			return fmt.Errorf("message: mark status: %w", uerr)
 		}
 	}
@@ -604,14 +614,14 @@ func (b *Biz) MarkStatus(ctx context.Context, ids []string, status string) error
 // DeleteFromInbox 从收件箱删除（源 DeleteNotificationFromInbox）。
 // **软删除**（标 DELETED 而非物理删）——保留投递审计痕迹。
 func (b *Biz) DeleteFromInbox(ctx context.Context, id string) error {
-	m, err := bootstrappkg.RecipientStore.Get(ctx, &store.Where{
+	m, err := b.recipientStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
 		return err
 	}
 	m.Status = RecipientDeleted
-	if _, err := bootstrappkg.RecipientStore.Update(ctx, m); err != nil {
+	if _, err := b.recipientStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("message: delete from inbox: %w", err)
 	}
 	return nil
@@ -623,7 +633,7 @@ func (b *Biz) CountRecipients(ctx context.Context, tenantID string) (int64, erro
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	n, err := bootstrappkg.RecipientStore.Count(ctx, w)
+	n, err := b.recipientStore.Count(ctx, w)
 	if err != nil {
 		return 0, fmt.Errorf("message: count recipients: %w", err)
 	}

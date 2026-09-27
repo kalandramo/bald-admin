@@ -58,15 +58,15 @@ func startDashboardREST(t *testing.T) string {
 	// 全链路可验证。
 	audit.SetAuditor(securityaudit.NewStore(bootstrappkg.DB))
 	t.Cleanup(func() { audit.SetAuditor(audit.NopAuditor()) })
-	authBiz := authbiz.New(bootstrappkg.Signer)
+	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.LazyAuthenticator())
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.LazyAuthenticator(), &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
-		User: userbiz.New(), Menu: menubiz.New(), Permission: permissionbiz.New(),
-		Dict: dictbiz.New(nil), File: filebiz.New(nil, ""), AuditLog: auditlogbiz.New(),
-		Dashboard: dashbiz.New(),
+		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
+		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
+		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		Dashboard: dashbiz.New(bootstrappkg.AuditStore, bootstrappkg.RoleStore, bootstrappkg.UserStore),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -140,7 +140,7 @@ func TestWave3_4_Overview(t *testing.T) {
 func TestWave3_4_LoginTrendPadsMissingDays(t *testing.T) {
 	base := startDashboardREST(t)
 	_ = loginAs(t, base, "admin", "admin123") // 确保路由与鉴权已装配
-	biz := dashbiz.New()
+	biz := dashbiz.New(bootstrappkg.AuditStore, bootstrappkg.RoleStore, bootstrappkg.UserStore)
 	ctx := context.Background()
 
 	// 造一个唯一的租户，隔离本测试的数据（避免其他测试的审计记录干扰）。
@@ -200,7 +200,7 @@ func TestWave3_4_LoginTrendPadsMissingDays(t *testing.T) {
 func TestWave3_4_OperationActionDistribution(t *testing.T) {
 	base := startDashboardREST(t)
 	_ = loginAs(t, base, "admin", "admin123") // 确保路由与鉴权已装配
-	biz := dashbiz.New()
+	biz := dashbiz.New(bootstrappkg.AuditStore, bootstrappkg.RoleStore, bootstrappkg.UserStore)
 	ctx := context.Background()
 	tenant := "act-" + time.Now().Format("150405.000000")
 
@@ -237,7 +237,7 @@ func TestWave3_4_OperationActionDistribution(t *testing.T) {
 func TestWave3_4_LoginStatusDistribution(t *testing.T) {
 	base := startDashboardREST(t)
 	_ = loginAs(t, base, "admin", "admin123") // 确保路由与鉴权已装配
-	biz := dashbiz.New()
+	biz := dashbiz.New(bootstrappkg.AuditStore, bootstrappkg.RoleStore, bootstrappkg.UserStore)
 	ctx := context.Background()
 	tenant := "st-" + time.Now().Format("150405.000000")
 
@@ -320,7 +320,7 @@ func TestWave3_4_HTTPEndpoints(t *testing.T) {
 // 这条链路此前在 e2e 中不可验证（auditor 未装配）——本测试是首个覆盖者。
 func TestWave3_4_FullChainLoginToDashboard(t *testing.T) {
 	base := startDashboardREST(t)
-	biz := dashbiz.New()
+	biz := dashbiz.New(bootstrappkg.AuditStore, bootstrappkg.RoleStore, bootstrappkg.UserStore)
 	ctx := context.Background()
 	tenant := "t-default" // admin 的租户
 

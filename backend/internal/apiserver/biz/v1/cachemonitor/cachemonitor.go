@@ -23,18 +23,21 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/kalandramo/bald/log"
-
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
 // slowLogFetchLimit SLOWLOG GET 抓取的最近条目数上限（与源一致）。
 const slowLogFetchLimit = 10
 
 // Biz 缓存监控业务。
-type Biz struct{}
+type Biz struct {
+	// rdb 是 Redis 客户端（Wave 3：构造期注入，替代请求期读 bootstrap.RedisClient）。
+	// nil = Redis 未装配，Info 返回空视图（fail-soft，对齐源语义）。
+	rdb goredis.UniversalClient
+}
 
-// New 构造缓存监控业务。
-func New() *Biz { return &Biz{} }
+// New 构造缓存监控业务。rdb 是 Redis 客户端（Wave 3 构造期注入——InitializeBiz
+// 现于 InitBridges 之后执行，RedisClient 已就绪）。nil 表示 Redis 未装配。
+func New(rdb goredis.UniversalClient) *Biz { return &Biz{rdb: rdb} }
 
 // InfoSection INFO 输出的单个 section。
 type InfoSection struct {
@@ -64,7 +67,7 @@ type SlowLogEntry struct {
 // 返回空视图（非错误）。
 func (b *Biz) Info(ctx context.Context) (*Result, error) {
 	out := &Result{}
-	rdb := bootstrappkg.RedisClient
+	rdb := b.rdb
 	if rdb == nil {
 		return out, nil // Redis 不可用 → 空视图（对齐源）
 	}

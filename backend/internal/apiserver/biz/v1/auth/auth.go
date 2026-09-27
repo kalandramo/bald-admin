@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/circuitbreaker"
+	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
@@ -26,7 +26,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
 	"github.com/kalandramo/bald-admin/internal/security/token"
 )
@@ -95,6 +94,13 @@ var ErrLoginUnavailable = errors.New("auth: login temporarily unavailable")
 // Biz 认证业务。
 type Biz struct {
 	signer authnjwt.Signer // 私钥签发器（非对称场景只持私钥）
+	// userStore / tenantStore 是认证所需仓储（Wave 3：构造期注入，替代请求期
+	// 读包级变量）。登录/注册/租户校验均经它们。
+	userStore   *store.Store[authmodel.User]
+	tenantStore *store.Store[authmodel.Tenant]
+	// reloadPolicies 重建 casbin 策略（Wave 3：注入，替代直调 bootstrap.ReloadPolicies）。
+	// nil = 跳过（策略热重载非关键路径；nil 时登录照常完成，仅不触发策略刷新）。
+	reloadPolicies func() error
 	// loginLimiter 登录限流器（Wave 1a，bald ratelimit/tokenbucket）。
 	// nil = 禁用态：不阻断登录（对齐源项目 LoginRateLimiter 的 fail-open——
 	// 限流是防御性增强，不应让限流组件故障导致登录全部不可用）。
@@ -158,8 +164,13 @@ func RetryOnTransientDBError(err error) bool {
 }
 
 // New 构造认证 Biz。signer 来自 bootstrap（bald-authn-jwt 签发实例）。
-func New(signer authnjwt.Signer) *Biz {
-	return &Biz{signer: signer}
+//
+// Wave 3：us/ts 为认证所需仓储、reload 为策略重载回调（均构造期注入——
+// InitializeBiz 现于 InitBridges 之后执行，store 与 ReloadPolicies 均已就绪）。
+// reload 可为 nil（跳过策略热重载）。
+func New(signer authnjwt.Signer, us *store.Store[authmodel.User],
+	ts *store.Store[authmodel.Tenant], reload func() error) *Biz {
+	return &Biz{signer: signer, userStore: us, tenantStore: ts, reloadPolicies: reload}
 }
 
 // SetPlatformResolver 注入平台身份判据（判定某用户是否签发 Platform 标记）。
@@ -349,7 +360,7 @@ func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResu
 
 	// 2) 租户校验：必须存在且启用。租户读不经租户隔离（Tenant 实体无 TenantID 字段，
 	//    P8 隔离对其天然不作用——见 model/tenant.go 注释），故此处可直接查。
-	if _, err := bootstrappkg.TenantStore.Get(ctx, &store.Where{
+	if _, err := b.tenantStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", in.TenantCode)},
 	}); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -360,7 +371,7 @@ func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResu
 
 	// 3) 用户名唯一性：显式查重（DB 的 uniqueIndex 是兜底，但显式查能给出
 	//    明确的 409 语义而非 500）。
-	if _, err := bootstrappkg.UserStore.Get(ctx, &store.Where{
+	if _, err := b.userStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("username", in.Username)},
 	}); err == nil {
 		return nil, ErrUsernameTaken // 查到 = 已存在
@@ -385,7 +396,7 @@ func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResu
 		TenantID:     in.TenantCode, // 显式指定（注册请求无 ctx 租户）
 		Roles:        "viewer",      // 默认最小权限（不默认 admin）
 	}
-	if err := bootstrappkg.UserStore.Create(ctx, u); err != nil {
+	if err := b.userStore.Create(ctx, u); err != nil {
 		// 唯一索引冲突（并发注册同名）——DB 兜底路径。
 		if errors.Is(err, store.ErrConflict) {
 			return nil, ErrUsernameTaken
@@ -400,7 +411,7 @@ func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResu
 	//
 	// 重载失败不阻断注册（用户已创建成功）——记 Warn 降级：新用户需重启后才能
 	// 授权通过，但注册本身有效（否则用户拿到 500 却已落库，语义混乱）。
-	if rerr := bootstrappkg.ReloadPolicies(); rerr != nil {
+	if rerr := b.reloadPolicies(); rerr != nil {
 		log.Warn(ctx, "policy reload after register failed, new user may need restart",
 			"user", u.ID, "error", rerr.Error())
 	}
@@ -530,12 +541,12 @@ func (b *Biz) RevokeTokenById(ctx context.Context, userID, jti, token, reason st
 // safelyAuditToken 记录 token 管理审计（旁路，失败不影响主流程）。
 func safelyAuditToken(ctx context.Context, action, target, reason string) {
 	recordSafely(ctx, audit.AuditEvent{
-		Time:    time.Now(),
-		Object:  "auth",
-		Action:  "token_" + action,
-		Result:  audit.ResultAllow,
-		Error:   reason,
-		Meta:    map[string]any{"category": "token_mgmt", "target_user": target},
+		Time:   time.Now(),
+		Object: "auth",
+		Action: "token_" + action,
+		Result: audit.ResultAllow,
+		Error:  reason,
+		Meta:   map[string]any{"category": "token_mgmt", "target_user": target},
 	})
 }
 
@@ -741,7 +752,7 @@ func (b *Biz) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair
 
 	// 重新加载用户：刷新时用户可能已被删除/停用/改角色——直接用旧 claims 会
 	// 让权限变更在刷新后仍不生效（刷新本应是最新的权限快照）。
-	u, err := bootstrappkg.UserStore.Get(ctx, &store.Where{
+	u, err := b.userStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", subject)},
 	})
 	if err != nil {
@@ -851,11 +862,11 @@ func tokenFingerprint(tok string) string {
 //
 // 分层语义（外层熔断、内层重试）：
 //
-//	Allow ──► [retry: 瞬时故障重试 N 次] ──► MarkSuccess/MarkFailure
+//		Allow ──► [retry: 瞬时故障重试 N 次] ──► MarkSuccess/MarkFailure
 //
-//   - retry 处理**偶发抖动**（一次连接失败，重试可能成功）；
-//   - 熔断处理**持续故障**（重试仍失败 → 计入失败；连续失败则 Open 快速失败，
-//     不再让每个请求都付出 N 次重试的代价）。
+//	  - retry 处理**偶发抖动**（一次连接失败，重试可能成功）；
+//	  - 熔断处理**持续故障**（重试仍失败 → 计入失败；连续失败则 Open 快速失败，
+//	    不再让每个请求都付出 N 次重试的代价）。
 //
 // 熔断边界的关键设计——**只对真故障计数**：
 //   - ErrNotFound（用户不存在）是**正常业务结果**，必须 MarkSuccess（不计失败），
@@ -870,7 +881,7 @@ func tokenFingerprint(tok string) string {
 // 两个组件都为 nil 时直连 store（禁用态）。
 func (b *Biz) queryUser(ctx context.Context, username string) (*authmodel.User, error) {
 	q := func(ctx context.Context) (*authmodel.User, error) {
-		return bootstrappkg.UserStore.Get(ctx, &store.Where{
+		return b.userStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("username", username)},
 		})
 	}

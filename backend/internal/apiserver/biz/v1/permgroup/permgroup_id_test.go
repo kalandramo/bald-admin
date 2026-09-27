@@ -34,7 +34,7 @@ func TestRecordEvaluation_ConsecutiveIDsUnique(t *testing.T) {
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	biz := New()
+	biz := New(bootstrappkg.PermGroupStore, bootstrappkg.PolicyEvalLogStore)
 	ctx := context.Background()
 
 	// 连续写 20 条（远超任何时钟粒度下的撞键概率窗口）。

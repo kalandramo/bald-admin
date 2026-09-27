@@ -15,7 +15,6 @@ import (
 	"github.com/kalandramo/bald/berrors"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/pkg/store"
 )
 
@@ -24,20 +23,21 @@ import (
 // 双重拦截，后端为准（绕过前端直调 API 仍被拒）。
 var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
 
-// Biz 用户管理业务。仓储经 store() 请求期读取（wire 构造期 bootstrap.UserStore
-// 尚未初始化——构造期快照会把 nil 固化进来，见 SecretBiz 同款时序约定）。
-type Biz struct{}
+// Biz 用户管理业务。
+type Biz struct {
+	// store 是用户仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	store *store.Store[authmodel.User]
+}
 
-// New 构造用户业务。
-func New() *Biz { return &Biz{} }
-
-func (b *Biz) store() *store.Store[authmodel.User] { return bootstrappkg.UserStore }
+// New 构造用户业务。st 是用户仓储（Wave 3 构造期注入——InitializeBiz 现于
+// InitBridges 之后执行，store 已就绪）。
+func New(st *store.Store[authmodel.User]) *Biz { return &Biz{store: st} }
 
 // Get 取用户（租户内）。跨租户/不存在均 ErrNotFound（隔离由 Where.T 完成）。
 func (b *Biz) Get(ctx context.Context, id string) (*authmodel.User, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	u, err := b.store().Get(ctx, w.T(ctx))
+	u, err := b.store.Get(ctx, w.T(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("user.Get(%s): %w", id, err)
 	}
@@ -46,7 +46,7 @@ func (b *Biz) Get(ctx context.Context, id string) (*authmodel.User, error) {
 
 // List 列出当前租户用户。
 func (b *Biz) List(ctx context.Context) ([]*authmodel.User, error) {
-	users, _, err := b.store().List(ctx, (&store.Where{}).T(ctx))
+	users, _, err := b.store.List(ctx, (&store.Where{}).T(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("user.List: %w", err)
 	}
@@ -74,7 +74,7 @@ func (b *Biz) Create(ctx context.Context, id, username string, roles []string, p
 		Roles:        joinCSV(roles),
 		// TenantID 不手写：injectWriteTenant 从 ctx 自动注入（租户内创建）。
 	}
-	if err := b.store().Create(ctx, u); err != nil {
+	if err := b.store.Create(ctx, u); err != nil {
 		return nil, fmt.Errorf("user.Create(%s): %w", id, err)
 	}
 	return u, nil
@@ -84,7 +84,7 @@ func (b *Biz) Create(ctx context.Context, id, username string, roles []string, p
 func (b *Biz) Update(ctx context.Context, id, username string, roles []string, password string) (*authmodel.User, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	u, err := b.store().Get(ctx, w.T(ctx))
+	u, err := b.store.Get(ctx, w.T(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("user.Update(%s): %w", id, err)
 	}
@@ -105,7 +105,7 @@ func (b *Biz) Update(ctx context.Context, id, username string, roles []string, p
 		}
 		u.PasswordHash = string(hash)
 	}
-	if _, err := b.store().Update(ctx, u); err != nil {
+	if _, err := b.store.Update(ctx, u); err != nil {
 		return nil, fmt.Errorf("user.Update(%s): %w", id, err)
 	}
 	return u, nil
@@ -115,10 +115,10 @@ func (b *Biz) Update(ctx context.Context, id, username string, roles []string, p
 func (b *Biz) Delete(ctx context.Context, id string) (bool, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.store().Get(ctx, w.T(ctx)); err != nil {
+	if _, err := b.store.Get(ctx, w.T(ctx)); err != nil {
 		return false, fmt.Errorf("user.Delete(%s): %w", id, err)
 	}
-	if _, err := b.store().Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.store.Delete(ctx, w.T(ctx)); err != nil {
 		return false, fmt.Errorf("user.Delete(%s): %w", id, err)
 	}
 	return true, nil

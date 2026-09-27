@@ -67,8 +67,8 @@ func startOrgValidationGRPCServer(t *testing.T) (string, func()) {
 		[]grpc.ServerOption{grpc.ChainUnaryInterceptor(
 			grpcmw.ErrorInterceptor(), authnI, authzI, validatorI)},
 		func(s *grpc.Server) {
-			identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(orgbiz.New()))
-			identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(orgbiz.New()))
+			identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(orgbiz.New(bootstrappkg.OrgUnitStore, bootstrappkg.PositionStore, bootstrappkg.UserStore)))
+			identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(orgbiz.New(bootstrappkg.OrgUnitStore, bootstrappkg.PositionStore, bootstrappkg.UserStore)))
 		},
 	)
 	lis, err := net.Listen("tcp", ":0")

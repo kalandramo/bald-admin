@@ -31,7 +31,6 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
 // ErrValidation 入参校验失败（handler 归 400）。
@@ -44,21 +43,29 @@ var ErrNotFound = store.ErrNotFound
 var ErrConflict = store.ErrConflict
 
 // Biz 是权限组 + 策略评估日志业务。
-type Biz struct{}
+type Biz struct {
+	// groupStore / evalLogStore 是权限组/策略评估日志仓储
+	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	groupStore   *store.Store[authmodel.PermissionGroup]
+	evalLogStore *store.Store[authmodel.PolicyEvaluationLog]
+}
 
-// New 构造 Biz。
-func New() *Biz { return &Biz{} }
+// New 构造 Biz。gs/els 是权限组/策略评估日志仓储（Wave 3 构造期注入——
+// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+func New(gs *store.Store[authmodel.PermissionGroup], els *store.Store[authmodel.PolicyEvaluationLog]) *Biz {
+	return &Biz{groupStore: gs, evalLogStore: els}
+}
 
 // Group 是对外的权限组。
 type Group struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
-	Path      string  `json:"path"`
-	Module    string  `json:"module,omitempty"`
-	ParentID  string  `json:"parent_id,omitempty"`
-	Status    string  `json:"status"`
-	SortOrder int32   `json:"sort_order"`
-	Remark    string  `json:"remark,omitempty"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Module    string `json:"module,omitempty"`
+	ParentID  string `json:"parent_id,omitempty"`
+	Status    string `json:"status"`
+	SortOrder int32  `json:"sort_order"`
+	Remark    string `json:"remark,omitempty"`
 	// Children 树形返回时的子节点（源 ListPermissionGroupResponse 同此）。
 	Children []*Group `json:"children,omitempty"`
 }
@@ -95,7 +102,7 @@ func (b *Biz) CreateGroup(ctx context.Context, tenantID, code string, g Group) (
 	// 1) 解析父路径（源 setTreePath 语义）。
 	parentPath := ""
 	if g.ParentID != "" {
-		p, err := bootstrappkg.PermGroupStore.Get(ctx, &store.Where{
+		p, err := b.groupStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("id", g.ParentID)},
 		})
 		if err != nil {
@@ -113,17 +120,17 @@ func (b *Biz) CreateGroup(ctx context.Context, tenantID, code string, g Group) (
 	}
 
 	m := &authmodel.PermissionGroup{
-		ID:       pgID(tenantID, code),
-		TenantID: tenantID,
-		Name:     g.Name,
-		Module:   g.Module,
-		ParentID: g.ParentID,
-		Status:   status,
+		ID:        pgID(tenantID, code),
+		TenantID:  tenantID,
+		Name:      g.Name,
+		Module:    g.Module,
+		ParentID:  g.ParentID,
+		Status:    status,
 		SortOrder: g.SortOrder,
-		Remark:   g.Remark,
+		Remark:    g.Remark,
 	}
 	// 2) 先落库（path 暂空）。
-	if err := bootstrappkg.PermGroupStore.Create(ctx, m); err != nil {
+	if err := b.groupStore.Create(ctx, m); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return nil, fmt.Errorf("%w: permission group already exists: %s", ErrConflict, code)
 		}
@@ -131,7 +138,7 @@ func (b *Biz) CreateGroup(ctx context.Context, tenantID, code string, g Group) (
 	}
 	// 3) 回填 path —— 格式 `/父path/自身ID/`，含自身、首尾带 `/`（对齐源）。
 	m.Path = computePath(parentPath, m.ID)
-	if _, err := bootstrappkg.PermGroupStore.Update(ctx, m); err != nil {
+	if _, err := b.groupStore.Update(ctx, m); err != nil {
 		return nil, fmt.Errorf("permgroup: backfill path: %w", err)
 	}
 	return toGroup(m), nil
@@ -162,7 +169,7 @@ func computePath(parentPath, selfID string) string {
 
 // GetGroup 按 id 查询（源 Get）。
 func (b *Biz) GetGroup(ctx context.Context, id string) (*Group, error) {
-	m, err := bootstrappkg.PermGroupStore.Get(ctx, &store.Where{
+	m, err := b.groupStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -177,7 +184,7 @@ func (b *Biz) ListGroupTree(ctx context.Context, tenantID string) ([]*Group, err
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	items, _, err := bootstrappkg.PermGroupStore.List(ctx, w)
+	items, _, err := b.groupStore.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("permgroup: list: %w", err)
 	}
@@ -207,7 +214,7 @@ func (b *Biz) ListGroupTree(ctx context.Context, tenantID string) ([]*Group, err
 
 // UpdateGroup 更新（源 Update）。
 func (b *Biz) UpdateGroup(ctx context.Context, id string, g Group) error {
-	m, err := bootstrappkg.PermGroupStore.Get(ctx, &store.Where{
+	m, err := b.groupStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {
@@ -226,7 +233,7 @@ func (b *Biz) UpdateGroup(ctx context.Context, id string, g Group) error {
 	if g.Remark != "" {
 		m.Remark = g.Remark
 	}
-	if _, err := bootstrappkg.PermGroupStore.Update(ctx, m); err != nil {
+	if _, err := b.groupStore.Update(ctx, m); err != nil {
 		return fmt.Errorf("permgroup: update: %w", err)
 	}
 	return nil
@@ -237,7 +244,7 @@ func (b *Biz) UpdateGroup(ctx context.Context, id string, g Group) error {
 // **有子节点时拒绝**（与本项目 org 域同语义，`org.go` 的
 // 「has N children, delete them first」）——避免留下悬挂的父子引用。
 func (b *Biz) DeleteGroup(ctx context.Context, id string) error {
-	children, _, err := bootstrappkg.PermGroupStore.List(ctx, &store.Where{
+	children, _, err := b.groupStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("parent_id", id)},
 	})
 	if err != nil {
@@ -246,7 +253,7 @@ func (b *Biz) DeleteGroup(ctx context.Context, id string) error {
 	if len(children) > 0 {
 		return fmt.Errorf("%w: has %d children, delete them first", ErrValidation, len(children))
 	}
-	if _, err := bootstrappkg.PermGroupStore.Delete(ctx, &store.Where{
+	if _, err := b.groupStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	}); err != nil {
 		return fmt.Errorf("permgroup: delete: %w", err)
@@ -288,7 +295,7 @@ func (b *Biz) RecordEvaluation(ctx context.Context, tenantID, userID, permission
 		EffectDetails: details,
 		CreatedAt:     now.UnixNano(),
 	}
-	if err := bootstrappkg.PolicyEvalLogStore.Create(ctx, rec); err != nil {
+	if err := b.evalLogStore.Create(ctx, rec); err != nil {
 		return fmt.Errorf("permgroup: record evaluation: %w", err)
 	}
 	return nil
@@ -300,7 +307,7 @@ func (b *Biz) ListEvalLogs(ctx context.Context, tenantID string) ([]EvalLog, err
 	if tenantID != "" {
 		w.Filters = append(w.Filters, store.Eq("tenant_id", tenantID))
 	}
-	items, _, err := bootstrappkg.PolicyEvalLogStore.List(ctx, w)
+	items, _, err := b.evalLogStore.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("permgroup: list eval logs: %w", err)
 	}
@@ -313,7 +320,7 @@ func (b *Biz) ListEvalLogs(ctx context.Context, tenantID string) ([]EvalLog, err
 
 // GetEvalLog 按 id 查询（源 Get）。
 func (b *Biz) GetEvalLog(ctx context.Context, id string) (*EvalLog, error) {
-	m, err := bootstrappkg.PolicyEvalLogStore.Get(ctx, &store.Where{
+	m, err := b.evalLogStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
 	})
 	if err != nil {

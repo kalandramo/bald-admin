@@ -43,15 +43,15 @@ func startMessageREST(t *testing.T) string {
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	authBiz := authbiz.New(bootstrappkg.Signer)
+	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.LazyAuthenticator())
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.LazyAuthenticator(), &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
-		User: userbiz.New(), Menu: menubiz.New(), Permission: permissionbiz.New(),
-		Dict: dictbiz.New(nil), File: filebiz.New(nil, ""), AuditLog: auditlogbiz.New(),
-		Task: taskbiz.New(), Message: msgbiz.New(),
+		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
+		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
+		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		Task: taskbiz.New(bootstrappkg.TaskStore), Message: msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -139,7 +139,7 @@ func TestWave2_5_SendIdempotent(t *testing.T) {
 	admin := loginAs(t, base, "admin", "admin123")
 	_ = base
 
-	biz := msgbiz.New()
+	biz := msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore)
 	ctx := context.Background()
 	tenant := "t-default"
 
@@ -261,7 +261,7 @@ func TestWave2_5_InboxLifecycle(t *testing.T) {
 	base := startMessageREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 
-	biz := msgbiz.New()
+	biz := msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore)
 	ctx := context.Background()
 	uid := "u-lifecycle-" + msgSuffix()
 
@@ -321,7 +321,7 @@ func TestWave2_5_Revoke(t *testing.T) {
 	base := startMessageREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 
-	biz := msgbiz.New()
+	biz := msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore)
 	ctx := context.Background()
 	suffix := msgSuffix()
 	u1, u2 := "u-rv1-"+suffix, "u-rv2-"+suffix
@@ -372,7 +372,7 @@ func TestWave2_5_MessageCRUD(t *testing.T) {
 	base := startMessageREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 
-	biz := msgbiz.New()
+	biz := msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore)
 	ctx := context.Background()
 
 	// 创建草稿。

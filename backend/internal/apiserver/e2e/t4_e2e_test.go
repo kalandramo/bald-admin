@@ -27,7 +27,6 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald/cache"
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
@@ -40,6 +39,8 @@ import (
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald-admin/internal/cachekit"
+	"github.com/kalandramo/bald/cache"
 )
 
 // startDictREST 起真实 gin 引擎 + miniredis 真实 Redis（dict biz 注入缓存，
@@ -59,9 +60,9 @@ func startDictREST(t *testing.T) (string, cache.Cache) {
 	cacheInst := bootstrappkg.UseRedisClient(rdb)
 	e := gingonic.New()
 	apiserver.RegisterRoutes(e, &apiserver.BizSet{
-		Auth: authbiz.New(bootstrappkg.Signer), Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
-		User: userbiz.New(), Menu: menubiz.New(), Permission: permissionbiz.New(),
-		Dict: dictbiz.New(cacheInst), File: filebiz.New(nil, ""), AuditLog: auditlogbiz.New(),
+		Auth: authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies), Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
+		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
+		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, cacheInst), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -150,7 +151,7 @@ func TestDictREST_EntryLifecycleAndCache(t *testing.T) {
 	base, cacheInst := startDictREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
 	ctx := context.Background()
-	ck := bootstrappkg.CacheKey("dict:entries", "t-default", "gender") // 租户维度键
+	ck := cachekit.CacheKey("dict:entries", "t-default", "gender") // 租户维度键
 
 	// 1. 创建条目（numeric 演示，sort_order=4 落尾）→ 重复 409（type_code:value 业务键唯一，
 	//    错误映射统一后 store.ErrConflict → 409）。

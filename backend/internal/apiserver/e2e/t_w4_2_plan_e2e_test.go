@@ -44,15 +44,15 @@ func startPlanREST(t *testing.T) string {
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	authBiz := authbiz.New(bootstrappkg.Signer)
+	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.LazyAuthenticator())
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.LazyAuthenticator(), &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
-		User: userbiz.New(), Menu: menubiz.New(), Permission: permissionbiz.New(),
-		Dict: dictbiz.New(nil), File: filebiz.New(nil, ""), AuditLog: auditlogbiz.New(),
-		Plan: planbiz.New(),
+		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
+		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
+		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		Plan: planbiz.New(bootstrappkg.PlanStore, bootstrappkg.PlanModuleStore, bootstrappkg.PlanQuotaStore),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -68,7 +68,7 @@ func planSuffix() string { return "pl" + time.Now().Format("150405.000000") }
 func TestWave4_2_CascadeDelete(t *testing.T) {
 	base := startPlanREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
-	biz := planbiz.New()
+	biz := planbiz.New(bootstrappkg.PlanStore, bootstrappkg.PlanModuleStore, bootstrappkg.PlanQuotaStore)
 	ctx := context.Background()
 	sfx := planSuffix()
 
@@ -205,7 +205,7 @@ func TestWave4_2_PlanCRUD(t *testing.T) {
 func TestWave4_2_ModuleAndQuota(t *testing.T) {
 	base := startPlanREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
-	biz := planbiz.New()
+	biz := planbiz.New(bootstrappkg.PlanStore, bootstrappkg.PlanModuleStore, bootstrappkg.PlanQuotaStore)
 	ctx := context.Background()
 	sfx := planSuffix()
 

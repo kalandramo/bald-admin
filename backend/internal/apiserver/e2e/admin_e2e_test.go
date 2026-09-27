@@ -73,9 +73,9 @@ func setupAdmin(t *testing.T) (*gingonic.Engine, *stubComp) {
 
 	e := gingonic.New()
 	apiserver.RegisterRoutes(e, &apiserver.BizSet{
-		Auth: authbiz.New(bootstrappkg.Signer), Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
-		User: userbiz.New(), Menu: menubiz.New(), Permission: permissionbiz.New(),
-		Dict: dictbiz.New(nil), File: filebiz.New(nil, ""), AuditLog: auditlogbiz.New(),
+		Auth: authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies), Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
+		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
+		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
 	})
 	apiserver.RegisterAdmin(e, func() *appkit.AppKit { return app }, map[string]apiserver.ComponentFactory{
 		"e2e.comp": func() appkit.Component { return comp },

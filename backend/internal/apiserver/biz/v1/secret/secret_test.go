@@ -15,7 +15,7 @@ func TestSecretBiz_TenantIsolation(t *testing.T) {
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	biz := New(nil) // 缓存禁用（直连 store），隔离逻辑由 store 保证。
+	biz := New(bootstrappkg.SecretStore, nil) // 构造期注入仓储；缓存禁用（直连 store）。
 
 	ctxDefault := contextx.WithTenantID(context.Background(), "t-default")
 	ctxOther := contextx.WithTenantID(context.Background(), "t-other")

@@ -61,15 +61,15 @@ func startMFAREST(t *testing.T, cs mfa.ChallengeStore) string {
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	authBiz := authbiz.New(bootstrappkg.Signer)
+	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.LazyAuthenticator())
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.LazyAuthenticator(), &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
-		User: userbiz.New(), Menu: menubiz.New(), Permission: permissionbiz.New(),
-		Dict: dictbiz.New(nil), File: filebiz.New(nil, ""), AuditLog: auditlogbiz.New(),
-		MFA: mfabiz.New(cs),
+		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
+		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
+		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		MFA: mfabiz.New(bootstrappkg.MFAFactorStore, cs),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -409,7 +409,7 @@ func TestWave1_5_DisableIdempotent(t *testing.T) {
 	cs := newTestMFAStore(t)
 	base := startMFAREST(t, cs)
 	uid, _ := freshUser(t, base)
-	biz := mfabiz.New(cs)
+	biz := mfabiz.New(bootstrappkg.MFAFactorStore, cs)
 	ctx := context.Background()
 
 	// 该用户从未绑定任何 TOTP 因子 → 按 method 清空应删 0 行。
