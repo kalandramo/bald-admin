@@ -96,21 +96,3 @@ func (s *permissionService) DeleteRolePolicy(ctx context.Context, req *permissio
 	}
 	return &permissionv1.DeleteRolePolicyResponse{Deleted: req.GetId()}, nil
 }
-
-// splitPermissionCSV 逗号分隔解析（与 gin 侧同构，包级不共享避免耦合）。
-func splitPermissionCSV(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var out []string
-	start := 0
-	for i := 0; i <= len(s); i++ {
-		if i == len(s) || s[i] == ',' {
-			if seg := s[start:i]; seg != "" {
-				out = append(out, seg)
-			}
-			start = i + 1
-		}
-	}
-	return out
-}

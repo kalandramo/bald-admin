@@ -146,22 +146,3 @@ func RegisterPermission(
 		writePB(c, http.StatusOK, &permissionv1.DeleteRolePolicyResponse{Deleted: c.Param("id")})
 	})
 }
-
-// splitCSVStrings 逗号分隔解析（与 model.splitCSV 同构；handler 层不依赖 model
-// 私有实现，独立声明避免跨包耦合）。
-func splitCSVStrings(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var out []string
-	start := 0
-	for i := 0; i <= len(s); i++ {
-		if i == len(s) || s[i] == ',' {
-			if seg := s[start:i]; seg != "" {
-				out = append(out, seg)
-			}
-			start = i + 1
-		}
-	}
-	return out
-}
