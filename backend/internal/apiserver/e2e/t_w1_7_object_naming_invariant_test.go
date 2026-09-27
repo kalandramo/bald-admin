@@ -24,7 +24,7 @@ import (
 // registeredGRPCServices 是当前经 main.go registerGRPC 注册的 gRPC service
 // 的 ServiceName（proto 全限定名，不含方法段）。新增注册时同步追加。
 //
-// 来源：cmd/go-bald-admin/main.go 的 registerGRPC 闭包（Wave 1.7 后 11 个）。
+// 来源：cmd/bald-admin/main.go 的 registerGRPC 闭包（Wave 1.7 后 11 个）。
 var registeredGRPCServices = []string{
 	"/go.bald.admin.v1.SecretService",
 	"/go.bald.admin.tenant.v1.TenantService",

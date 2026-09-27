@@ -48,7 +48,7 @@ func startDashboardREST(t *testing.T) string {
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	// **装配落库 auditor**——生产路径在 `cmd/go-bald-admin/main.go:786-789`
+	// **装配落库 auditor**——生产路径在 `cmd/bald-admin/main.go:786-789`
 	// （newApp 内），而 e2e 不经该路径。不装配则全局 auditor 是 no-op，
 	// 登录/操作**都不产生审计记录**（实测：审计表 0 条），
 	// dashboard 的聚合自然读不到数据。

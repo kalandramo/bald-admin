@@ -63,7 +63,7 @@ func startPlatformREST(t *testing.T) string {
 		ginmw.AuditWithActionResolver(authz.DefaultHTTPAction),
 	))
 	auth := authbiz.New(bootstrappkg.Signer)
-	// ← 与 cmd/go-bald-admin/main.go 的注入**逐字一致**（生产判据）
+	// ← 与 cmd/bald-admin/main.go 的注入**逐字一致**（生产判据）
 	auth.SetPlatformResolver(authmodel.IsPlatformUser)
 	apiserver.RegisterRoutes(e, &apiserver.BizSet{
 		Auth: auth, Secret: secretbiz.New(nil), Tenant: tenantbiz.New(),
@@ -175,7 +175,7 @@ func TestPlatform_PlatformFlagIsTheDecidingFactor(t *testing.T) {
 // 实现方式：直接读 main.go 的源码文本断言注入语句存在。这比「跑 main」
 // 轻量得多（起完整进程需要 Redis/DB），且**能抓住**删除注入行的回归。
 func TestPlatform_ResolverIsInjectedInProduction(t *testing.T) {
-	src, err := os.ReadFile("../../../cmd/go-bald-admin/main.go")
+	src, err := os.ReadFile("../../../cmd/bald-admin/main.go")
 	if err != nil {
 		t.Fatalf("读 main.go: %v", err)
 	}

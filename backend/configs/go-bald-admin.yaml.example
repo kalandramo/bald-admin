@@ -4,7 +4,7 @@ server:
 gateway: { addr: ":8081" }
 log: { level: "info", format: "json" }
 # audit.backends 逐项必须是**已注册**的 provider。当前仅注册了 `store`
-# （见 cmd/go-bald-admin/audit_wiring.go:129——`stream` 的 provider 构造即需
+# （见 cmd/bald-admin/audit_wiring.go:129——`stream` 的 provider 构造即需
 # redis 客户端，无法惰性化，故未注册）。写 "store,stream" 会在启动时报
 # `audit provider "stream" not registered`。
 audit: { backends: "store" }

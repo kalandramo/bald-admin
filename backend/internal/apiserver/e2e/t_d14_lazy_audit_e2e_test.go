@@ -12,7 +12,7 @@ package e2e
 // ## 修复
 //
 // `AuditProvider` 是工厂函数，返回的 `Auditor` 只在运行期被 `Record`——
-// 故用惰性包装（`cmd/go-bald-admin/audit_wiring.go` 的 `lazyStoreAuditor`）：
+// 故用惰性包装（`cmd/bald-admin/audit_wiring.go` 的 `lazyStoreAuditor`）：
 // 构造期不碰 DB，运行期首次 Record 才解析。
 //
 // ## 本测试覆盖（不依赖真实 server，直接测包装语义）
@@ -38,7 +38,7 @@ import (
 //
 // lazyStoreAuditor 定义在 cmd 包（不可从 e2e import），故此处按同一语义
 // 复刻一份最小实现——**测试的是行为契约（惰性/fail-open/一次解析），
-// 而非复用生产类型**。生产实现见 cmd/go-bald-admin/audit_wiring.go。
+// 而非复用生产类型**。生产实现见 cmd/bald-admin/audit_wiring.go。
 func newLazyStoreAuditorForTest(dbFn func() *gormpkg.DB, migrate bool) audit.Auditor {
 	return &lazyProbeAuditor{dbFn: dbFn, migrate: migrate}
 }

@@ -40,7 +40,7 @@ Prometheus/OTLP），但数据层仍以 **SQLite 内存库**为主、未接对�
 | 6 | 审计日志（操作/登录） | `api/protos/audit/service/v1/{operation_audit_log,login_audit_log}.proto` | 扩展 `AuditRecord` + 查询接口 |
 | 7 | 文件 file / oss | `api/protos/storage/service/v1/{file,file_transfer,oss}.proto` | 新增 `model.File` + oss/minio 桥 |
 | 8 | 认证扩展 | `api/protos/authentication/service/v1/{authentication,user_credential}.proto` | 扩展存量 auth biz（对接真实用户/租户字段） |
-| 9 | 注册发现（横切） | 源项目 Consul → 改 **Nacos** | `cmd/go-bald-admin/main.go` 装配替换 |
+| 9 | 注册发现（横切） | 源项目 Consul → 改 **Nacos** | `cmd/bald-admin/main.go` 装配替换 |
 
 > 源项目技术栈对照说明：源用 **Ent ORM + kratos-bootstrap proto 强类型配置**；
 > 目标统一为 **GORM（contrib/store-gorm）+ appkit 四源配置 + bconf BootstrapConfig proto 段**，
@@ -137,7 +137,7 @@ file:
 
 **装配落点**（均已核实的机制，不引入新框架）：
 
-- 配置加载走既有 appkit 四源（flag > env > 文件 > 远程）；`cmd/go-bald-admin/main.go`
+- 配置加载走既有 appkit 四源（flag > env > 文件 > 远程）；`cmd/bald-admin/main.go`
   BeforeStart 的 `baldconfig.Unmarshal(m, bootstrap)` 扩展：`internal/bootstrap` 配置结构体
   新增 `Database / Cache / Storage / Registry / File` 字段承接上述段落。
 - `openDB()` 保留：DSN 优先取 `database.sql.source`（新增），env `BALD_ADMIN_DB_DSN` 保留为覆盖手段
@@ -195,17 +195,17 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
 
 | 阶段 | 范围 | 涉及文件（落点） | 验收标准 | 依赖就绪 |
 |------|------|----------------|---------|---------|
-| **T0** ✅ 依赖确认+配置骨架 | §4 清单用户反馈；yaml 新增段落 + bootstrap 配置结构体扩展 + openDB 读 `database.sql`；cache-redis password/db 缺口处置 | `configs/go-bald-admin.yaml`、`internal/bootstrap/bootstrap.go`、`contrib/cache-redis/redis.go`（如走扩展路线）、`cmd/go-bald-admin/main.go` | 配置加载单测；无云端地址时行为与现状一致（SQLite+禁用缓存），有地址时真实连接 | 无 |
+| **T0** ✅ 依赖确认+配置骨架 | §4 清单用户反馈；yaml 新增段落 + bootstrap 配置结构体扩展 + openDB 读 `database.sql`；cache-redis password/db 缺口处置 | `configs/go-bald-admin.yaml`、`internal/bootstrap/bootstrap.go`、`contrib/cache-redis/redis.go`（如走扩展路线）、`cmd/bald-admin/main.go` | 配置加载单测；无云端地址时行为与现状一致（SQLite+禁用缓存），有地址时真实连接 | 无 |
 | **T1** ✅ PostgreSQL 接入 | 存量 User/Role/Secret/AuditRecord 迁 PG（AutoMigrate）；种子改 PG；`db_e2e_test` 补 PG 分支（env 注入 DSN 才跑） | `internal/bootstrap/{bootstrap.go,db 相关}` | `task test` 全绿（PG 就绪时含 PG 路径）；`/v1/ping`、登录、secret CRUD 在 PG 上回归 | ① |
 | **T2** ✅ 租户+用户 | proto 精简（identity 域）→ `model.Tenant` + User 字段扩展（tenant_id/nickname 等）→ biz/handler → 种子（平台租户+默认租户+admin） | `api/{tenant,user}/v1/*.proto`、`model/`、`biz/v1/{tenant,user}/`、`handler/gin/{tenant,user}.go`、`apiserver/grpc/{tenant,user}.go`、wire.go | 租户 CRUD e2e；跨租户用户隔离 404（复用存量隔离测试形态）；存量 secret/多租户测试不回归 | ① |
 | **T3** ✅ 角色/权限/菜单 | `model.{Permission,Menu,RolePolicy}` + D3 策略数据化装载 + 菜单树 CRUD + RBAC 行为验证（viewer 删资源 403） | `api/{menu,permission}/v1/*.proto`、`model/`、`biz/v1/`、`internal/security/casbin/casbin.go`（装载入口） | 策略从 DB 装载（loadPolicyCSV）；REST/gRPC 同源授权 e2e（P9）；无策略时拒绝默认生效（fail-closed 单测） | ① |
 | **T4** ✅ 字典 | `model.{DictType,DictEntry}` + Cache-Aside（键 `rediscache.Key("dict", tenant, type)`，写穿透失效） | `proto/dict.proto`、`biz/v1/dict/`、`handler/` | 缓存命中/失效 e2e（真实 Redis）；Redis 停机降级直连 store 验证 | ①② |
 | **T5** ✅ 文件 | `model.File` + oss/minio 上传/下载（MIME 白名单、SHA256、大小上限 50MiB，语义对齐源 `file_transfer_service.go`）+ bucket 兜底创建 | `proto/file.proto`、`biz/v1/file/`、`handler/`、`internal/bootstrap`（MinIO 构造判 nil） | 上传→下载内容一致 e2e（真实 MinIO）；非白名单 MIME 拒绝；对象落桶可查 | ①③ |
 | **T6** ✅ 审计增强+查询 | AuditRecord 扩展（IP/UA/RequestID/TraceID/Category）+ 操作/登录分类落库 + 分页查询接口 | `model/`、`internal/security/audit/store.go`、`biz/v1/auditlog/`、`api/audit/v1` | 写路径触发审计落 PG（含新字段）；查询 e2e；`audit.backends` 热切换回归 | ①（②可选） |
-| **T7** ✅ Nacos | 契约装配：`RegistrarRegistry` + `registry.nacos` 段 → 替换 `appkit.Registrar` | `cmd/go-bald-admin/main.go`、`internal/bootstrap` | Nacos 控制台可见服务注册/注销；不可达时启动明确报错（不静默） | ④ |
+| **T7** ✅ Nacos | 契约装配：`RegistrarRegistry` + `registry.nacos` 段 → 替换 `appkit.Registrar` | `cmd/bald-admin/main.go`、`internal/bootstrap` | Nacos 控制台可见服务注册/注销；不可达时启动明确报错（不静默） | ④ |
 | **T8** ✅ 端到端验证+收尾 | §9 全序列跑通（揪出 2 个 e2e 盲区 bug）；README 全面修正（env/端口/架构/目录）；metrics 端口根治；后续迭代清单冻结 | `README.md`、`main.go`、`t3_e2e_test.go`、`file.go`、本文档状态列 | §9 验证序列通过（OTLP 云上报留 T9，collector 不可达）；`task verify` 全绿 | 全部 |
-| **T9** OTLP 云上报（预留） | §9 第 11 步完整验证：指标 + trace 直推云端 collector（`:4318` 就绪后启动，见 §8.7 遗留） | `cmd/go-bald-admin/main.go`（如需接线调整） | 云端 backend 可见 go-bald-admin 的 metrics 与 trace；`task verify` 全绿 | ⑤ |
-| **T10** ✅ 目录架构对齐（分层参考 miniblog，2026-09-10 完成） | ① `internal/apiserver/grpc/` → `internal/apiserver/handler/grpc/`：gRPC service 归位协议接入层，与 `handler/gin` 对称，清空目录残留（含 `secret_e2e_test.go` 随迁；Go 代码仅 `main.go` 一处 import）；② 包根 9 个 `*_e2e_test.go` → `internal/apiserver/e2e/` 独立测试包：仅依赖导出符号（`RegisterRoutes`/`bootstrap.*`/`biz.New` 均已导出），测试间共享 helper（tinyServer/stubComp/issueToken 等）随包同迁；③ `RegisterRoutes` 10 个 biz 参数收敛为 `*BizSet` 直传：吸收 miniblog IBiz 聚合门面思路但不引入接口层/mockgen（与 §0 契约一致），新增域改动点 3→2，与 ② 联动改测试内调用点 | `internal/apiserver/{server.go, handler/, e2e/}`、`cmd/go-bald-admin/{main.go, wire.go, wire_gen.go}`、`docs/设计文档.md` 与本文档的 grpc 路径引用、README 目录段 | 纯重构零行为变化；`task verify` 全绿（存量 e2e 不回归）；gRPC 直连 + gateway 转码抽查通过；Taskfile `test:audit`/`test:file` 路径核对（`./internal/apiserver/...` 通配已自动覆盖新目录） | 无 |
+| **T9** OTLP 云上报（预留） | §9 第 11 步完整验证：指标 + trace 直推云端 collector（`:4318` 就绪后启动，见 §8.7 遗留） | `cmd/bald-admin/main.go`（如需接线调整） | 云端 backend 可见 go-bald-admin 的 metrics 与 trace；`task verify` 全绿 | ⑤ |
+| **T10** ✅ 目录架构对齐（分层参考 miniblog，2026-09-10 完成） | ① `internal/apiserver/grpc/` → `internal/apiserver/handler/grpc/`：gRPC service 归位协议接入层，与 `handler/gin` 对称，清空目录残留（含 `secret_e2e_test.go` 随迁；Go 代码仅 `main.go` 一处 import）；② 包根 9 个 `*_e2e_test.go` → `internal/apiserver/e2e/` 独立测试包：仅依赖导出符号（`RegisterRoutes`/`bootstrap.*`/`biz.New` 均已导出），测试间共享 helper（tinyServer/stubComp/issueToken 等）随包同迁；③ `RegisterRoutes` 10 个 biz 参数收敛为 `*BizSet` 直传：吸收 miniblog IBiz 聚合门面思路但不引入接口层/mockgen（与 §0 契约一致），新增域改动点 3→2，与 ② 联动改测试内调用点 | `internal/apiserver/{server.go, handler/, e2e/}`、`cmd/bald-admin/{main.go, wire.go, wire_gen.go}`、`docs/设计文档.md` 与本文档的 grpc 路径引用、README 目录段 | 纯重构零行为变化；`task verify` 全绿（存量 e2e 不回归）；gRPC 直连 + gateway 转码抽查通过；Taskfile `test:audit`/`test:file` 路径核对（`./internal/apiserver/...` 通配已自动覆盖新目录） | 无 |
 | **F1** ✅ store-gorm Open 装配上提（框架演进，2026-09-10） | contrib/store-gorm 新增 `Open()` 装配函数 + `DialectorFactory` 注册表（sqlite 预注册为缺省引擎——glebarez 纯 Go 零 CGO；postgres/mysql 由业务侧 import driver 后显式 `RegisterDialector`，未 import 的后端零依赖，与 T7 nacos 注册制同模式，未注册 fail-fast）+ 五 Option（`WithEnv`/`WithDSN`/`WithDriver`/`WithConfig`/`WithGormConfig`）+ `NewTestDB` 测试助手（t.Cleanup 关连接池，防 Windows 句柄坑）；契约段连接池参数（max_idle/max_open/lifetime）由框架消费。示例 `openDB` 收敛为薄封装（仅保留 env `BALD_ADMIN_DB_DSN` + 契约段来源约定），`dsnScheme` 与 driver 分流逻辑上提框架。动机：快速开发不引真实依赖＝换轻量真后端（SQLite 内存库）而非 mock，与 §0 契约一致；「零依赖 clone 即跑」从示例手工逻辑升为框架缺省能力（与 cache-redis 空 addr 禁用、MinIO nil 降级同构的"真实但可选"） | `contrib/store-gorm/{conn.go, conn_test.go, testutil.go}`、`examples/go-bald-admin/internal/bootstrap/{bootstrap.go, db_e2e_test.go}` | contrib 单测 11 例全绿（缺省内存库/env 覆盖/DSN 优先级/注册制别名/fail-fast/空 Source 忽略）；示例 `task verify` 全绿；真实云端 PG e2e 回归（`TestDictREST` 等失败经 stash 对照实验证明为共享库存量数据问题非本次回归，T8 演示残留 `t8_probe` 已清理，其余审计/租户注入失败在原代码同样复现） | 无 |
 
 ## 8. 风险与决策记录
@@ -523,7 +523,7 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
 
 ## 9. 端到端验证方案
 
-依赖就绪后（`configs/go-bald-admin.yaml` 填真实地址，`go run ./cmd/go-bald-admin` 启动）：
+依赖就绪后（`configs/go-bald-admin.yaml` 填真实地址，`go run ./cmd/bald-admin` 启动）：
 
 ```bash
 # 1. 健康/公开接口

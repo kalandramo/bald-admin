@@ -38,11 +38,11 @@ cd bald/examples/go-bald-admin
 cp configs/go-bald-admin.yaml.example configs/go-bald-admin.yaml
 
 # 起服务（:8080 HTTP / :9090 gRPC / :8081 gateway / :9091 metrics）
-go run ./cmd/go-bald-admin --config=configs/go-bald-admin.yaml
+go run ./cmd/bald-admin --config=configs/go-bald-admin.yaml
 
 # 覆盖地址（三种等价手段，优先级 flag > env > yaml）
-go run ./cmd/go-bald-admin --server.http.addr=:18080
-GO_BALD_ADMIN_SERVER_HTTP_ADDR=:18080 go run ./cmd/go-bald-admin
+go run ./cmd/bald-admin --server.http.addr=:18080
+GO_BALD_ADMIN_SERVER_HTTP_ADDR=:18080 go run ./cmd/bald-admin
 ```
 
 ### 端口
@@ -184,8 +184,8 @@ Redis 测试按 **DB 12-15** 隔离（各测试用不同 DB，互不污染）。
 
 ```
 examples/go-bald-admin/                 (独立 go module)
-├── cmd/go-bald-admin/main.go          入口：appkit.Run + 拦截器链序 + metrics/audit/nacos 接线
-├── cmd/go-bald-admin/wire*.go         业务装配（wire 声明 + 生成实现；BizSet 定义在 apiserver/bizset.go）
+├── cmd/bald-admin/main.go          入口：appkit.Run + 拦截器链序 + metrics/audit/nacos 接线
+├── cmd/bald-admin/wire*.go         业务装配（wire 声明 + 生成实现；BizSet 定义在 apiserver/bizset.go）
 ├── cmd/probe/main.go                  T7 冒烟探针（契约路径注册→心跳→注销，task smoke:nacos）
 ├── configs/go-bald-admin.yaml         契约驱动配置（bconf BootstrapConfig，proto 为唯一真相源）
 ├── api/                               业务契约（T2 收敛：proto + buf 生成物 api/gen/）

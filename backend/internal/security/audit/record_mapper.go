@@ -10,9 +10,9 @@ package audit
 // （见 model/audit.go）。本映射把 `AuditEvent.Meta` 里的分类专属字段提取到
 // 对应列——**零框架改动**（`auditgorm.WithRecordMapper` 是框架提供的扩展点）。
 //
-// ## 为何下沉到本包（而非留在 cmd/go-bald-admin）
+// ## 为何下沉到本包（而非留在 cmd/bald-admin）
 //
-// 生产路径（cmd/go-bald-admin/audit_wiring.go 的 lazyStoreAuditor）与 e2e
+// 生产路径（cmd/bald-admin/audit_wiring.go 的 lazyStoreAuditor）与 e2e
 // 路径（t6/t_w5_1 用 securityaudit.NewStore）**必须共用同一映射**——否则
 // 两条路径落库的列不同，e2e 测不出生产行为（分叉即静默失效）。本包是审计
 // 桥接层，是两条路径的公共汇合点，映射放这里最自然。
@@ -59,7 +59,7 @@ var (
 
 // SetFallbackTenant 设置审计兜底租户（空串 → 回落 DefaultTenantID）。
 //
-// 由 cmd/go-bald-admin 在启动期从配置段 `audit.fallback_tenant` 读取后注入。
+// 由 cmd/bald-admin 在启动期从配置段 `audit.fallback_tenant` 读取后注入。
 // 未调用时保持 DefaultTenantID（既有行为零改动）。
 func SetFallbackTenant(id string) {
 	if id == "" {

@@ -88,7 +88,7 @@ tasks:
     desc: 本地起服务（默认配置）
     dir: "{{.MOD}}"
     cmds:
-      - go run ./cmd/go-bald-admin --config=configs/go-bald-admin.yaml
+      - go run ./cmd/bald-admin --config=configs/go-bald-admin.yaml
 
   run:otlp:
     desc: 起服务并直推 OTLP 远端（需本地 collector :4318）
@@ -97,7 +97,7 @@ tasks:
       BALD_ADMIN_OTLP_ADDR: http://localhost:4318
       BALD_ADMIN_METRICS_ADDR: ":9091"
     cmds:
-      - go run ./cmd/go-bald-admin --config=configs/go-bald-admin.yaml
+      - go run ./cmd/bald-admin --config=configs/go-bald-admin.yaml
 
   verify:
     desc: CI 式全量校验（build + vet + test）
