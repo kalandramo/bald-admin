@@ -48,6 +48,25 @@ type ServerOptions struct {
 	Redis   RedisOptions   `mapstructure:"redis"`
 	SSE     SSEOptions     `mapstructure:"sse"`
 	Gateway GatewayOptions `mapstructure:"gateway"`
+
+	// flagShadow 是 AddFlags 的绑定目标（pflag 需要一个可写地址）。
+	//
+	// 为什么不直接绑到 Login.Breaker / Login.Retry：那两段用指针表达「段是否
+	// 存在」，而 pflag 绑定会立刻 materialize 指针——「未配置」于是变成「启用」，
+	// 静默打开熔断/重试（实测复现：AddFlags 后 BreakerEnabled=true）。
+	// 绑定到影子字段后，指针仅在**配置快照解码**（Decode）时按段存在性建立；
+	// flag 值仍经 flattenFlags（读 Value.String()，与绑定地址无关）进入配置合并。
+	flagShadow flagShadow
+}
+
+// flagShadow 承载 AddFlags 的绑定地址（不参与 mapstructure 解码——无 tag）。
+type flagShadow struct {
+	breakerErrorThreshold     float64
+	breakerRequestVolume      int
+	breakerSleepWindowSeconds int
+	retryMaxAttempts          int
+	retryInitialBackoffMs     int
+	retryMaxBackoffMs         int
 }
 
 // LoginOptions 登录防护（限流 / 熔断 / 重试三件套）。
@@ -190,29 +209,25 @@ func (o *ServerOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.Float64Var(&o.Login.RateLimit.Burst, "login.rate_limit.burst", o.Login.RateLimit.Burst,
 		"Login rate limit: burst capacity (<=0 disables).")
 
-	// 熔断 / 重试：用 flag **显式传入**即视为「配置该段」→ 启用。
-	// 故先确保子结构体非 nil（pflag 需要写入地址），再绑定。
-	// 未传 flag 且文件无该段时保持 nil（禁用态，语义与替换前一致）。
-	if o.Login.Breaker == nil {
-		b := breakerDefaults()
-		o.Login.Breaker = &b
-	}
-	fs.Float64Var(&o.Login.Breaker.ErrorThreshold, "login.breaker.error_threshold", o.Login.Breaker.ErrorThreshold,
+	// 熔断 / 重试：绑到影子字段（**不** materialize Login.Breaker/Retry 指针）。
+	//
+	// 必要性（实测复现的缺陷）：直接绑 &o.Login.Breaker.X 会立即建立指针 →
+	// 「段缺省」变成「段存在」→ 静默启用熔断/重试，与「未配置不介入」契约冲突。
+	// flag 值本身经 flattenFlags 读 Value.String() 进入配置合并（与绑定地址
+	// 无关），故影子字段不影响 flag 的优先级链；解码时若配置含该段，指针自然建立。
+	br := breakerDefaults()
+	rt := retryDefaults()
+	fs.Float64Var(&o.flagShadow.breakerErrorThreshold, "login.breaker.error_threshold", br.ErrorThreshold,
 		"Login breaker: error ratio threshold [0,1].")
-	fs.IntVar(&o.Login.Breaker.RequestVolume, "login.breaker.request_volume", o.Login.Breaker.RequestVolume,
+	fs.IntVar(&o.flagShadow.breakerRequestVolume, "login.breaker.request_volume", br.RequestVolume,
 		"Login breaker: minimum request volume before evaluating.")
-	fs.IntVar(&o.Login.Breaker.SleepWindowSeconds, "login.breaker.sleep_window_seconds", o.Login.Breaker.SleepWindowSeconds,
+	fs.IntVar(&o.flagShadow.breakerSleepWindowSeconds, "login.breaker.sleep_window_seconds", br.SleepWindowSeconds,
 		"Login breaker: seconds to stay open before half-open.")
-
-	if o.Login.Retry == nil {
-		r := retryDefaults()
-		o.Login.Retry = &r
-	}
-	fs.IntVar(&o.Login.Retry.MaxAttempts, "login.retry.max_attempts", o.Login.Retry.MaxAttempts,
+	fs.IntVar(&o.flagShadow.retryMaxAttempts, "login.retry.max_attempts", rt.MaxAttempts,
 		"Login DB retry: max attempts (including first).")
-	fs.IntVar(&o.Login.Retry.InitialBackoffMs, "login.retry.initial_backoff_ms", o.Login.Retry.InitialBackoffMs,
+	fs.IntVar(&o.flagShadow.retryInitialBackoffMs, "login.retry.initial_backoff_ms", rt.InitialBackoffMs,
 		"Login DB retry: initial backoff in milliseconds.")
-	fs.IntVar(&o.Login.Retry.MaxBackoffMs, "login.retry.max_backoff_ms", o.Login.Retry.MaxBackoffMs,
+	fs.IntVar(&o.flagShadow.retryMaxBackoffMs, "login.retry.max_backoff_ms", rt.MaxBackoffMs,
 		"Login DB retry: max backoff in milliseconds.")
 
 	fs.StringVar(&o.File.Bucket, "file.bucket", o.File.Bucket,

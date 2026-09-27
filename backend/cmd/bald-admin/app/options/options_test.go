@@ -3,6 +3,9 @@ package options
 import (
 	"strings"
 	"testing"
+
+	"github.com/go-viper/mapstructure/v2"
+	"github.com/spf13/pflag"
 )
 
 // W2 配置聚合：ServerOptions 的默认值、flag 绑定、校验、解码。
@@ -104,5 +107,60 @@ func TestServerOptions_ValidateAggregatesAllErrors(t *testing.T) {
 		if !strings.Contains(msg, frag) {
 			t.Errorf("aggregated error %q missing %q", msg, frag)
 		}
+	}
+}
+
+// 关键回归：AddFlags 不得把「未配置的段」变成启用态。
+//
+// 实测抓到的真实缺陷（本会话自查发现并修复）：AddFlags 直接绑
+// &o.Login.Breaker.X 会立刻 materialize 指针，「段缺省」变「段存在」→
+// 熔断/重试被静默启用（与「未配置不介入」契约冲突）。
+// 修复：绑到影子字段 flagShadow，指针仅在配置解码时按段存在性建立。
+func TestAddFlags_DoesNotEnableAbsentSegments(t *testing.T) {
+	o := NewServerOptions()
+	if o.BreakerEnabled() || o.RetryEnabled() {
+		t.Fatal("precondition: defense features start disabled")
+	}
+
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	o.AddFlags(fs)
+
+	if o.BreakerEnabled() {
+		t.Error("AddFlags must not enable breaker (segment absent)")
+	}
+	if o.RetryEnabled() {
+		t.Error("AddFlags must not enable retry (segment absent)")
+	}
+
+	// 解码不含这两段的配置后，仍须保持禁用。
+	if err := mapstructure.Decode(map[string]any{
+		"file": map[string]any{"bucket": "b"},
+	}, o); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if o.BreakerEnabled() || o.RetryEnabled() {
+		t.Error("absent segments must stay disabled after decode")
+	}
+
+	// 反向：配置存在该段时应启用（指针建立），且字段值被正确解码。
+	if err := mapstructure.Decode(map[string]any{
+		"login": map[string]any{
+			"breaker": map[string]any{"error_threshold": 0.6},
+			"retry":   map[string]any{"max_attempts": 5},
+		},
+	}, o); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !o.BreakerEnabled() {
+		t.Error("breaker segment present but not enabled")
+	}
+	if !o.RetryEnabled() {
+		t.Error("retry segment present but not enabled")
+	}
+	if br := o.BreakerOrDefault(); br.ErrorThreshold != 0.6 {
+		t.Errorf("decoded breaker.error_threshold = %v, want 0.6", br.ErrorThreshold)
+	}
+	if rt := o.RetryOrDefault(); rt.MaxAttempts != 5 {
+		t.Errorf("decoded retry.max_attempts = %d, want 5", rt.MaxAttempts)
 	}
 }
