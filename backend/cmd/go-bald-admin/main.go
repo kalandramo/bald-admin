@@ -72,7 +72,6 @@ import (
 	"github.com/kalandramo/bald/transport/asynq"
 	"github.com/kalandramo/bald/ratelimit/tokenbucket"
 	"github.com/kalandramo/bald/pkg/audit"
-	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
 	grpcmw "github.com/kalandramo/bald/pkg/middleware/grpc"
 	nacoscontract "github.com/kalandramo/bald/registry/nacos/contract"
@@ -1033,25 +1032,6 @@ func registerAdminRoutes(router *gin.Engine, ref *appRefT, factories map[string]
 	apiserver.RegisterAdmin(router, ref.get, factories)
 }
 
-// lazyAuthn / lazyAuthz 把 bootstrap 包级桥接变量（InitBridges 在 appkit.BeforeStart
-// 才赋值）适配为 authn/authz 接口，供 bundle 构造期注入——bundle 是构造期依赖注入，
-// 而桥接是运行期装配，lazy 适配器衔接两者时序（请求期读取最新值）。
-type lazyAuthn struct{}
-
-func (lazyAuthn) Authenticate(ctx context.Context) (*authn.AuthClaims, error) {
-	return bootstrappkg.Authenticator.Authenticate(ctx)
-}
-
-func (lazyAuthn) AuthenticateToken(token string) (*authn.AuthClaims, error) {
-	return bootstrappkg.Authenticator.AuthenticateToken(token)
-}
-
-type lazyAuthz struct{}
-
-func (lazyAuthz) Authorize(ctx context.Context, subject, object, action string) (bool, error) {
-	return bootstrappkg.Authorizer.Authorize(ctx, subject, object, action)
-}
-
 func newGRPCServerOptions() []grpc.ServerOption {
 	// M10.1（P10 验证）：gRPC 无公开方法（全部需认证），整条链切 bundle——
 	// Error→RequestID→Observability→Authn→Audit→Authz 链序由 bundle 固化，
@@ -1061,8 +1041,10 @@ func newGRPCServerOptions() []grpc.ServerOption {
 	// bundle 显式接 Nop，请求审计与认证失败审计（bundle 会把 auditor 注入
 	// AuthnInterceptor）均静默失效。
 	grpcBundle := bundle.New(
-		bundle.Authn(lazyAuthn{}),
-		bundle.Authz(lazyAuthz{}),
+		// 复用 bootstrap 包导出的时序适配器（bootstrap.go:103-107），与 gin 侧
+		// server.go 同一份实现——避免此处再维护一份等价类型。
+		bundle.Authn(bootstrappkg.LazyAuthenticator()),
+		bundle.Authz(bootstrappkg.LazyAuthorizer()),
 		bundle.Audit(securityaudit.Global()), // 动态转发：契约轨装配/热切轨切换即时生效
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
 		bundle.Normalized(), // P9：FullMethod → 与 HTTP 同源的权限点
