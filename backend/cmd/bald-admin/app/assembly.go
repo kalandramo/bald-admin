@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -44,6 +43,7 @@ import (
 	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
+	"github.com/kalandramo/bald/transport"
 	"github.com/kalandramo/bald/transport/asynq"
 )
 
@@ -84,16 +84,13 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// 1. 业务装配（分层见 internal/apiserver）。M6.4 起由 wire 显式拼装业务对象
-	//    （cache / auth biz / secret biz），编译期依赖图校验；框架桥接经
-	//    WithBeforeStart 注入（装载链之后，契约终值可读）。
-	bizSet, err := InitializeBiz()
-	if err != nil {
-		return fmt.Errorf("initialize biz (wire): %w", err)
-	}
-	// 健康检查聚合器：HTTP /healthz /readyz 与 gRPC 标准健康服务状态同源，由
-	// appkit.WithHealth 默认装配（探针路由归装配层，协议实现不注册任何路由）。
-	// 本范例尚无依赖项要检查，空聚合器=恒就绪（等价于迁移前的 ready 桩）。
+	// 1. 构造期只建伺服面骨架（router + 全局中间件）。**业务装配**（biz 构造、
+	//    路由注册、gRPC 服务注册）移至 Run 期装配钩子（见 newApp）——Wave 4.1：
+	//    消除「构造期消费运行期资源（store / Redis）」的时序倒置。
+	//
+	//    健康检查聚合器：HTTP /healthz /readyz 与 gRPC 标准健康服务状态同源，由
+	//    appkit.WithHealth 默认装配（探针路由归装配层，协议实现不注册任何路由）。
+	//    本范例尚无依赖项要检查，空聚合器=恒就绪（等价于迁移前的 ready 桩）。
 	healthChecker := health.New()
 
 	// M10.2 管理面：运行期组件观测与热插拔（工厂目录由业务定义——核心只管挂载原语）。
@@ -122,12 +119,12 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	)
 	router := gin.New()
 	router.Use(ginBundle.Gin()...)
-	apiserver.RegisterRoutes(router, bizSet)                // gin handler 路由（T10：BizSet 直传）
-	registerAdminRoutes(router, appRef, componentFactories) // M10.2 管理面（appRef 迟到绑定）
 
 	// 2. 约定装配（U1）：Bind×3 / 配置装载+校验 / 日志两阶段 / 热更新 / registrar /
 	//    可观测性 / 停机 Effect 全部由 FromBootstrap 内化（详见 newApp）。
-	app, err := newApp(bootstrap, router, bizSet, cfgReg, healthChecker, svrOpts)
+	//    Wave 4.1：biz 构造 + 路由注册 + gRPC 服务注册在 newApp 内的 Run 期
+	//    装配钩子里完成（依赖 InitBridges 建立的 store / Redis）。
+	app, err := newApp(bootstrap, router, cfgReg, healthChecker, svrOpts, appRef, componentFactories)
 	if err != nil {
 		return err
 	}
@@ -209,13 +206,26 @@ func isKnownCommand(root *cobra.Command, name string) bool {
 // server.http.driver 的网关面模式与「gin 主面 + 独立转码面并存」不匹配）。
 func newApp(
 	bootstrap *bootstrapv1.BootstrapConfig,
-	router http.Handler,
-	bizSet *apiserver.BizSet,
+	router *gin.Engine,
 	cfgReg *baldbootstrap.Registry,
 	healthChecker *health.Health,
 	svrOpts *options.ServerOptions,
+	appRef *appRefT,
+	componentFactories map[string]apiserver.ComponentFactory,
 ) (*appkit.AppKit, error) {
-	// T2：gRPC service 注册回调捕获 wire 装配的 biz（全部 service 需 biz 注入）。
+	// Wave 4.1：biz 在 Run 期装配钩子内构造——InitializeBiz 依赖 InitBridges
+	// 建立的 store / Redis，构造期构造会固化 nil（时序倒置）。
+	// 框架保证业务 beforeStart 钩子先于 server 构造钩子执行（注册序=执行序，
+	// 见 bald pkg/appkit/bootstrap.go），故 registerGRPC 被调用时 bizSet 已就绪。
+	//
+	// err 与 bizSet 都在**函数作用域**声明：闭包内须用 `=` 赋值（用 `:=` 会在
+	// 闭包块内新建同名变量，外层 bizSet 仍为 nil——registerGRPC 读到的即 nil）。
+	var (
+		bizSet *apiserver.BizSet
+		err    error
+	)
+
+	// T2：gRPC service 注册回调捕获 Run 期装配的 biz（全部 service 需 biz 注入）。
 	// secret 的 DeleteSecret 同经 biz 真实删除（gRPC 直连与 gateway 转码共用）。
 	registerGRPC := func(s *grpc.Server) {
 		adminv1.RegisterSecretServiceServer(s, secretgrpc.NewServer(bizSet.Secret))
@@ -235,6 +245,14 @@ func newApp(
 
 	// app 先声明再进闭包：WithBeforeStart 在 Run 期才执行，届时已赋值
 	//（FromBootstrap 同款模式）。
+	//
+	// Wave 4.1：额外服务器（SSE / asynq）在构造期构造，但它们的**biz 接线**
+	// （wireMessageSSE / SetScheduler）依赖 Run 期构造的 bizSet，故两变量在此
+	// 声明、构造期赋值、钩子内做 biz 接线（钩子定义在其后，闭包按引用捕获）。
+	var (
+		sseSrv   transport.Server
+		asynqSrv transport.Server
+	)
 	var app *appkit.AppKit
 	opts := []appkit.BootstrapOption{
 		// --- 能力声明（代码提供） ---
@@ -330,9 +348,42 @@ func newApp(
 			if err := bootstrappkg.InitBridges(ctx); err != nil {
 				return fmt.Errorf("init bridges: %w", err)
 			}
-			// T8：文件存储运行期接线——InitializeBiz 构造期值拷贝 bootstrap.MinioStorage
-			// 拿到 nil（InitBridges 尚未执行，§9 真调暴露的 e2e 盲区），桥接装配后补注。
-			// Wave 5.4：改注入 ObjectStorageBridge（按 storage.type 已包成 minio/s3
+			// Wave 4.1：业务装配（wire 构造 biz + 路由注册 + gRPC 服务注册）在此
+			// 运行期钩子内完成——此刻 store / Redis / TokenStore 已由 InitBridges
+			// 建立，biz 不再需要「构造期占位 + 请求期解析」。
+			//
+			// 时序保证：本钩子（业务 beforeStart）**先于**框架 server 构造钩子执行
+			// （注册序=执行序）——故 registerGRPC 被调用时 bizSet 已就绪，
+			// WithHTTP(router) 的 handler 也已挂好全部路由。
+			bizSet, err = InitializeBiz()
+			if err != nil {
+				return fmt.Errorf("initialize biz (wire): %w", err)
+			}
+			// gin 路由注册。RegisterRoutes 内部仍用 LazyAuthenticator/Authorizer
+			// （请求期读桥接变量）——InitBridges 已在其前执行，故此处调用时
+			// 桥接变量已有真实值；Lazy* 的**删除**（改为注入真实实例）见 Wave 4.2。
+			apiserver.RegisterRoutes(router, bizSet)
+			// M10.2 管理面：运行期组件观测与热插拔（appRef 在 app.Run 前 set）。
+			registerAdminRoutes(router, appRef, componentFactories)
+			// Wave 3.2：把 message 域接到 SSE（源 RegisterInternalMessagePublisher）。
+			// SSE 未装配（sseSrv nil）时 wireMessageSSE 返回原 biz——降级为
+			// 「只落库不推送」。Wave 4.1：接线移到此处（bizSet 运行期才构造）。
+			if sseSrv != nil && bizSet != nil {
+				wireMessageSSE(sseSrv, bizSet.Message)
+			}
+			// Wave 2.3：把 asynq server 适配为 task.Scheduler 注入 biz。
+			// 类型断言取回 *asynq.Server（buildAsynqServer 的返回类型是接口）。
+			if as, ok := asynqSrv.(*asynq.Server); ok && bizSet != nil && bizSet.Task != nil {
+				bizSet.Task.SetScheduler(newAsynqScheduler(as))
+			}
+			// T8：文件存储运行期接线。
+			//
+			// Wave 4.1 后此处已非必需：InitializeBiz 现于 InitBridges **之后**执行
+			// （上方），wire 构造 file biz 时 bootstrap.MinioStorage 已就绪，
+			// 「构造期值拷贝拿到 nil」的前提消失。保留为**幂等补注**——降级路径
+			// （storage 段未配置 → ObjectStorageBridge/MinioStorage 均 nil）下
+			// 两个分支都不写入，biz 内判 nil 返回明确错误，语义不变。
+			// Wave 5.4：注 ObjectStorageBridge（按 storage.type 已包成 minio/s3
 			// 适配器）——minio 与 s3 走同一条接线，签名差异由适配层吸收。
 			if bootstrappkg.ObjectStorageBridge != nil {
 				bizSet.File.SetObjectStorage(bootstrappkg.ObjectStorageBridge, bootstrappkg.FileBucket)
@@ -450,14 +501,15 @@ func newApp(
 	}
 	// Wave 3.1/3.2：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
 	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
-	if sseSrv, serr := buildSSEServer(context.Background(), loadSSEConfig(svrOpts),
+	//
+	// Wave 4.2 起可改用注入完成的认证器；此处仍用 LazyAuthenticator（SSE 服务器
+	// 在构造期构造，其 authorize 钩子在请求期执行，届时桥接变量已就绪）。
+	if built, serr := buildSSEServer(context.Background(), loadSSEConfig(svrOpts),
 		bootstrappkg.LazyAuthenticator()); serr != nil {
 		return nil, fmt.Errorf("build sse server: %w", serr)
-	} else if sseSrv != nil {
+	} else if built != nil {
+		sseSrv = built
 		opts = append(opts, appkit.WithExtraServers(sseSrv))
-		// Wave 3.2：把 message 域接到 SSE（源 RegisterInternalMessagePublisher）。
-		// SSE 未装配时 wireMessageSSE 返回原 biz——降级为「只落库不推送」。
-		wireMessageSSE(sseSrv, bizSet.Message)
 	}
 
 	// Wave 2.4：cron 定时器（逃生舱，决策与约束见 cron.go 文件头）。
@@ -470,11 +522,6 @@ func newApp(
 
 	if asynqSrv != nil {
 		opts = append(opts, appkit.WithExtraServers(asynqSrv))
-		// Wave 2.3：把 asynq server 适配为 task.Scheduler 注入 biz。
-		// 类型断言取回 *asynq.Server（buildAsynqServer 的返回类型是接口）。
-		if as, ok := asynqSrv.(*asynq.Server); ok && bizSet != nil && bizSet.Task != nil {
-			bizSet.Task.SetScheduler(newAsynqScheduler(as))
-		}
 	}
 
 	// D14 修复：注册审计后端 provider（store 惰性绑定 DB）。
@@ -483,7 +530,7 @@ func newApp(
 	// （见 audit_wiring.go 文件头：appkit 的 buildAudit 先于 buildDatabases）。
 	opts = append(opts, appkit.WithAuditRegistry(auditRegistry()))
 
-	app, err := appkit.FromBootstrap(bootstrap, opts...)
+	app, err = appkit.FromBootstrap(bootstrap, opts...)
 	if err != nil {
 		// 契约与能力声明不一致（如声明了 WithHTTP 但契约删了 server.http 段）
 		// 属启动期错误，fail-fast 暴露，不静默降级。
