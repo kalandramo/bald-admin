@@ -6,6 +6,7 @@ package gin
 // DefaultGRPCObject("PermissionService/...")="permission" 同源——策略单写。
 
 import (
+	"context"
 	"net/http"
 
 	gingonic "github.com/gin-gonic/gin"
@@ -15,11 +16,10 @@ import (
 	"github.com/kalandramo/bald/pkg/authz"
 	mid "github.com/kalandramo/bald/pkg/middleware/gin"
 	web "github.com/kalandramo/bald/transport/web"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	permissionv1 "github.com/kalandramo/bald-admin/api/gen/go/permission/v1"
 	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 )
 
 // RegisterPermission 挂载权限管理路由（全部需认证 + permission 资源权限）。
@@ -57,7 +57,7 @@ func RegisterPermission(
 		}
 		items := make([]*permissionv1.Permission, 0, len(ps))
 		for _, p := range ps {
-			items = append(items, toPermissionPB(p))
+			items = append(items, convert.PermissionToPB(p))
 		}
 		writePB(c, http.StatusOK, &permissionv1.ListPermissionsResponse{Items: items, Total: uint32(len(items))})
 	})
@@ -68,37 +68,30 @@ func RegisterPermission(
 			writeBizErr(c, err) // NotFound→404、内部→500
 			return
 		}
-		writePB(c, http.StatusOK, &permissionv1.GetPermissionResponse{Permission: toPermissionPB(p)})
+		writePB(c, http.StatusOK, &permissionv1.GetPermissionResponse{Permission: convert.PermissionToPB(p)})
 	})
 
 	authed.POST("/permission", authzMW, func(c *gingonic.Context) {
-		var req permissionv1.CreatePermissionRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		p, err := biz.CreatePermission(c.Request.Context(),
-			req.GetId(), req.GetName(), req.GetMenuIds(), req.GetRemark())
-		if err != nil {
-			writeBizErr(c, err) // 校验→400（biz 产 berrors）、NotFound→404、内部→500
-			return
-		}
-		writePB(c, http.StatusCreated, &permissionv1.CreatePermissionResponse{Permission: toPermissionPB(p)})
+		handlePB(c, http.StatusCreated,
+			func(ctx context.Context, req *permissionv1.CreatePermissionRequest) (*permissionv1.CreatePermissionResponse, error) {
+				p, err := biz.CreatePermission(ctx, req.GetId(), req.GetName(), req.GetMenuIds(), req.GetRemark())
+				if err != nil {
+					return nil, err // 校验→400（biz 产 berrors）、NotFound→404、内部→500
+				}
+				return &permissionv1.CreatePermissionResponse{Permission: convert.PermissionToPB(p)}, nil
+			})
 	})
 
 	authed.PUT("/permission/:id", authzMW, func(c *gingonic.Context) {
-		var req permissionv1.UpdatePermissionRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		p, err := biz.UpdatePermission(c.Request.Context(), c.Param("id"),
-			req.GetName(), req.GetMenuIds(), req.GetMenuIdsSet(), req.GetRemark())
-		if err != nil {
-			writeBizErr(c, err) // 校验→400（biz 产 berrors）、NotFound→404、内部→500
-			return
-		}
-		writePB(c, http.StatusOK, &permissionv1.UpdatePermissionResponse{Permission: toPermissionPB(p)})
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *permissionv1.UpdatePermissionRequest) (*permissionv1.UpdatePermissionResponse, error) {
+				p, err := biz.UpdatePermission(ctx, c.Param("id"),
+					req.GetName(), req.GetMenuIds(), req.GetMenuIdsSet(), req.GetRemark())
+				if err != nil {
+					return nil, err // 校验→400（biz 产 berrors）、NotFound→404、内部→500
+				}
+				return &permissionv1.UpdatePermissionResponse{Permission: convert.PermissionToPB(p)}, nil
+			})
 	})
 
 	authed.DELETE("/permission/:id", authzMW, func(c *gingonic.Context) {
@@ -124,24 +117,20 @@ func RegisterPermission(
 		}
 		items := make([]*permissionv1.RolePolicy, 0, len(ps))
 		for _, p := range ps {
-			items = append(items, toRolePolicyPB(p))
+			items = append(items, convert.RolePolicyToPB(p))
 		}
 		writePB(c, http.StatusOK, &permissionv1.ListRolePoliciesResponse{Items: items, Total: uint32(len(items))})
 	})
 
 	authed.POST("/permission/policy", authzMW, func(c *gingonic.Context) {
-		var req permissionv1.CreateRolePolicyRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		p, err := biz.CreateRolePolicy(c.Request.Context(),
-			req.GetRole(), req.GetObject(), req.GetAction())
-		if err != nil {
-			writeBizErr(c, err) // 校验→400（biz 产 berrors）、NotFound→404、内部→500
-			return
-		}
-		writePB(c, http.StatusCreated, &permissionv1.CreateRolePolicyResponse{Policy: toRolePolicyPB(p)})
+		handlePB(c, http.StatusCreated,
+			func(ctx context.Context, req *permissionv1.CreateRolePolicyRequest) (*permissionv1.CreateRolePolicyResponse, error) {
+				p, err := biz.CreateRolePolicy(ctx, req.GetRole(), req.GetObject(), req.GetAction())
+				if err != nil {
+					return nil, err // 校验→400（biz 产 berrors）、NotFound→404、内部→500
+				}
+				return &permissionv1.CreateRolePolicyResponse{Policy: convert.RolePolicyToPB(p)}, nil
+			})
 	})
 
 	authed.DELETE("/permission/policy/:id", authzMW, func(c *gingonic.Context) {
@@ -156,31 +145,6 @@ func RegisterPermission(
 		}
 		writePB(c, http.StatusOK, &permissionv1.DeleteRolePolicyResponse{Deleted: c.Param("id")})
 	})
-}
-
-// toPermissionPB 模型 → proto（MenuIDs CSV 解析为列表）。
-func toPermissionPB(p *authmodel.Permission) *permissionv1.Permission {
-	pb := &permissionv1.Permission{
-		Id:        p.ID,
-		Name:      p.Name,
-		Remark:    p.Remark,
-		CreatedAt: timestamppb.New(p.CreatedAt),
-		UpdatedAt: timestamppb.New(p.UpdatedAt),
-	}
-	for _, m := range splitCSVStrings(p.MenuIDs) {
-		pb.MenuIds = append(pb.MenuIds, m)
-	}
-	return pb
-}
-
-// toRolePolicyPB 模型 → proto。
-func toRolePolicyPB(p *authmodel.RolePolicy) *permissionv1.RolePolicy {
-	return &permissionv1.RolePolicy{
-		Id:     p.ID,
-		Role:   p.Role,
-		Object: p.Object,
-		Action: p.Action,
-	}
 }
 
 // splitCSVStrings 逗号分隔解析（与 model.splitCSV 同构；handler 层不依赖 model

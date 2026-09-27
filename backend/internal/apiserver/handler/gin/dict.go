@@ -7,6 +7,7 @@ package gin
 // casbin 策略单写即覆盖双协议。
 
 import (
+	"context"
 	"net/http"
 
 	gingonic "github.com/gin-gonic/gin"
@@ -16,11 +17,10 @@ import (
 	"github.com/kalandramo/bald/pkg/authz"
 	mid "github.com/kalandramo/bald/pkg/middleware/gin"
 	web "github.com/kalandramo/bald/transport/web"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
 	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 )
 
 // RegisterDict 挂载字典管理路由（全部需认证 + dict_type/dict_entry 资源权限，
@@ -56,7 +56,7 @@ func RegisterDict(
 		}
 		items := make([]*dictv1.DictType, 0, len(ts))
 		for _, t := range ts {
-			items = append(items, toDictTypePB(t))
+			items = append(items, convert.DictTypeToPB(t))
 		}
 		writePB(c, http.StatusOK, &dictv1.ListDictTypesResponse{Items: items, Total: uint32(total)})
 	})
@@ -67,38 +67,32 @@ func RegisterDict(
 			writeBizErr(c, err) // NotFound→404、内部→500
 			return
 		}
-		writePB(c, http.StatusOK, &dictv1.GetDictTypeResponse{DictType: toDictTypePB(t)})
+		writePB(c, http.StatusOK, &dictv1.GetDictTypeResponse{DictType: convert.DictTypeToPB(t)})
 	})
 
 	authed.POST("/dict_type", authzMW, func(c *gingonic.Context) {
-		var req dictv1.CreateDictTypeRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		t, err := biz.CreateType(c.Request.Context(), req.GetId(), req.GetTypeName(), req.GetSortOrder(), req.GetRemark())
-		if err != nil {
-			writeBizErr(c, err) // 校验→400、业务键冲突→409、内部→500
-			return
-		}
-		writePB(c, http.StatusCreated, &dictv1.CreateDictTypeResponse{DictType: toDictTypePB(t)})
+		handlePB(c, http.StatusCreated,
+			func(ctx context.Context, req *dictv1.CreateDictTypeRequest) (*dictv1.CreateDictTypeResponse, error) {
+				t, err := biz.CreateType(ctx, req.GetId(), req.GetTypeName(), req.GetSortOrder(), req.GetRemark())
+				if err != nil {
+					return nil, err // 校验→400、业务键冲突→409、内部→500
+				}
+				return &dictv1.CreateDictTypeResponse{DictType: convert.DictTypeToPB(t)}, nil
+			})
 	})
 
 	authed.PUT("/dict_type/:id", authzMW, func(c *gingonic.Context) {
-		var req dictv1.UpdateDictTypeRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		// 空值字段不改；sort_order/enabled 用显式 *_set 位（0/false 是合法值）。
-		t, err := biz.UpdateType(c.Request.Context(), c.Param("id"),
-			req.GetTypeName(), req.GetSortOrder(), req.GetSortOrderSet(),
-			req.GetEnabled(), req.GetEnabledSet(), req.GetRemark())
-		if err != nil {
-			writeBizErr(c, err) // 校验→400、NotFound→404、内部→500
-			return
-		}
-		writePB(c, http.StatusOK, &dictv1.UpdateDictTypeResponse{DictType: toDictTypePB(t)})
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *dictv1.UpdateDictTypeRequest) (*dictv1.UpdateDictTypeResponse, error) {
+				// 空值字段不改；sort_order/enabled 用显式 *_set 位（0/false 是合法值）。
+				t, err := biz.UpdateType(ctx, c.Param("id"),
+					req.GetTypeName(), req.GetSortOrder(), req.GetSortOrderSet(),
+					req.GetEnabled(), req.GetEnabledSet(), req.GetRemark())
+				if err != nil {
+					return nil, err // 校验→400、NotFound→404、内部→500
+				}
+				return &dictv1.UpdateDictTypeResponse{DictType: convert.DictTypeToPB(t)}, nil
+			})
 	})
 
 	authed.DELETE("/dict_type/:id", authzMW, func(c *gingonic.Context) {
@@ -122,7 +116,7 @@ func RegisterDict(
 		}
 		items := make([]*dictv1.DictEntry, 0, len(es))
 		for _, e := range es {
-			items = append(items, toDictEntryPB(e))
+			items = append(items, convert.DictEntryToPB(e))
 		}
 		writePB(c, http.StatusOK, &dictv1.ListDictEntriesResponse{Items: items, Total: uint32(total)})
 	})
@@ -133,40 +127,34 @@ func RegisterDict(
 			writeBizErr(c, err) // NotFound→404、内部→500
 			return
 		}
-		writePB(c, http.StatusOK, &dictv1.GetDictEntryResponse{DictEntry: toDictEntryPB(e)})
+		writePB(c, http.StatusOK, &dictv1.GetDictEntryResponse{DictEntry: convert.DictEntryToPB(e)})
 	})
 
 	authed.POST("/dict_entry", authzMW, func(c *gingonic.Context) {
-		var req dictv1.CreateDictEntryRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		e, err := biz.CreateEntry(c.Request.Context(), req.GetTypeCode(), req.GetValue(),
-			req.GetLabel(), req.Numeric, req.GetSortOrder(), req.GetRemark())
-		if err != nil {
-			writeBizErr(c, err) // 校验/类型不存在→400/404、业务键冲突→409
-			return
-		}
-		writePB(c, http.StatusCreated, &dictv1.CreateDictEntryResponse{DictEntry: toDictEntryPB(e)})
+		handlePB(c, http.StatusCreated,
+			func(ctx context.Context, req *dictv1.CreateDictEntryRequest) (*dictv1.CreateDictEntryResponse, error) {
+				e, err := biz.CreateEntry(ctx, req.GetTypeCode(), req.GetValue(),
+					req.GetLabel(), req.Numeric, req.GetSortOrder(), req.GetRemark())
+				if err != nil {
+					return nil, err // 校验/类型不存在→400/404、业务键冲突→409
+				}
+				return &dictv1.CreateDictEntryResponse{DictEntry: convert.DictEntryToPB(e)}, nil
+			})
 	})
 
 	authed.PUT("/dict_entry/:id", authzMW, func(c *gingonic.Context) {
-		var req dictv1.UpdateDictEntryRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		// numeric 用 numeric_set 位区分「改回空值」与「不改」。
-		e, err := biz.UpdateEntry(c.Request.Context(), c.Param("id"),
-			req.GetLabel(), req.Numeric, req.GetNumericSet(),
-			req.GetSortOrder(), req.GetSortOrderSet(),
-			req.GetEnabled(), req.GetEnabledSet(), req.GetRemark())
-		if err != nil {
-			writeBizErr(c, err) // NotFound→404、内部→500（不再折叠 400）
-			return
-		}
-		writePB(c, http.StatusOK, &dictv1.UpdateDictEntryResponse{DictEntry: toDictEntryPB(e)})
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *dictv1.UpdateDictEntryRequest) (*dictv1.UpdateDictEntryResponse, error) {
+				// numeric 用 numeric_set 位区分「改回空值」与「不改」。
+				e, err := biz.UpdateEntry(ctx, c.Param("id"),
+					req.GetLabel(), req.Numeric, req.GetNumericSet(),
+					req.GetSortOrder(), req.GetSortOrderSet(),
+					req.GetEnabled(), req.GetEnabledSet(), req.GetRemark())
+				if err != nil {
+					return nil, err // NotFound→404、内部→500（不再折叠 400）
+				}
+				return &dictv1.UpdateDictEntryResponse{DictEntry: convert.DictEntryToPB(e)}, nil
+			})
 	})
 
 	authed.DELETE("/dict_entry/:id", authzMW, func(c *gingonic.Context) {
@@ -181,33 +169,4 @@ func RegisterDict(
 		}
 		writePB(c, http.StatusOK, &dictv1.DeleteDictEntryResponse{Deleted: c.Param("id")})
 	})
-}
-
-// toDictTypePB 模型 → proto。
-func toDictTypePB(t *authmodel.DictType) *dictv1.DictType {
-	return &dictv1.DictType{
-		Id:        t.ID,
-		TypeName:  t.TypeName,
-		SortOrder: t.SortOrder,
-		Enabled:   t.Enabled,
-		Remark:    t.Remark,
-		CreatedAt: timestamppb.New(t.CreatedAt),
-		UpdatedAt: timestamppb.New(t.UpdatedAt),
-	}
-}
-
-// toDictEntryPB 模型 → proto（Numeric *int32 ↔ optional int32 指针直传）。
-func toDictEntryPB(e *authmodel.DictEntry) *dictv1.DictEntry {
-	return &dictv1.DictEntry{
-		Id:        e.ID,
-		TypeCode:  e.TypeCode,
-		Value:     e.Value,
-		Label:     e.Label,
-		Numeric:   e.Numeric,
-		SortOrder: e.SortOrder,
-		Enabled:   e.Enabled,
-		Remark:    e.Remark,
-		CreatedAt: timestamppb.New(e.CreatedAt),
-		UpdatedAt: timestamppb.New(e.UpdatedAt),
-	}
 }

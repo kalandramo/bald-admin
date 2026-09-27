@@ -19,11 +19,10 @@ import (
 	"github.com/kalandramo/bald/pkg/authz"
 	mid "github.com/kalandramo/bald/pkg/middleware/gin"
 	web "github.com/kalandramo/bald/transport/web"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	filev1 "github.com/kalandramo/bald-admin/api/gen/go/file/v1"
 	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 )
 
 // RegisterFile 挂载文件管理路由（全部需认证 + file 资源权限，
@@ -81,7 +80,7 @@ func RegisterFile(
 			writeBizErr(c, err)
 			return
 		}
-		writePB(c, http.StatusCreated, &filev1.UploadFileResponse{File: toFilePB(m)})
+		writePB(c, http.StatusCreated, &filev1.UploadFileResponse{File: convert.FileToPB(m)})
 	})
 
 	authed.GET("/file", authzMW, func(c *gingonic.Context) {
@@ -92,7 +91,7 @@ func RegisterFile(
 		}
 		items := make([]*filev1.File, 0, len(fs))
 		for _, f := range fs {
-			items = append(items, toFilePB(f))
+			items = append(items, convert.FileToPB(f))
 		}
 		writePB(c, http.StatusOK, &filev1.ListFilesResponse{Items: items, Total: uint32(total)})
 	})
@@ -103,7 +102,7 @@ func RegisterFile(
 			writeBizErr(c, err)
 			return
 		}
-		writePB(c, http.StatusOK, &filev1.GetFileResponse{File: toFilePB(m)})
+		writePB(c, http.StatusOK, &filev1.GetFileResponse{File: convert.FileToPB(m)})
 	})
 
 	authed.GET("/file/:id/download", authzMW, func(c *gingonic.Context) {
@@ -132,23 +131,3 @@ func RegisterFile(
 
 // writeBizErr 见 pb.go（决策⑧统一错误出口：berrors 主路径 + store 哨兵转换 +
 // 框架兜底，与 grpc-gateway 转码的 google.rpc.Status JSON 结构同形）。
-
-// toFilePB 模型 → proto（gin 侧；Size 用 uint32 直传避免 JSON 字符串化）。
-func toFilePB(m *authmodel.File) *filev1.File {
-	return &filev1.File{
-		Id:            m.ID,
-		Provider:      m.Provider,
-		BucketName:    m.BucketName,
-		SaveFileName:  m.SaveFileName,
-		FileDirectory: m.FileDirectory,
-		FileName:      m.FileName,
-		Extension:     m.Extension,
-		ContentHash:   m.ContentHash,
-		Size:          uint32(m.Size),
-		LinkUrl:       m.LinkUrl,
-		MimeType:      m.MimeType,
-		CreatedBy:     m.CreatedBy,
-		CreatedAt:     timestamppb.New(m.CreatedAt),
-		UpdatedAt:     timestamppb.New(m.UpdatedAt),
-	}
-}

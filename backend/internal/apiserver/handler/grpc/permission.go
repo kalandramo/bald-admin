@@ -7,11 +7,10 @@ package grpc
 import (
 	"context"
 
-	"github.com/kalandramo/bald/berrors"
 	permissionv1 "github.com/kalandramo/bald-admin/api/gen/go/permission/v1"
 	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
+	"github.com/kalandramo/bald/berrors"
 )
 
 // permissionService 实现生成的 permissionv1.PermissionServiceServer。
@@ -30,7 +29,7 @@ func (s *permissionService) GetPermission(ctx context.Context, req *permissionv1
 	if err != nil {
 		return nil, berrors.NotFound("permission/not_found").WithMessage("permission not found")
 	}
-	return &permissionv1.GetPermissionResponse{Permission: toPermissionPBGRPC(p)}, nil
+	return &permissionv1.GetPermissionResponse{Permission: convert.PermissionToPB(p)}, nil
 }
 
 func (s *permissionService) ListPermissions(ctx context.Context, req *permissionv1.ListPermissionsRequest) (*permissionv1.ListPermissionsResponse, error) {
@@ -40,7 +39,7 @@ func (s *permissionService) ListPermissions(ctx context.Context, req *permission
 	}
 	items := make([]*permissionv1.Permission, 0, len(ps))
 	for _, p := range ps {
-		items = append(items, toPermissionPBGRPC(p))
+		items = append(items, convert.PermissionToPB(p))
 	}
 	return &permissionv1.ListPermissionsResponse{Items: items, Total: uint32(len(items))}, nil
 }
@@ -50,7 +49,7 @@ func (s *permissionService) CreatePermission(ctx context.Context, req *permissio
 	if err != nil {
 		return nil, err
 	}
-	return &permissionv1.CreatePermissionResponse{Permission: toPermissionPBGRPC(p)}, nil
+	return &permissionv1.CreatePermissionResponse{Permission: convert.PermissionToPB(p)}, nil
 }
 
 func (s *permissionService) UpdatePermission(ctx context.Context, req *permissionv1.UpdatePermissionRequest) (*permissionv1.UpdatePermissionResponse, error) {
@@ -59,7 +58,7 @@ func (s *permissionService) UpdatePermission(ctx context.Context, req *permissio
 	if err != nil {
 		return nil, err
 	}
-	return &permissionv1.UpdatePermissionResponse{Permission: toPermissionPBGRPC(p)}, nil
+	return &permissionv1.UpdatePermissionResponse{Permission: convert.PermissionToPB(p)}, nil
 }
 
 func (s *permissionService) DeletePermission(ctx context.Context, req *permissionv1.DeletePermissionRequest) (*permissionv1.DeletePermissionResponse, error) {
@@ -77,7 +76,7 @@ func (s *permissionService) ListRolePolicies(ctx context.Context, req *permissio
 	}
 	items := make([]*permissionv1.RolePolicy, 0, len(ps))
 	for _, p := range ps {
-		items = append(items, toRolePolicyPBGRPC(p))
+		items = append(items, convert.RolePolicyToPB(p))
 	}
 	return &permissionv1.ListRolePoliciesResponse{Items: items, Total: uint32(len(items))}, nil
 }
@@ -87,7 +86,7 @@ func (s *permissionService) CreateRolePolicy(ctx context.Context, req *permissio
 	if err != nil {
 		return nil, err
 	}
-	return &permissionv1.CreateRolePolicyResponse{Policy: toRolePolicyPBGRPC(p)}, nil
+	return &permissionv1.CreateRolePolicyResponse{Policy: convert.RolePolicyToPB(p)}, nil
 }
 
 func (s *permissionService) DeleteRolePolicy(ctx context.Context, req *permissionv1.DeleteRolePolicyRequest) (*permissionv1.DeleteRolePolicyResponse, error) {
@@ -96,30 +95,6 @@ func (s *permissionService) DeleteRolePolicy(ctx context.Context, req *permissio
 		return nil, berrors.NotFound("permission/policy_not_found").WithMessage("role policy not found")
 	}
 	return &permissionv1.DeleteRolePolicyResponse{Deleted: req.GetId()}, nil
-}
-
-// toPermissionPBGRPC 模型 → proto（MenuIDs CSV → 列表）。
-func toPermissionPBGRPC(p *authmodel.Permission) *permissionv1.Permission {
-	pb := &permissionv1.Permission{
-		Id:        p.ID,
-		Name:      p.Name,
-		Remark:    p.Remark,
-		CreatedAt: timestamppb.New(p.CreatedAt),
-		UpdatedAt: timestamppb.New(p.UpdatedAt),
-	}
-	for _, m := range splitPermissionCSV(p.MenuIDs) {
-		pb.MenuIds = append(pb.MenuIds, m)
-	}
-	return pb
-}
-
-func toRolePolicyPBGRPC(p *authmodel.RolePolicy) *permissionv1.RolePolicy {
-	return &permissionv1.RolePolicy{
-		Id:     p.ID,
-		Role:   p.Role,
-		Object: p.Object,
-		Action: p.Action,
-	}
 }
 
 // splitPermissionCSV 逗号分隔解析（与 gin 侧同构，包级不共享避免耦合）。

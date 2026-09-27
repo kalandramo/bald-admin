@@ -11,11 +11,10 @@ import (
 	"errors"
 
 	"github.com/kalandramo/bald/berrors"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	filev1 "github.com/kalandramo/bald-admin/api/gen/go/file/v1"
 	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 )
 
 // fileService 实现生成的 filev1.FileServiceServer。
@@ -34,7 +33,7 @@ func (s *fileService) UploadFile(ctx context.Context, req *filev1.UploadFileRequ
 	if err != nil {
 		return nil, err
 	}
-	return &filev1.UploadFileResponse{File: toFilePBGRPC(m)}, nil
+	return &filev1.UploadFileResponse{File: convert.FileToPB(m)}, nil
 }
 
 func (s *fileService) DownloadFile(ctx context.Context, req *filev1.DownloadFileRequest) (*filev1.DownloadFileResponse, error) {
@@ -54,7 +53,7 @@ func (s *fileService) GetFile(ctx context.Context, req *filev1.GetFileRequest) (
 	if err != nil {
 		return nil, err
 	}
-	return &filev1.GetFileResponse{File: toFilePBGRPC(m)}, nil
+	return &filev1.GetFileResponse{File: convert.FileToPB(m)}, nil
 }
 
 func (s *fileService) ListFiles(ctx context.Context, req *filev1.ListFilesRequest) (*filev1.ListFilesResponse, error) {
@@ -64,7 +63,7 @@ func (s *fileService) ListFiles(ctx context.Context, req *filev1.ListFilesReques
 	}
 	items := make([]*filev1.File, 0, len(fs))
 	for _, f := range fs {
-		items = append(items, toFilePBGRPC(f))
+		items = append(items, convert.FileToPB(f))
 	}
 	return &filev1.ListFilesResponse{Items: items, Total: uint32(total)}, nil
 }
@@ -80,24 +79,4 @@ func (s *fileService) DeleteFile(ctx context.Context, req *filev1.DeleteFileRequ
 		return nil, err
 	}
 	return &filev1.DeleteFileResponse{Deleted: deleted}, nil
-}
-
-// toFilePBGRPC 模型 → proto（与 gin 侧同构转换，包级不共享以避免耦合）。
-func toFilePBGRPC(m *authmodel.File) *filev1.File {
-	return &filev1.File{
-		Id:            m.ID,
-		Provider:      m.Provider,
-		BucketName:    m.BucketName,
-		SaveFileName:  m.SaveFileName,
-		FileDirectory: m.FileDirectory,
-		FileName:      m.FileName,
-		Extension:     m.Extension,
-		ContentHash:   m.ContentHash,
-		Size:          uint32(m.Size),
-		LinkUrl:       m.LinkUrl,
-		MimeType:      m.MimeType,
-		CreatedBy:     m.CreatedBy,
-		CreatedAt:     timestamppb.New(m.CreatedAt),
-		UpdatedAt:     timestamppb.New(m.UpdatedAt),
-	}
 }

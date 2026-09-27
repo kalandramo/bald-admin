@@ -6,11 +6,10 @@ package grpc
 import (
 	"context"
 
-	"github.com/kalandramo/bald/berrors"
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
+	"github.com/kalandramo/bald/berrors"
 )
 
 // userService 实现生成的 userv1.UserServiceServer。
@@ -29,7 +28,7 @@ func (s *userService) GetUser(ctx context.Context, req *userv1.GetUserRequest) (
 	if err != nil {
 		return nil, berrors.NotFound("user/not_found").WithMessage("user not found")
 	}
-	return &userv1.GetUserResponse{User: toUserPBGRPC(u)}, nil
+	return &userv1.GetUserResponse{User: convert.UserToPB(u)}, nil
 }
 
 func (s *userService) ListUsers(ctx context.Context, req *userv1.ListUsersRequest) (*userv1.ListUsersResponse, error) {
@@ -39,7 +38,7 @@ func (s *userService) ListUsers(ctx context.Context, req *userv1.ListUsersReques
 	}
 	items := make([]*userv1.User, 0, len(users))
 	for _, u := range users {
-		items = append(items, toUserPBGRPC(u))
+		items = append(items, convert.UserToPB(u))
 	}
 	return &userv1.ListUsersResponse{Users: items, Total: uint32(len(items))}, nil
 }
@@ -49,7 +48,7 @@ func (s *userService) CreateUser(ctx context.Context, req *userv1.CreateUserRequ
 	if err != nil {
 		return nil, err
 	}
-	return &userv1.CreateUserResponse{User: toUserPBGRPC(u)}, nil
+	return &userv1.CreateUserResponse{User: convert.UserToPB(u)}, nil
 }
 
 func (s *userService) UpdateUser(ctx context.Context, req *userv1.UpdateUserRequest) (*userv1.UpdateUserResponse, error) {
@@ -58,7 +57,7 @@ func (s *userService) UpdateUser(ctx context.Context, req *userv1.UpdateUserRequ
 		// 此前一刀切折叠 NotFound，掩盖内部错误——仅 store 未命中归 NotFound。
 		return nil, notFoundOr(err, "user/not_found", "user")
 	}
-	return &userv1.UpdateUserResponse{User: toUserPBGRPC(u)}, nil
+	return &userv1.UpdateUserResponse{User: convert.UserToPB(u)}, nil
 }
 
 func (s *userService) DeleteUser(ctx context.Context, req *userv1.DeleteUserRequest) (*userv1.DeleteUserResponse, error) {
@@ -70,15 +69,4 @@ func (s *userService) DeleteUser(ctx context.Context, req *userv1.DeleteUserRequ
 		return nil, berrors.NotFound("user/not_found").WithMessage("user not found")
 	}
 	return &userv1.DeleteUserResponse{Deleted: req.GetId()}, nil
-}
-
-// toUserPBGRPC 模型 → proto（密码哈希永不外泄）。
-func toUserPBGRPC(u *authmodel.User) *userv1.User {
-	return &userv1.User{
-		Id:        u.ID,
-		Username:  u.Username,
-		Roles:     u.RolesList(),
-		CreatedAt: timestamppb.New(u.CreatedAt),
-		UpdatedAt: timestamppb.New(u.UpdatedAt),
-	}
 }

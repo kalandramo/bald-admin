@@ -20,14 +20,13 @@ package grpc
 import (
 	"context"
 
+	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/authn"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
-	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 
 	identityv1 "github.com/kalandramo/bald-admin/api/gen/go/identity/v1"
 	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
+	"github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 )
 
 // tenantIDFromCtx 从认证 claims 取租户 ID（缺失返回空串）。
@@ -60,7 +59,7 @@ func (s *orgUnitService) ListOrgUnits(ctx context.Context, req *identityv1.ListO
 	}
 	out := make([]*identityv1.OrgUnit, 0, len(items))
 	for _, m := range items {
-		out = append(out, toOrgUnitPBGRPC(m))
+		out = append(out, convert.OrgUnitToPB(m))
 	}
 	return &identityv1.ListOrgUnitsResponse{Items: out, Meta: meta}, nil
 }
@@ -72,7 +71,7 @@ func (s *orgUnitService) ListOrgUnitChildren(ctx context.Context, req *identityv
 	}
 	out := make([]*identityv1.OrgUnit, 0, len(items))
 	for _, m := range items {
-		out = append(out, toOrgUnitPBGRPC(m))
+		out = append(out, convert.OrgUnitToPB(m))
 	}
 	return &identityv1.ListOrgUnitChildrenResponse{Items: out, Meta: meta}, nil
 }
@@ -90,7 +89,7 @@ func (s *orgUnitService) GetOrgUnit(ctx context.Context, req *identityv1.GetOrgU
 	if err != nil {
 		return nil, notFoundOr(err, "org/not_found", "org unit")
 	}
-	return &identityv1.GetOrgUnitResponse{OrgUnit: toOrgUnitPBGRPC(m)}, nil
+	return &identityv1.GetOrgUnitResponse{OrgUnit: convert.OrgUnitToPB(m)}, nil
 }
 
 func (s *orgUnitService) CreateOrgUnit(ctx context.Context, req *identityv1.CreateOrgUnitRequest) (*identityv1.CreateOrgUnitResponse, error) {
@@ -104,7 +103,7 @@ func (s *orgUnitService) CreateOrgUnit(ctx context.Context, req *identityv1.Crea
 	if err != nil {
 		return nil, err // 校验→400、冲突→409、内部→500（ErrorInterceptor 收口）
 	}
-	return &identityv1.CreateOrgUnitResponse{OrgUnit: toOrgUnitPBGRPC(m)}, nil
+	return &identityv1.CreateOrgUnitResponse{OrgUnit: convert.OrgUnitToPB(m)}, nil
 }
 
 func (s *orgUnitService) UpdateOrgUnit(ctx context.Context, req *identityv1.UpdateOrgUnitRequest) (*identityv1.UpdateOrgUnitResponse, error) {
@@ -131,7 +130,7 @@ func (s *orgUnitService) UpdateOrgUnit(ctx context.Context, req *identityv1.Upda
 	if err != nil {
 		return nil, notFoundOr(err, "org/not_found", "org unit")
 	}
-	return &identityv1.UpdateOrgUnitResponse{OrgUnit: toOrgUnitPBGRPC(m)}, nil
+	return &identityv1.UpdateOrgUnitResponse{OrgUnit: convert.OrgUnitToPB(m)}, nil
 }
 
 func (s *orgUnitService) DeleteOrgUnit(ctx context.Context, req *identityv1.DeleteOrgUnitRequest) (*identityv1.DeleteOrgUnitResponse, error) {
@@ -181,7 +180,7 @@ func (s *positionService) ListPositions(ctx context.Context, req *identityv1.Lis
 	}
 	out := make([]*identityv1.Position, 0, len(items))
 	for _, m := range items {
-		out = append(out, toPositionPBGRPC(m))
+		out = append(out, convert.PositionToPB(m))
 	}
 	return &identityv1.ListPositionsResponse{Items: out, Total: uint32(len(out))}, nil
 }
@@ -199,7 +198,7 @@ func (s *positionService) GetPosition(ctx context.Context, req *identityv1.GetPo
 	if err != nil {
 		return nil, notFoundOr(err, "org/not_found", "position")
 	}
-	return &identityv1.GetPositionResponse{Position: toPositionPBGRPC(m)}, nil
+	return &identityv1.GetPositionResponse{Position: convert.PositionToPB(m)}, nil
 }
 
 func (s *positionService) CreatePosition(ctx context.Context, req *identityv1.CreatePositionRequest) (*identityv1.CreatePositionResponse, error) {
@@ -207,7 +206,7 @@ func (s *positionService) CreatePosition(ctx context.Context, req *identityv1.Cr
 	if err != nil {
 		return nil, err
 	}
-	return &identityv1.CreatePositionResponse{Position: toPositionPBGRPC(m)}, nil
+	return &identityv1.CreatePositionResponse{Position: convert.PositionToPB(m)}, nil
 }
 
 func (s *positionService) UpdatePosition(ctx context.Context, req *identityv1.UpdatePositionRequest) (*identityv1.UpdatePositionResponse, error) {
@@ -243,7 +242,7 @@ func (s *positionService) UpdatePosition(ctx context.Context, req *identityv1.Up
 	if err != nil {
 		return nil, notFoundOr(err, "org/not_found", "position")
 	}
-	return &identityv1.UpdatePositionResponse{Position: toPositionPBGRPC(m)}, nil
+	return &identityv1.UpdatePositionResponse{Position: convert.PositionToPB(m)}, nil
 }
 
 func (s *positionService) DeletePosition(ctx context.Context, req *identityv1.DeletePositionRequest) (*identityv1.DeletePositionResponse, error) {
@@ -293,74 +292,6 @@ func positionFromCreateGRPC(req *identityv1.CreatePositionRequest) orgbiz.Positi
 		in.StartAt = &t
 	}
 	return in
-}
-
-// toOrgUnitPBGRPC 模型 → proto（含 children 递归）。
-func toOrgUnitPBGRPC(m *orgbiz.OrgUnit) *identityv1.OrgUnit {
-	pb := &identityv1.OrgUnit{
-		Id: m.ID, Code: m.Code, Name: m.Name,
-		Type: parseOrgTypeGRPC(m.Type), Status: parseOrgStatusGRPC(m.Status),
-		ParentId: m.ParentID, Path: m.Path, SortOrder: m.SortOrder,
-		LeaderId: m.LeaderID, LeaderName: m.LeaderName,
-		Remark: m.Remark, Description: m.Description,
-	}
-	if len(m.Children) > 0 {
-		pb.Children = make([]*identityv1.OrgUnit, 0, len(m.Children))
-		for _, ch := range m.Children {
-			pb.Children = append(pb.Children, toOrgUnitPBGRPC(ch))
-		}
-	}
-	return pb
-}
-
-// toPositionPBGRPC 模型 → proto。
-func toPositionPBGRPC(m *orgbiz.Position) *identityv1.Position {
-	pb := &identityv1.Position{
-		Id: m.ID, Code: m.Code, Name: m.Name,
-		Headcount: m.Headcount, SortOrder: m.SortOrder,
-		Status: parsePosStatusGRPC(m.Status), Type: parsePosTypeGRPC(m.Type),
-		Remark: m.Remark, Description: m.Description,
-		JobFamily: m.JobFamily, JobGrade: m.JobGrade,
-		Level: m.Level, IsKeyPosition: m.IsKeyPosition,
-		OrgUnitId: m.OrgUnitID, OrgUnitName: m.OrgUnitName,
-		ReportsToPositionId: m.ReportsToPositionID, ReportsToPositionName: m.ReportsToPositionName,
-	}
-	if m.StartAt != nil && !m.StartAt.IsZero() {
-		pb.StartAt = timestamppb.New(*m.StartAt)
-	}
-	return pb
-}
-
-// parseOrgStatusGRPC 字符串状态 → 枚举（未知值回落 UNSPECIFIED）。
-func parseOrgStatusGRPC(s string) identityv1.OrgUnit_Status {
-	if v, ok := identityv1.OrgUnit_Status_value[s]; ok {
-		return identityv1.OrgUnit_Status(v)
-	}
-	return identityv1.OrgUnit_STATUS_UNSPECIFIED
-}
-
-// parseOrgTypeGRPC 字符串类型 → 枚举。
-func parseOrgTypeGRPC(s string) identityv1.OrgUnit_Type {
-	if v, ok := identityv1.OrgUnit_Type_value[s]; ok {
-		return identityv1.OrgUnit_Type(v)
-	}
-	return identityv1.OrgUnit_TYPE_UNSPECIFIED
-}
-
-// parsePosStatusGRPC 字符串状态 → 枚举。
-func parsePosStatusGRPC(s string) identityv1.Position_Status {
-	if v, ok := identityv1.Position_Status_value[s]; ok {
-		return identityv1.Position_Status(v)
-	}
-	return identityv1.Position_STATUS_UNSPECIFIED
-}
-
-// parsePosTypeGRPC 字符串类型 → 枚举。
-func parsePosTypeGRPC(s string) identityv1.Position_Type {
-	if v, ok := identityv1.Position_Type_value[s]; ok {
-		return identityv1.Position_Type(v)
-	}
-	return identityv1.Position_TYPE_UNSPECIFIED
 }
 
 // 保留 berrors 引用（错误语义经 ErrorInterceptor 收口，此处仅类型契约声明）。

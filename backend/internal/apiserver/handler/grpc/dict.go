@@ -8,11 +8,10 @@ package grpc
 import (
 	"context"
 
-	"github.com/kalandramo/bald/berrors"
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
 	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
+	"github.com/kalandramo/bald/berrors"
 )
 
 // dictTypeService 实现生成的 dictv1.DictTypeServiceServer。
@@ -31,7 +30,7 @@ func (s *dictTypeService) GetDictType(ctx context.Context, req *dictv1.GetDictTy
 	if err != nil {
 		return nil, berrors.NotFound("dict/type_not_found").WithMessage("dict type not found")
 	}
-	return &dictv1.GetDictTypeResponse{DictType: toDictTypePBGRPC(t)}, nil
+	return &dictv1.GetDictTypeResponse{DictType: convert.DictTypeToPB(t)}, nil
 }
 
 func (s *dictTypeService) ListDictTypes(ctx context.Context, req *dictv1.ListDictTypesRequest) (*dictv1.ListDictTypesResponse, error) {
@@ -41,7 +40,7 @@ func (s *dictTypeService) ListDictTypes(ctx context.Context, req *dictv1.ListDic
 	}
 	items := make([]*dictv1.DictType, 0, len(ts))
 	for _, t := range ts {
-		items = append(items, toDictTypePBGRPC(t))
+		items = append(items, convert.DictTypeToPB(t))
 	}
 	return &dictv1.ListDictTypesResponse{Items: items, Total: uint32(total)}, nil
 }
@@ -51,7 +50,7 @@ func (s *dictTypeService) CreateDictType(ctx context.Context, req *dictv1.Create
 	if err != nil {
 		return nil, err
 	}
-	return &dictv1.CreateDictTypeResponse{DictType: toDictTypePBGRPC(t)}, nil
+	return &dictv1.CreateDictTypeResponse{DictType: convert.DictTypeToPB(t)}, nil
 }
 
 func (s *dictTypeService) UpdateDictType(ctx context.Context, req *dictv1.UpdateDictTypeRequest) (*dictv1.UpdateDictTypeResponse, error) {
@@ -61,7 +60,7 @@ func (s *dictTypeService) UpdateDictType(ctx context.Context, req *dictv1.Update
 	if err != nil {
 		return nil, err
 	}
-	return &dictv1.UpdateDictTypeResponse{DictType: toDictTypePBGRPC(t)}, nil
+	return &dictv1.UpdateDictTypeResponse{DictType: convert.DictTypeToPB(t)}, nil
 }
 
 func (s *dictTypeService) DeleteDictType(ctx context.Context, req *dictv1.DeleteDictTypeRequest) (*dictv1.DeleteDictTypeResponse, error) {
@@ -88,7 +87,7 @@ func (s *dictEntryService) GetDictEntry(ctx context.Context, req *dictv1.GetDict
 	if err != nil {
 		return nil, berrors.NotFound("dict/entry_not_found").WithMessage("dict entry not found")
 	}
-	return &dictv1.GetDictEntryResponse{DictEntry: toDictEntryPBGRPC(e)}, nil
+	return &dictv1.GetDictEntryResponse{DictEntry: convert.DictEntryToPB(e)}, nil
 }
 
 func (s *dictEntryService) ListDictEntries(ctx context.Context, req *dictv1.ListDictEntriesRequest) (*dictv1.ListDictEntriesResponse, error) {
@@ -98,7 +97,7 @@ func (s *dictEntryService) ListDictEntries(ctx context.Context, req *dictv1.List
 	}
 	items := make([]*dictv1.DictEntry, 0, len(es))
 	for _, e := range es {
-		items = append(items, toDictEntryPBGRPC(e))
+		items = append(items, convert.DictEntryToPB(e))
 	}
 	return &dictv1.ListDictEntriesResponse{Items: items, Total: uint32(total)}, nil
 }
@@ -109,7 +108,7 @@ func (s *dictEntryService) CreateDictEntry(ctx context.Context, req *dictv1.Crea
 	if err != nil {
 		return nil, err
 	}
-	return &dictv1.CreateDictEntryResponse{DictEntry: toDictEntryPBGRPC(e)}, nil
+	return &dictv1.CreateDictEntryResponse{DictEntry: convert.DictEntryToPB(e)}, nil
 }
 
 func (s *dictEntryService) UpdateDictEntry(ctx context.Context, req *dictv1.UpdateDictEntryRequest) (*dictv1.UpdateDictEntryResponse, error) {
@@ -120,7 +119,7 @@ func (s *dictEntryService) UpdateDictEntry(ctx context.Context, req *dictv1.Upda
 	if err != nil {
 		return nil, err
 	}
-	return &dictv1.UpdateDictEntryResponse{DictEntry: toDictEntryPBGRPC(e)}, nil
+	return &dictv1.UpdateDictEntryResponse{DictEntry: convert.DictEntryToPB(e)}, nil
 }
 
 func (s *dictEntryService) DeleteDictEntry(ctx context.Context, req *dictv1.DeleteDictEntryRequest) (*dictv1.DeleteDictEntryResponse, error) {
@@ -129,33 +128,4 @@ func (s *dictEntryService) DeleteDictEntry(ctx context.Context, req *dictv1.Dele
 		return nil, berrors.NotFound("dict/entry_not_found").WithMessage("dict entry not found")
 	}
 	return &dictv1.DeleteDictEntryResponse{Deleted: req.GetId()}, nil
-}
-
-// toDictTypePBGRPC 模型 → proto（与 gin 侧同构转换，包级不共享以避免耦合）。
-func toDictTypePBGRPC(t *authmodel.DictType) *dictv1.DictType {
-	return &dictv1.DictType{
-		Id:        t.ID,
-		TypeName:  t.TypeName,
-		SortOrder: t.SortOrder,
-		Enabled:   t.Enabled,
-		Remark:    t.Remark,
-		CreatedAt: timestamppb.New(t.CreatedAt),
-		UpdatedAt: timestamppb.New(t.UpdatedAt),
-	}
-}
-
-// toDictEntryPBGRPC 模型 → proto（Numeric *int32 ↔ optional int32 指针直传）。
-func toDictEntryPBGRPC(e *authmodel.DictEntry) *dictv1.DictEntry {
-	return &dictv1.DictEntry{
-		Id:        e.ID,
-		TypeCode:  e.TypeCode,
-		Value:     e.Value,
-		Label:     e.Label,
-		Numeric:   e.Numeric,
-		SortOrder: e.SortOrder,
-		Enabled:   e.Enabled,
-		Remark:    e.Remark,
-		CreatedAt: timestamppb.New(e.CreatedAt),
-		UpdatedAt: timestamppb.New(e.UpdatedAt),
-	}
 }

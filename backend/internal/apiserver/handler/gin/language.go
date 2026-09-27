@@ -7,6 +7,7 @@ package gin
 // 即覆盖双协议。
 
 import (
+	"context"
 	"net/http"
 
 	gingonic "github.com/gin-gonic/gin"
@@ -14,11 +15,10 @@ import (
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 	mid "github.com/kalandramo/bald/pkg/middleware/gin"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
 	langbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/language"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 )
 
 // RegisterLanguage 挂载语言管理路由（全部需认证 + language 资源权限，
@@ -51,7 +51,7 @@ func RegisterLanguage(
 		}
 		out := make([]*dictv1.Language, 0, len(items))
 		for _, m := range items {
-			out = append(out, toLanguagePB(m))
+			out = append(out, convert.LanguageToPB(m))
 		}
 		writePB(c, http.StatusOK, &dictv1.ListLanguagesResponse{Items: out, Total: uint32(total)})
 	})
@@ -73,82 +73,73 @@ func RegisterLanguage(
 			writeBizErr(c, err) // NotFound→404、内部→500
 			return
 		}
-		writePB(c, http.StatusOK, &dictv1.GetLanguageResponse{Language: toLanguagePB(m)})
+		writePB(c, http.StatusOK, &dictv1.GetLanguageResponse{Language: convert.LanguageToPB(m)})
 	})
 
 	authed.POST("/language", authzMW, func(c *gingonic.Context) {
-		var req dictv1.CreateLanguageRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		m, err := biz.Create(c.Request.Context(), langbiz.Language{
-			ID: req.GetId(), LanguageName: req.GetLanguageName(),
-			NativeName: req.GetNativeName(), IsDefault: req.GetIsDefault(),
-			IsEnabled: req.GetIsEnabled(), SortOrder: req.GetSortOrder(),
-		})
-		if err != nil {
-			writeBizErr(c, err) // 校验→400、冲突→409、内部→500
-			return
-		}
-		writePB(c, http.StatusCreated, &dictv1.CreateLanguageResponse{Language: toLanguagePB(m)})
+		handlePB(c, http.StatusCreated,
+			func(ctx context.Context, req *dictv1.CreateLanguageRequest) (*dictv1.CreateLanguageResponse, error) {
+				m, err := biz.Create(ctx, langbiz.Language{
+					ID: req.GetId(), LanguageName: req.GetLanguageName(),
+					NativeName: req.GetNativeName(), IsDefault: req.GetIsDefault(),
+					IsEnabled: req.GetIsEnabled(), SortOrder: req.GetSortOrder(),
+				})
+				if err != nil {
+					return nil, err // 校验→400、冲突→409、内部→500
+				}
+				return &dictv1.CreateLanguageResponse{Language: convert.LanguageToPB(m)}, nil
+			})
 	})
 
 	authed.POST("/language/batch", authzMW, func(c *gingonic.Context) {
-		var req dictv1.BatchCreateLanguagesRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		ins := make([]langbiz.Language, 0, len(req.GetItems()))
-		for _, it := range req.GetItems() {
-			ins = append(ins, langbiz.Language{
-				ID: it.GetId(), LanguageName: it.GetLanguageName(),
-				NativeName: it.GetNativeName(), IsDefault: it.GetIsDefault(),
-				IsEnabled: it.GetIsEnabled(), SortOrder: it.GetSortOrder(),
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *dictv1.BatchCreateLanguagesRequest) (*dictv1.BatchCreateLanguagesResponse, error) {
+				ins := make([]langbiz.Language, 0, len(req.GetItems()))
+				for _, it := range req.GetItems() {
+					ins = append(ins, langbiz.Language{
+						ID: it.GetId(), LanguageName: it.GetLanguageName(),
+						NativeName: it.GetNativeName(), IsDefault: it.GetIsDefault(),
+						IsEnabled: it.GetIsEnabled(), SortOrder: it.GetSortOrder(),
+					})
+				}
+				ids, err := biz.BatchCreate(ctx, ins)
+				if err != nil {
+					return nil, err // ErrUnimplemented → 501
+				}
+				return &dictv1.BatchCreateLanguagesResponse{CreatedIds: ids}, nil
 			})
-		}
-		ids, err := biz.BatchCreate(c.Request.Context(), ins)
-		if err != nil {
-			writeBizErr(c, err) // ErrUnimplemented → 501
-			return
-		}
-		writePB(c, http.StatusOK, &dictv1.BatchCreateLanguagesResponse{CreatedIds: ids})
 	})
 
 	authed.PUT("/language/:id", authzMW, func(c *gingonic.Context) {
-		var req dictv1.UpdateLanguageRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		in := langbiz.UpdateInput{}
-		if req.GetLanguageName() != "" {
-			v := req.GetLanguageName()
-			in.LanguageName = &v
-		}
-		if req.GetNativeName() != "" {
-			v := req.GetNativeName()
-			in.NativeName = &v
-		}
-		if req.GetIsDefaultSet() {
-			v := req.GetIsDefault()
-			in.IsDefault = &v
-		}
-		if req.GetIsEnabledSet() {
-			v := req.GetIsEnabled()
-			in.IsEnabled = &v
-		}
-		if req.GetSortOrder() != 0 {
-			v := req.GetSortOrder()
-			in.SortOrder = &v
-		}
-		m, err := biz.Update(c.Request.Context(), c.Param("id"), in)
-		if err != nil {
-			writeBizErr(c, err) // NotFound→404、内部→500
-			return
-		}
-		writePB(c, http.StatusOK, &dictv1.UpdateLanguageResponse{Language: toLanguagePB(m)})
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *dictv1.UpdateLanguageRequest) (*dictv1.UpdateLanguageResponse, error) {
+				in := langbiz.UpdateInput{}
+				if req.GetLanguageName() != "" {
+					v := req.GetLanguageName()
+					in.LanguageName = &v
+				}
+				if req.GetNativeName() != "" {
+					v := req.GetNativeName()
+					in.NativeName = &v
+				}
+				if req.GetIsDefaultSet() {
+					v := req.GetIsDefault()
+					in.IsDefault = &v
+				}
+				if req.GetIsEnabledSet() {
+					v := req.GetIsEnabled()
+					in.IsEnabled = &v
+				}
+				if req.GetSortOrder() != 0 {
+					v := req.GetSortOrder()
+					in.SortOrder = &v
+				}
+				m, err := biz.Update(ctx, c.Param("id"), in)
+				if err != nil {
+					return nil, err // NotFound→404、内部→500
+				}
+				return &dictv1.UpdateLanguageResponse{Language: convert.LanguageToPB(m)}, nil
+			})
 	})
 
 	authed.DELETE("/language/:id", authzMW, func(c *gingonic.Context) {
@@ -159,23 +150,4 @@ func RegisterLanguage(
 		}
 		writePB(c, http.StatusOK, &dictv1.DeleteLanguageResponse{Deleted: deleted})
 	})
-}
-
-// toLanguagePB 模型 → proto。
-func toLanguagePB(m *authmodel.Language) *dictv1.Language {
-	pb := &dictv1.Language{
-		Id:           m.ID,
-		LanguageName: m.LanguageName,
-		NativeName:   m.NativeName,
-		IsDefault:    m.IsDefault,
-		IsEnabled:    m.IsEnabled,
-		SortOrder:    m.SortOrder,
-	}
-	if !m.CreatedAt.IsZero() {
-		pb.CreatedAt = timestamppb.New(m.CreatedAt)
-	}
-	if !m.UpdatedAt.IsZero() {
-		pb.UpdatedAt = timestamppb.New(m.UpdatedAt)
-	}
-	return pb
 }

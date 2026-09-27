@@ -4,6 +4,7 @@ package gin
 // 授权经 P9 归一化权限点（user + get/post/put/delete），admin 全权、viewer 只读。
 
 import (
+	"context"
 	"net/http"
 
 	gingonic "github.com/gin-gonic/gin"
@@ -13,11 +14,10 @@ import (
 	"github.com/kalandramo/bald/pkg/authz"
 	mid "github.com/kalandramo/bald/pkg/middleware/gin"
 	web "github.com/kalandramo/bald/transport/web"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 )
 
 // RegisterUser 挂载用户管理路由。
@@ -47,7 +47,7 @@ func RegisterUser(
 		}
 		items := make([]*userv1.User, 0, len(users))
 		for _, u := range users {
-			items = append(items, toUserPB(u))
+			items = append(items, convert.UserToPB(u))
 		}
 		writePB(c, http.StatusOK, &userv1.ListUsersResponse{Users: items, Total: uint32(len(items))})
 	})
@@ -58,35 +58,29 @@ func RegisterUser(
 			writeBizErr(c, err) // NotFound→404、内部→500
 			return
 		}
-		writePB(c, http.StatusOK, &userv1.GetUserResponse{User: toUserPB(u)})
+		writePB(c, http.StatusOK, &userv1.GetUserResponse{User: convert.UserToPB(u)})
 	})
 
 	authed.POST("/user", authzMW, func(c *gingonic.Context) {
-		var req userv1.CreateUserRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		u, err := biz.Create(c.Request.Context(), req.GetId(), req.GetUsername(), req.GetRoles(), req.GetPassword())
-		if err != nil {
-			writeBizErr(c, err) // 校验→400、ID 冲突→409、内部→500
-			return
-		}
-		writePB(c, http.StatusCreated, &userv1.CreateUserResponse{User: toUserPB(u)})
+		handlePB(c, http.StatusCreated,
+			func(ctx context.Context, req *userv1.CreateUserRequest) (*userv1.CreateUserResponse, error) {
+				u, err := biz.Create(ctx, req.GetId(), req.GetUsername(), req.GetRoles(), req.GetPassword())
+				if err != nil {
+					return nil, err // 校验→400、ID 冲突→409、内部→500
+				}
+				return &userv1.CreateUserResponse{User: convert.UserToPB(u)}, nil
+			})
 	})
 
 	authed.PUT("/user/:id", authzMW, func(c *gingonic.Context) {
-		var req userv1.UpdateUserRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		u, err := biz.Update(c.Request.Context(), c.Param("id"), req.GetUsername(), req.GetRoles(), req.GetPassword())
-		if err != nil {
-			writeBizErr(c, err) // 此前 NotFound/内部错误一律折叠 400
-			return
-		}
-		writePB(c, http.StatusOK, &userv1.UpdateUserResponse{User: toUserPB(u)})
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *userv1.UpdateUserRequest) (*userv1.UpdateUserResponse, error) {
+				u, err := biz.Update(ctx, c.Param("id"), req.GetUsername(), req.GetRoles(), req.GetPassword())
+				if err != nil {
+					return nil, err // 此前 NotFound/内部错误一律折叠 400
+				}
+				return &userv1.UpdateUserResponse{User: convert.UserToPB(u)}, nil
+			})
 	})
 
 	authed.DELETE("/user/:id", authzMW, func(c *gingonic.Context) {
@@ -101,15 +95,4 @@ func RegisterUser(
 		}
 		writePB(c, http.StatusOK, &userv1.DeleteUserResponse{Deleted: c.Param("id")})
 	})
-}
-
-// toUserPB 模型 → proto（密码哈希永不外泄）。
-func toUserPB(u *authmodel.User) *userv1.User {
-	return &userv1.User{
-		Id:        u.ID,
-		Username:  u.Username,
-		Roles:     u.RolesList(),
-		CreatedAt: timestamppb.New(u.CreatedAt),
-		UpdatedAt: timestamppb.New(u.UpdatedAt),
-	}
 }

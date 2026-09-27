@@ -12,11 +12,11 @@
 package gin
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	gingonic "github.com/gin-gonic/gin"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/pkg/authn"
@@ -25,6 +25,7 @@ import (
 
 	identityv1 "github.com/kalandramo/bald-admin/api/gen/go/identity/v1"
 	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
+	"github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 )
 
@@ -61,26 +62,21 @@ func RegisterOrg(
 	// ---- org_unit ----
 
 	authed.POST("/org-units", authzMW, func(c *gingonic.Context) {
-		var req identityv1.CreateOrgUnitRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		if !validatePB(c, &req) {
-			return
-		}
-		m, err := biz.CreateOrgUnit(c.Request.Context(), tid(c), orgbiz.OrgUnit{
-			Code: req.GetCode(), Name: req.GetName(),
-			Type: req.GetType().String(), ParentID: req.GetParentId(),
-			Status: req.GetStatus().String(), SortOrder: req.GetSortOrder(),
-			LeaderID: req.GetLeaderId(), Remark: req.GetRemark(),
-			Description: req.GetDescription(),
-		})
-		if err != nil {
-			writeBizErr(c, err)
-			return
-		}
-		writePB(c, http.StatusCreated, &identityv1.CreateOrgUnitResponse{OrgUnit: toOrgUnitPB(m)})
+		// 试点 handlePB：绑定+校验+错误出口收敛为一次调用，路由体只剩业务映射。
+		handlePB(c, http.StatusCreated,
+			func(ctx context.Context, req *identityv1.CreateOrgUnitRequest) (*identityv1.CreateOrgUnitResponse, error) {
+				m, err := biz.CreateOrgUnit(ctx, tid(c), orgbiz.OrgUnit{
+					Code: req.GetCode(), Name: req.GetName(),
+					Type: req.GetType().String(), ParentID: req.GetParentId(),
+					Status: req.GetStatus().String(), SortOrder: req.GetSortOrder(),
+					LeaderID: req.GetLeaderId(), Remark: req.GetRemark(),
+					Description: req.GetDescription(),
+				})
+				if err != nil {
+					return nil, err
+				}
+				return &identityv1.CreateOrgUnitResponse{OrgUnit: convert.OrgUnitToPB(m)}, nil
+			})
 	})
 
 	authed.GET("/org-units", authzMW, func(c *gingonic.Context) {
@@ -94,7 +90,7 @@ func RegisterOrg(
 		}
 		out := make([]*identityv1.OrgUnit, 0, len(items))
 		for _, n := range items {
-			out = append(out, toOrgUnitPB(n))
+			out = append(out, convert.OrgUnitToPB(n))
 		}
 		writePB(c, http.StatusOK, &identityv1.ListOrgUnitsResponse{Items: out, Meta: meta})
 	})
@@ -111,7 +107,7 @@ func RegisterOrg(
 		}
 		out := make([]*identityv1.OrgUnit, 0, len(items))
 		for _, n := range items {
-			out = append(out, toOrgUnitPB(n))
+			out = append(out, convert.OrgUnitToPB(n))
 		}
 		writePB(c, http.StatusOK, &identityv1.ListOrgUnitChildrenResponse{Items: out, Meta: meta})
 	})
@@ -133,43 +129,36 @@ func RegisterOrg(
 			writeBizErr(c, err) // NotFound→404、内部→500
 			return
 		}
-		writePB(c, http.StatusOK, &identityv1.GetOrgUnitResponse{OrgUnit: toOrgUnitPB(m)})
+		writePB(c, http.StatusOK, &identityv1.GetOrgUnitResponse{OrgUnit: convert.OrgUnitToPB(m)})
 	})
 
 	authed.PUT("/org-units/:code", authzMW, func(c *gingonic.Context) {
-		var req identityv1.UpdateOrgUnitRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		if !validatePB(c, &req) {
-			return
-		}
-		in := orgbiz.OrgUnit{
-			Name: req.GetName(), ParentID: req.GetParentId(),
-			LeaderID: req.GetLeaderId(), Remark: req.GetRemark(),
-			Description: req.GetDescription(),
-		}
-		// 枚举零值 = 未指定 → 不改（proto3 无「显式 null」语义）。
-		if req.GetType() != identityv1.OrgUnit_TYPE_UNSPECIFIED {
-			in.Type = req.GetType().String()
-		}
-		if req.GetStatus() != identityv1.OrgUnit_STATUS_UNSPECIFIED {
-			in.Status = req.GetStatus().String()
-		}
-		if req.GetSortOrderSet() {
-			in.SortOrder = req.GetSortOrder()
-		}
-		if err := biz.UpdateOrgUnit(c.Request.Context(), tid(c), c.Param("code"), in); err != nil {
-			writeBizErr(c, err) // 校验→400、环→400、内部→500
-			return
-		}
-		m, err := biz.GetOrgUnit(c.Request.Context(), tid(c), c.Param("code"))
-		if err != nil {
-			writeBizErr(c, err)
-			return
-		}
-		writePB(c, http.StatusOK, &identityv1.UpdateOrgUnitResponse{OrgUnit: toOrgUnitPB(m)})
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *identityv1.UpdateOrgUnitRequest) (*identityv1.UpdateOrgUnitResponse, error) {
+				in := orgbiz.OrgUnit{
+					Name: req.GetName(), ParentID: req.GetParentId(),
+					LeaderID: req.GetLeaderId(), Remark: req.GetRemark(),
+					Description: req.GetDescription(),
+				}
+				// 枚举零值 = 未指定 → 不改（proto3 无「显式 null」语义）。
+				if req.GetType() != identityv1.OrgUnit_TYPE_UNSPECIFIED {
+					in.Type = req.GetType().String()
+				}
+				if req.GetStatus() != identityv1.OrgUnit_STATUS_UNSPECIFIED {
+					in.Status = req.GetStatus().String()
+				}
+				if req.GetSortOrderSet() {
+					in.SortOrder = req.GetSortOrder()
+				}
+				if err := biz.UpdateOrgUnit(ctx, tid(c), c.Param("code"), in); err != nil {
+					return nil, err // 校验→400、环→400、内部→500
+				}
+				m, err := biz.GetOrgUnit(ctx, tid(c), c.Param("code"))
+				if err != nil {
+					return nil, err
+				}
+				return &identityv1.UpdateOrgUnitResponse{OrgUnit: convert.OrgUnitToPB(m)}, nil
+			})
 	})
 
 	authed.DELETE("/org-units/:code", authzMW, func(c *gingonic.Context) {
@@ -182,51 +171,38 @@ func RegisterOrg(
 	})
 
 	authed.POST("/org-units/batch", authzMW, func(c *gingonic.Context) {
-		var req identityv1.BatchCreateOrgUnitsRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		if !validatePB(c, &req) {
-			return
-		}
-		ins := make([]orgbiz.OrgUnit, 0, len(req.GetItems()))
-		for _, it := range req.GetItems() {
-			ins = append(ins, orgbiz.OrgUnit{
-				Code: it.GetCode(), Name: it.GetName(),
-				Type: it.GetType().String(), ParentID: it.GetParentId(),
-				Status: it.GetStatus().String(), SortOrder: it.GetSortOrder(),
-				LeaderID: it.GetLeaderId(), Remark: it.GetRemark(),
-				Description: it.GetDescription(),
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *identityv1.BatchCreateOrgUnitsRequest) (*identityv1.BatchCreateOrgUnitsResponse, error) {
+				ins := make([]orgbiz.OrgUnit, 0, len(req.GetItems()))
+				for _, it := range req.GetItems() {
+					ins = append(ins, orgbiz.OrgUnit{
+						Code: it.GetCode(), Name: it.GetName(),
+						Type: it.GetType().String(), ParentID: it.GetParentId(),
+						Status: it.GetStatus().String(), SortOrder: it.GetSortOrder(),
+						LeaderID: it.GetLeaderId(), Remark: it.GetRemark(),
+						Description: it.GetDescription(),
+					})
+				}
+				created, failed := biz.BatchCreateOrgUnits(ctx, tid(c), ins)
+				createdCodes := make([]string, 0, len(created))
+				for _, m := range created {
+					createdCodes = append(createdCodes, m.Code)
+				}
+				return &identityv1.BatchCreateOrgUnitsResponse{Created: createdCodes, Failed: failed}, nil
 			})
-		}
-		created, failed := biz.BatchCreateOrgUnits(c.Request.Context(), tid(c), ins)
-		createdCodes := make([]string, 0, len(created))
-		for _, m := range created {
-			createdCodes = append(createdCodes, m.Code)
-		}
-		writePB(c, http.StatusOK, &identityv1.BatchCreateOrgUnitsResponse{
-			Created: createdCodes, Failed: failed,
-		})
 	})
 
 	// ---- position ----
 
 	authed.POST("/positions", authzMW, func(c *gingonic.Context) {
-		var req identityv1.CreatePositionRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		if !validatePB(c, &req) {
-			return
-		}
-		m, err := biz.CreatePosition(c.Request.Context(), tid(c), positionFromCreate(&req))
-		if err != nil {
-			writeBizErr(c, err)
-			return
-		}
-		writePB(c, http.StatusCreated, &identityv1.CreatePositionResponse{Position: toPositionPB(m)})
+		handlePB(c, http.StatusCreated,
+			func(ctx context.Context, req *identityv1.CreatePositionRequest) (*identityv1.CreatePositionResponse, error) {
+				m, err := biz.CreatePosition(ctx, tid(c), positionFromCreate(req))
+				if err != nil {
+					return nil, err
+				}
+				return &identityv1.CreatePositionResponse{Position: convert.PositionToPB(m)}, nil
+			})
 	})
 
 	authed.GET("/positions", authzMW, func(c *gingonic.Context) {
@@ -237,7 +213,7 @@ func RegisterOrg(
 		}
 		out := make([]*identityv1.Position, 0, len(items))
 		for _, m := range items {
-			out = append(out, toPositionPB(m))
+			out = append(out, convert.PositionToPB(m))
 		}
 		writePB(c, http.StatusOK, &identityv1.ListPositionsResponse{Items: out, Total: uint32(len(out))})
 	})
@@ -257,52 +233,45 @@ func RegisterOrg(
 			writeBizErr(c, err)
 			return
 		}
-		writePB(c, http.StatusOK, &identityv1.GetPositionResponse{Position: toPositionPB(m)})
+		writePB(c, http.StatusOK, &identityv1.GetPositionResponse{Position: convert.PositionToPB(m)})
 	})
 
 	authed.PUT("/positions/:code", authzMW, func(c *gingonic.Context) {
-		var req identityv1.UpdatePositionRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		if !validatePB(c, &req) {
-			return
-		}
-		in := orgbiz.Position{
-			Name: req.GetName(), Remark: req.GetRemark(),
-			Description: req.GetDescription(), JobFamily: req.GetJobFamily(),
-			JobGrade: req.GetJobGrade(), OrgUnitID: req.GetOrgUnitId(),
-			ReportsToPositionID: req.GetReportsToPositionId(),
-		}
-		if req.GetType() != identityv1.Position_TYPE_UNSPECIFIED {
-			in.Type = req.GetType().String()
-		}
-		if req.GetStatus() != identityv1.Position_STATUS_UNSPECIFIED {
-			in.Status = req.GetStatus().String()
-		}
-		if req.GetHeadcountSet() {
-			in.Headcount = req.GetHeadcount()
-		}
-		if req.GetSortOrderSet() {
-			in.SortOrder = req.GetSortOrder()
-		}
-		if req.GetLevelSet() {
-			in.Level = req.GetLevel()
-		}
-		if req.GetIsKeyPositionSet() {
-			in.IsKeyPosition = req.GetIsKeyPosition()
-		}
-		if err := biz.UpdatePosition(c.Request.Context(), tid(c), c.Param("code"), in); err != nil {
-			writeBizErr(c, err)
-			return
-		}
-		m, err := biz.GetPosition(c.Request.Context(), tid(c), c.Param("code"))
-		if err != nil {
-			writeBizErr(c, err)
-			return
-		}
-		writePB(c, http.StatusOK, &identityv1.UpdatePositionResponse{Position: toPositionPB(m)})
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *identityv1.UpdatePositionRequest) (*identityv1.UpdatePositionResponse, error) {
+				in := orgbiz.Position{
+					Name: req.GetName(), Remark: req.GetRemark(),
+					Description: req.GetDescription(), JobFamily: req.GetJobFamily(),
+					JobGrade: req.GetJobGrade(), OrgUnitID: req.GetOrgUnitId(),
+					ReportsToPositionID: req.GetReportsToPositionId(),
+				}
+				if req.GetType() != identityv1.Position_TYPE_UNSPECIFIED {
+					in.Type = req.GetType().String()
+				}
+				if req.GetStatus() != identityv1.Position_STATUS_UNSPECIFIED {
+					in.Status = req.GetStatus().String()
+				}
+				if req.GetHeadcountSet() {
+					in.Headcount = req.GetHeadcount()
+				}
+				if req.GetSortOrderSet() {
+					in.SortOrder = req.GetSortOrder()
+				}
+				if req.GetLevelSet() {
+					in.Level = req.GetLevel()
+				}
+				if req.GetIsKeyPositionSet() {
+					in.IsKeyPosition = req.GetIsKeyPosition()
+				}
+				if err := biz.UpdatePosition(ctx, tid(c), c.Param("code"), in); err != nil {
+					return nil, err
+				}
+				m, err := biz.GetPosition(ctx, tid(c), c.Param("code"))
+				if err != nil {
+					return nil, err
+				}
+				return &identityv1.UpdatePositionResponse{Position: convert.PositionToPB(m)}, nil
+			})
 	})
 
 	authed.DELETE("/positions/:code", authzMW, func(c *gingonic.Context) {
@@ -315,34 +284,27 @@ func RegisterOrg(
 	})
 
 	authed.POST("/positions/batch", authzMW, func(c *gingonic.Context) {
-		var req identityv1.BatchCreatePositionsRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		if !validatePB(c, &req) {
-			return
-		}
-		ins := make([]orgbiz.Position, 0, len(req.GetItems()))
-		for _, it := range req.GetItems() {
-			ins = append(ins, orgbiz.Position{
-				Code: it.GetCode(), Name: it.GetName(),
-				Headcount: it.GetHeadcount(), SortOrder: it.GetSortOrder(),
-				Status: it.GetStatus().String(), Type: it.GetType().String(),
-				Remark: it.GetRemark(), Description: it.GetDescription(),
-				JobFamily: it.GetJobFamily(), JobGrade: it.GetJobGrade(),
-				Level: it.GetLevel(), IsKeyPosition: it.GetIsKeyPosition(),
-				OrgUnitID: it.GetOrgUnitId(), ReportsToPositionID: it.GetReportsToPositionId(),
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *identityv1.BatchCreatePositionsRequest) (*identityv1.BatchCreatePositionsResponse, error) {
+				ins := make([]orgbiz.Position, 0, len(req.GetItems()))
+				for _, it := range req.GetItems() {
+					ins = append(ins, orgbiz.Position{
+						Code: it.GetCode(), Name: it.GetName(),
+						Headcount: it.GetHeadcount(), SortOrder: it.GetSortOrder(),
+						Status: it.GetStatus().String(), Type: it.GetType().String(),
+						Remark: it.GetRemark(), Description: it.GetDescription(),
+						JobFamily: it.GetJobFamily(), JobGrade: it.GetJobGrade(),
+						Level: it.GetLevel(), IsKeyPosition: it.GetIsKeyPosition(),
+						OrgUnitID: it.GetOrgUnitId(), ReportsToPositionID: it.GetReportsToPositionId(),
+					})
+				}
+				created, failed := biz.BatchCreatePositions(ctx, tid(c), ins)
+				createdCodes := make([]string, 0, len(created))
+				for _, m := range created {
+					createdCodes = append(createdCodes, m.Code)
+				}
+				return &identityv1.BatchCreatePositionsResponse{Created: createdCodes, Failed: failed}, nil
 			})
-		}
-		created, failed := biz.BatchCreatePositions(c.Request.Context(), tid(c), ins)
-		createdCodes := make([]string, 0, len(created))
-		for _, m := range created {
-			createdCodes = append(createdCodes, m.Code)
-		}
-		writePB(c, http.StatusOK, &identityv1.BatchCreatePositionsResponse{
-			Created: createdCodes, Failed: failed,
-		})
 	})
 }
 
@@ -426,74 +388,6 @@ func positionFromCreate(req *identityv1.CreatePositionRequest) orgbiz.Position {
 		in.StartAt = &t
 	}
 	return in
-}
-
-// toOrgUnitPB 模型 → proto。
-func toOrgUnitPB(m *orgbiz.OrgUnit) *identityv1.OrgUnit {
-	pb := &identityv1.OrgUnit{
-		Id: m.ID, Code: m.Code, Name: m.Name,
-		Type: parseOrgType(m.Type), Status: parseOrgStatus(m.Status),
-		ParentId: m.ParentID, Path: m.Path, SortOrder: m.SortOrder,
-		LeaderId: m.LeaderID, LeaderName: m.LeaderName,
-		Remark: m.Remark, Description: m.Description,
-	}
-	if len(m.Children) > 0 {
-		pb.Children = make([]*identityv1.OrgUnit, 0, len(m.Children))
-		for _, ch := range m.Children {
-			pb.Children = append(pb.Children, toOrgUnitPB(ch))
-		}
-	}
-	return pb
-}
-
-// toPositionPB 模型 → proto。
-func toPositionPB(m *orgbiz.Position) *identityv1.Position {
-	pb := &identityv1.Position{
-		Id: m.ID, Code: m.Code, Name: m.Name,
-		Headcount: m.Headcount, SortOrder: m.SortOrder,
-		Status: parsePosStatus(m.Status), Type: parsePosType(m.Type),
-		Remark: m.Remark, Description: m.Description,
-		JobFamily: m.JobFamily, JobGrade: m.JobGrade,
-		Level: m.Level, IsKeyPosition: m.IsKeyPosition,
-		OrgUnitId: m.OrgUnitID, OrgUnitName: m.OrgUnitName,
-		ReportsToPositionId: m.ReportsToPositionID, ReportsToPositionName: m.ReportsToPositionName,
-	}
-	if m.StartAt != nil && !m.StartAt.IsZero() {
-		pb.StartAt = timestamppb.New(*m.StartAt)
-	}
-	return pb
-}
-
-// parseOrgStatus 字符串状态 → 枚举（未知值回落 UNSPECIFIED）。
-func parseOrgStatus(s string) identityv1.OrgUnit_Status {
-	if v, ok := identityv1.OrgUnit_Status_value[s]; ok {
-		return identityv1.OrgUnit_Status(v)
-	}
-	return identityv1.OrgUnit_STATUS_UNSPECIFIED
-}
-
-// parseOrgType 字符串类型 → 枚举。
-func parseOrgType(s string) identityv1.OrgUnit_Type {
-	if v, ok := identityv1.OrgUnit_Type_value[s]; ok {
-		return identityv1.OrgUnit_Type(v)
-	}
-	return identityv1.OrgUnit_TYPE_UNSPECIFIED
-}
-
-// parsePosStatus 字符串状态 → 枚举。
-func parsePosStatus(s string) identityv1.Position_Status {
-	if v, ok := identityv1.Position_Status_value[s]; ok {
-		return identityv1.Position_Status(v)
-	}
-	return identityv1.Position_STATUS_UNSPECIFIED
-}
-
-// parsePosType 字符串类型 → 枚举。
-func parsePosType(s string) identityv1.Position_Type {
-	if v, ok := identityv1.Position_Type_value[s]; ok {
-		return identityv1.Position_Type(v)
-	}
-	return identityv1.Position_TYPE_UNSPECIFIED
 }
 
 var _ = authmodel.OrgUnit{} // 保持 model 引用（转换层依赖其字段语义）

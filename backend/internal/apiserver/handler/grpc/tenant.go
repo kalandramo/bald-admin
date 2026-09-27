@@ -7,11 +7,10 @@ package grpc
 import (
 	"context"
 
-	"github.com/kalandramo/bald/berrors"
 	tenantv1 "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1"
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
+	"github.com/kalandramo/bald/berrors"
 )
 
 // tenantService 实现生成的 tenantv1.TenantServiceServer。
@@ -30,7 +29,7 @@ func (s *tenantService) GetTenant(ctx context.Context, req *tenantv1.GetTenantRe
 	if err != nil {
 		return nil, berrors.NotFound("tenant/not_found").WithMessage("tenant not found")
 	}
-	return &tenantv1.GetTenantResponse{Tenant: toTenantPBGRPC(t)}, nil
+	return &tenantv1.GetTenantResponse{Tenant: convert.TenantToPB(t)}, nil
 }
 
 func (s *tenantService) ListTenants(ctx context.Context, req *tenantv1.ListTenantsRequest) (*tenantv1.ListTenantsResponse, error) {
@@ -40,7 +39,7 @@ func (s *tenantService) ListTenants(ctx context.Context, req *tenantv1.ListTenan
 	}
 	items := make([]*tenantv1.Tenant, 0, len(ts))
 	for _, t := range ts {
-		items = append(items, toTenantPBGRPC(t))
+		items = append(items, convert.TenantToPB(t))
 	}
 	return &tenantv1.ListTenantsResponse{Items: items, Total: uint32(len(items))}, nil
 }
@@ -50,7 +49,7 @@ func (s *tenantService) CreateTenant(ctx context.Context, req *tenantv1.CreateTe
 	if err != nil {
 		return nil, err
 	}
-	return &tenantv1.CreateTenantResponse{Tenant: toTenantPBGRPC(t)}, nil
+	return &tenantv1.CreateTenantResponse{Tenant: convert.TenantToPB(t)}, nil
 }
 
 func (s *tenantService) UpdateTenant(ctx context.Context, req *tenantv1.UpdateTenantRequest) (*tenantv1.UpdateTenantResponse, error) {
@@ -65,7 +64,7 @@ func (s *tenantService) UpdateTenant(ctx context.Context, req *tenantv1.UpdateTe
 		// 仅 store 未命中归 NotFound，其余透传（berrors 由 ErrorInterceptor 收口）。
 		return nil, notFoundOr(err, "tenant/not_found", "tenant")
 	}
-	return &tenantv1.UpdateTenantResponse{Tenant: toTenantPBGRPC(t)}, nil
+	return &tenantv1.UpdateTenantResponse{Tenant: convert.TenantToPB(t)}, nil
 }
 
 func (s *tenantService) DeleteTenant(ctx context.Context, req *tenantv1.DeleteTenantRequest) (*tenantv1.DeleteTenantResponse, error) {
@@ -77,19 +76,4 @@ func (s *tenantService) DeleteTenant(ctx context.Context, req *tenantv1.DeleteTe
 		return nil, berrors.NotFound("tenant/not_found").WithMessage("tenant not found")
 	}
 	return &tenantv1.DeleteTenantResponse{Deleted: req.GetId()}, nil
-}
-
-// toTenantPBGRPC 模型 → proto（与 gin 侧同构转换；包级不共享以避免 gin/grpc 耦合）。
-func toTenantPBGRPC(t *authmodel.Tenant) *tenantv1.Tenant {
-	pb := &tenantv1.Tenant{
-		Id:        t.ID,
-		Name:      t.Name,
-		Remark:    t.Remark,
-		CreatedAt: timestamppb.New(t.CreatedAt),
-		UpdatedAt: timestamppb.New(t.UpdatedAt),
-	}
-	if v, ok := tenantv1.Tenant_Status_value[t.Status]; ok {
-		pb.Status = tenantv1.Tenant_Status(v)
-	}
-	return pb
 }

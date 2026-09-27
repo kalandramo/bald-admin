@@ -12,6 +12,7 @@
 package gin
 
 import (
+	"context"
 	"errors"
 	"io"
 
@@ -78,6 +79,55 @@ func validatePB(c *gingonic.Context, msg proto.Message) bool {
 // pbValidator 是 gin 面共享的校验器单例（懒初始化，构造失败时 panic —— 注解
 // 写错应当在首次使用时立即暴露，而非静默放行全部请求）。
 var pbValidator = validation.MustNew()
+
+// handlePB 封装 gin 面的四步流水线：protojson 绑定 → 注解校验 → 业务处理 → protojson 写出。
+//
+// 为什么需要它：此前每个路由手写同样的样板——
+//
+//	var req identityv1.CreateOrgUnitRequest
+//	if err := bindPB(c, &req); err != nil { bindErr(c, err); return }
+//	if !validatePB(c, &req) { return }
+//	... 业务 ...
+//	if err != nil { writeBizErr(c, err); return }
+//	writePB(c, code, resp)
+//
+// 全仓 22 处重复（org 6 + dict 4 + language 3 + permission 3 + menu 2 + tenant 2 + user 2）。
+// 本辅助把这四步收敛为一次调用，路由体只剩业务逻辑。
+//
+// **为什么不复用框架 web.HandleJSONRequest**：它内部用 c.ShouldBindJSON（encoding/json），
+// 与本项目「REST/gRPC 同源、统一 protojson」的约定冲突（见本文件头注）。故自建 protojson 版。
+//
+// 类型参数：T 是请求消息的结构体类型，PT 是它的指针（同时满足 proto.Message），
+// R 是响应消息。用 PT(new(T)) 在函数内分配请求实例——调用方无需先声明 var req。
+//
+// 语义与手写**逐项一致**（不是近似）：
+//   - 绑定失败 → bindErr（400，与 grpc-gateway 转码形状一致）
+//   - 校验失败 → validatePB 已写出错误体（buf.validate 注解规则）
+//   - 业务失败 → writeBizErr（三层判定：berrors / store 哨兵 / 兜底 500）
+//   - 成功 → writePB（protojson UseProtoNames，与 gateway 同形）
+func handlePB[T any, PT interface {
+	proto.Message
+	*T
+}, R proto.Message](
+	c *gingonic.Context,
+	code int,
+	handler func(ctx context.Context, req PT) (R, error),
+) {
+	req := PT(new(T))
+	if err := bindPB(c, req); err != nil {
+		bindErr(c, err)
+		return
+	}
+	if !validatePB(c, req) {
+		return
+	}
+	resp, err := handler(c.Request.Context(), req)
+	if err != nil {
+		writeBizErr(c, err)
+		return
+	}
+	writePB(c, code, resp)
+}
 
 // writeBizErr 统一 biz 错误 → 决策⑧错误体（T2 起的三层判定语义保持）：
 //   - *berrors.Error → 框架 ErrorResponse 主路径（httperr.CodeToHTTP 映射，

@@ -6,14 +6,10 @@ package grpc
 
 import (
 	"context"
-	"strconv"
-	"time"
-
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditv1 "github.com/kalandramo/bald-admin/api/gen/go/audit/v1"
 	auditbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 )
 
 // auditService 实现生成的 auditv1.AuditServiceServer。
@@ -43,7 +39,7 @@ func (s *auditService) ListAuditRecords(ctx context.Context, req *auditv1.ListAu
 	}
 	items := make([]*auditv1.AuditRecord, 0, len(res.Items))
 	for _, r := range res.Items {
-		items = append(items, toAuditPBGRPC(r))
+		items = append(items, convert.AuditRecordToPB(r))
 	}
 	return &auditv1.ListAuditRecordsResponse{
 		Items: items,
@@ -56,40 +52,5 @@ func (s *auditService) GetAuditRecord(ctx context.Context, req *auditv1.GetAudit
 	if err != nil {
 		return nil, err
 	}
-	return &auditv1.GetAuditRecordResponse{Record: toAuditPBGRPC(m)}, nil
-}
-
-// toAuditPBGRPC 模型 → proto（与 gin 侧同构转换）。
-func toAuditPBGRPC(m *authmodel.AuditRecord) *auditv1.AuditRecord {
-	return &auditv1.AuditRecord{
-		Id:        strconv.FormatUint(uint64(m.ID), 10),
-		TenantId:  m.TenantID,
-		Category:  m.Category,
-		Subject:   m.Subject,
-		Object:    m.Object,
-		Action:    m.Action,
-		Result:    m.Result,
-		Error:     m.Error,
-		IpAddress: m.IPAddress,
-		UserAgent: m.UserAgent,
-		RequestId: m.RequestID,
-		TraceId:   m.TraceID,
-		// Wave 5.1：五类差异字段（各分类按需非空）。
-		HttpMethod:   m.HTTPMethod,
-		Path:         m.Path,
-		StatusCode:   m.StatusCode,
-		LatencyMs:    m.LatencyMs,
-		TableName:    m.TableName,
-		DataSource:   m.DataSource,
-		DbUser:       m.DBUser,
-		SqlText:      m.SQLText,
-		AffectedRows: m.AffectedRows,
-		TargetType:   m.TargetType,
-		TargetId:     m.TargetID,
-		OldValue:     m.OldValue,
-		NewValue:     m.NewValue,
-		SessionId:    m.SessionID,
-		MfaStatus:    m.MFAStatus,
-		Time:         timestamppb.New(time.Unix(0, m.Time)),
-	}
+	return &auditv1.GetAuditRecordResponse{Record: convert.AuditRecordToPB(m)}, nil
 }

@@ -7,11 +7,10 @@ package grpc
 import (
 	"context"
 
-	"github.com/kalandramo/bald/berrors"
 	menuv1 "github.com/kalandramo/bald-admin/api/gen/go/menu/v1"
 	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
+	"github.com/kalandramo/bald/berrors"
 )
 
 // menuService 实现生成的 menuv1.MenuServiceServer。
@@ -30,7 +29,7 @@ func (s *menuService) GetMenu(ctx context.Context, req *menuv1.GetMenuRequest) (
 	if err != nil {
 		return nil, berrors.NotFound("menu/not_found").WithMessage("menu not found")
 	}
-	return &menuv1.GetMenuResponse{Menu: toMenuPBGRPC(m)}, nil
+	return &menuv1.GetMenuResponse{Menu: convert.MenuToPB(m)}, nil
 }
 
 func (s *menuService) ListMenus(ctx context.Context, req *menuv1.ListMenusRequest) (*menuv1.ListMenusResponse, error) {
@@ -40,7 +39,7 @@ func (s *menuService) ListMenus(ctx context.Context, req *menuv1.ListMenusReques
 	}
 	items := make([]*menuv1.Menu, 0, len(roots))
 	for _, m := range roots {
-		items = append(items, toMenuPBTreeGRPC(m))
+		items = append(items, convert.MenuToPBTree(m))
 	}
 	return &menuv1.ListMenusResponse{Items: items, Total: uint32(total)}, nil
 }
@@ -52,7 +51,7 @@ func (s *menuService) CreateMenu(ctx context.Context, req *menuv1.CreateMenuRequ
 	if err != nil {
 		return nil, err
 	}
-	return &menuv1.CreateMenuResponse{Menu: toMenuPBGRPC(m)}, nil
+	return &menuv1.CreateMenuResponse{Menu: convert.MenuToPB(m)}, nil
 }
 
 func (s *menuService) UpdateMenu(ctx context.Context, req *menuv1.UpdateMenuRequest) (*menuv1.UpdateMenuResponse, error) {
@@ -63,7 +62,7 @@ func (s *menuService) UpdateMenu(ctx context.Context, req *menuv1.UpdateMenuRequ
 	if err != nil {
 		return nil, err
 	}
-	return &menuv1.UpdateMenuResponse{Menu: toMenuPBGRPC(m)}, nil
+	return &menuv1.UpdateMenuResponse{Menu: convert.MenuToPB(m)}, nil
 }
 
 func (s *menuService) DeleteMenu(ctx context.Context, req *menuv1.DeleteMenuRequest) (*menuv1.DeleteMenuResponse, error) {
@@ -72,38 +71,6 @@ func (s *menuService) DeleteMenu(ctx context.Context, req *menuv1.DeleteMenuRequ
 		return nil, berrors.NotFound("menu/not_found").WithMessage("menu not found")
 	}
 	return &menuv1.DeleteMenuResponse{Deleted: req.GetId()}, nil
-}
-
-// toMenuPBGRPC 模型 → proto（平铺；与 gin 侧同构转换，包级不共享以避免耦合）。
-func toMenuPBGRPC(m *authmodel.Menu) *menuv1.Menu {
-	pb := &menuv1.Menu{
-		Id:        m.ID,
-		ParentId:  m.ParentID,
-		Name:      m.Name,
-		Path:      m.Path,
-		Component: m.Component,
-		Title:     m.Title,
-		Icon:      m.Icon,
-		Order:     m.Order,
-		Remark:    m.Remark,
-		CreatedAt: timestamppb.New(m.CreatedAt),
-		UpdatedAt: timestamppb.New(m.UpdatedAt),
-	}
-	if v, ok := menuv1.Menu_Type_value[m.Type]; ok {
-		pb.Type = menuv1.Menu_Type(v)
-	}
-	if v, ok := menuv1.Menu_Status_value[m.Status]; ok {
-		pb.Status = menuv1.Menu_Status(v)
-	}
-	return pb
-}
-
-func toMenuPBTreeGRPC(m *authmodel.Menu) *menuv1.Menu {
-	pb := toMenuPBGRPC(m)
-	for _, ch := range m.Children {
-		pb.Children = append(pb.Children, toMenuPBTreeGRPC(ch))
-	}
-	return pb
 }
 
 // menuTypeStringGRPC / menuStatusStringGRPC 枚举 → 存储字符串（UNSPECIFIED→空串）。

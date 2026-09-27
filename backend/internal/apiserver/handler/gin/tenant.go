@@ -6,6 +6,7 @@ package gin
 // 同源——casbin 策略单写即覆盖双协议。
 
 import (
+	"context"
 	"net/http"
 
 	gingonic "github.com/gin-gonic/gin"
@@ -15,11 +16,10 @@ import (
 	"github.com/kalandramo/bald/pkg/authz"
 	mid "github.com/kalandramo/bald/pkg/middleware/gin"
 	web "github.com/kalandramo/bald/transport/web"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	tenantv1 "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1"
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	convert "github.com/kalandramo/bald-admin/internal/apiserver/handler/convert"
 )
 
 // RegisterTenant 挂载租户管理路由（全部需认证 + tenant 资源权限，casbin 仅授予 admin）。
@@ -49,7 +49,7 @@ func RegisterTenant(
 		}
 		items := make([]*tenantv1.Tenant, 0, len(ts))
 		for _, t := range ts {
-			items = append(items, toTenantPB(t))
+			items = append(items, convert.TenantToPB(t))
 		}
 		writePB(c, http.StatusOK, &tenantv1.ListTenantsResponse{Items: items, Total: uint32(len(items))})
 	})
@@ -60,41 +60,34 @@ func RegisterTenant(
 			writeBizErr(c, err) // NotFound→404、内部→500（不再一刀切折叠）
 			return
 		}
-		writePB(c, http.StatusOK, &tenantv1.GetTenantResponse{Tenant: toTenantPB(t)})
+		writePB(c, http.StatusOK, &tenantv1.GetTenantResponse{Tenant: convert.TenantToPB(t)})
 	})
 
 	authed.POST("/tenant", authzMW, func(c *gingonic.Context) {
-		var req tenantv1.CreateTenantRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		t, err := biz.Create(c.Request.Context(), req.GetId(), req.GetName(), req.GetRemark())
-		if err != nil {
-			writeBizErr(c, err) // 校验→400、编码冲突→409、内部→500
-			return
-		}
-		writePB(c, http.StatusCreated, &tenantv1.CreateTenantResponse{Tenant: toTenantPB(t)})
+		handlePB(c, http.StatusCreated,
+			func(ctx context.Context, req *tenantv1.CreateTenantRequest) (*tenantv1.CreateTenantResponse, error) {
+				t, err := biz.Create(ctx, req.GetId(), req.GetName(), req.GetRemark())
+				if err != nil {
+					return nil, err // 校验→400、编码冲突→409、内部→500
+				}
+				return &tenantv1.CreateTenantResponse{Tenant: convert.TenantToPB(t)}, nil
+			})
 	})
 
 	authed.PUT("/tenant/:id", authzMW, func(c *gingonic.Context) {
-		var req tenantv1.UpdateTenantRequest
-		if err := bindPB(c, &req); err != nil {
-			bindErr(c, err)
-			return
-		}
-		// STATUS_UNSPECIFIED 表示「不改」，映射为空串交给 biz 跳过校验。
-		status := ""
-		if req.GetStatus() != tenantv1.Tenant_STATUS_UNSPECIFIED {
-			status = req.GetStatus().String()
-		}
-		t, err := biz.Update(c.Request.Context(), c.Param("id"),
-			req.GetName(), status, req.GetRemark())
-		if err != nil {
-			writeBizErr(c, err) // 此前 NotFound/冲突/内部错误一律折叠 400
-			return
-		}
-		writePB(c, http.StatusOK, &tenantv1.UpdateTenantResponse{Tenant: toTenantPB(t)})
+		handlePB(c, http.StatusOK,
+			func(ctx context.Context, req *tenantv1.UpdateTenantRequest) (*tenantv1.UpdateTenantResponse, error) {
+				// STATUS_UNSPECIFIED 表示「不改」，映射为空串交给 biz 跳过校验。
+				status := ""
+				if req.GetStatus() != tenantv1.Tenant_STATUS_UNSPECIFIED {
+					status = req.GetStatus().String()
+				}
+				t, err := biz.Update(ctx, c.Param("id"), req.GetName(), status, req.GetRemark())
+				if err != nil {
+					return nil, err // 此前 NotFound/冲突/内部错误一律折叠 400
+				}
+				return &tenantv1.UpdateTenantResponse{Tenant: convert.TenantToPB(t)}, nil
+			})
 	})
 
 	authed.DELETE("/tenant/:id", authzMW, func(c *gingonic.Context) {
@@ -109,19 +102,4 @@ func RegisterTenant(
 		}
 		writePB(c, http.StatusOK, &tenantv1.DeleteTenantResponse{Deleted: c.Param("id")})
 	})
-}
-
-// toTenantPB 模型 → proto（时间经 timestamppb；状态字符串回读枚举）。
-func toTenantPB(t *authmodel.Tenant) *tenantv1.Tenant {
-	pb := &tenantv1.Tenant{
-		Id:        t.ID,
-		Name:      t.Name,
-		Remark:    t.Remark,
-		CreatedAt: timestamppb.New(t.CreatedAt),
-		UpdatedAt: timestamppb.New(t.UpdatedAt),
-	}
-	if v, ok := tenantv1.Tenant_Status_value[t.Status]; ok {
-		pb.Status = tenantv1.Tenant_Status(v)
-	}
-	return pb
 }
