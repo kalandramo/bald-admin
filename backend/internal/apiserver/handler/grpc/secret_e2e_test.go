@@ -61,8 +61,8 @@ func startServer(t *testing.T) (*grpcserver.GRPCServer, string) {
 			grpc.ChainUnaryInterceptor(grpcmw.ErrorInterceptor(), authnI, authzI),
 		},
 		func(s *grpc.Server) {
-			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(nil)))
-			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New()))
+			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(bootstrappkg.SecretStore, nil)))
+			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New(bootstrappkg.UserStore)))
 		},
 	)
 	lis, err := listenLocal()
@@ -255,8 +255,8 @@ func TestRESTGateway_MultiTenant_Isolation(t *testing.T) {
 		&bootstrapv1.Server_Grpc{Addr: grpcAddr},
 		[]grpc.ServerOption{grpc.ChainUnaryInterceptor(grpcmw.ErrorInterceptor(), authnI, authzI)},
 		func(s *grpc.Server) {
-			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(nil)))
-			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New()))
+			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(bootstrappkg.SecretStore, nil)))
+			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New(bootstrappkg.UserStore)))
 		},
 	)
 	go func() { _ = grpcSrv.Serve(grpcLis) }()

@@ -55,14 +55,14 @@ func startTokenMgmtREST(t *testing.T, ts token.Store) string {
 	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
 	authBiz.SetTokenStore(ts)
 
-	var authenticator authn.Authenticator = bootstrappkg.LazyAuthenticator()
+	var authenticator authn.Authenticator = bootstrappkg.Authenticator
 	if ts != nil {
 		authenticator = token.NewRevocationChecker(authenticator, ts)
 	}
 	authBiz.SetAuthenticator(authenticator)
 
 	e := gingonic.New()
-	apiserver.RegisterRoutesWithAuth(e, authenticator, &apiserver.BizSet{
+	apiserver.RegisterRoutesWithAuth(e, authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
 		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
 		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
 		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),

@@ -5,9 +5,9 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 	mid "github.com/kalandramo/bald/pkg/middleware/gin"
 	web "github.com/kalandramo/bald/transport/web"
@@ -32,11 +32,13 @@ type ComponentFactory = func() appkit.Component
 func RegisterAdmin(
 	e *gingonic.Engine,
 	appFn func() *appkit.AppKit,
+	authenticator authn.Authenticator,
+	authorizer authz.Authorizer,
 	factories map[string]ComponentFactory,
 ) {
 	authed := e.Group("/admin")
-	authed.Use(authnMiddleware(bootstrap.LazyAuthenticator()))
-	authzMW := mid.AuthzMiddleware(bootstrap.LazyAuthorizer(),
+	authed.Use(authnMiddleware(authenticator))
+	authzMW := mid.AuthzMiddleware(authorizer,
 		mid.WithObjectResolver(authz.DefaultHTTPObject),
 		mid.WithActionResolver(authz.DefaultHTTPAction),
 	)

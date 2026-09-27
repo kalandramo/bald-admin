@@ -17,7 +17,6 @@ import (
 	tenantv1 "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1"
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	validation "github.com/kalandramo/bald-admin/internal/security/validation"
@@ -38,10 +37,11 @@ func newGRPCServerOptions() []grpc.ServerOption {
 	// bundle 显式接 Nop，请求审计与认证失败审计（bundle 会把 auditor 注入
 	// AuthnInterceptor）均静默失效。
 	grpcBundle := bundle.New(
-		// 复用 bootstrap 包导出的时序适配器（bootstrap.go:103-107），与 gin 侧
-		// server.go 同一份实现——避免此处再维护一份等价类型。
-		bundle.Authn(bootstrappkg.LazyAuthenticator()),
-		bundle.Authz(bootstrappkg.LazyAuthorizer()),
+		// Wave 4.2：gRPC 拦截器链在**构造期**创建（Options 在 WithGRPC 时求值），
+		// 早于 InitBridges——故认证/授权经本包的 lateAuthn/lateAuthz 请求期解析
+		//（见 latebinding.go：该约束源自构造顺序，无法靠 Wave 4.1 消除）。
+		bundle.Authn(lateAuthn{}),
+		bundle.Authz(lateAuthz{}),
 		bundle.Audit(securityaudit.Global()), // 动态转发：契约轨装配/热切轨切换即时生效
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
 		bundle.Normalized(), // P9：FullMethod → 与 HTTP 同源的权限点

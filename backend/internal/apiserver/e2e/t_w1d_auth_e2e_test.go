@@ -77,7 +77,7 @@ func startAuthRESTFull(t *testing.T, ts token.Store, cs captcha.Store) string {
 	authBiz.SetCaptchaStore(cs)
 
 	// 认证器：装饰器包住懒解析认证器——验签通过后再查吊销名单。
-	var authenticator authn.Authenticator = bootstrappkg.LazyAuthenticator()
+	var authenticator authn.Authenticator = bootstrappkg.Authenticator
 	if ts != nil {
 		authenticator = token.NewRevocationChecker(authenticator, ts)
 	}
@@ -85,7 +85,7 @@ func startAuthRESTFull(t *testing.T, ts token.Store, cs captcha.Store) string {
 	authBiz.SetAuthenticator(authenticator)
 
 	e := gingonic.New()
-	apiserver.RegisterRoutesWithAuth(e, authenticator, &apiserver.BizSet{
+	apiserver.RegisterRoutesWithAuth(e, authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
 		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
 		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
 		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
@@ -319,11 +319,11 @@ func TestWave1d_ProductionWiring_RevocationActive(t *testing.T) {
 
 	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
 	authBiz.SetTokenStore(ts)
-	authBiz.SetAuthenticator(bootstrappkg.LazyAuthenticatorWithRevocation())
+	authBiz.SetAuthenticator(token.NewRevocationChecker(bootstrappkg.Authenticator, bootstrappkg.TokenStore))
 
 	e := gingonic.New()
 	// 关键：用生产入口 RegisterRoutes（内部用 LazyAuthenticatorWithRevocation）。
-	apiserver.RegisterRoutes(e, &apiserver.BizSet{
+	apiserver.RegisterRoutes(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
 		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
 		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
 		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),

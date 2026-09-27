@@ -126,9 +126,10 @@ type redisAddr string
 func provideRedisAddr() redisAddr { return redisAddr(os.Getenv("BALD_ADMIN_REDIS_ADDR")) }
 
 // provideSigner 从 bootstrap 提供 RSA 私钥签发器（auth biz 依赖 Signer 接口）。
-// 必须走 LazySigner：本函数在 main 构造期求值，彼时 InitBridges 尚未生成 Signer，
-// 直接传包级变量会把 nil 快照固化进 Biz（login 签发即 panic）。
-func provideSigner() authnjwt.Signer { return bootstrap.LazySigner() }
+//
+// Wave 4.2：InitializeBiz 已移到 InitBridges **之后**（Wave 4.1），故此处直接取
+// 包级 Signer 即为已就绪的真实实例——原 LazySigner（请求期解析）已无必要，随之删除。
+func provideSigner() authnjwt.Signer { return bootstrap.Signer }
 
 // newRedisCache 适配 redisAddr→bootstrap.BuildRedisCache（D1：cache/redis 适配器；
 // 保留错误，Redis 不可达即启动失败）。addr 为空返回 nil（禁用态）。

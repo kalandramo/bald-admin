@@ -29,6 +29,7 @@ import (
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
+	"github.com/kalandramo/bald-admin/internal/security/token"
 
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 
@@ -348,6 +349,22 @@ func newApp(
 			if err := bootstrappkg.InitBridges(ctx); err != nil {
 				return fmt.Errorf("init bridges: %w", err)
 			}
+			// Wave 4.2：认证/授权依赖在**路由注册之前**构造完毕——Wave 4.1 已把
+			// 装配移到运行期，故此处可直接传真实实例（不再需要请求期解析的
+			// lazy 适配器族）。
+			//
+			// **次序至关重要**：RegisterRoutes 需要带吊销检查的认证器，而吊销检查
+			// 依赖 TokenStore（Redis）。若先注册路由再构造 TokenStore，
+			// token.NewRevocationChecker 会因 store==nil 退化为纯验签——**吊销静默
+			// 失效**（安全回归，正是 lazy 当初要修的 bug）。故 TokenStore 必须在此
+			// （路由注册前）就绪。
+			tokenStore := buildTokenStore()
+			if tokenStore != nil {
+				bootstrappkg.TokenStore = tokenStore
+			}
+			// 认证器：有 Redis 时带吊销检查（登出即时生效）；无 Redis 退化为纯验签。
+			authenticator := token.NewRevocationChecker(bootstrappkg.Authenticator, tokenStore)
+			authorizer := bootstrappkg.Authorizer
 			// Wave 4.1：业务装配（wire 构造 biz + 路由注册 + gRPC 服务注册）在此
 			// 运行期钩子内完成——此刻 store / Redis / TokenStore 已由 InitBridges
 			// 建立，biz 不再需要「构造期占位 + 请求期解析」。
@@ -359,12 +376,11 @@ func newApp(
 			if err != nil {
 				return fmt.Errorf("initialize biz (wire): %w", err)
 			}
-			// gin 路由注册。RegisterRoutes 内部仍用 LazyAuthenticator/Authorizer
-			// （请求期读桥接变量）——InitBridges 已在其前执行，故此处调用时
-			// 桥接变量已有真实值；Lazy* 的**删除**（改为注入真实实例）见 Wave 4.2。
-			apiserver.RegisterRoutes(router, bizSet)
+			// gin 路由注册。Wave 4.2：认证器/授权器为**真实实例**（上方已构造），
+			// 中间件直接持有——无请求期解析层。
+			apiserver.RegisterRoutes(router, authenticator, authorizer, bizSet)
 			// M10.2 管理面：运行期组件观测与热插拔（appRef 在 app.Run 前 set）。
-			registerAdminRoutes(router, appRef, componentFactories)
+			registerAdminRoutes(router, appRef, authenticator, authorizer, componentFactories)
 			// Wave 3.2：把 message 域接到 SSE（源 RegisterInternalMessagePublisher）。
 			// SSE 未装配（sseSrv nil）时 wireMessageSSE 返回原 biz——降级为
 			// 「只落库不推送」。Wave 4.1：接线移到此处（bizSet 运行期才构造）。
@@ -429,20 +445,15 @@ func newApp(
 			// **无条件注入**（不像上面几个 setter 有 nil 分支）——判据是纯函数，
 			// 无外部依赖、无时序要求，不存在「未就绪」状态。
 			bizSet.Auth.SetPlatformResolver(authmodel.IsPlatformUser)
-			// Wave 1d：令牌存储 + 校验器接线（Logout 吊销 / RefreshToken 刷新 /
+			// Wave 1d：令牌校验器接线（Logout 吊销 / RefreshToken 刷新 /
 			// ValidateToken 校验）。
 			//
-			// 关键时序：RegisterRoutes 在**装配期**（本函数返回前）执行，而
-			// RedisClient 在此刻（BeforeStart 内）才就绪——故路由层用的是
-			// LazyAuthenticatorWithRevocation（请求期读包级 TokenStore），
-			// 此处只需把 TokenStore 赋好。
-			//
-			// ValidateToken 的校验器同样用带吊销检查的认证器——与中间件同源，
-			// 故「登出后 ValidateToken 报 invalid」与「登出后中间件拒绝」语义一致。
-			if ts := buildTokenStore(); ts != nil {
-				bootstrappkg.TokenStore = ts
-				bizSet.Auth.SetTokenStore(ts)
-				bizSet.Auth.SetAuthenticator(bootstrappkg.LazyAuthenticatorWithRevocation())
+			// Wave 4.2：TokenStore 与带吊销检查的认证器已在**路由注册前**构造
+			//（见上），此处只把同一实例注入 biz（ValidateToken 与中间件同源，故
+			// 「登出后 ValidateToken 报 invalid」与「登出后中间件拒绝」语义一致）。
+			if tokenStore != nil {
+				bizSet.Auth.SetTokenStore(tokenStore)
+				bizSet.Auth.SetAuthenticator(authenticator)
 				// Wave 1d-2：验证码存储（复用同一 Redis）。
 				bizSet.Auth.SetCaptchaStore(captcha.NewRedisStore(bootstrappkg.RedisClient))
 				// Wave 1.5：MFA 挑战存储（复用同一 Redis）。
@@ -454,7 +465,7 @@ func newApp(
 			} else {
 				// 无 Redis：ValidateToken 仍可用（退化为纯验签，无吊销检查）；
 				// 验证码不可用（生成/校验返回 503，fail-closed 不放行）。
-				bizSet.Auth.SetAuthenticator(bootstrappkg.LazyAuthenticator())
+				bizSet.Auth.SetAuthenticator(bootstrappkg.Authenticator)
 			}
 			if svrOpts.Auth.AccessTTLMinutes > 0 {
 				refresh := time.Duration(0)
@@ -502,10 +513,10 @@ func newApp(
 	// Wave 3.1/3.2：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
 	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
 	//
-	// Wave 4.2 起可改用注入完成的认证器；此处仍用 LazyAuthenticator（SSE 服务器
-	// 在构造期构造，其 authorize 钩子在请求期执行，届时桥接变量已就绪）。
+	// Wave 4.2：SSE 服务器在**构造期**创建（早于 InitBridges），其 authorize 钩子
+	// 在请求期执行——故认证器经本包 lateAuthn 请求期解析（见 latebinding.go）。
 	if built, serr := buildSSEServer(context.Background(), loadSSEConfig(svrOpts),
-		bootstrappkg.LazyAuthenticator()); serr != nil {
+		lateAuthn{}); serr != nil {
 		return nil, fmt.Errorf("build sse server: %w", serr)
 	} else if built != nil {
 		sseSrv = built

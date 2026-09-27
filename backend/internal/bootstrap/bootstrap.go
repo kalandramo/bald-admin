@@ -12,10 +12,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sync"
 	"strconv"
 	"strings"
-	"time"
+	"sync"
 
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	baldgorm "github.com/kalandramo/bald/contrib/store-gorm"
@@ -29,17 +28,17 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/kalandramo/bald/cache"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
+	"github.com/kalandramo/bald/cache"
 	miniooss "github.com/kalandramo/bald/oss/minio"
 	s3oss "github.com/kalandramo/bald/oss/s3"
 
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
-	appauthz "github.com/kalandramo/bald-admin/internal/security/authz"
-	"github.com/kalandramo/bald-admin/internal/security/token"
-	casbinauthz "github.com/kalandramo/bald-admin/internal/security/casbin"
+	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald-admin/internal/security/audit/sqlaudit"
+	appauthz "github.com/kalandramo/bald-admin/internal/security/authz"
+	casbinauthz "github.com/kalandramo/bald-admin/internal/security/casbin"
+	"github.com/kalandramo/bald-admin/internal/security/token"
 )
 
 // Authenticator 登录令牌校验器（来自 bald-authn-jwt，公钥验签实例）。
@@ -77,48 +76,10 @@ var grpcObjectAliases = map[string]string{
 	"rediscachemonitor": "redis-cache-monitor",
 }
 
-// lazyAuthn / lazyAuthz 把上面的包级桥接变量适配为接口——路由/服务在 main 装配期
-// 注册（此时 Authenticator/Authorizer 尚为 nil，InitBridges 在 appkit.BeforeStart
-// 才赋值），而认证/授权中间件在请求期才真正调用。请求期经本适配器读取最新值。
-//
-// 背景（M10.1 修复的真实 bug）：此前 RegisterRoutes 直接传 bootstrappkg.Authenticator
-// （构造期 nil），gin AuthnMiddleware 对 nil 退化为空操作——main 进程的 HTTP 认证
-// 实际一直未生效（e2e 未经过 main 装配路径故未暴露）。lazy 适配器根治该时序错位。
-type lazyAuthn struct{}
-
-func (lazyAuthn) Authenticate(ctx context.Context) (*authn.AuthClaims, error) {
-	return Authenticator.Authenticate(ctx)
-}
-
-func (lazyAuthn) AuthenticateToken(token string) (*authn.AuthClaims, error) {
-	return Authenticator.AuthenticateToken(token)
-}
-
-type lazyAuthz struct{}
-
-func (lazyAuthz) Authorize(ctx context.Context, subject, object, action string) (bool, error) {
-	return Authorizer.Authorize(ctx, subject, object, action)
-}
-
-// LazyAuthenticator 返回延迟解析的认证器（请求期读 bootstrappkg.Authenticator 最新值）。
-func LazyAuthenticator() authn.Authenticator { return lazyAuthn{} }
-
-// LazyAuthorizer 返回延迟解析的授权器（请求期读 bootstrappkg.Authorizer 最新值）。
-func LazyAuthorizer() authz.Authorizer { return lazyAuthz{} }
-
-// lazySigner 把包级 Signer 桥接变量适配为 authnjwt.Signer。wire 的 provideSigner
-// 在 main 构造期求值（InitializeBiz 先于 BeforeStart 的 InitBridges），直接传包级
-// 变量会把 nil 快照固化进 auth Biz——login 签发即 nil panic（与 M10.1 修复的
-// Authenticator 构造期 nil 同款时序错位，e2e 不走 main 装配路径故未暴露）。
-// 本适配器在请求期读取最新值（与 lazyAuthn/lazyAuthz 同构）。
-type lazySigner struct{}
-
-func (lazySigner) IssueToken(claims authn.AuthClaims, ttl time.Duration) (string, error) {
-	return Signer.IssueToken(claims, ttl)
-}
-
-// LazySigner 返回延迟解析的签发器（请求期读 bootstrappkg.Signer 最新值）。
-func LazySigner() authnjwt.Signer { return lazySigner{} }
+// 注：原 lazyAuthn / lazyAuthz / lazySigner 适配器族已于 Wave 4.2 删除。
+// 它们的存在理由是装配时序倒置——路由/服务在构造期注册时 Authenticator /
+// Authorizer / Signer 尚为 nil，只能请求期解析。Wave 4.1 已把业务装配移到
+// Run 期（InitBridges 之后），装配层可直接传真实实例，故适配器成为死代码。
 
 // TokenStore 是令牌服务端状态存储（Wave 1d：吊销名单 + 刷新令牌）。
 // 由 BeforeStart 装配（复用 RedisClient）；nil = 无 Redis，降级语义见各调用点。
@@ -159,27 +120,12 @@ func BuildAuthorizer(ctx context.Context) (authz.Authorizer, error) {
 	return casbinauthz.New(csv)
 }
 
-// lazyAuthnWithRevocation 把「验签 + 吊销检查」适配为请求期解析的认证器。
-//
-// 为什么需要它（Wave 1d 实测的真实时序 bug）：
-// RegisterRoutes 在**装配期**（main 早期）执行，而 RedisClient/TokenStore 要
-// BeforeStart 才就绪——直接传 token.NewRevocationChecker(LazyAuthenticator(), ts)
-// 会把 nil 快照固化，导致**吊销检查在生产路径静默失效**（e2e 走的是显式注入
-// 路径，故未暴露；端到端 HTTP 验证抓到：登出后 whoami 仍返回 200）。
-// 本适配器在**请求期**读取 TokenStore 最新值——与 lazyAuthn/lazySigner 同构。
-type lazyAuthnWithRevocation struct{}
-
-func (lazyAuthnWithRevocation) Authenticate(ctx context.Context) (*authn.AuthClaims, error) {
-	return token.NewRevocationChecker(Authenticator, TokenStore).Authenticate(ctx)
-}
-
-func (lazyAuthnWithRevocation) AuthenticateToken(tokenStr string) (*authn.AuthClaims, error) {
-	return token.NewRevocationChecker(Authenticator, TokenStore).AuthenticateToken(tokenStr)
-}
-
-// LazyAuthenticatorWithRevocation 返回「验签 + 吊销检查」的延迟解析认证器。
-// 注入 gin/grpc 认证中间件，使 Logout 拉黑的 token 在**生产装配路径**也被拒绝。
-func LazyAuthenticatorWithRevocation() authn.Authenticator { return lazyAuthnWithRevocation{} }
+// 注：原 lazyAuthnWithRevocation / LazyAuthenticatorWithRevocation 于 Wave 4.2 删除。
+// 它同样是把「验签 + 吊销检查」延后到请求期解析的适配器——理由是 RegisterRoutes
+// 曾在装配期执行而 TokenStore 在 BeforeStart 才就绪。Wave 4.2 已把 TokenStore 的
+// 构造**移到路由注册之前**（assembly.go），装配层直接传
+// token.NewRevocationChecker(Authenticator, TokenStore) 真实实例即可，
+// 吊销检查语义不因删除适配器而丢失（已由 e2e 吊销用例与端到端验证覆盖）。
 
 // DB 是应用主库（M2 起为 SQLite 内存库，T0 起默认经配置 database.sql 切外部 PostgreSQL）。
 var DB *gorm.DB

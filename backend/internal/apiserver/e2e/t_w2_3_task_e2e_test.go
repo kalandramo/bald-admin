@@ -70,14 +70,14 @@ func startTaskREST(t *testing.T, sched taskbiz.Scheduler) string {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
-	authBiz.SetAuthenticator(bootstrappkg.LazyAuthenticator())
+	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 	tb := taskbiz.New(bootstrappkg.TaskStore)
 	if sched != nil {
 		tb.SetScheduler(sched)
 	}
 
 	e := gingonic.New()
-	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.LazyAuthenticator(), &apiserver.BizSet{
+	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
 		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
 		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
 		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),

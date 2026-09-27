@@ -11,6 +11,8 @@ import (
 
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/pkg/authn"
+	"github.com/kalandramo/bald/pkg/authz"
 )
 
 type appRefT struct {
@@ -78,6 +80,8 @@ func (h *heartbeatComp) Dispose(_ context.Context) error {
 
 // registerAdminRoutes 把管理面路由挂到 router（appRef 迟到绑定见 appRefT）。
 
-func registerAdminRoutes(router *gin.Engine, ref *appRefT, factories map[string]apiserver.ComponentFactory) {
-	apiserver.RegisterAdmin(router, ref.get, factories)
+func registerAdminRoutes(router *gin.Engine, ref *appRefT,
+	authenticator authn.Authenticator, authorizer authz.Authorizer,
+	factories map[string]apiserver.ComponentFactory) {
+	apiserver.RegisterAdmin(router, ref.get, authenticator, authorizer, factories)
 }
