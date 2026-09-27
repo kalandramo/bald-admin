@@ -15,7 +15,7 @@
 // 然后 `internalMessageService.RegisterInternalMessagePublisher(srv)`。
 // bald 的 `transport/sse` 提供**同名同形的 Option**（`options.go:98-114`），
 // 故三处对接（授权 / 订阅回调 / 推送发布）形态可一一对应。
-package main
+package app
 
 import (
 	"context"

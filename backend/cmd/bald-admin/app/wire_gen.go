@@ -4,7 +4,7 @@
 //go:build !wireinject
 // +build !wireinject
 
-package main
+package app
 
 import (
 	"os"

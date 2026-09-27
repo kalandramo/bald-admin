@@ -18,7 +18,7 @@
 //    `bald/transport/cron/options.go:33-38` 的 `WithSeconds` 是**空实现**
 //    （函数体只有注释「默认已启用秒级，此选项保留用于未来扩展」）。
 //    故契约里配 `seconds: false` 不会有任何效果——秒级始终启用。
-package main
+package app
 
 import (
 	"context"

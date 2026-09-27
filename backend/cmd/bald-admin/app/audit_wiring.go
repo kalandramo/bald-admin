@@ -45,7 +45,7 @@
 // （停机 flush 尾批），惰性化会破坏该语义。
 // 故本波只修 `store`（D14 主因，也是 dashboard 的审计数据源）；
 // stream 保持现状，配置里如需启用须另行解决（见 D14 报告）。
-package main
+package app
 
 import (
 	"context"

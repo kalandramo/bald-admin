@@ -21,7 +21,7 @@
 // 「能力声明在代码，是刻意的」一致。
 //
 // **已记录缺陷 D8**：契约 Asynq 段字段面 << 实现 Option 面，契约驱动装配不可能。
-package main
+package app
 
 import (
 	"context"
