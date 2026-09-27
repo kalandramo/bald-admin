@@ -1,0 +1,151 @@
+package app
+
+import (
+	"context"
+	"net/http"
+	"os"
+
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"google.golang.org/grpc"
+
+	auditv1 "github.com/kalandramo/bald-admin/api/gen/go/audit/v1"
+	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
+	filev1 "github.com/kalandramo/bald-admin/api/gen/go/file/v1"
+	identityv1 "github.com/kalandramo/bald-admin/api/gen/go/identity/v1"
+	menuv1 "github.com/kalandramo/bald-admin/api/gen/go/menu/v1"
+	permissionv1 "github.com/kalandramo/bald-admin/api/gen/go/permission/v1"
+	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/secret/v1"
+	tenantv1 "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1"
+	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
+	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
+	validation "github.com/kalandramo/bald-admin/internal/security/validation"
+	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
+	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
+	"github.com/kalandramo/bald/pkg/middleware/bundle"
+	grpcmw "github.com/kalandramo/bald/pkg/middleware/grpc"
+	"github.com/kalandramo/bald/transport"
+	gateway "github.com/kalandramo/bald/transport/gateway"
+)
+
+func newGRPCServerOptions() []grpc.ServerOption {
+	// M10.1（P10 验证）：gRPC 无公开方法（全部需认证），整条链切 bundle——
+	// Error→RequestID→Observability→Authn→Audit→Authz 链序由 bundle 固化，
+	// 替代此前手写的 7 段拦截器组装（authnInterceptor/authzInterceptor 闭包删除）。
+	// P9 归一化经 bundle.Normalized() 内置于 Authz 与 Audit 两层。
+	// T6 修复：Audit 层注入动态转发器（同 gin 侧 ginBundle）——此前未注入时
+	// bundle 显式接 Nop，请求审计与认证失败审计（bundle 会把 auditor 注入
+	// AuthnInterceptor）均静默失效。
+	grpcBundle := bundle.New(
+		// 复用 bootstrap 包导出的时序适配器（bootstrap.go:103-107），与 gin 侧
+		// server.go 同一份实现——避免此处再维护一份等价类型。
+		bundle.Authn(bootstrappkg.LazyAuthenticator()),
+		bundle.Authz(bootstrappkg.LazyAuthorizer()),
+		bundle.Audit(securityaudit.Global()), // 动态转发：契约轨装配/热切轨切换即时生效
+		bundle.Metrics(obmetrics.Recorder("bald/example")),
+		bundle.Normalized(), // P9：FullMethod → 与 HTTP 同源的权限点
+	)
+	// Wave 校验层契约化：把 protovalidate 校验追加到链**尾**（Authz 之后）。
+	//
+	// 为什么自行追加而非用 GRPCChain()：bundle 不支持注入 validator（其链序
+	// 固化为 Error→…→Authz，无校验层位置）。GRPCInterceptors() 是导出的，
+	// 取回后追加一层即可——语义正确：先认证授权，再校验参数（未授权请求
+	// 不会有机会探测校验规则）。
+	//
+	// MustNew 在装配期构造：protovalidate.New() 预编译注解里的 CEL 表达式，
+	// 注解写错会在此处 panic（fail fast），而非等第一个请求才炸。
+	chain := append(grpcBundle.GRPCInterceptors(),
+		grpcmw.ValidatorInterceptor(validation.MustNew().Validate))
+	return []grpc.ServerOption{grpc.ChainUnaryInterceptor(chain...)}
+}
+
+// buildGateway 构造 grpc-gateway 第三服务器（U1：gRPC/HTTP 归 WithGRPC/WithHTTP
+// 契约装配，gateway 走 WithExtraServers 逃生舱——独立 :8081 与 gin 主面并存，
+// 契约 server.http.driver 的网关面模式是「同一端口二选一」，与此不匹配）。
+// 仅在注入 gatewayFactory 时挂载（默认构建即挂载，由 init 注入）。
+
+func buildGateway(
+	bootstrap *bootstrapv1.BootstrapConfig,
+) []transport.Server {
+	if gatewayFactory == nil {
+		return nil
+	}
+	// gateway 需连到 gRPC 服务（用其监听地址，须可连接，不能是 :0）。
+	// gateway 配置在构造期即与 HTTP 同源绑定：地址走 gatewayAddr()，TLS 直接取主 HTTP 的 http.tls 段，
+	// 不再依赖 BeforeStart 运行时回填（消除全局可变态 + 时序耦合）。
+	gwHttpCfg := &bootstrapv1.Server_Http{Addr: gatewayAddr()}
+	if t := bootstrap.GetServer().GetHttp(); t.GetTls() != nil {
+		gwHttpCfg.Tls = t.GetTls()
+	}
+	gw, err := gatewayFactory(gwHttpCfg, bootstrap.GetServer().GetGrpc())
+	if err != nil {
+		// 网关构造失败不应静默降级（否则 REST 路由凭空消失），直接 panic（fail-fast）。
+		panic("build gateway server: " + err.Error())
+	}
+	return []transport.Server{gw}
+}
+
+// gatewayFactory 构造 grpc-gateway 服务器（REST → gRPC 转码）。M5 默认挂载：
+// REST 请求经 registerGateway 转码进入 SecretService，复用同一 gRPC 拦截器链
+// （认证/授权/多租户）。
+//
+// 探针：第三服务器只是对外转码面，刻意不挂 /healthz /readyz——探针归主面
+// （:8080 由 appkit.WithHealth 默认装配），就绪状态同源，探主面即可。
+
+var gatewayFactory = func(httpCfg *bootstrapv1.Server_Http, grpcBackend *bootstrapv1.Server_Grpc) (*gateway.GatewayServer, error) {
+	return gateway.NewGatewayServer(httpCfg, grpcBackend, registerGateway)
+}
+
+// gatewayAddr 读取 gateway 监听地址：env BALD_GATEWAY_ADDR 优先，缺省 :8081，
+// 与 HTTP 主服务（http.addr）分开避免端口冲突。
+
+func gatewayAddr() string {
+	if v := os.Getenv("BALD_GATEWAY_ADDR"); v != "" {
+		return v
+	}
+	return ":8081"
+}
+
+// registerGateway 把 grpc-gateway 的 HTTP handler 注册到 runtime.ServeMux 并交回
+// http.Handler（transport.NewGatewayServer 依赖倒置，核心不依赖 grpc-gateway）。
+// conn 由 GatewayServer 内部建立（指向本进程 gRPC 服务）。T2 起挂载 tenant/user 网关。
+
+func registerGateway(ctx context.Context, conn *grpc.ClientConn) (http.Handler, error) {
+	mux := runtime.NewServeMux()
+	if err := adminv1.RegisterSecretServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := tenantv1.RegisterTenantServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := userv1.RegisterUserServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := menuv1.RegisterMenuServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := permissionv1.RegisterPermissionServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := dictv1.RegisterDictTypeServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := dictv1.RegisterDictEntryServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := filev1.RegisterFileServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := auditv1.RegisterAuditServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	// Wave 1.7 补齐：组织架构网关转码面（复用同一 gRPC 拦截器链）。
+	if err := identityv1.RegisterOrgUnitServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	if err := identityv1.RegisterPositionServiceHandler(ctx, mux, conn); err != nil {
+		return nil, err
+	}
+	return mux, nil
+}
