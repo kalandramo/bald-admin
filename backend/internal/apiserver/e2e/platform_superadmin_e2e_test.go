@@ -18,8 +18,10 @@ package e2e
 
 import (
 	"context"
+	"io/fs"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -169,19 +171,41 @@ func TestPlatform_PlatformFlagIsTheDecidingFactor(t *testing.T) {
 
 // TestPlatform_ResolverIsInjectedInProduction 锁定「生产真的注入了判据」。
 //
-// 防的是「判据写好了但 main.go 忘了调 SetPlatformResolver」——那样
+// 防的是「判据写好了但装配层忘了调 SetPlatformResolver」——那样
 // superadmin 角色形同虚设，而上面两条测试若各自手工注入则测不出来。
 //
-// 实现方式：直接读 main.go 的源码文本断言注入语句存在。这比「跑 main」
-// 轻量得多（起完整进程需要 Redis/DB），且**能抓住**删除注入行的回归。
+// 实现方式：递归扫描 cmd/bald-admin 下全部 .go 源码，断言注入语句存在。
+// 这比「跑 main」轻量得多（起完整进程需要 Redis/DB），且**能抓住**删除
+// 注入行的回归。
+//
+// 扫描整个目录而非单一文件：装配逻辑在 cmd/bald-admin/app/ 子包内按职责
+// 分文件，写死某个文件名会让本用例因文件搬迁/拆分而假红（2026-09-27
+// main.go 拆 app 子包时实测触发过一次）。目录级扫描只锁「注入语句存在」，
+// 与本就在演进的文件布局解耦。
 func TestPlatform_ResolverIsInjectedInProduction(t *testing.T) {
-	src, err := os.ReadFile("../../../cmd/bald-admin/main.go")
+	const dir = "../../../cmd/bald-admin"
+	var src strings.Builder
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		b, rerr := os.ReadFile(path)
+		if rerr != nil {
+			return rerr
+		}
+		src.Write(b)
+		src.WriteString("\n")
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("读 main.go: %v", err)
+		t.Fatalf("扫描 %s: %v", dir, err)
 	}
 	want := "bizSet.Auth.SetPlatformResolver(authmodel.IsPlatformUser)"
-	if !strings.Contains(string(src), want) {
-		t.Fatalf("main.go 缺少生产判据注入：期望含 %q\n"+
+	if !strings.Contains(src.String(), want) {
+		t.Fatalf("cmd/bald-admin 源码缺少生产判据注入：期望含 %q\n"+
 			"（删掉它会让 superadmin 角色失效——令牌不再带 Platform=true）", want)
 	}
 }
