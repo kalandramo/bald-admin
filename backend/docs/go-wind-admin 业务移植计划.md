@@ -7,7 +7,7 @@
 
 ## 1. 背景与目标
 
-`go-bald-admin` 已完成 M0–M9（secret 双协议演示、JWT、casbin RBAC、多租户、审计三后端、
+`bald-admin` 已完成 M0–M9（secret 双协议演示、JWT、casbin RBAC、多租户、审计三后端、
 Prometheus/OTLP），但数据层仍以 **SQLite 内存库**为主、未接对象存储与真实注册发现。
 `go-wind-admin/backend` 是完整的管理后台（38 个业务 service、PostgreSQL/Redis/MinIO/Jaeger 全家桶，
 技术栈 gow 脚手架 + Ent ORM）。
@@ -30,7 +30,7 @@ Prometheus/OTLP），但数据层仍以 **SQLite 内存库**为主、未接对�
 
 ### 2.1 精选子集（本次实施）
 
-| # | 业务域 | 源项目位置（proto / service） | 落点（go-bald-admin） |
+| # | 业务域 | 源项目位置（proto / service） | 落点（bald-admin） |
 |---|--------|------------------------------|----------------------|
 | 1 | 租户管理 tenant | `api/protos/identity/service/v1/tenant.proto` | `internal/apiserver/biz/v1/tenant/` + `model.Tenant` |
 | 2 | 用户管理 user | `api/protos/identity/service/v1/user.proto`、`user_profile.proto` | 扩展存量 `model.User` + 新增 biz/handler |
@@ -76,7 +76,7 @@ MFA、登录策略（login_policy）、组织单元/岗位（org_unit/position/m
 
 ## 4. 云端真实依赖清单（待用户确认/提供）
 
-> **以下 5 项由用户在云端启动，连接信息填入 `configs/go-bald-admin.yaml`（见 §5）。**
+> **以下 5 项由用户在云端启动，连接信息填入 `configs/bald-admin.yaml`（见 §5）。**
 > 请逐项确认：能提供 → 给出连接参数；缺失 → 标注，对应里程碑降级或推迟（见「缺失影响」）。
 
 | # | 依赖 | 版本要求 | 用途 | 需要的连接参数 | 缺失影响 |
@@ -93,7 +93,7 @@ AutoMigrate 自建表，无需手工 DDL）；③ Redis 是否有密码/独立 d
 
 ## 5. 配置文件设计
 
-`configs/go-bald-admin.yaml` 在现有 server/gateway/log/audit 四段基础上**新增真实依赖段**。
+`configs/bald-admin.yaml` 在现有 server/gateway/log/audit 四段基础上**新增真实依赖段**。
 键名对齐 bconf 契约 `bconf/proto/bootstrap/v1/bootstrap.proto` 已就绪的
 `database.sql` / `cache.redis` / `storage.minio` / `registry.nacos` 段（proto 为配置唯一真相源）；
 云端地址由用户填写（下表 `<...>` 占位）：
@@ -186,7 +186,7 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
 |---|---|---|
 | cache-redis 无 password/db | `contrib/cache-redis/redis.go` 仅 `New(addr string)`，TTL 固定 5min | 扩展构造加 Option（`WithPassword/WithDB`，最小改动），或业务侧自持 `redis.Options` 构造后 `NewWithClient` 式接入；审计 Stream 复用 `Client()` 不受影响 |
 | storage.minio 契约无 bucket | `bconf` `storage.proto` 的 Minio 段无 bucket 字段 | 业务自持 `file.bucket` 配置段（§5），不经契约层 |
-| registry/nacos 未接线 | `main.go` 现为 `appkit.Registrar(inmemory.New())`；nacos-sdk-go/v2 仅 indirect | T7 按契约装配替换（`RegistrarRegistry` + `nacoscontract.Provider`，参照 `_example/bald/register_nacos.go`，但 go-bald-admin 为独立 module 直接引依赖，无需 build tag 隔离） |
+| registry/nacos 未接线 | `main.go` 现为 `appkit.Registrar(inmemory.New())`；nacos-sdk-go/v2 仅 indirect | T7 按契约装配替换（`RegistrarRegistry` + `nacoscontract.Provider`，参照 `_example/bald/register_nacos.go`，但 bald-admin 为独立 module 直接引依赖，无需 build tag 隔离） |
 
 ## 7. 里程碑
 
@@ -195,7 +195,7 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
 
 | 阶段 | 范围 | 涉及文件（落点） | 验收标准 | 依赖就绪 |
 |------|------|----------------|---------|---------|
-| **T0** ✅ 依赖确认+配置骨架 | §4 清单用户反馈；yaml 新增段落 + bootstrap 配置结构体扩展 + openDB 读 `database.sql`；cache-redis password/db 缺口处置 | `configs/go-bald-admin.yaml`、`internal/bootstrap/bootstrap.go`、`contrib/cache-redis/redis.go`（如走扩展路线）、`cmd/bald-admin/main.go` | 配置加载单测；无云端地址时行为与现状一致（SQLite+禁用缓存），有地址时真实连接 | 无 |
+| **T0** ✅ 依赖确认+配置骨架 | §4 清单用户反馈；yaml 新增段落 + bootstrap 配置结构体扩展 + openDB 读 `database.sql`；cache-redis password/db 缺口处置 | `configs/bald-admin.yaml`、`internal/bootstrap/bootstrap.go`、`contrib/cache-redis/redis.go`（如走扩展路线）、`cmd/bald-admin/main.go` | 配置加载单测；无云端地址时行为与现状一致（SQLite+禁用缓存），有地址时真实连接 | 无 |
 | **T1** ✅ PostgreSQL 接入 | 存量 User/Role/Secret/AuditRecord 迁 PG（AutoMigrate）；种子改 PG；`db_e2e_test` 补 PG 分支（env 注入 DSN 才跑） | `internal/bootstrap/{bootstrap.go,db 相关}` | `task test` 全绿（PG 就绪时含 PG 路径）；`/v1/ping`、登录、secret CRUD 在 PG 上回归 | ① |
 | **T2** ✅ 租户+用户 | proto 精简（identity 域）→ `model.Tenant` + User 字段扩展（tenant_id/nickname 等）→ biz/handler → 种子（平台租户+默认租户+admin） | `api/{tenant,user}/v1/*.proto`、`model/`、`biz/v1/{tenant,user}/`、`handler/gin/{tenant,user}.go`、`apiserver/grpc/{tenant,user}.go`、wire.go | 租户 CRUD e2e；跨租户用户隔离 404（复用存量隔离测试形态）；存量 secret/多租户测试不回归 | ① |
 | **T3** ✅ 角色/权限/菜单 | `model.{Permission,Menu,RolePolicy}` + D3 策略数据化装载 + 菜单树 CRUD + RBAC 行为验证（viewer 删资源 403） | `api/{menu,permission}/v1/*.proto`、`model/`、`biz/v1/`、`internal/security/casbin/casbin.go`（装载入口） | 策略从 DB 装载（loadPolicyCSV）；REST/gRPC 同源授权 e2e（P9）；无策略时拒绝默认生效（fail-closed 单测） | ① |
@@ -204,7 +204,7 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
 | **T6** ✅ 审计增强+查询 | AuditRecord 扩展（IP/UA/RequestID/TraceID/Category）+ 操作/登录分类落库 + 分页查询接口 | `model/`、`internal/security/audit/store.go`、`biz/v1/auditlog/`、`api/audit/v1` | 写路径触发审计落 PG（含新字段）；查询 e2e；`audit.backends` 热切换回归 | ①（②可选） |
 | **T7** ✅ Nacos | 契约装配：`RegistrarRegistry` + `registry.nacos` 段 → 替换 `appkit.Registrar` | `cmd/bald-admin/main.go`、`internal/bootstrap` | Nacos 控制台可见服务注册/注销；不可达时启动明确报错（不静默） | ④ |
 | **T8** ✅ 端到端验证+收尾 | §9 全序列跑通（揪出 2 个 e2e 盲区 bug）；README 全面修正（env/端口/架构/目录）；metrics 端口根治；后续迭代清单冻结 | `README.md`、`main.go`、`t3_e2e_test.go`、`file.go`、本文档状态列 | §9 验证序列通过（OTLP 云上报留 T9，collector 不可达）；`task verify` 全绿 | 全部 |
-| **T9** OTLP 云上报（预留） | §9 第 11 步完整验证：指标 + trace 直推云端 collector（`:4318` 就绪后启动，见 §8.7 遗留） | `cmd/bald-admin/main.go`（如需接线调整） | 云端 backend 可见 go-bald-admin 的 metrics 与 trace；`task verify` 全绿 | ⑤ |
+| **T9** OTLP 云上报（预留） | §9 第 11 步完整验证：指标 + trace 直推云端 collector（`:4318` 就绪后启动，见 §8.7 遗留） | `cmd/bald-admin/main.go`（如需接线调整） | 云端 backend 可见 bald-admin 的 metrics 与 trace；`task verify` 全绿 | ⑤ |
 | **T10** ✅ 目录架构对齐（分层参考 miniblog，2026-09-10 完成） | ① `internal/apiserver/grpc/` → `internal/apiserver/handler/grpc/`：gRPC service 归位协议接入层，与 `handler/gin` 对称，清空目录残留（含 `secret_e2e_test.go` 随迁；Go 代码仅 `main.go` 一处 import）；② 包根 9 个 `*_e2e_test.go` → `internal/apiserver/e2e/` 独立测试包：仅依赖导出符号（`RegisterRoutes`/`bootstrap.*`/`biz.New` 均已导出），测试间共享 helper（tinyServer/stubComp/issueToken 等）随包同迁；③ `RegisterRoutes` 10 个 biz 参数收敛为 `*BizSet` 直传：吸收 miniblog IBiz 聚合门面思路但不引入接口层/mockgen（与 §0 契约一致），新增域改动点 3→2，与 ② 联动改测试内调用点 | `internal/apiserver/{server.go, handler/, e2e/}`、`cmd/bald-admin/{main.go, wire.go, wire_gen.go}`、`docs/设计文档.md` 与本文档的 grpc 路径引用、README 目录段 | 纯重构零行为变化；`task verify` 全绿（存量 e2e 不回归）；gRPC 直连 + gateway 转码抽查通过；Taskfile `test:audit`/`test:file` 路径核对（`./internal/apiserver/...` 通配已自动覆盖新目录） | 无 |
 | **F1** ✅ store-gorm Open 装配上提（框架演进，2026-09-10） | contrib/store-gorm 新增 `Open()` 装配函数 + `DialectorFactory` 注册表（sqlite 预注册为缺省引擎——glebarez 纯 Go 零 CGO；postgres/mysql 由业务侧 import driver 后显式 `RegisterDialector`，未 import 的后端零依赖，与 T7 nacos 注册制同模式，未注册 fail-fast）+ 五 Option（`WithEnv`/`WithDSN`/`WithDriver`/`WithConfig`/`WithGormConfig`）+ `NewTestDB` 测试助手（t.Cleanup 关连接池，防 Windows 句柄坑）；契约段连接池参数（max_idle/max_open/lifetime）由框架消费。示例 `openDB` 收敛为薄封装（仅保留 env `BALD_ADMIN_DB_DSN` + 契约段来源约定），`dsnScheme` 与 driver 分流逻辑上提框架。动机：快速开发不引真实依赖＝换轻量真后端（SQLite 内存库）而非 mock，与 §0 契约一致；「零依赖 clone 即跑」从示例手工逻辑升为框架缺省能力（与 cache-redis 空 addr 禁用、MinIO nil 降级同构的"真实但可选"） | `contrib/store-gorm/{conn.go, conn_test.go, testutil.go}`、`examples/go-bald-admin/internal/bootstrap/{bootstrap.go, db_e2e_test.go}` | contrib 单测 11 例全绿（缺省内存库/env 覆盖/DSN 优先级/注册制别名/fail-fast/空 Source 忽略）；示例 `task verify` 全绿；真实云端 PG e2e 回归（`TestDictREST` 等失败经 stash 对照实验证明为共享库存量数据问题非本次回归，T8 演示残留 `t8_probe` 已清理，其余审计/租户注入失败在原代码同样复现） | 无 |
 
@@ -359,7 +359,7 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
   反射遍历导出字段不解析 gorm tag，`gorm:"-"` 字段被当列写进 Updates（SQLite 报
   no such column）——现跳过 `gorm:"-"`；测试实体补回归锁；顺带把测试 sqlite driver
   切 glebarez（无 gcc 环境 cgo 版失效）+ t.Cleanup 显式 Close（Windows TempDir
-  文件锁，与 go-bald-admin 同款坑）。
+  文件锁，与 bald-admin 同款坑）。
 - **RolePolicy 主键决策**：放弃 uint 自增（store.Eq 仅 string 值，且 PG bigint
   列对 string 参数有类型转换风险），改 string 业务键 `role:object:action`——与
   仓库「全实体 string 主键」范式一致，防重/删除语义更清晰。
@@ -386,7 +386,7 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
   registry.New（ClientConfig 直填，gRPC 连接 setup 时登录）→
   contract.Provider（从契约段映射）。
 - **坑①——namespace 必须填「命名空间 ID」而非显示名**：Nacos 控制台的
-  "go-bald-admin" 是显示名，真实 ID 是 UUID；namespaceId 填显示名时注册
+  "bald-admin" 是显示名，真实 ID 是 UUID；namespaceId 填显示名时注册
   落孤儿空间（服务定义可见、临时实例被清理机制剔除，控制台永远空）。
 - **坑②——nacos-sdk-go v2 静默吞注册失败**：InstanceRequest 收到
   `{"errorCode":403,"message":"user not found!"}` 仅打 WARN（SDK 默认日志
@@ -401,9 +401,9 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
   服务无法用 --config 启动。修复：flattenFlags 排除引导 flag `config`
   （它由 loadConfig 自己消费，落树本就不合理）。
 - **坑④——服务名带协议后缀（既有设计，对齐 go-wind）**：Register 按
-  endpoint 逐个注册，服务名 = `name.scheme`（`go-bald-admin.grpc` /
-  `go-bald-admin.http`，gateway 与 REST 同入 http 名）。验证/查询时按带
-  后缀的服务名查，裸 `go-bald-admin` 恒为空（Nacos 对查询自动建空视图，
+  endpoint 逐个注册，服务名 = `name.scheme`（`bald-admin.grpc` /
+  `bald-admin.http`，gateway 与 REST 同入 http 名）。验证/查询时按带
+  后缀的服务名查，裸 `bald-admin` 恒为空（Nacos 对查询自动建空视图，
   勿被骗）。
 - **验证（真实云端 Nacos 10.82.130.200:30000，HTTP 30000 / gRPC 31000）**：
   `task smoke:nacos`（cmd/probe 探针，跳过 main.go 完整启动链秒级完成）——
@@ -427,7 +427,7 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
   jq 用 snake_case `ip_address` 查出 null 是 protojson lowerCamel 假阴性，非 bug）
   ⑨gRPC：`grpc` 包真调 e2e 绿 + gateway 转码 200（proto bind 为复数
   `/v1/secrets/{id}`，与 gin 自定义路由单数 `/v1/secret/:id` 并存是既定决策）⑩Nacos
-  双实例（`go-bald-admin.grpc:9090`/`go-bald-admin.http:8081`）healthy=true ✅，停机
+  双实例（`bald-admin.grpc:9090`/`bald-admin.http:8081`）healthy=true ✅，停机
   注销待服务重启后终验 ⑪OTLP：云端 collector `:4318` 不可达（curl 000），按 §0
   不做假验证，完整上报验证留 T9。
 - **T8 揪出的两个 e2e 盲区 bug（§9 全序列真调的价值）**：
@@ -492,13 +492,13 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
   测试全绿。
 - **终验结果（2026-09-10 晚，云端真实 collector `10.82.138.249:32414`）**：
   - **trace ✅ 端到端闭环**——云端查询面（Jaeger，`msc-dce5.was.ink/tracing/search`）
-    查到 service=go-bald-admin 三条 trace（`GET /v1/ping`×2 + `GET /v1/info`×1），
+    查到 service=bald-admin 三条 trace（`GET /v1/ping`×2 + `GET /v1/info`×1），
     时间戳与冒烟流量秒级吻合（21:45:55），各 1 span（gin 入口，无下游出站，符合预期）。
   - **metrics ⚠️ 客户端侧完成，云端核对顺延**——本地 `:9091` 抓取有数（全维度标签）
     + OTLP 推送跨 15s 周期 0 错误 + 探针 metric（`probe_otlp_metrics_pipeline`/
     service `otlp-probe`）推送 200 `partialSuccess`。平台仅有 Jaeger trace 查询面、
     无 metrics 查询入口，疑似 collector 未配 metrics exporter（接收 200 ≠ 入库）；
-    待平台侧补 metrics 管线后核对 `bald_requests_total{service_name="go-bald-admin"}`。
+    待平台侧补 metrics 管线后核对 `bald_requests_total{service_name="bald-admin"}`。
   - **T0-T9 移植计划就此收官**（metrics 云端核对属平台配置事项，不阻塞范例交付）。
 
 ### 8.1 T2 实施记录（2026-09-07，租户+用户完成）
@@ -523,7 +523,7 @@ proto/<域>.proto（从源项目精简搬运）→ buf generate → gen/
 
 ## 9. 端到端验证方案
 
-依赖就绪后（`configs/go-bald-admin.yaml` 填真实地址，`go run ./cmd/bald-admin` 启动）：
+依赖就绪后（`configs/bald-admin.yaml` 填真实地址，`go run ./cmd/bald-admin` 启动）：
 
 ```bash
 # 1. 健康/公开接口
@@ -542,7 +542,7 @@ curl -i http://127.0.0.1:8080/v1/secret/s-db-pwd -H "Authorization: Bearer $TOKE
 # 7. 文件：POST /v1/file/upload（multipart file+directory）→ GET /v1/file/:id/download → SHA256 核对
 # 8. 审计：GET /v1/audit?category=login → 核对 category/ipAddress/userAgent（protojson lowerCamel 字段名）
 # 9. gRPC 侧抽查 2~3 个服务（P9 归一化：REST 与 gRPC 同策略；gateway 转码面路径为 proto bind 复数 /v1/secrets/{id}）
-# 10. Nacos 核对注册（服务名带协议后缀 go-bald-admin.grpc/.http）；kill 服务核对注销
+# 10. Nacos 核对注册（服务名带协议后缀 bald-admin.grpc/.http）；kill 服务核对注销
 # 11. 遥测：BALD_ADMIN_OTLP_ADDR 指向云端 collector，核对指标+trace 上报
 ```
 

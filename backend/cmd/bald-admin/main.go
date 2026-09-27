@@ -1,13 +1,13 @@
-// Command go-bald-admin 是 go-bald-admin 服务入口：
+// Command bald-admin 是 bald-admin 服务入口：
 // 用 bald appkit 组合一个 HTTP 服务与一个 gRPC 服务（双协议），
 // 作为用 bald 重构 go-wind-admin/backend 的官方范例（验证 P0–P9）。
 //
 // 运行：
 //
-//	go run ./examples/go-bald-admin --config=examples/go-bald-admin/configs/go-bald-admin.yaml
+//	go run ./examples/go-bald-admin --config=examples/go-bald-admin/configs/bald-admin.yaml
 //	go run ./examples/go-bald-admin --http.addr=:18080
-//	GO_BALD_ADMIN_SERVER_HTTP_ADDR=:18080 go run ./examples/go-bald-admin
-//	（env 前缀由 app name 规范化派生：go-bald-admin → GO_BALD_ADMIN_，下划线即点路径分隔）
+//	BALD_ADMIN_SERVER_HTTP_ADDR=:18080 go run ./examples/go-bald-admin
+//	（env 前缀由 app name 规范化派生：bald-admin → BALD_ADMIN_，下划线即点路径分隔）
 //
 //	# 验证 HTTP 路由
 //	curl -i http://127.0.0.1:8080/v1/ping
@@ -86,9 +86,9 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	bootstrap.GetServer().GetHttp().Addr = ":8080"
 
 	// 业务身份默认值（U1）：app 元数据改由契约 app 段驱动（FromBootstrap 内化
-	// Name/Version/StopTimeout Option）。env 前缀（GO_BALD_ADMIN_*）由 Name
+	// Name/Version/StopTimeout Option）。env 前缀（BALD_ADMIN_*）由 Name
 	// 规范化派生，必须在 FromBootstrap 构造前就位——坑见框架文档「已知耦合」。
-	bootstrap.GetApp().Name = "go-bald-admin"
+	bootstrap.GetApp().Name = "bald-admin"
 	bootstrap.GetApp().Version = "v0.1.0"
 	bootstrap.GetApp().StopTimeout = durationpb.New(15 * time.Second)
 
@@ -103,7 +103,7 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("bootstrap config sources: %w", err)
 	}
 
-	// T9 可观测性缺省态合成（U1）：go-bald-admin 语义「metrics 段缺省仍暴露
+	// T9 可观测性缺省态合成（U1）：bald-admin 语义「metrics 段缺省仍暴露
 	// :9091」——FromBootstrap 的保守缺省是「段缺省不装配」，故构造前合成默认
 	// 段。env 开关（BALD_ADMIN_METRICS_ADDR / BALD_ADMIN_OTLP_ADDR）同处应用；
 	// 显式配置源（文件/远程）若配 metrics 段将覆盖合成值——env 开关退居
@@ -164,7 +164,7 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 
 	// 3. 运行。
 	if err := app.Run(context.Background()); err != nil {
-		baldlog.Error(context.Background(), "go-bald-admin exited", "error", err)
+		baldlog.Error(context.Background(), "bald-admin exited", "error", err)
 		return err
 	}
 	return nil
@@ -172,19 +172,19 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 
 func main() {
 	root := &cobra.Command{
-		Use:   "go-bald-admin",
-		Short: "go-bald-admin 服务（bald 重构范例）",
+		Use:   "bald-admin",
+		Short: "bald-admin 服务（bald 重构范例）",
 		RunE:  serveRunE,
 	}
 	// appkit 自行解析 os.Args 中的 --config / --http.addr 等业务 flag（见 appkit.loadConfig），
 	// 故 cobra 需放行未知 flag，避免它因不识别 --config 而提前报错退出。
 	root.FParseErrWhitelist.UnknownFlags = true
 
-	// kubectl 风格插件发现：首参非已知子命令（且非 flag）时转发到 PATH 中的 go-bald-admin-<name>。
+	// kubectl 风格插件发现：首参非已知子命令（且非 flag）时转发到 PATH 中的 bald-admin-<name>。
 	if len(os.Args) > 1 {
 		sub := os.Args[1]
 		if !strings.HasPrefix(sub, "-") && !isKnownCommand(root, sub) {
-			plugin := "go-bald-admin-" + sub
+			plugin := "bald-admin-" + sub
 			path, err := exec.LookPath(plugin)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "unknown command %q (and no plugin %q found in PATH)\n", sub, plugin)
@@ -276,7 +276,7 @@ func newApp(
 		appkit.WithLogDecorators(
 			bslog.WithFilter(bslog.FilterKey("password")),
 			bslog.WithFilter(bslog.FilterKey("token")),
-			bslog.WithAttrs(slog.String("service.name", "go-bald-admin")),
+			bslog.WithAttrs(slog.String("service.name", "bald-admin")),
 		),
 
 		// --- 配置驱动参数 ---
@@ -441,12 +441,12 @@ func newApp(
 			ctx = baldlog.ContextWithAttrs(ctx,
 				slog.String("stage", "started"),
 				slog.String("grpc", bootstrap.GetServer().GetGrpc().GetAddr()))
-			baldlog.Info(ctx, "go-bald-admin started",
+			baldlog.Info(ctx, "bald-admin started",
 				"http", bootstrap.GetServer().GetHttp().GetAddr())
 			return nil
 		}),
 		appkit.WithBeforeStop(func(ctx context.Context) error {
-			baldlog.Info(ctx, "go-bald-admin stopping")
+			baldlog.Info(ctx, "bald-admin stopping")
 			return nil
 		}),
 	}
@@ -512,7 +512,7 @@ func newApp(
 // flush 由 FromBootstrap 内化（U1：原 setupObservability + traceComp 样板删）。
 func tracerRegistry() *appkit.TracerRegistry {
 	tr := appkit.NewTracerRegistry()
-	tr.MustRegister(otlpcontract.TracerType, otlpcontract.NewTracerProvider("go-bald-admin"))
+	tr.MustRegister(otlpcontract.TracerType, otlpcontract.NewTracerProvider("bald-admin"))
 	return tr
 }
 
@@ -522,12 +522,12 @@ func tracerRegistry() *appkit.TracerRegistry {
 // 由 FromBootstrap 内化（U1）。
 func metricsRegistry() *appkit.MetricsRegistry {
 	mr := appkit.NewMetricsRegistry()
-	mr.MustRegister(otlpcontract.TypePrometheus, otlpcontract.NewPrometheusProvider("go-bald-admin"))
-	mr.MustRegister(otlpcontract.TypeOTLP, otlpcontract.NewOTLPProvider("go-bald-admin"))
+	mr.MustRegister(otlpcontract.TypePrometheus, otlpcontract.NewPrometheusProvider("bald-admin"))
+	mr.MustRegister(otlpcontract.TypeOTLP, otlpcontract.NewOTLPProvider("bald-admin"))
 	return mr
 }
 
-// applyObservabilityDefaults 在 FromBootstrap 构造前应用 go-bald-admin 的
+// applyObservabilityDefaults 在 FromBootstrap 构造前应用 bald-admin 的
 // 可观测性缺省态与 env 开关（U1：原 setupObservability 的缺省合成/env 半段
 // 前移——Build 半段归框架 buildObservability）：
 //   - metrics 段缺省 → 合成 `type: prometheus`（仅本地抓取，addr 缺省 :9091，
@@ -574,9 +574,9 @@ func applyObservabilityDefaults(bootstrap *bootstrapv1.BootstrapConfig) error {
 }
 
 // configRegistry 显式注册配置源契约 provider（bootstrap.Registry：契约 config
-// 段 → 配置层，注册序即层优先级，先注册者优先）。go-bald-admin 消费 nacos 配置
+// 段 → 配置层，注册序即层优先级，先注册者优先）。bald-admin 消费 nacos 配置
 // 中心与 kubernetes ConfigMap 两种远程源；file/env 源已由 appkit 自身装配链
-// （--config flag / GO_BALD_ADMIN_* env）覆盖，不重复注册。未 import 的后端
+// （--config flag / BALD_ADMIN_* env）覆盖，不重复注册。未 import 的后端
 // （etcd/consul/apollo/vault/http）零依赖——其契约段无消费者，静默跳过。
 func configRegistry() *baldbootstrap.Registry {
 	reg := baldbootstrap.NewRegistry()
@@ -595,7 +595,7 @@ func configRegistry() *baldbootstrap.Registry {
 }
 
 // configFileDefault 与 appkit.ConfigFile 的缺省一致（两处必须同步改）。
-const configFileDefault = "configs/go-bald-admin.yaml"
+const configFileDefault = "configs/bald-admin.yaml"
 
 // preloadBootstrap 预装载本地配置文件（--config flag 优先，解析行为与 appkit
 // loadConfig 同源：pflag + 未知 flag 白名单）填契约 config 段，并返回配置源
@@ -616,7 +616,7 @@ func preloadBootstrap(dst *bootstrapv1.BootstrapConfig) (*baldbootstrap.Registry
 	fs.StringVar(&cfgFile, "config", configFileDefault, "config file")
 	_ = fs.Parse(os.Args[1:])
 
-	s, err := baldconfig.Load(baldconfig.Options{Name: "go-bald-admin", ConfigFile: cfgFile})
+	s, err := baldconfig.Load(baldconfig.Options{Name: "bald-admin", ConfigFile: cfgFile})
 	if err != nil {
 		return nil, err
 	}
@@ -1153,7 +1153,7 @@ func setLogger(opts *bslog.Options) {
 	baldlog.SetLogger(bslog.New(opts,
 		bslog.WithFilter(bslog.FilterKey("password")),
 		bslog.WithFilter(bslog.FilterKey("token")),
-		bslog.WithAttrs(slog.String("service.name", "go-bald-admin")),
+		bslog.WithAttrs(slog.String("service.name", "bald-admin")),
 	))
 	// M7 审计后端注入（落库版）在 InitBridges 之后装配（见 appkit.BeforeStart），
 	// 因需 bootstrap.DB 已建立；此处仅设 Logger，不再提前注入 Auditor。

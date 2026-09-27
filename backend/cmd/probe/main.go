@@ -2,8 +2,8 @@
 // 跳过 main.go 完整启动链（DB/Redis 等桥接约 40-75s），秒级完成契约装配路径验证：
 // 注册 → 12s 心跳窗口（期间可经 Nacos 控制台/API 核对实例）→ 注销。
 //
-// registry 段读取与主服务同源：configs/go-bald-admin.yaml（真实配置不入库，
-// 凭证留本地；模板见 configs/go-bald-admin.yaml.example）。
+// registry 段读取与主服务同源：configs/bald-admin.yaml（真实配置不入库，
+// 凭证留本地；模板见 configs/bald-admin.yaml.example）。
 package main
 
 import (
@@ -20,8 +20,8 @@ import (
 func main() {
 	// 配置装载与主服务同管线：文件 → 合并树 → 契约 Unmarshal → registry 段。
 	store, err := baldconfig.Load(baldconfig.Options{
-		Name:       "go-bald-admin",
-		ConfigFile: "configs/go-bald-admin.yaml",
+		Name:       "bald-admin",
+		ConfigFile: "configs/bald-admin.yaml",
 	})
 	if err != nil {
 		fmt.Println("CONFIG_ERR:", err)
@@ -34,7 +34,7 @@ func main() {
 	}
 	cfg := bootstrap.GetRegistry()
 	if cfg == nil || cfg.GetNacos() == nil {
-		fmt.Println("CONFIG_ERR: registry.nacos 段缺失（见 configs/go-bald-admin.yaml.example）")
+		fmt.Println("CONFIG_ERR: registry.nacos 段缺失（见 configs/bald-admin.yaml.example）")
 		return
 	}
 	if cfg.GetType() != nacoscontract.Type {
@@ -49,7 +49,7 @@ func main() {
 	}
 	si := &registry.ServiceInstance{
 		ID:      "probe-t7",
-		Name:    "go-bald-admin",
+		Name:    "bald-admin",
 		Version: "v0.1.0",
 		Endpoints: []string{
 			"grpc://127.0.0.1:19091",

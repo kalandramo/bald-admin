@@ -53,7 +53,7 @@ func startTenantREST(t *testing.T) string {
 
 func tenantToken(t *testing.T, username, userID, role, tenantID string) string {
 	t.Helper()
-	claims := authn.AuthClaims{Issuer: "go-bald-admin", Subject: userID, TenantID: tenantID, Roles: []string{role}, Name: username}
+	claims := authn.AuthClaims{Issuer: "bald-admin", Subject: userID, TenantID: tenantID, Roles: []string{role}, Name: username}
 	tok, err := bootstrappkg.Signer.IssueToken(claims, 2*time.Hour)
 	if err != nil {
 		t.Fatalf("issue token: %v", err)

@@ -58,7 +58,7 @@ v0.1.0 / transport / contrib 等子模块），
 
 ```bash
 # 后端
-cd backend && go run ./cmd/bald-admin --config=configs/go-bald-admin.yaml
+cd backend && go run ./cmd/bald-admin --config=configs/bald-admin.yaml
 
 # 前端
 cd frontend && pnpm install && pnpm dev

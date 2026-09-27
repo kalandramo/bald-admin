@@ -7,7 +7,7 @@ import "context"
 // Info 返回服务基本信息（M0 占位，后续从配置/注册表读取）。
 func Info(_ context.Context) map[string]string {
 	return map[string]string{
-		"service": "go-bald-admin",
+		"service": "bald-admin",
 		"version": "v0.1.0",
 		"status":  "ok",
 	}

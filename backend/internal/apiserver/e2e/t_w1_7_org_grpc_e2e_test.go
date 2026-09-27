@@ -151,7 +151,7 @@ func orgGRPCConn(t *testing.T, addr string) *grpc.ClientConn {
 func orgGRPCToken(t *testing.T, username, userID, role string) string {
 	t.Helper()
 	claims := authn.AuthClaims{
-		Issuer: "go-bald-admin", Subject: userID, TenantID: "t-default",
+		Issuer: "bald-admin", Subject: userID, TenantID: "t-default",
 		Roles: []string{role}, Name: username,
 	}
 	tok, err := bootstrappkg.Signer.IssueToken(claims, 2*time.Hour)

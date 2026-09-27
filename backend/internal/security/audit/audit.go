@@ -1,4 +1,4 @@
-// Package audit 是 go-bald-admin 的审计后端桥接（bald audit.Auditor 的装配薄壳）。
+// Package audit 是 bald-admin 的审计后端桥接（bald audit.Auditor 的装配薄壳）。
 //
 // 2026-09-15 起三后端实现上移框架：log → bald/pkg/audit（核心 LoggerAuditor）、
 // store → bald/contrib/audit-gorm、stream → bald/contrib/audit-stream。本包

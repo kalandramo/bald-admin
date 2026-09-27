@@ -52,7 +52,7 @@ func issueToken(t *testing.T, username, userID, role string) string {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	claims := authn.AuthClaims{
-		Issuer:   "go-bald-admin",
+		Issuer:   "bald-admin",
 		Subject:  userID,
 		TenantID: "t-default",
 		Roles:    []string{role},

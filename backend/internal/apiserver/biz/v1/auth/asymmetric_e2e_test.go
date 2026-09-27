@@ -20,7 +20,7 @@ func TestRSA_SignWithPrivate_VerifyWithPublic(t *testing.T) {
 	}
 
 	claims := authn.AuthClaims{
-		Issuer:   "go-bald-admin",
+		Issuer:   "bald-admin",
 		Subject:  "u-1",
 		TenantID: "t-default",
 		Roles:    []string{"admin"},

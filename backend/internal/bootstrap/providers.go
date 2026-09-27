@@ -1,5 +1,5 @@
 // providers.go 是 U1（FromBootstrap 切换）的透传 provider 层：
-// go-bald-admin 的 DB/Redis/MinIO 桥接是业务自管装配（openDB/resolveRedis
+// bald-admin 的 DB/Redis/MinIO 桥接是业务自管装配（openDB/resolveRedis
 // 保留 env 优先级与降级语义），但契约段（database.sql / cache.redis /
 // storage.minio）在 FromBootstrap 阶段 B 要求「段存在必有 Registry 消费者」
 // （fail-fast，防「配置说开了没人实现」）。本文件把既有构造逻辑包成

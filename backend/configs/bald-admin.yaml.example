@@ -55,7 +55,7 @@ registry:
 # 注：下方 nacos 段需网络；离线场景由 config.file 保证至少一个源可用。
 config:
   file:
-    path: "configs/go-bald-admin.yaml"
+    path: "configs/bald-admin.yaml"
     format: "yaml"
     watch: false
   # 配置中心（层优先级低于本地文件/env/flag：远程只补充本地未定义的键，
@@ -64,7 +64,7 @@ config:
     server_addrs: ["<NACOS_ADDR>:8848"]
     namespace: "<NAMESPACE_ID>"
     group: "DEFAULT_GROUP"
-    data_id: "go-bald-admin.yaml"
+    data_id: "bald-admin.yaml"
     format: "yaml"
     username: "<NACOS_USERNAME>"   # 服务端开启鉴权时必填
     password: "<NACOS_PASSWORD>"

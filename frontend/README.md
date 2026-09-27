@@ -1,4 +1,4 @@
-# go-bald-admin-web
+# bald-admin-web
 
 基于 Vue 3 + TypeScript + Element Plus + Vite 的 Bald 管理后台前端。
 

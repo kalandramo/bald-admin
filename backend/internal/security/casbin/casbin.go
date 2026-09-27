@@ -1,4 +1,4 @@
-// Package casbin 是 go-bald-admin 的授权装配薄壳（M6.1 引入，P11 起实现晋升 contrib）。
+// Package casbin 是 bald-admin 的授权装配薄壳（M6.1 引入，P11 起实现晋升 contrib）。
 //
 // 职责变化（P11，见 docs/devel/zh-CN/架构优化路线.md）：casbin 桥接的**实现**已晋升为
 // contrib module（github.com/kalandramo/bald/contrib/authz-casbin，内嵌通用 RBAC 模型 + 纯 Enforce）；

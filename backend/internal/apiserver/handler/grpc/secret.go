@@ -1,4 +1,4 @@
-// Package grpc 提供 go-bald-admin 的 gRPC service 装配（M5 起改用 proto 生成代码）。
+// Package grpc 提供 bald-admin 的 gRPC service 装配（M5 起改用 proto 生成代码）。
 //
 // 取代 M2 的手写 ServiceDesc + JSON codec 范式：SecretService 由
 // api/protos/secret/v1/secret.proto 经 buf generate 生成

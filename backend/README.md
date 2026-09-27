@@ -1,4 +1,4 @@
-# go-bald-admin
+# bald-admin
 
 基于 [bald](../../) 重构 `go-wind-admin/backend` 的**官方参考范例**（验证 P0–P9）。
 
@@ -35,32 +35,32 @@
 cd bald/examples/go-bald-admin
 
 # 真实配置不入库（含云端凭证）：首次使用先从模板复制并填入连接参数
-cp configs/go-bald-admin.yaml.example configs/go-bald-admin.yaml
+cp configs/bald-admin.yaml.example configs/bald-admin.yaml
 
 # 起服务（:8080 HTTP / :9090 gRPC / :8081 gateway / :9091 metrics）
-go run ./cmd/bald-admin --config=configs/go-bald-admin.yaml
+go run ./cmd/bald-admin --config=configs/bald-admin.yaml
 
 # 覆盖地址（三种等价手段，优先级 flag > env > yaml）
 go run ./cmd/bald-admin --server.http.addr=:18080
-GO_BALD_ADMIN_SERVER_HTTP_ADDR=:18080 go run ./cmd/bald-admin
+BALD_ADMIN_SERVER_HTTP_ADDR=:18080 go run ./cmd/bald-admin
 ```
 
 ### 端口
 
 | 端口 | 用途 | 覆盖手段 |
 |------|------|----------|
-| `:8080` | HTTP(gin) 主服务 | `--server.http.addr` / `GO_BALD_ADMIN_SERVER_HTTP_ADDR` / yaml `server.http.addr` |
-| `:9090` | gRPC | `--server.grpc.addr` / `GO_BALD_ADMIN_SERVER_GRPC_ADDR` / yaml `server.grpc.addr` |
+| `:8080` | HTTP(gin) 主服务 | `--server.http.addr` / `BALD_ADMIN_SERVER_HTTP_ADDR` / yaml `server.http.addr` |
+| `:9090` | gRPC | `--server.grpc.addr` / `BALD_ADMIN_SERVER_GRPC_ADDR` / yaml `server.grpc.addr` |
 | `:8081` | grpc-gateway REST 转码 | `BALD_GATEWAY_ADDR`（独立 env） / yaml `gateway.addr` |
 | `:9091` | `/metrics` Prometheus 抓取 | `BALD_ADMIN_METRICS_ADDR` |
 
-> env 键名由 app name 规范化派生（`go-bald-admin` → `GO_BALD_ADMIN_` 前缀，
-> 下划线即点路径分隔：`GO_BALD_ADMIN_SERVER_HTTP_ADDR` ⇔ `server.http.addr`）。
+> env 键名由 app name 规范化派生（`bald-admin` → `BALD_ADMIN_` 前缀，
+> 下划线即点路径分隔：`BALD_ADMIN_SERVER_HTTP_ADDR` ⇔ `server.http.addr`）。
 > T8 起 metrics 缺省端口已与 gRPC 错开（`:9091`），无需再手动避让。
 
 ### 远端遥测（T9 契约化：tracer/metrics 段驱动）
 
-`configs/go-bald-admin.yaml` 的 `tracer` / `metrics` 段是远端 APM
+`configs/bald-admin.yaml` 的 `tracer` / `metrics` 段是远端 APM
 （OTel Collector / VictoriaMetrics / Grafana Cloud）直推的**主配置渠道**——指标
 （Prometheus 暴露端点 + OTLP 直推双通道）与 trace（OTLP 直推）一并驱动，核心埋点
 （grpc/gin Observability 起 span、AuditWithMetrics emit）零改动：
@@ -97,7 +97,7 @@ env 覆盖通道保留（优先级 env > yaml，只提供地址、不改变 type
 > 矛盾 fail-fast）不变。
 >
 > **云端终验（2026-09-12，Insight DCE 5.0）**：collector `:32414` 直推
-> 双通道全通——VictoriaMetrics 可查 `bald_requests_total{job="go-bald-admin"}`
+> 双通道全通——VictoriaMetrics 可查 `bald_requests_total{job="bald-admin"}`
 > （注意 OTLP→Prometheus 的 `service.name`→`job` 标签映射，按
 > `service_name` 查是假阴性）；Jaeger 可查 `POST /v1/login` span
 > （`http.status_code=401` 保留）。T9「metrics 云端核对」尾巴闭环。
@@ -187,7 +187,7 @@ examples/go-bald-admin/                 (独立 go module)
 ├── cmd/bald-admin/main.go          入口：appkit.Run + 拦截器链序 + metrics/audit/nacos 接线
 ├── cmd/bald-admin/wire*.go         业务装配（wire 声明 + 生成实现；BizSet 定义在 apiserver/bizset.go）
 ├── cmd/probe/main.go                  T7 冒烟探针（契约路径注册→心跳→注销，task smoke:nacos）
-├── configs/go-bald-admin.yaml         契约驱动配置（bconf BootstrapConfig，proto 为唯一真相源）
+├── configs/bald-admin.yaml         契约驱动配置（bconf BootstrapConfig，proto 为唯一真相源）
 ├── api/                               业务契约（T2 收敛：proto + buf 生成物 api/gen/）
 ├── internal/
 │   ├── apiserver/

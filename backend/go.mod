@@ -1,4 +1,4 @@
-// go-bald-admin 是独立 Go module，不是 bald 核心 module 的一部分。
+// bald-admin 是独立 Go module，不是 bald 核心 module 的一部分。
 //
 // 为什么独立（P5 依赖治理）：本示例需要 gin、grpc、grpc-gateway 等较重依赖，
 // 若放进核心 module，这些依赖会进入核心依赖图。独立成 module 后，

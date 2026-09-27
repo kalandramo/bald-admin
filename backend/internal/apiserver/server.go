@@ -1,4 +1,4 @@
-// Package apiserver 是 go-bald-admin 的 HTTP 服务装配根（server 层）。
+// Package apiserver 是 bald-admin 的 HTTP 服务装配根（server 层）。
 //
 // 只负责把 handler 挂到 *gin.Engine；认证/授权依赖由 bootstrap 包注入（M1）。
 // 不在此写业务，也不在此直接依赖 bald-authn-jwt（保持 server 层与桥接解耦）。

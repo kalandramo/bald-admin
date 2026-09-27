@@ -1,4 +1,4 @@
-// Package gin 提供 go-bald-admin 的 HTTP handler 装配（协议层）。
+// Package gin 提供 bald-admin 的 HTTP handler 装配（协议层）。
 //
 // 本文件演示 M1 认证授权范式：用 bald 的 gin 中间件
 // （middleware/gin.AuthnMiddleware / AuthzMiddleware）保护路由。业务经由 biz 层

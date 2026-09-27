@@ -31,7 +31,7 @@ import (
 func platformToken(t *testing.T, username, userID, tenantID string) string {
 	t.Helper()
 	claims := authn.AuthClaims{
-		Issuer:   "go-bald-admin",
+		Issuer:   "bald-admin",
 		Subject:  userID,
 		TenantID: tenantID,
 		Roles:    []string{"admin"},

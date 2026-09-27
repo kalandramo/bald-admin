@@ -609,7 +609,7 @@ func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 	now := time.Now()
 	ttl := b.accessTokenTTL()
 	claims := authn.AuthClaims{
-		Issuer:   "go-bald-admin",
+		Issuer:   "bald-admin",
 		Subject:  u.ID,
 		TenantID: u.TenantID,
 		Roles:    u.RolesList(),
@@ -661,7 +661,7 @@ func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 func (b *Biz) issueRefresh(ctx context.Context, subject string) (string, error) {
 	ttl := b.refreshTokenTTL()
 	rt, err := b.signer.IssueToken(authn.AuthClaims{
-		Issuer:  "go-bald-admin",
+		Issuer:  "bald-admin",
 		Subject: subject,
 	}, ttl)
 	if err != nil {
@@ -752,7 +752,7 @@ func (b *Biz) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair
 	now := time.Now()
 	ttl := b.accessTokenTTL()
 	access, err := b.signer.IssueToken(authn.AuthClaims{
-		Issuer:   "go-bald-admin",
+		Issuer:   "bald-admin",
 		Subject:  u.ID,
 		TenantID: u.TenantID,
 		Roles:    u.RolesList(),

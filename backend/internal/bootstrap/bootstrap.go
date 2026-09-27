@@ -312,12 +312,12 @@ func InitBridges(ctx context.Context) error {
 	}
 	Signer = authnjwt.NewAuthenticator(
 		authnjwt.WithRSAKeys(priv, &priv.PublicKey),
-		authnjwt.WithIssuer("go-bald-admin"),
+		authnjwt.WithIssuer("bald-admin"),
 		authnjwt.WithLeeway(0),
 	)
 	Authenticator = authnjwt.NewAuthenticator(
 		authnjwt.WithRSAKeys(nil, &priv.PublicKey), // 仅公钥：验签方无法伪造
-		authnjwt.WithIssuer("go-bald-admin"),
+		authnjwt.WithIssuer("bald-admin"),
 		authnjwt.WithLeeway(0),
 	)
 
