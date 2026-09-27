@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
@@ -50,19 +51,19 @@ func metricsRegistry() *appkit.MetricsRegistry {
 // FromBootstrap 的 Build 在装载后立即执行，业务无介入位，且「配置说开了」
 // 胜过「环境变量说没开」与契约哲学一致）。
 
-func applyObservabilityDefaults(bootstrap *bootstrapv1.BootstrapConfig) error {
+func applyObservabilityDefaults(bootstrap *bootstrapv1.BootstrapConfig, opts *options.ServerOptions) error {
 	// metrics 缺省合成：段缺省 → 仅暴露（T9 语义：零配置仍可抓取）。
 	if bootstrap.GetMetrics() == nil {
 		bootstrap.Metrics = &bootstrapv1.Metrics{Type: otlpcontract.TypePrometheus}
 	}
 	m := bootstrap.GetMetrics()
-	if v := os.Getenv("BALD_ADMIN_METRICS_ADDR"); v != "" {
+	if v := opts.Metrics.Addr; v != "" {
 		if m.Prometheus == nil {
 			m.Prometheus = &bootstrapv1.Metrics_Prometheus{}
 		}
 		m.Prometheus.Addr = v
 	}
-	if v := os.Getenv("BALD_ADMIN_OTLP_ADDR"); v != "" {
+	if v := opts.Metrics.OtlpAddr; v != "" {
 		switch m.GetType() {
 		case otlpcontract.TypeOTLP:
 			if m.Otlp == nil {

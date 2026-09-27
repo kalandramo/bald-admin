@@ -21,7 +21,6 @@ import (
 	"context"
 	stdjson "encoding/json"
 	"net/http"
-	"os"
 
 	"github.com/kalandramo/bald/encoding"
 	baldjson "github.com/kalandramo/bald/encoding/json"
@@ -30,6 +29,7 @@ import (
 	"github.com/kalandramo/bald/transport"
 	baldsse "github.com/kalandramo/bald/transport/sse"
 
+	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
 )
 
@@ -56,11 +56,10 @@ type sseConfig struct {
 	Path string
 }
 
-func loadSSEConfig() sseConfig {
-	return sseConfig{
-		Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"),
-		Path: os.Getenv("BALD_ADMIN_SSE_PATH"),
-	}
+// loadSSEConfig 返回 SSE 装配配置（W2 收敛：取自 ServerOptions.SSE，
+// 其默认值来源为 env BALD_ADMIN_SSE_ADDR / BALD_ADMIN_SSE_PATH）。
+func loadSSEConfig(opts *options.ServerOptions) sseConfig {
+	return sseConfig{Addr: opts.SSE.Addr, Path: opts.SSE.Path}
 }
 
 // buildSSEServer 构造 SSE 服务器（Wave 3.1/3.2）。

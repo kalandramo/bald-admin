@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald-admin/internal/security/token"
 
-	baldconfig "github.com/kalandramo/bald/bootstrap/config"
 	"github.com/kalandramo/bald/circuitbreaker"
 	"github.com/kalandramo/bald/circuitbreaker/hystrix"
 	baldlog "github.com/kalandramo/bald/log"
@@ -17,9 +17,9 @@ import (
 	"github.com/kalandramo/bald/retry"
 )
 
-func buildLoginLimiter(cfg *baldconfig.Store) ratelimit.Limiter {
-	rate := configFloat(cfg, "login.rate_limit.rate")
-	burst := configFloat(cfg, "login.rate_limit.burst")
+func buildLoginLimiter(opts *options.ServerOptions) ratelimit.Limiter {
+	rate := opts.Login.RateLimit.Rate
+	burst := opts.Login.RateLimit.Burst
 	if rate <= 0 || burst <= 0 {
 		return nil // 未配置或配置不全：禁用态
 	}
@@ -47,22 +47,22 @@ func buildLoginLimiter(cfg *baldconfig.Store) ratelimit.Limiter {
 // 用 sres 之外的 **hystrix**（阈值式）：sres 的概率式语义不符合契约对
 // StateClosed 的定义（详见 Wave 1b 交付报告与 e2e 测试注释）。
 
-func buildLoginBreaker(cfg *baldconfig.Store) circuitbreaker.CircuitBreaker {
-	_, configured := cfg.Get("login.breaker")
-	if !configured {
+func buildLoginBreaker(opts *options.ServerOptions) circuitbreaker.CircuitBreaker {
+	if !opts.BreakerEnabled() {
 		return nil // 未配置：禁用态
 	}
-	opts := []hystrix.Option{}
-	if v := configFloat(cfg, "login.breaker.error_threshold"); v > 0 {
-		opts = append(opts, hystrix.WithErrorThreshold(v))
+	br := opts.BreakerOrDefault()
+	o := []hystrix.Option{}
+	if br.ErrorThreshold > 0 {
+		o = append(o, hystrix.WithErrorThreshold(br.ErrorThreshold))
 	}
-	if v := configFloat(cfg, "login.breaker.request_volume"); v > 0 {
-		opts = append(opts, hystrix.WithRequestVolumeThreshold(int(v)))
+	if br.RequestVolume > 0 {
+		o = append(o, hystrix.WithRequestVolumeThreshold(br.RequestVolume))
 	}
-	if v := configFloat(cfg, "login.breaker.sleep_window_seconds"); v > 0 {
-		opts = append(opts, hystrix.WithSleepWindow(time.Duration(v)*time.Second))
+	if br.SleepWindowSeconds > 0 {
+		o = append(o, hystrix.WithSleepWindow(time.Duration(br.SleepWindowSeconds)*time.Second))
 	}
-	cb := hystrix.New(opts...)
+	cb := hystrix.New(o...)
 	baldlog.Info(context.Background(), "login breaker enabled")
 	return cb
 }
@@ -81,29 +81,30 @@ func buildLoginBreaker(cfg *baldconfig.Store) circuitbreaker.CircuitBreaker {
 // 分类器固定为 authbiz.RetryOnTransientDBError——**只重试瞬时故障**，
 // 不重试 ErrNotFound（确定性业务结果，重试只是浪费 DB 往返）。
 
-func buildLoginRetrier(cfg *baldconfig.Store) *retry.Retrier {
-	if _, configured := cfg.Get("login.retry"); !configured {
+func buildLoginRetrier(opts *options.ServerOptions) *retry.Retrier {
+	if !opts.RetryEnabled() {
 		return nil // 未配置：禁用态
 	}
-	opts := []retry.Option{
+	rt := opts.RetryOrDefault()
+	o := []retry.Option{
 		retry.WithClassifier(authbiz.RetryOnTransientDBError),
 	}
-	if v := configFloat(cfg, "login.retry.max_attempts"); v >= 1 {
-		opts = append(opts, retry.WithMaxAttempts(int(v)))
+	if rt.MaxAttempts >= 1 {
+		o = append(o, retry.WithMaxAttempts(rt.MaxAttempts))
 	}
 	backoff := retry.ExponentialBackoff{
 		Initial: 200 * time.Millisecond,
 		Factor:  2,
 		Max:     10 * time.Second,
 	}
-	if v := configFloat(cfg, "login.retry.initial_backoff_ms"); v > 0 {
-		backoff.Initial = time.Duration(v) * time.Millisecond
+	if rt.InitialBackoffMs > 0 {
+		backoff.Initial = time.Duration(rt.InitialBackoffMs) * time.Millisecond
 	}
-	if v := configFloat(cfg, "login.retry.max_backoff_ms"); v > 0 {
-		backoff.Max = time.Duration(v) * time.Millisecond
+	if rt.MaxBackoffMs > 0 {
+		backoff.Max = time.Duration(rt.MaxBackoffMs) * time.Millisecond
 	}
-	opts = append(opts, retry.WithBackoff(backoff), retry.WithJitter(retry.FullJitter))
-	r := retry.New(opts...)
+	o = append(o, retry.WithBackoff(backoff), retry.WithJitter(retry.FullJitter))
+	r := retry.New(o...)
 	baldlog.Info(context.Background(), "login retrier enabled",
 		"initial_backoff_ms", backoff.Initial.Milliseconds(), "max_backoff_ms", backoff.Max.Milliseconds())
 	return r
@@ -126,22 +127,5 @@ func buildTokenStore() token.Store {
 	return token.NewRedisStore(bootstrappkg.RedisClient)
 }
 
-// configFloat 从配置树取数值键（Store 无 GetFloat，经 Get + 类型断言；
-// yaml 解析的整数会落为 int，故两种数值类型都接受）。
-
-func configFloat(cfg *baldconfig.Store, key string) float64 {
-	v, ok := cfg.Get(key)
-	if !ok {
-		return 0
-	}
-	switch n := v.(type) {
-	case float64:
-		return n
-	case int:
-		return float64(n)
-	case int64:
-		return float64(n)
-	default:
-		return 0
-	}
-}
+// configFloat 已删除（W2）：其存在本身即「无强类型配置」的标志——所有业务
+// 配置读取已收敛到 options.ServerOptions 的强类型字段。

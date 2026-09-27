@@ -18,9 +18,11 @@ package options
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/pflag"
 )
 
@@ -48,6 +50,7 @@ type ServerOptions struct {
 	Redis   RedisOptions   `mapstructure:"redis"`
 	SSE     SSEOptions     `mapstructure:"sse"`
 	Gateway GatewayOptions `mapstructure:"gateway"`
+	Metrics MetricsOptions `mapstructure:"metrics"`
 
 	// flagShadow 是 AddFlags 的绑定目标（pflag 需要一个可写地址）。
 	//
@@ -141,6 +144,45 @@ type GatewayOptions struct {
 	Addr string `mapstructure:"addr"`
 }
 
+// MetricsOptions 可观测性暴露端 env 开关（W2 收敛：原散在 registries.go 的
+// os.Getenv 两处集中于此）。
+//
+// 语义（U1 既定）：env 开关在**构造期**应用于合成/预装载态；显式配置源若配
+// metrics 段则覆盖之（显式声明优先）。
+type MetricsOptions struct {
+	// Addr 覆盖 prometheus 暴露端口（BALD_ADMIN_METRICS_ADDR）。
+	Addr string `mapstructure:"addr"`
+	// OtlpAddr 覆盖 OTLP 直推 endpoint（BALD_ADMIN_OTLP_ADDR）。
+	OtlpAddr string `mapstructure:"otlp_addr"`
+}
+
+// DecodeInto 把配置快照（框架装载合并后的嵌套 map）解码进本配置对象。
+//
+// 语义（对齐 miniblog docs/08 的 viper.Unmarshal 步骤）：**用配置内容覆盖默认值**
+// ——未被配置覆盖的字段保留 NewServerOptions() 填入的默认值。
+// 指针段（Breaker/Retry）只在配置中**存在该段**时建立，故「段缺省即禁用」的
+// 契约语义得以保持（AddFlags 不 materialize 指针，见 flagShadow 注释）。
+//
+// 调用时机：必须在使用配置之前（运行期装配钩子内），且仅一次。
+func (o *ServerOptions) DecodeInto(settings map[string]any) error {
+	if settings == nil {
+		return nil
+	}
+	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result:           o,
+		TagName:          "mapstructure",
+		WeaklyTypedInput: true,  // yaml/flag 值多为 string/int，宽松转换到目标类型
+		ErrorUnused:      false, // 框架契约键（server/log/...）不属于本结构体，忽略
+	})
+	if err != nil {
+		return fmt.Errorf("server options: build decoder: %w", err)
+	}
+	if err := dec.Decode(settings); err != nil {
+		return fmt.Errorf("server options: decode: %w", err)
+	}
+	return nil
+}
+
 // NewServerOptions 创建带默认值的配置。
 //
 // 默认值原则（文档 08）：合理的初始设置使程序在无配置/配置缺失时仍能运行。
@@ -156,14 +198,29 @@ func NewServerOptions() *ServerOptions {
 			Breaker: nil,
 			Retry:   nil,
 		},
-		File:    FileOptions{Bucket: ""}, // 空 = 未配置对象存储（file 模块降级）
-		Audit:   AuditOptions{FallbackTenant: "t-default"},
-		Auth:    AuthOptions{AccessTTLMinutes: 120, RefreshTTLHours: 168},
-		Asynq:   AsynqOptions{Codec: "json"},
-		Redis:   RedisOptions{Addr: ""},
-		SSE:     SSEOptions{Addr: "", Path: ""},
-		Gateway: GatewayOptions{Addr: ":8081"},
+		File:  FileOptions{Bucket: ""}, // 空 = 未配置对象存储（file 模块降级）
+		Audit: AuditOptions{FallbackTenant: "t-default"},
+		Auth:  AuthOptions{AccessTTLMinutes: 120, RefreshTTLHours: 168},
+		// Asynq/Redis/SSE/Gateway 的 env 兼容通道（构造期需要，见各字段注释）。
+		// 集中在此处读取——替换前它们散落在 asynq.go/sse.go/servers.go 各自
+		// os.Getenv（「同源配置多条链」），现收敛为唯一默认值来源。
+		Asynq:   AsynqOptions{Codec: envDefault("BALD_ADMIN_ASYNQ_CODEC", "json")},
+		Redis:   RedisOptions{Addr: os.Getenv("BALD_ADMIN_REDIS_ADDR")},
+		SSE:     SSEOptions{Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"), Path: os.Getenv("BALD_ADMIN_SSE_PATH")},
+		Gateway: GatewayOptions{Addr: envDefault("BALD_GATEWAY_ADDR", ":8081")},
+		Metrics: MetricsOptions{
+			Addr:     os.Getenv("BALD_ADMIN_METRICS_ADDR"),
+			OtlpAddr: os.Getenv("BALD_ADMIN_OTLP_ADDR"),
+		},
 	}
+}
+
+// envDefault 取环境变量默认值：未设置时回退 def。
+func envDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
 
 // breakerDefaults / retryDefaults 返回启用态下的字段缺省值（段存在但字段未写时）。

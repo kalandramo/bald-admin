@@ -31,6 +31,8 @@ import (
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
 
+	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
+
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	bconf "github.com/kalandramo/bald/bconf"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
@@ -57,6 +59,10 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	bootstrap.GetApp().Version = "v0.1.0"
 	bootstrap.GetApp().StopTimeout = durationpb.New(15 * time.Second)
 
+	// W2：业务配置聚合对象**最先创建**——构造期的若干步骤（可观测性 env 开关、
+	// gateway/asynq/SSE 地址）需要其默认值通道；实际配置值在各钩子内解码覆盖。
+	svrOpts := options.NewServerOptions()
+
 	// 配置源预装载（两阶段装载的第一阶段）：契约 config 段（nacos/kubernetes
 	// 的地址/凭据/dataId）是引导信息，必须本地可得——先装载本地配置文件填
 	// 契约 config 段。配置层的 Build 由 FromBootstrap 构造期执行
@@ -74,7 +80,7 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	// 显式配置源（文件/远程）若配 metrics 段将覆盖合成值——env 开关退居
 	// 「段未显式配置时的便捷」，显式声明优先（与契约「配置驱动」哲学一致，
 	// 行为收敛见设计文档 U1 变更记录）。
-	if err := applyObservabilityDefaults(bootstrap); err != nil {
+	if err := applyObservabilityDefaults(bootstrap, svrOpts); err != nil {
 		return err
 	}
 
@@ -121,7 +127,7 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 
 	// 2. 约定装配（U1）：Bind×3 / 配置装载+校验 / 日志两阶段 / 热更新 / registrar /
 	//    可观测性 / 停机 Effect 全部由 FromBootstrap 内化（详见 newApp）。
-	app, err := newApp(bootstrap, router, bizSet, cfgReg, healthChecker)
+	app, err := newApp(bootstrap, router, bizSet, cfgReg, healthChecker, svrOpts)
 	if err != nil {
 		return err
 	}
@@ -207,6 +213,7 @@ func newApp(
 	bizSet *apiserver.BizSet,
 	cfgReg *baldbootstrap.Registry,
 	healthChecker *health.Health,
+	svrOpts *options.ServerOptions,
 ) (*appkit.AppKit, error) {
 	// T2：gRPC service 注册回调捕获 wire 装配的 biz（全部 service 需 biz 注入）。
 	// secret 的 DeleteSecret 同经 biz 真实删除（gRPC 直连与 gateway 转码共用）。
@@ -247,6 +254,10 @@ func newApp(
 		// --- 配置驱动参数 ---
 		appkit.WithConfigFile(configFileDefault),
 		appkit.WithWatchConfig(true),
+		// W2：业务配置 flag 通道（--login.rate_limit.rate=9 / --gateway.addr=… 等）。
+		// 缺此注册时业务 flag 进不了装载 FlagSet，「flag > env > 文件」对业务
+		// 配置项整条失效（用户显式传参被静默忽略）。
+		appkit.WithBind("", svrOpts),
 		// 契约 config 段 → 配置层（注册序=层优先级；Build/释放由框架管）。
 		appkit.WithConfigRegistry(cfgReg),
 
@@ -281,6 +292,15 @@ func newApp(
 		// 业务桥接（装载链之后执行——契约终值可读、数据/缓存/存储实例已由
 		// 阶段 B 构建）：
 		appkit.WithBeforeStart(func(ctx context.Context) error {
+			// W2：装载后的业务配置快照解码进 ServerOptions（覆盖默认值）并校验。
+			// 时机：必须在本钩子内（装载链之后，快照才非 nil）；校验 fail-fast，
+			// 非法配置在启动期报错而非静默取零值。
+			if err := svrOpts.DecodeInto(app.Settings()); err != nil {
+				return err
+			}
+			if err := svrOpts.Validate(); err != nil {
+				return err
+			}
 			// U1：契约装配实例注入桥接变量（DatabaseProvider 等透传 provider 的
 			// 产物；nil 实例 = 降级态，Wire* 对 nil 为 no-op，InitBridges 走自建/降级）。
 			if v, ok := app.Database("sql"); ok {
@@ -299,12 +319,12 @@ func newApp(
 			}
 			// T0：注入真实依赖配置（业务自持 file.bucket；database/cache/storage
 			// 段已由透传 provider 消费，此处仅传桥接所需的余下配置）。
-			bootstrappkg.Configure(bootstrap, app.Config().GetString("file.bucket"))
+			bootstrappkg.Configure(bootstrap, svrOpts.File.Bucket)
 			// 审计兜底租户（可选，缺省 t-default）：login 失败/permission/
 			// data_access 三类事件天然无租户，落库时兜底到此值以保证在租户
 			// 隔离下仍可见（见 internal/security/audit/record_mapper.go）。
 			// **必须在 audit store 构造前调用**——映射在构造期求值。
-			securityaudit.SetFallbackTenant(app.Config().GetString("audit.fallback_tenant"))
+			securityaudit.SetFallbackTenant(svrOpts.Audit.FallbackTenant)
 			// 在 bootstrap 包内装配 bald 桥接（P7/P8/P9 注册点）：M1+ 注入
 			// Authenticator / Authorizer / store.RegisterTenant / store.RegisterDataScope。
 			if err := bootstrappkg.InitBridges(ctx); err != nil {
@@ -334,19 +354,19 @@ func newApp(
 			// 与 file.bucket 同模式）。框架契约的 server.http.rate_limit 段是
 			// **中间件级**限流且当前零实现（无消费者），故业务级登录限流走自持段。
 			// 未配置时保持 nil = 禁用态（不阻断登录，fail-open）。
-			if lim := buildLoginLimiter(app.Config()); lim != nil {
+			if lim := buildLoginLimiter(svrOpts); lim != nil {
 				bizSet.Auth.SetLoginLimiter(lim)
 			}
 			// Wave 1b：登录 DB 查询熔断接线（业务自持配置段 login.breaker.*）。
 			// 熔断的意义：DB 故障时快速失败（503），避免所有登录请求都卡在超时上。
 			// 用 hystrix（阈值式）而非 sres——sres 是 SRE 概率式，即使全成功也会
 			// 概率拒绝且 State 永不返回 Closed（与契约语义不符，见 Wave 1b 报告）。
-			if cb := buildLoginBreaker(app.Config()); cb != nil {
+			if cb := buildLoginBreaker(svrOpts); cb != nil {
 				bizSet.Auth.SetLoginBreaker(cb)
 			}
 			// Wave 1c：登录 DB 查询重试接线（业务自持配置段 login.retry.*）。
 			// 与熔断组合：retry 处理偶发抖动，熔断处理持续故障。
-			if r := buildLoginRetrier(app.Config()); r != nil {
+			if r := buildLoginRetrier(svrOpts); r != nil {
 				bizSet.Auth.SetLoginRetrier(r)
 			}
 			// 平台级身份判据（跨租户视图）：持有 superadmin 角色的用户签发
@@ -385,12 +405,12 @@ func newApp(
 				// 验证码不可用（生成/校验返回 503，fail-closed 不放行）。
 				bizSet.Auth.SetAuthenticator(bootstrappkg.LazyAuthenticator())
 			}
-			if v := configFloat(app.Config(), "auth.access_ttl_minutes"); v > 0 {
+			if svrOpts.Auth.AccessTTLMinutes > 0 {
 				refresh := time.Duration(0)
-				if rv := configFloat(app.Config(), "auth.refresh_ttl_hours"); rv > 0 {
-					refresh = time.Duration(rv) * time.Hour
+				if svrOpts.Auth.RefreshTTLHours > 0 {
+					refresh = time.Duration(svrOpts.Auth.RefreshTTLHours) * time.Hour
 				}
-				bizSet.Auth.SetTokenTTL(time.Duration(v)*time.Minute, refresh)
+				bizSet.Auth.SetTokenTTL(time.Duration(svrOpts.Auth.AccessTTLMinutes)*time.Minute, refresh)
 			}
 			return nil
 		}),
@@ -419,18 +439,18 @@ func newApp(
 	// M5：gateway 第三服务器（REST → gRPC 转码，独立 :8081 与 HTTP 主服务错峰）。
 	// WithExtraServers 逃生舱：契约 server.http.driver 的网关面模式是「同一端口
 	// 二选一」，与本范例「gin 主面 + 独立转码面并存」不匹配。
-	opts = append(opts, appkit.WithExtraServers(buildGateway(bootstrap)...))
+	opts = append(opts, appkit.WithExtraServers(buildGateway(bootstrap, svrOpts)...))
 
 	// Wave 2.1：asynq 任务队列服务器（逃生舱，决策见 asynq.go 文件头）。
 	// 无 Redis 地址时 buildAsynqServer 返回 nil，WithExtraServers 收到 nil 会
 	// panic——故先判空再追加。
-	asynqSrv, aerr := buildAsynqServer(context.Background(), asynqRedisAddr())
+	asynqSrv, aerr := buildAsynqServer(context.Background(), asynqRedisAddr(svrOpts), asynqCodecName(svrOpts))
 	if aerr != nil {
 		return nil, fmt.Errorf("build asynq server: %w", aerr)
 	}
 	// Wave 3.1/3.2：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
 	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
-	if sseSrv, serr := buildSSEServer(context.Background(), loadSSEConfig(),
+	if sseSrv, serr := buildSSEServer(context.Background(), loadSSEConfig(svrOpts),
 		bootstrappkg.LazyAuthenticator()); serr != nil {
 		return nil, fmt.Errorf("build sse server: %w", serr)
 	} else if sseSrv != nil {

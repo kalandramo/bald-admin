@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"net/http"
-	"os"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
@@ -17,6 +16,7 @@ import (
 	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/secret/v1"
 	tenantv1 "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1"
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
+	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
@@ -67,14 +67,16 @@ func newGRPCServerOptions() []grpc.ServerOption {
 
 func buildGateway(
 	bootstrap *bootstrapv1.BootstrapConfig,
+	opts *options.ServerOptions,
 ) []transport.Server {
 	if gatewayFactory == nil {
 		return nil
 	}
 	// gateway 需连到 gRPC 服务（用其监听地址，须可连接，不能是 :0）。
-	// gateway 配置在构造期即与 HTTP 同源绑定：地址走 gatewayAddr()，TLS 直接取主 HTTP 的 http.tls 段，
-	// 不再依赖 BeforeStart 运行时回填（消除全局可变态 + 时序耦合）。
-	gwHttpCfg := &bootstrapv1.Server_Http{Addr: gatewayAddr()}
+	// gateway 配置在构造期即与 HTTP 同源绑定：地址走 ServerOptions.Gateway.Addr，
+	// TLS 直接取主 HTTP 的 http.tls 段，不再依赖 BeforeStart 运行时回填
+	//（消除全局可变态 + 时序耦合）。
+	gwHttpCfg := &bootstrapv1.Server_Http{Addr: gatewayAddr(opts)}
 	if t := bootstrap.GetServer().GetHttp(); t.GetTls() != nil {
 		gwHttpCfg.Tls = t.GetTls()
 	}
@@ -97,14 +99,11 @@ var gatewayFactory = func(httpCfg *bootstrapv1.Server_Http, grpcBackend *bootstr
 	return gateway.NewGatewayServer(httpCfg, grpcBackend, registerGateway)
 }
 
-// gatewayAddr 读取 gateway 监听地址：env BALD_GATEWAY_ADDR 优先，缺省 :8081，
-// 与 HTTP 主服务（http.addr）分开避免端口冲突。
+// gatewayAddr 返回 gateway 监听地址（W2 收敛：由 ServerOptions.Gateway.Addr 提供，
+// 其默认值来源为 env BALD_GATEWAY_ADDR，缺省 :8081；与 HTTP 主服务分开避免端口冲突）。
 
-func gatewayAddr() string {
-	if v := os.Getenv("BALD_GATEWAY_ADDR"); v != "" {
-		return v
-	}
-	return ":8081"
+func gatewayAddr(opts *options.ServerOptions) string {
+	return opts.Gateway.Addr
 }
 
 // registerGateway 把 grpc-gateway 的 HTTP handler 注册到 runtime.ServeMux 并交回

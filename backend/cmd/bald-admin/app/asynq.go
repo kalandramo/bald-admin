@@ -26,7 +26,7 @@ package app
 import (
 	"context"
 	"fmt"
-	"os"
+	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 
 	"github.com/kalandramo/bald/encoding"
 	"github.com/kalandramo/bald/encoding/json"
@@ -57,13 +57,12 @@ var asynqCodecRegistered bool
 // 轴（msgpack/proto 等替代 json）。**注册先于 WithCodec**：asynq 的
 // `WithCodec(name)` 内部 `encoding.GetCodec(name)` 对未注册名**静默设 nil**，
 // 故障延迟到首次入队才以 `codec is nil` 暴露——故此处显式注册后再传名。
-func buildAsynqServer(ctx context.Context, redisAddr string) (transport.Server, error) {
+func buildAsynqServer(ctx context.Context, redisAddr, codecName string) (transport.Server, error) {
 	if redisAddr == "" {
 		return nil, nil
 	}
 	registerAsynqCodecs()
 
-	codecName := asynqCodecName()
 	srv := asynq.NewServer(
 		asynq.WithRedisAddress(redisAddr),
 		// 并发度：契约段无此字段，正是「字段面不足」的体现（见文件头决策）。
@@ -94,29 +93,20 @@ func registerAsynqCodecs() {
 // 与 asynqRedisAddr 同款时序约束：本函数在 FromBootstrap **之前**调用（构造期），
 // 配置 store 尚未就绪，故读 env（`BALD_ADMIN_ASYNQ_CODEC`）作可靠路径。
 // 未配置时返回 "json"——与框架默认（server.go:122）一致，行为零回归。
-func asynqCodecName() string {
-	if v := os.Getenv("BALD_ADMIN_ASYNQ_CODEC"); v != "" {
-		return v
-	}
-	return "json"
+// asynqCodecName 返回 asynq 载荷编解码器名（W2 收敛：取自 ServerOptions.Asynq.Codec，
+// 其默认值来源为 env BALD_ADMIN_ASYNQ_CODEC，缺省 json）。
+func asynqCodecName(opts *options.ServerOptions) string {
+	return opts.Asynq.Codec
 }
 
-// asynqRedisAddr 返回 asynq 用的 Redis 地址。
-//
-// 复用 bootstrap 的 Redis 解析结果（`bootstrappkg.RedisClient` 的 Options），
-// 避免 asynq 与业务缓存连到不同实例——**同源**是这里的关键：任务队列与
-// 缓存共用一个 Redis 是常见部署，但若配置漂移会导致「入队到 A、消费从 B」。
+// asynqRedisAddr 返回 asynq 用的 Redis 地址（W2 收敛：取自 ServerOptions.Redis.Addr，
+// 其默认值来源为 env BALD_ADMIN_REDIS_ADDR，集中在 NewServerOptions 内读取）。
 //
 // 注意时序：本函数在 FromBootstrap **之前**调用（构造期），此时 RedisClient
-// 可能尚未装配（BeforeStart 才赋值）。故优先读 env，回退到空（不启用）。
-// 这是「构造期配置未就绪」的既有约束（与 file.SetStorage 同款时序问题）——
-// 用 env 是可靠路径，契约段读取需等 BeforeStart。
-func asynqRedisAddr() string {
-	// 与 bootstrap.resolveRedis 同源：env 优先。
-	if a := os.Getenv("BALD_ADMIN_REDIS_ADDR"); a != "" {
-		return a
-	}
-	return ""
+// 可能尚未装配（BeforeStart 才赋值）。故用配置对象的**默认值通道**（构造期
+// 已就位），而非装载后的解码值——与替换前「构造期读 env」的时序约束一致。
+func asynqRedisAddr(opts *options.ServerOptions) string {
+	return opts.Redis.Addr
 }
 
 // registerAsynqHandlers 注册任务处理器（Wave 2.3 task 域消费）。

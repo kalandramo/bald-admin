@@ -523,8 +523,8 @@ github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
-github.com/kalandramo/bald v0.14.0 h1:2VPUCUtCkBw0M9Iddw1IL3W9kC4JbMSaMcWvSXMx/bU=
-github.com/kalandramo/bald v0.14.0/go.mod h1:Eq+MrepKH3pNqN1f7v+dTcbYui9w2HoEO2rVDu8Fs/Q=
+github.com/kalandramo/bald v0.15.0 h1:+3xUskW0OLs53pHxSN9TfZTQtVJ7Z+yxtBD5RsdJm0M=
+github.com/kalandramo/bald v0.15.0/go.mod h1:Eq+MrepKH3pNqN1f7v+dTcbYui9w2HoEO2rVDu8Fs/Q=
 github.com/kalandramo/bald-crud/viewer v0.3.0 h1:qzFgCqZxxYks6qmtpTnTNYZ0+yM+AvQsnMVdZB+j55g=
 github.com/kalandramo/bald-crud/viewer v0.3.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
 github.com/kalandramo/bald/bconf v0.7.2 h1:9kajZIh3i9wonO2ShsgFe3iUFbiETyDQ2mWmA3Td/p8=
