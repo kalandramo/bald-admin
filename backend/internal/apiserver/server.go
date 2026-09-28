@@ -16,7 +16,7 @@ import (
 )
 
 // RegisterRoutes 把本应用所有路由挂到 e。认证/授权依赖由装配层注入
-//（Wave 4.2：真实实例直传，不再经 lazy 请求期适配器——装配已移到运行期，
+// （Wave 4.2：真实实例直传，不再经 lazy 请求期适配器——装配已移到运行期，
 // InitBridges 之后，故 Authenticator/Authorizer/TokenStore 均就绪）；业务对象经
 // BizSet 聚合传入（wire 装配，见 bizset.go）。
 //
