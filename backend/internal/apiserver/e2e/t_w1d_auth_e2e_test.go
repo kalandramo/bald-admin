@@ -305,25 +305,34 @@ func TestWave1d_TokenStore_RevokeExpiry(t *testing.T) {
 // 根因是**时序错位**：RegisterRoutes 在装配期执行，此时 RedisClient/TokenStore
 // 尚未就绪（BeforeStart 才装配），直接传装饰器会把 nil 快照固化。
 //
-// 本测试走 **RegisterRoutes**（生产同款入口）+ 请求期赋值 bootstrappkg.TokenStore，
-// 验证 LazyAuthenticatorWithRevocation 的请求期解析真的生效。
+// 本测试走 **RegisterRoutes**（生产同款入口），验证**中间件层**的吊销生效。
+//
+// Wave 5.1 修正两点（原实现有缺陷）：
+//  1. 原用 newTestTokenStore（Redis）——无 Redis 时整个用例 SKIP，「吊销是否接入
+//     中间件」这条安全不变量在无 Redis 环境**从未被执行**。改用内存实现
+//     （newMemTokenStore），使该断言在任意环境都真跑。
+//  2. 原把「未装饰的 authenticator」传给 RegisterRoutes——那样 401 来自哪里就
+//     说不清了（生产传的是带吊销检查的装饰器）。现改为传
+//     token.NewRevocationChecker(...)，与 assembly.go 的生产装配一致。
 func TestWave1d_ProductionWiring_RevocationActive(t *testing.T) {
-	ts := newTestTokenStore(t)
+	ts := newMemTokenStore() // 内存实现：不依赖 Redis，永不被 SKIP
 	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	// 模拟 BeforeStart：赋值包级 TokenStore（生产 main.go 同款）。
+	// 模拟生产装配：TokenStore 就绪后构造带吊销检查的认证器（assembly.go 同款）。
 	prev := bootstrappkg.TokenStore
 	bootstrappkg.TokenStore = ts
 	t.Cleanup(func() { bootstrappkg.TokenStore = prev })
+	revocationAware := token.NewRevocationChecker(bootstrappkg.Authenticator, ts)
 
 	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
 	authBiz.SetTokenStore(ts)
-	authBiz.SetAuthenticator(token.NewRevocationChecker(bootstrappkg.Authenticator, bootstrappkg.TokenStore))
+	authBiz.SetAuthenticator(revocationAware)
 
 	e := gingonic.New()
-	// 关键：用生产入口 RegisterRoutes（内部用 LazyAuthenticatorWithRevocation）。
-	apiserver.RegisterRoutes(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
+	// 关键：用生产入口 RegisterRoutes，且传**带吊销检查**的认证器
+	//（中间件层拒绝已吊销 token 才是本用例要锁的不变量）。
+	apiserver.RegisterRoutes(e, revocationAware, bootstrappkg.Authorizer, &apiserver.BizSet{
 		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
 		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
 		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
