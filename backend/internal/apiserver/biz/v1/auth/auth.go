@@ -120,7 +120,7 @@ type Biz struct {
 	tokenStore token.Store
 	// authenticator 令牌校验器（Wave 1d：ValidateToken 需要验签能力）。
 	// 与 signer 分离——签发持私钥、验签只需公钥（非对称解耦）。
-	// 经 setter 注入（bootstrap 的 LazyAuthenticator，请求期解析）。
+	// 经 setter 注入（装配根在 InitBridges 后传入带吊销检查的真实实例）。
 	authenticator authn.Authenticator
 	// accessTTL / refreshTTL 令牌有效期（Wave 1d）。零值用默认。
 	accessTTL  time.Duration

@@ -41,18 +41,19 @@ import (
 
 func startPlanREST(t *testing.T) string {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
+	repos = bootstrappkg.LastRepositories()
+	authBiz := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
-		Plan: planbiz.New(bootstrappkg.PlanStore, bootstrappkg.PlanModuleStore, bootstrappkg.PlanQuotaStore),
+		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
+		Plan: planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -68,7 +69,7 @@ func planSuffix() string { return "pl" + time.Now().Format("150405.000000") }
 func TestWave4_2_CascadeDelete(t *testing.T) {
 	base := startPlanREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
-	biz := planbiz.New(bootstrappkg.PlanStore, bootstrappkg.PlanModuleStore, bootstrappkg.PlanQuotaStore)
+	biz := planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota)
 	ctx := context.Background()
 	sfx := planSuffix()
 
@@ -205,7 +206,7 @@ func TestWave4_2_PlanCRUD(t *testing.T) {
 func TestWave4_2_ModuleAndQuota(t *testing.T) {
 	base := startPlanREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
-	biz := planbiz.New(bootstrappkg.PlanStore, bootstrappkg.PlanModuleStore, bootstrappkg.PlanQuotaStore)
+	biz := planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota)
 	ctx := context.Background()
 	sfx := planSuffix()
 

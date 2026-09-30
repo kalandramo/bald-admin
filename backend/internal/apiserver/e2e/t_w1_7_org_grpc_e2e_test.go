@@ -109,9 +109,10 @@ func TestOrgGRPC_Authz_NoToken(t *testing.T) {
 // 走完整拦截器链（Error→Authn→Authz）。范式对齐 handler/grpc/secret_e2e_test.go。
 func startOrgGRPCServer(t *testing.T) (string, func()) {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	authnI := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		return grpcmw.AuthnInterceptor(bootstrappkg.Authenticator)(ctx, req, info, handler)
 	}
@@ -124,8 +125,8 @@ func startOrgGRPCServer(t *testing.T) (string, func()) {
 		&bootstrapv1.Server_Grpc{Addr: ":0"},
 		[]grpc.ServerOption{grpc.ChainUnaryInterceptor(grpcmw.ErrorInterceptor(), authnI, authzI)},
 		func(s *grpc.Server) {
-			identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(orgbiz.New(bootstrappkg.OrgUnitStore, bootstrappkg.PositionStore, bootstrappkg.UserStore)))
-			identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(orgbiz.New(bootstrappkg.OrgUnitStore, bootstrappkg.PositionStore, bootstrappkg.UserStore)))
+			identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(orgbiz.New(repos.OrgUnit, repos.Position, repos.User)))
+			identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(orgbiz.New(repos.OrgUnit, repos.Position, repos.User)))
 		},
 	)
 	lis, err := net.Listen("tcp", ":0")

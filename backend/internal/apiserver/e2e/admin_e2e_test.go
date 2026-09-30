@@ -64,18 +64,19 @@ func (c *stubComp) state() (bool, bool) {
 func setupAdmin(t *testing.T) (*gingonic.Engine, *stubComp) {
 	t.Helper()
 	gingonic.SetMode(gingonic.TestMode)
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 
 	var app *appkit.AppKit
 	comp := &stubComp{name: "e2e.comp"}
 
 	e := gingonic.New()
 	apiserver.RegisterRoutes(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies), Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		Auth: authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies), Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
 	})
 	apiserver.RegisterAdmin(e, func() *appkit.AppKit { return app }, bootstrappkg.Authenticator, bootstrappkg.Authorizer, map[string]apiserver.ComponentFactory{
 		"e2e.comp": func() appkit.Component { return comp },

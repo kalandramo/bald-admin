@@ -381,7 +381,9 @@ func newApp(
 			securityaudit.SetFallbackTenant(svrOpts.Audit.FallbackTenant)
 			// 在 bootstrap 包内装配 bald 桥接（P7/P8/P9 注册点）：M1+ 注入
 			// Authenticator / Authorizer / store.RegisterTenant / store.RegisterDataScope。
-			if err := bootstrappkg.InitBridges(ctx); err != nil {
+			// Wave 5：仓储经返回值显式取出（不再写包级变量）。
+			repos, err := bootstrappkg.InitBridges(ctx)
+			if err != nil {
 				return fmt.Errorf("init bridges: %w", err)
 			}
 			// Wave 4.2：认证/授权依赖在**路由注册之前**构造完毕——Wave 4.1 已把
@@ -409,7 +411,7 @@ func newApp(
 			// 时序保证：本钩子（业务 beforeStart）**先于**框架 server 构造钩子执行
 			// （注册序=执行序）——故 registerGRPC 被调用时 bizSet 已就绪，
 			// WithHTTP(router) 的 handler 也已挂好全部路由。
-			bizSet, err = InitializeBiz()
+			bizSet, err = InitializeBiz(repos)
 			if err != nil {
 				return fmt.Errorf("initialize biz (wire): %w", err)
 			}

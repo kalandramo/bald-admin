@@ -53,9 +53,10 @@ import (
 // 故必须复刻 main.go 的注入。
 func startPlatformREST(t *testing.T) string {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	audit.SetAuditor(securityaudit.NewStore(bootstrappkg.DB))
 	t.Cleanup(func() { audit.SetAuditor(audit.NopAuditor()) })
 
@@ -64,13 +65,13 @@ func startPlatformREST(t *testing.T) string {
 		ginmw.AuditWithObjectResolver(authz.DefaultHTTPObject),
 		ginmw.AuditWithActionResolver(authz.DefaultHTTPAction),
 	))
-	auth := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
+	auth := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	// ← 与 cmd/bald-admin/main.go 的注入**逐字一致**（生产判据）
 	auth.SetPlatformResolver(authmodel.IsPlatformUser)
 	apiserver.RegisterRoutes(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: auth, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		Auth: auth, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)

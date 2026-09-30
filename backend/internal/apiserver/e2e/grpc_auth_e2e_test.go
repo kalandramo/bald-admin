@@ -28,9 +28,10 @@ func grpcAuthCtx(token string) context.Context {
 // invoke 以给定 token 调用 fullMethod，串联 Authn + Authz 拦截器。
 func invoke(t *testing.T, token, fullMethod string) error {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	info := &grpc.UnaryServerInfo{FullMethod: fullMethod}
 	handler := func(c context.Context, _ any) (any, error) { return "ok", nil }
 	authzWrapped := grpcmw.AuthzInterceptor(bootstrappkg.Authorizer,
@@ -48,9 +49,10 @@ func issueToken(t *testing.T, username, userID, role string) string {
 	t.Helper()
 	// 幂等初始化：本函数可能先于包内其他测试执行（go test -shuffle=on 随机顺序），
 	// 不能假设 Signer 已由别的测试经 invoke→InitBridges 就绪。
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	claims := authn.AuthClaims{
 		Issuer:   "bald-admin",
 		Subject:  userID,

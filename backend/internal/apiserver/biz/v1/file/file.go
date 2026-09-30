@@ -7,7 +7,7 @@ package file
 //
 // 文件是租户级业务数据（源 mixin TenantID）：store 层 P8 自动注入与隔离
 // TenantID（Where.T）；CreatedBy 取认证后的 UserID（contextx）。
-// store 经请求期包级引用（bootstrap.FileStore，InitBridges 装配后可用）。
+// store 经构造期注入（Wave 3 起；此前为请求期读 bootstrap 包级变量）。
 
 import (
 	"bytes"

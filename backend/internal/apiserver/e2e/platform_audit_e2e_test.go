@@ -48,9 +48,10 @@ func platformToken(t *testing.T, username, userID, tenantID string) string {
 // seedAuditForTenant 直接落一条审计记录到指定租户（绕开 HTTP，供隔离对比用）。
 func seedAuditForTenant(t *testing.T, tenantID, subject string) {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	audit.SetAuditor(securityaudit.NewStore(bootstrappkg.DB))
 	t.Cleanup(func() { audit.SetAuditor(audit.NopAuditor()) })
 

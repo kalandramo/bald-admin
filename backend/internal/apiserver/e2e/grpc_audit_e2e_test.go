@@ -37,9 +37,10 @@ func (m *memAuditor) all() []audit.AuditEvent {
 // invokeWithAudit 串联 Authn + Authz + Audit（M7）拦截器，返回 (err, 审计事件)。
 func invokeWithAudit(t *testing.T, a *memAuditor, token, fullMethod string) error {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	info := &grpc.UnaryServerInfo{FullMethod: fullMethod}
 	handler := func(c context.Context, _ any) (any, error) { return "ok", nil }
 	authzWrapped := grpcmw.AuthzInterceptor(bootstrappkg.Authorizer,
@@ -63,9 +64,10 @@ func invokeWithAudit(t *testing.T, a *memAuditor, token, fullMethod string) erro
 
 // TestGRPCAudit_Allow 授权通过的 gRPC 调用应产生一条 allow 审计事件，含归一化三元组。
 func TestGRPCAudit_Allow(t *testing.T) {
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	a := &memAuditor{}
 	tok := issueToken(t, "admin", "u-admin", "admin")
 	if err := invokeWithAudit(t, a, tok, "/go.bald.admin.v1.SecretService/GetSecret"); err != nil {
@@ -89,9 +91,10 @@ func TestGRPCAudit_Allow(t *testing.T) {
 
 // TestGRPCAudit_Deny 授权拒绝的 gRPC 调用应产生一条 deny 审计事件，旁路不阻断。
 func TestGRPCAudit_Deny(t *testing.T) {
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	a := &memAuditor{}
 	tok := issueToken(t, "alice", "u-alice", "viewer")
 	if err := invokeWithAudit(t, a, tok, "/go.bald.admin.v1.SecretService/DeleteSecret"); err == nil {

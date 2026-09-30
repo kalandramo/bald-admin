@@ -110,8 +110,13 @@ func TestAssemblyPath_ReadyAfterStart(t *testing.T) {
 	assert.NotNil(t, bootstrap.Authenticator, "认证器应已构造（InitBridges 在装配链内执行）")
 	assert.NotNil(t, bootstrap.Authorizer, "授权器应已构造")
 	assert.NotNil(t, bootstrap.Signer, "签发器应已构造")
-	assert.NotNil(t, bootstrap.UserStore, "用户仓储应已构造")
-	assert.NotNil(t, bootstrap.SecretStore, "Secret 仓储应已构造")
+	// 仓储经 InitBridges 返回值建立——本测试走生产装配路径（拿不到返回值），
+	// 故经 LastRepositories() 观察。先断言聚合本身非 nil，再解引用其字段
+	// （否则聚合为 nil 时断言会 panic 而非给出可读失败信息）。
+	br := bootstrap.LastRepositories()
+	require.NotNil(t, br, "仓储聚合应已构造（InitBridges 在装配链内执行）")
+	assert.NotNil(t, br.User, "用户仓储应已构造")
+	assert.NotNil(t, br.Secret, "Secret 仓储应已构造")
 
 	// 停机并确认无装配错误。
 	cancel()

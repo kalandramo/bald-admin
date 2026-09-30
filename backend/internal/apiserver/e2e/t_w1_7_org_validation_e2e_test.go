@@ -49,9 +49,10 @@ const annotationErrMarker = "请求参数校验失败"
 // （main.go newGRPCServerOptions）一致：Error → Authn → Authz → Validator。
 func startOrgValidationGRPCServer(t *testing.T) (string, func()) {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	authnI := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		return grpcmw.AuthnInterceptor(bootstrappkg.Authenticator)(ctx, req, info, handler)
 	}
@@ -67,8 +68,8 @@ func startOrgValidationGRPCServer(t *testing.T) (string, func()) {
 		[]grpc.ServerOption{grpc.ChainUnaryInterceptor(
 			grpcmw.ErrorInterceptor(), authnI, authzI, validatorI)},
 		func(s *grpc.Server) {
-			identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(orgbiz.New(bootstrappkg.OrgUnitStore, bootstrappkg.PositionStore, bootstrappkg.UserStore)))
-			identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(orgbiz.New(bootstrappkg.OrgUnitStore, bootstrappkg.PositionStore, bootstrappkg.UserStore)))
+			identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(orgbiz.New(repos.OrgUnit, repos.Position, repos.User)))
+			identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(orgbiz.New(repos.OrgUnit, repos.Position, repos.User)))
 		},
 	)
 	lis, err := net.Listen("tcp", ":0")

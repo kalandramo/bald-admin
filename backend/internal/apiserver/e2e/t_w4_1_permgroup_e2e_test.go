@@ -40,18 +40,19 @@ import (
 
 func startPermGroupREST(t *testing.T) string {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
+	repos = bootstrappkg.LastRepositories()
+	authBiz := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
-		PermGroup: pgbiz.New(bootstrappkg.PermGroupStore, bootstrappkg.PolicyEvalLogStore),
+		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
+		PermGroup: pgbiz.New(repos.PermGroup, repos.PolicyEvalLog),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -142,7 +143,7 @@ func TestWave4_1_GroupTreePathFormat(t *testing.T) {
 func TestWave4_1_DeleteWithChildrenRejected(t *testing.T) {
 	base := startPermGroupREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
-	biz := pgbiz.New(bootstrappkg.PermGroupStore, bootstrappkg.PolicyEvalLogStore)
+	biz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
 	ctx := context.Background()
 	sfx := pgSuffix()
 
@@ -213,7 +214,7 @@ func TestWave4_1_CreateValidation(t *testing.T) {
 func TestWave4_1_EvalLogRead(t *testing.T) {
 	base := startPermGroupREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
-	biz := pgbiz.New(bootstrappkg.PermGroupStore, bootstrappkg.PolicyEvalLogStore)
+	biz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
 	ctx := context.Background()
 
 	// 先取基线（同包测试共享 DB，用增量断言）。
@@ -290,7 +291,7 @@ func TestWave4_1_EvalLogRead(t *testing.T) {
 func TestWave4_1_Update(t *testing.T) {
 	base := startPermGroupREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
-	biz := pgbiz.New(bootstrappkg.PermGroupStore, bootstrappkg.PolicyEvalLogStore)
+	biz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
 	ctx := context.Background()
 	sfx := pgSuffix()
 

@@ -69,10 +69,11 @@ func startAuthRESTWithCaptcha(t *testing.T, cs captcha.Store) string {
 
 func startAuthRESTFull(t *testing.T, ts token.Store, cs captcha.Store) string {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
+	repos = bootstrappkg.LastRepositories()
+	authBiz := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	authBiz.SetTokenStore(ts)
 	authBiz.SetCaptchaStore(cs)
 
@@ -86,9 +87,9 @@ func startAuthRESTFull(t *testing.T, ts token.Store, cs captcha.Store) string {
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -316,16 +317,17 @@ func TestWave1d_TokenStore_RevokeExpiry(t *testing.T) {
 //     token.NewRevocationChecker(...)，与 assembly.go 的生产装配一致。
 func TestWave1d_ProductionWiring_RevocationActive(t *testing.T) {
 	ts := newMemTokenStore() // 内存实现：不依赖 Redis，永不被 SKIP
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	// 模拟生产装配：TokenStore 就绪后构造带吊销检查的认证器（assembly.go 同款）。
 	prev := bootstrappkg.TokenStore
 	bootstrappkg.TokenStore = ts
 	t.Cleanup(func() { bootstrappkg.TokenStore = prev })
 	revocationAware := token.NewRevocationChecker(bootstrappkg.Authenticator, ts)
 
-	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
+	authBiz := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	authBiz.SetTokenStore(ts)
 	authBiz.SetAuthenticator(revocationAware)
 
@@ -333,9 +335,9 @@ func TestWave1d_ProductionWiring_RevocationActive(t *testing.T) {
 	// 关键：用生产入口 RegisterRoutes，且传**带吊销检查**的认证器
 	//（中间件层拒绝已吊销 token 才是本用例要锁的不变量）。
 	apiserver.RegisterRoutes(e, revocationAware, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)

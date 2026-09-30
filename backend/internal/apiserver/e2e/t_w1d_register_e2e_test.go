@@ -132,9 +132,10 @@ func TestWave1d_RegisterUser_Validation(t *testing.T) {
 // 本测试走**生产装配路径**（InitBridges → RegisterRoutes），验证注册后新用户的
 // 权限立即生效——若去掉 ReloadPolicies 调用，此测试立即 RED。
 func TestWave1d_RegisterUser_PolicyReload(t *testing.T) {
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	base := startAuthRESTWithCaptcha(t, nil)
 
 	uname := "policyreload" + strconv.FormatInt(time.Now().UnixNano()%100000, 10)

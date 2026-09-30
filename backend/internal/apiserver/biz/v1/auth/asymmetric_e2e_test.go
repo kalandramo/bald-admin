@@ -15,9 +15,10 @@ import (
 // TestRSA_SignWithPrivate_VerifyWithPublic 验证 M6.5 非对称方案：
 // 签发方持私钥、验签方只持公钥，二者密钥分离，验签方无法伪造。
 func TestRSA_SignWithPrivate_VerifyWithPublic(t *testing.T) {
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 
 	claims := authn.AuthClaims{
 		Issuer:   "bald-admin",

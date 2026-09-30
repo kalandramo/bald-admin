@@ -50,18 +50,19 @@ import (
 // startPortalREST 起真实 gin 引擎 + 真实 SQLite（portal biz 注入）。
 func startPortalREST(t *testing.T) string {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
+	repos = bootstrappkg.LastRepositories()
+	authBiz := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
-		Portal: portal.New(bootstrappkg.UserStore, bootstrappkg.RoleStore, bootstrappkg.PermissionStore, bootstrappkg.MenuStore),
+		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
+		Portal: portal.New(repos.User, repos.Role, repos.Permission, repos.Menu),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -102,10 +103,10 @@ func TestWave6_2_GetNavigation(t *testing.T) {
 
 	// 造数据：角色 r-nav 的 Perms 含 nav:list；权限点 nav:list 关联 menu-system + menu-tenant。
 	// （直接写 store 保证测试隔离；store 是包级桥接，InitBridges 后可用。）
-	if err := bootstrappkg.RoleStore.Create(ctx, &authmodel.Role{ID: "r-nav", Perms: "nav:list"}); err != nil {
+	if err := repos.Role.Create(ctx, &authmodel.Role{ID: "r-nav", Perms: "nav:list"}); err != nil {
 		t.Fatalf("create role: %v", err)
 	}
-	if err := bootstrappkg.PermissionStore.Create(ctx, &authmodel.Permission{
+	if err := repos.Permission.Create(ctx, &authmodel.Permission{
 		ID: "nav:list", Name: "导航测试权限", MenuIDs: "menu-system,menu-tenant",
 	}); err != nil {
 		t.Fatalf("create permission: %v", err)
@@ -113,14 +114,14 @@ func TestWave6_2_GetNavigation(t *testing.T) {
 	// 授权：r-nav 需能访问 /admin/v1/routes——该组用**自定义 object
 	// "admin_portal"**（见 handler 注释：避免与 /admin/components 的 "admin" 撞名）。
 	// 业务聚合与授权是正交关注点，故测试显式补策略行（否则 403，与聚合无关）。
-	if err := bootstrappkg.RolePolicyStore.Create(ctx, &authmodel.RolePolicy{
+	if err := repos.RolePolicy.Create(ctx, &authmodel.RolePolicy{
 		ID: "r-nav:admin_portal:get", Role: "r-nav", Object: "admin_portal", Action: "get",
 	}); err != nil {
 		t.Fatalf("create role policy: %v", err)
 	}
 	// **关键**：casbin 的 g 行（用户→角色）来自 User 表（loadPolicyCSV 实测）——
 	// 必须建真实用户 u-nav（Roles=r-nav），否则 subject=u-nav 无角色 → 403。
-	if err := bootstrappkg.UserStore.Create(ctx, &authmodel.User{
+	if err := repos.User.Create(ctx, &authmodel.User{
 		ID: "u-nav", Username: "navuser", PasswordHash: "x", TenantID: "t-default", Roles: "r-nav",
 	}); err != nil {
 		t.Fatalf("create user: %v", err)

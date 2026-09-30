@@ -58,18 +58,19 @@ func newTestMFAStore(t *testing.T) *mfa.RedisChallengeStore {
 // startMFAREST 起真实 gin 引擎，带 MFA biz。
 func startMFAREST(t *testing.T, cs mfa.ChallengeStore) string {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
+	repos = bootstrappkg.LastRepositories()
+	authBiz := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
-		MFA: mfabiz.New(bootstrappkg.MFAFactorStore, cs),
+		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
+		MFA: mfabiz.New(repos.MFAFactor, cs),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -379,7 +380,7 @@ func TestWave1_5_DisableAndRevoke(t *testing.T) {
 		ID: "t-default:" + uid + ":TOTP", TenantID: "t-default", UserID: uid,
 		Method: authmodel.MFAMethodTOTP, Secret: "SECRETBASE32", Enabled: true,
 	}
-	if err := bootstrappkg.MFAFactorStore.Create(ctx, f); err != nil {
+	if err := repos.MFAFactor.Create(ctx, f); err != nil {
 		t.Fatalf("create factor: %v", err)
 	}
 
@@ -409,7 +410,7 @@ func TestWave1_5_DisableIdempotent(t *testing.T) {
 	cs := newTestMFAStore(t)
 	base := startMFAREST(t, cs)
 	uid, _ := freshUser(t, base)
-	biz := mfabiz.New(bootstrappkg.MFAFactorStore, cs)
+	biz := mfabiz.New(repos.MFAFactor, cs)
 	ctx := context.Background()
 
 	// 该用户从未绑定任何 TOTP 因子 → 按 method 清空应删 0 行。

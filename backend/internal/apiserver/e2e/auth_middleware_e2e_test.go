@@ -28,14 +28,15 @@ import (
 func setup(t *testing.T) *gingonic.Engine {
 	t.Helper()
 	gingonic.SetMode(gingonic.TestMode)
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	e := gingonic.New()
 	apiserver.RegisterRoutes(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies), Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
+		Auth: authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies), Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
 	})
 	return e
 }
@@ -112,7 +113,7 @@ func TestDeleteSecret_RealDelete(t *testing.T) {
 
 	// 自建专属资源（admin 属 t-default，落同租户，受隔离约束可命中）。
 	own := &authmodel.Secret{ID: "s-del-temp", Name: "待删资源", Content: "x", TenantID: "t-default"}
-	if err := bootstrappkg.SecretStore.Create(context.Background(), own); err != nil {
+	if err := repos.Secret.Create(context.Background(), own); err != nil {
 		t.Fatalf("seed temp secret: %v", err)
 	}
 

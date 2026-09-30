@@ -112,8 +112,11 @@ func ReloadPolicies() error {
 // BuildAuthorizer 从 DB 重建 casbin 授权器（策略真源 = RolePolicy 表 + User.Roles）。
 // 供 main 装配 ReloadableAuthorizer 的 build 函数使用（InitBridges 内的首次构造
 // 也走同一逻辑，保证首次与重载语义一致）。
-func BuildAuthorizer(ctx context.Context) (authz.Authorizer, error) {
-	csv, err := loadPolicyCSV(ctx)
+//
+// Wave 5：repos 由调用方显式传入——本函数不再读包级仓储变量。装配根的 reloadable
+// 闭包捕获首次 InitBridges 返回的 repos（见 InitBridges），故重载读的是同一套仓储。
+func BuildAuthorizer(ctx context.Context, repos *Repositories) (authz.Authorizer, error) {
+	csv, err := loadPolicyCSV(ctx, repos)
 	if err != nil {
 		return nil, err
 	}
@@ -173,60 +176,73 @@ func Configure(cfg *bootstrapv1.BootstrapConfig, fileBucket string) {
 	FileBucket = fileBucket
 }
 
-// UserStore / RoleStore / SecretStore / TenantStore 是 bald-store-gorm 接入的泛型仓储。
-// T3 新增 MenuStore（菜单树）/ PermissionStore（权限点注册表）/ RolePolicyStore
-// （casbin p 行数据化，D3 策略装载真源）。
-var UserStore *store.Store[authmodel.User]
-var RoleStore *store.Store[authmodel.Role]
-var SecretStore *store.Store[authmodel.Secret]
-var TenantStore *store.Store[authmodel.Tenant]
-var MenuStore *store.Store[authmodel.Menu]
-var PermissionStore *store.Store[authmodel.Permission]
-var RolePolicyStore *store.Store[authmodel.RolePolicy]
-var DictTypeStore *store.Store[authmodel.DictType]
-var DictEntryStore *store.Store[authmodel.DictEntry]
+// Repositories 聚合 InitBridges 建立的业务仓储（Wave 5，建议二）。
+//
+// 为什么不再用 26 个包级变量：包级 var 让「装配根」与「biz」都反向读取本包的
+// 全局态——装配时机一变（构造期 vs 运行期）就产生「读到 nil」的时序耦合，测试
+// 也无法并行（共享全局）。聚合为显式返回值后，仓储的所有权一望而知：
+// InitBridges 建立 → 装配根持有 → 构造期注入 biz。
+//
+// 字段命名去 Store 后缀（repos.User 而非 repos.UserStore）——调用点已有变量名
+// 表达类型语境，避免 stutter。
+type Repositories struct {
+	User       *store.Store[authmodel.User]
+	Role       *store.Store[authmodel.Role]
+	Secret     *store.Store[authmodel.Secret]
+	Tenant     *store.Store[authmodel.Tenant]
+	Menu       *store.Store[authmodel.Menu]       // 菜单树（T3）
+	Permission *store.Store[authmodel.Permission] // 权限点注册表（T3）
+	RolePolicy *store.Store[authmodel.RolePolicy] // casbin p 行数据化（D3 策略装载真源）
+	DictType   *store.Store[authmodel.DictType]
+	DictEntry  *store.Store[authmodel.DictEntry]
+	// 语言仓储（Wave 5.3；平台级数据，无租户维度）。
+	Language *store.Store[authmodel.Language]
+	// 文件元数据仓储（T5；MinIO 对象经 MinioStorage 桥接，元数据落本库）。
+	File *store.Store[authmodel.File]
+	// 审计日志仓储（T6 查询面；写路径经 security/audit.StoreAuditor 落库，
+	// 同表双通道：写走审计后端、读走本仓储）。
+	Audit *store.Store[authmodel.AuditRecord]
+	// 用户 MFA 因子仓储（Wave 1.5）。
+	MFAFactor *store.Store[authmodel.UserMFAFactor]
+	// 用户凭证仓储（Wave 1.6）。
+	Credential *store.Store[authmodel.UserCredential]
+	// 登录策略仓储（Wave 1.6）。
+	LoginPolicy *store.Store[authmodel.LoginPolicy]
+	// 组织单元仓储（Wave 1.7，树形）。
+	OrgUnit *store.Store[authmodel.OrgUnit]
+	// 职位仓储（Wave 1.7）。
+	Position *store.Store[authmodel.Position]
+	// 任务定义仓储（Wave 2.3）。
+	Task *store.Store[authmodel.Task]
+	// 套餐三件套（Wave 4.2）。
+	Plan       *store.Store[authmodel.Plan]
+	PlanModule *store.Store[authmodel.PlanModule]
+	PlanQuota  *store.Store[authmodel.PlanQuota]
+	// 权限组与策略评估日志（Wave 4.1）。
+	PermGroup     *store.Store[authmodel.PermissionGroup]
+	PolicyEvalLog *store.Store[authmodel.PolicyEvaluationLog]
+	// 站内消息三表（Wave 2.5）。
+	Message         *store.Store[authmodel.InternalMessage]
+	MessageCategory *store.Store[authmodel.InternalMessageCategory]
+	Recipient       *store.Store[authmodel.InternalMessageRecipient]
+}
 
-// LanguageStore 语言仓储（Wave 5.3；平台级数据，无租户维度）。
-var LanguageStore *store.Store[authmodel.Language]
+// lastRepos 保存首次 InitBridges 建立的仓储聚合，供**幂等重入**返回同一实例。
+//
+// 为什么保留这一个包级引用（方案 A'，见计划「风险与回退」）：InitBridges 由 e2e
+// 的 22 个 helper 与装配根反复调用，幂等 guard 命中时须返回「同一套仓储」——
+// 每次新建 Repositories 会与首轮建立的 store（底层 gorm 连接）脱钩，调用方拿到
+// 的句柄也不一致。故保留一个**只写一次**的引用：它不承载「请求期读取」语义
+//（那正是本 Wave 要消除的），只作幂等返回值缓存。
+var lastRepos *Repositories
 
-// FileStore 文件元数据仓储（T5；MinIO 对象经 MinioStorage 桥接，元数据落本库）。
-var FileStore *store.Store[authmodel.File]
-
-// AuditStore 审计日志仓储（T6 查询面；写路径经 security/audit.StoreAuditor 落库，
-// 同表双通道：写走审计后端、读走本仓储）。
-var AuditStore *store.Store[authmodel.AuditRecord]
-
-// MFAFactorStore 用户 MFA 因子仓储（Wave 1.5）。
-var MFAFactorStore *store.Store[authmodel.UserMFAFactor]
-
-// CredentialStore 用户凭证仓储（Wave 1.6）。
-var CredentialStore *store.Store[authmodel.UserCredential]
-
-// LoginPolicyStore 登录策略仓储（Wave 1.6）。
-var LoginPolicyStore *store.Store[authmodel.LoginPolicy]
-
-// OrgUnitStore 组织单元仓储（Wave 1.7，树形）。
-var OrgUnitStore *store.Store[authmodel.OrgUnit]
-
-// PositionStore 职位仓储（Wave 1.7）。
-var PositionStore *store.Store[authmodel.Position]
-
-// TaskStore 任务定义仓储（Wave 2.3）。
-var TaskStore *store.Store[authmodel.Task]
-
-// PlanStore / PlanModuleStore / PlanQuotaStore 套餐三件套（Wave 4.2）。
-var PlanStore *store.Store[authmodel.Plan]
-var PlanModuleStore *store.Store[authmodel.PlanModule]
-var PlanQuotaStore *store.Store[authmodel.PlanQuota]
-
-// PermGroupStore / PolicyEvalLogStore 权限组与策略评估日志（Wave 4.1）。
-var PermGroupStore *store.Store[authmodel.PermissionGroup]
-var PolicyEvalLogStore *store.Store[authmodel.PolicyEvaluationLog]
-
-// MessageStore / MessageCategoryStore / RecipientStore 站内消息三表（Wave 2.5）。
-var MessageStore *store.Store[authmodel.InternalMessage]
-var MessageCategoryStore *store.Store[authmodel.InternalMessageCategory]
-var RecipientStore *store.Store[authmodel.InternalMessageRecipient]
+// LastRepositories 返回首次 InitBridges 建立的仓储聚合（未初始化时为 nil）。
+//
+// 供**走生产装配路径的测试**读取仓储：这类测试（如 cmd/bald-admin 的
+// assembly_e2e_test）不直接调 InitBridges，拿不到返回值，只能经此访问器观察
+// 「装配链是否真把仓储建起来了」。生产代码不应调用——业务依赖一律经
+// InitializeBiz(repos) 构造期注入。
+func LastRepositories() *Repositories { return lastRepos }
 
 // bridgesMu 串行化 InitBridges 的 check-then-act（UT8 修复：并发首调时
 // 双 goroutine 同时通过 nil 判据、各自生成 RSA 密钥对、后写覆盖先写——
@@ -242,11 +258,11 @@ var bridgesMu sync.Mutex
 // openDB/seed 之前置位，若中途失败（如 DB 不可达）后重入，旧判据会直接返回 nil，
 // 而 DB/stores 仍为 nil——下游 NPE；失败路径重入重新生成密钥对无害（彼时未对外
 // 服务过任何 token）。
-func InitBridges(ctx context.Context) error {
+func InitBridges(ctx context.Context) (*Repositories, error) {
 	bridgesMu.Lock()
 	defer bridgesMu.Unlock()
 	if DB != nil && Authenticator != nil {
-		return nil
+		return lastRepos, nil
 	}
 	// 1) Authenticator（bald-authn-jwt，RSA 非对称）。
 	// 演示用启动时生成 RSA-2048 密钥对：签发方持私钥、验证方只持公钥，实现签发/
@@ -254,7 +270,7 @@ func InitBridges(ctx context.Context) error {
 	// 生产应从 KMS / 固定 PEM 文件加载密钥（重启后旧 token 仍有效、私钥可进 HSM）。
 	priv, err := authnjwt.GenerateRSA(2048)
 	if err != nil {
-		return fmt.Errorf("bootstrap: generate RSA key: %w", err)
+		return nil, fmt.Errorf("bootstrap: generate RSA key: %w", err)
 	}
 	Signer = authnjwt.NewAuthenticator(
 		authnjwt.WithRSAKeys(priv, &priv.PublicKey),
@@ -276,7 +292,7 @@ func InitBridges(ctx context.Context) error {
 	if db == nil {
 		var err error
 		if db, err = openDB(depsBootstrap.GetDatabase().GetSql()); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if err := db.AutoMigrate(&authmodel.User{}, &authmodel.Role{}, &authmodel.Secret{}, &authmodel.AuditRecord{}, &authmodel.Tenant{},
@@ -289,7 +305,7 @@ func InitBridges(ctx context.Context) error {
 		&authmodel.InternalMessageRecipient{},
 		&authmodel.PermissionGroup{}, &authmodel.PolicyEvaluationLog{},
 		&authmodel.Plan{}, &authmodel.PlanModule{}, &authmodel.PlanQuota{}); err != nil {
-		return err
+		return nil, err
 	}
 	DB = db
 
@@ -335,64 +351,68 @@ func InitBridges(ctx context.Context) error {
 			}
 		}
 	}
-	UserStore = store.NewStore[authmodel.User](baldgorm.NewGormProvider(db, func(u *authmodel.User) string { return u.ID }))
-	RoleStore = store.NewStore[authmodel.Role](baldgorm.NewGormProvider(db, func(r *authmodel.Role) string { return r.ID }), store.WithPlatformLevel[authmodel.Role]())
-	SecretStore = store.NewStore[authmodel.Secret](baldgorm.NewGormProvider(db, func(s *authmodel.Secret) string { return s.ID }))
-	TenantStore = store.NewStore[authmodel.Tenant](baldgorm.NewGormProvider(db, func(t *authmodel.Tenant) string { return t.ID }), store.WithPlatformLevel[authmodel.Tenant]())
-	MenuStore = store.NewStore[authmodel.Menu](baldgorm.NewGormProvider(db, func(m *authmodel.Menu) string { return m.ID }), store.WithPlatformLevel[authmodel.Menu]())
-	PermissionStore = store.NewStore[authmodel.Permission](baldgorm.NewGormProvider(db, func(p *authmodel.Permission) string { return p.ID }), store.WithPlatformLevel[authmodel.Permission]())
-	RolePolicyStore = store.NewStore[authmodel.RolePolicy](baldgorm.NewGormProvider(db,
-		func(p *authmodel.RolePolicy) string { return p.ID }), store.WithPlatformLevel[authmodel.RolePolicy]())
-	DictTypeStore = store.NewStore[authmodel.DictType](baldgorm.NewGormProvider(db, func(t *authmodel.DictType) string { return t.ID }))
-	DictEntryStore = store.NewStore[authmodel.DictEntry](baldgorm.NewGormProvider(db, func(e *authmodel.DictEntry) string { return e.ID }))
-	LanguageStore = store.NewStore[authmodel.Language](baldgorm.NewGormProvider(db, func(l *authmodel.Language) string { return l.ID }), store.WithPlatformLevel[authmodel.Language]())
-	FileStore = store.NewStore[authmodel.File](baldgorm.NewGormProvider(db, func(f *authmodel.File) string { return f.ID }))
-	// T6：审计查询仓储（自增主键）。2026-09-22 统一分页风格后走
-	// ListWithPaging，页大小经 WithPageSize/WithMaxPageSize 配置——
-	// 保持原 auditlog 业务常量 50/200（审计记录量大，防大结果集拖垮查询；
-	// 框架默认 10/100 会让每页从 50 掉到 10，是行为回退）。
-	// 注意：租户隔离由 translate→mergeTenant 自动注入（本域原为跨租户全量，
-	// 现为仅本租户可见，见 biz/v1/auditlog 包注释）。
-	AuditStore = store.NewStore[authmodel.AuditRecord](baldgorm.NewGormProvider(db, func(r *authmodel.AuditRecord) string {
-		return strconv.FormatUint(uint64(r.ID), 10)
-	}), store.WithPageSize[authmodel.AuditRecord](50), store.WithMaxPageSize[authmodel.AuditRecord](200))
-	// Wave 1.5：MFA 因子仓储（业务键主键，同 RolePolicy 范式）。
-	MFAFactorStore = store.NewStore[authmodel.UserMFAFactor](baldgorm.NewGormProvider(db,
-		func(f *authmodel.UserMFAFactor) string { return f.ID }))
-	// Wave 1.6：凭证 + 登录策略仓储（业务键主键）。
-	CredentialStore = store.NewStore[authmodel.UserCredential](baldgorm.NewGormProvider(db,
-		func(c *authmodel.UserCredential) string { return c.ID }))
-	LoginPolicyStore = store.NewStore[authmodel.LoginPolicy](baldgorm.NewGormProvider(db,
-		func(p *authmodel.LoginPolicy) string { return p.ID }))
-	// Wave 1.7：组织单元（树）+ 职位仓储。
-	OrgUnitStore = store.NewStore[authmodel.OrgUnit](baldgorm.NewGormProvider(db,
-		func(o *authmodel.OrgUnit) string { return o.ID }))
-	PositionStore = store.NewStore[authmodel.Position](baldgorm.NewGormProvider(db,
-		func(p *authmodel.Position) string { return p.ID }))
-	// Wave 2.3：任务定义仓储。
-	TaskStore = store.NewStore[authmodel.Task](baldgorm.NewGormProvider(db,
-		func(t *authmodel.Task) string { return t.ID }))
-	// Wave 2.5：站内消息三表。
-	MessageStore = store.NewStore[authmodel.InternalMessage](baldgorm.NewGormProvider(db,
-		func(m *authmodel.InternalMessage) string { return m.ID }))
-	MessageCategoryStore = store.NewStore[authmodel.InternalMessageCategory](baldgorm.NewGormProvider(db,
-		func(c *authmodel.InternalMessageCategory) string { return c.ID }))
-	RecipientStore = store.NewStore[authmodel.InternalMessageRecipient](baldgorm.NewGormProvider(db,
-		func(r *authmodel.InternalMessageRecipient) string { return r.ID }))
-	// Wave 4.1：权限组 + 策略评估日志。
-	PermGroupStore = store.NewStore[authmodel.PermissionGroup](baldgorm.NewGormProvider(db,
-		func(g *authmodel.PermissionGroup) string { return g.ID }))
-	PolicyEvalLogStore = store.NewStore[authmodel.PolicyEvaluationLog](baldgorm.NewGormProvider(db,
-		func(l *authmodel.PolicyEvaluationLog) string { return l.ID }))
-	// Wave 4.2：套餐三件套。
-	PlanStore = store.NewStore[authmodel.Plan](baldgorm.NewGormProvider(db,
-		func(p *authmodel.Plan) string { return p.ID }))
-	PlanModuleStore = store.NewStore[authmodel.PlanModule](baldgorm.NewGormProvider(db,
-		func(m *authmodel.PlanModule) string { return m.ID }))
-	PlanQuotaStore = store.NewStore[authmodel.PlanQuota](baldgorm.NewGormProvider(db,
-		func(q *authmodel.PlanQuota) string { return q.ID }))
-	if err := seed(ctx); err != nil {
-		return err
+	// Wave 5（建议二）：仓储聚合为**显式返回值**，不再写入包级变量。
+	repos := &Repositories{
+		User: store.NewStore[authmodel.User](baldgorm.NewGormProvider(db, func(u *authmodel.User) string { return u.ID })),
+		Role: store.NewStore[authmodel.Role](baldgorm.NewGormProvider(db, func(r *authmodel.Role) string { return r.ID }), store.WithPlatformLevel[authmodel.Role]()),
+		Secret: store.NewStore[authmodel.Secret](baldgorm.NewGormProvider(db, func(s *authmodel.Secret) string { return s.ID })),
+		Tenant: store.NewStore[authmodel.Tenant](baldgorm.NewGormProvider(db, func(t *authmodel.Tenant) string { return t.ID }), store.WithPlatformLevel[authmodel.Tenant]()),
+		Menu:   store.NewStore[authmodel.Menu](baldgorm.NewGormProvider(db, func(m *authmodel.Menu) string { return m.ID }), store.WithPlatformLevel[authmodel.Menu]()),
+		Permission: store.NewStore[authmodel.Permission](baldgorm.NewGormProvider(db, func(p *authmodel.Permission) string { return p.ID }), store.WithPlatformLevel[authmodel.Permission]()),
+		RolePolicy: store.NewStore[authmodel.RolePolicy](baldgorm.NewGormProvider(db,
+			func(p *authmodel.RolePolicy) string { return p.ID }), store.WithPlatformLevel[authmodel.RolePolicy]()),
+		DictType:  store.NewStore[authmodel.DictType](baldgorm.NewGormProvider(db, func(t *authmodel.DictType) string { return t.ID })),
+		DictEntry: store.NewStore[authmodel.DictEntry](baldgorm.NewGormProvider(db, func(e *authmodel.DictEntry) string { return e.ID })),
+		Language:  store.NewStore[authmodel.Language](baldgorm.NewGormProvider(db, func(l *authmodel.Language) string { return l.ID }), store.WithPlatformLevel[authmodel.Language]()),
+		File:      store.NewStore[authmodel.File](baldgorm.NewGormProvider(db, func(f *authmodel.File) string { return f.ID })),
+		// T6：审计查询仓储（自增主键）。2026-09-22 统一分页风格后走
+		// ListWithPaging，页大小经 WithPageSize/WithMaxPageSize 配置——
+		// 保持原 auditlog 业务常量 50/200（审计记录量大，防大结果集拖垮查询；
+		// 框架默认 10/100 会让每页从 50 掉到 10，是行为回退）。
+		// 注意：租户隔离由 translate→mergeTenant 自动注入（本域原为跨租户全量，
+		// 现为仅本租户可见，见 biz/v1/auditlog 包注释）。
+		Audit: store.NewStore[authmodel.AuditRecord](baldgorm.NewGormProvider(db, func(r *authmodel.AuditRecord) string {
+			return strconv.FormatUint(uint64(r.ID), 10)
+		}), store.WithPageSize[authmodel.AuditRecord](50), store.WithMaxPageSize[authmodel.AuditRecord](200)),
+		// Wave 1.5：MFA 因子仓储（业务键主键，同 RolePolicy 范式）。
+		MFAFactor: store.NewStore[authmodel.UserMFAFactor](baldgorm.NewGormProvider(db,
+			func(f *authmodel.UserMFAFactor) string { return f.ID })),
+		// Wave 1.6：凭证 + 登录策略仓储（业务键主键）。
+		Credential: store.NewStore[authmodel.UserCredential](baldgorm.NewGormProvider(db,
+			func(c *authmodel.UserCredential) string { return c.ID })),
+		LoginPolicy: store.NewStore[authmodel.LoginPolicy](baldgorm.NewGormProvider(db,
+			func(p *authmodel.LoginPolicy) string { return p.ID })),
+		// Wave 1.7：组织单元（树）+ 职位仓储。
+		OrgUnit: store.NewStore[authmodel.OrgUnit](baldgorm.NewGormProvider(db,
+			func(o *authmodel.OrgUnit) string { return o.ID })),
+		Position: store.NewStore[authmodel.Position](baldgorm.NewGormProvider(db,
+			func(p *authmodel.Position) string { return p.ID })),
+		// Wave 2.3：任务定义仓储。
+		Task: store.NewStore[authmodel.Task](baldgorm.NewGormProvider(db,
+			func(t *authmodel.Task) string { return t.ID })),
+		// Wave 2.5：站内消息三表。
+		Message: store.NewStore[authmodel.InternalMessage](baldgorm.NewGormProvider(db,
+			func(m *authmodel.InternalMessage) string { return m.ID })),
+		MessageCategory: store.NewStore[authmodel.InternalMessageCategory](baldgorm.NewGormProvider(db,
+			func(c *authmodel.InternalMessageCategory) string { return c.ID })),
+		Recipient: store.NewStore[authmodel.InternalMessageRecipient](baldgorm.NewGormProvider(db,
+			func(r *authmodel.InternalMessageRecipient) string { return r.ID })),
+		// Wave 4.1：权限组 + 策略评估日志。
+		PermGroup: store.NewStore[authmodel.PermissionGroup](baldgorm.NewGormProvider(db,
+			func(g *authmodel.PermissionGroup) string { return g.ID })),
+		PolicyEvalLog: store.NewStore[authmodel.PolicyEvaluationLog](baldgorm.NewGormProvider(db,
+			func(l *authmodel.PolicyEvaluationLog) string { return l.ID })),
+		// Wave 4.2：套餐三件套。
+		Plan: store.NewStore[authmodel.Plan](baldgorm.NewGormProvider(db,
+			func(p *authmodel.Plan) string { return p.ID })),
+		PlanModule: store.NewStore[authmodel.PlanModule](baldgorm.NewGormProvider(db,
+			func(m *authmodel.PlanModule) string { return m.ID })),
+		PlanQuota: store.NewStore[authmodel.PlanQuota](baldgorm.NewGormProvider(db,
+			func(q *authmodel.PlanQuota) string { return q.ID })),
+	}
+	lastRepos = repos
+	if err := seed(ctx, repos); err != nil {
+		return nil, err
 	}
 
 	// 2.5) 多租户隔离（P8）：注册 tenant_id 维度，Store 查询自动注入等值过滤，
@@ -404,19 +424,20 @@ func InitBridges(ctx context.Context) error {
 	//    bald-authz-casbin，内嵌通用 RBAC 模型）。T3 起策略数据化装载（D3）：p 行读
 	//    RolePolicy 表、g 行读 User.Roles——静态 rbac_policy.csv 已删除，策略单一真源
 	//    收敛到 DB（改库重启即生效；无策略行时 casbin 默认拒绝，fail-closed）。
-	policyCSV, err := loadPolicyCSV(ctx)
+	policyCSV, err := loadPolicyCSV(ctx, repos)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	az, err := casbinauthz.New(policyCSV)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Wave 1d-3：用可热重载装饰器包装——运行期新增用户/改角色后，
 	// 业务调用 ReloadPolicies() 即可让新权限生效（否则须重启进程）。
 	// 重建函数复用 BuildAuthorizer（与首次构造同一逻辑，语义一致）。
+	// Wave 5：闭包捕获本次的 repos——重载读同一套仓储（C7 已核实该闭包在运行期触发）。
 	reloadable := appauthz.NewReloadable(az, func() (authz.Authorizer, error) {
-		return BuildAuthorizer(context.Background())
+		return BuildAuthorizer(context.Background(), repos)
 	})
 	// Wave 1.7：再包一层 object 别名装饰器。P9 归一化把 gRPC Service 名压成
 	// 无分隔小写（OrgUnitService→"orgunit"），而策略 object 沿用 HTTP 路径段
@@ -429,11 +450,11 @@ func InitBridges(ctx context.Context) error {
 
 	log.Info(ctx, "bridges initialized",
 		"authenticator", "bald-authn-jwt", "authorizer", "casbin", "store", "bald-store-gorm")
-	return nil
+	return repos, nil
 }
 
 // seed 写入 MVP 初始用户与角色（生产应走迁移脚本/初始化任务）。
-func seed(ctx context.Context) error {
+func seed(ctx context.Context, repos *Repositories) error {
 	// T2 租户种子：platform（平台租户，源 PlatformTenantID=0 等价物）、
 	// t-default/t-other 与存量 users/secrets 的租户维度对齐。
 	tenants := []*authmodel.Tenant{
@@ -442,7 +463,7 @@ func seed(ctx context.Context) error {
 		{ID: "t-other", Name: "第二租户", Status: "ON", Remark: "多租户隔离验证用"},
 	}
 	for _, t := range tenants {
-		if err := TenantStore.Create(ctx, t); err != nil && err != store.ErrConflict {
+		if err := repos.Tenant.Create(ctx, t); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
@@ -456,7 +477,7 @@ func seed(ctx context.Context) error {
 		{ID: authmodel.RoleSuperAdmin, Perms: ""},
 	}
 	for _, r := range roles {
-		if err := RoleStore.Create(ctx, r); err != nil && err != store.ErrConflict {
+		if err := repos.Role.Create(ctx, r); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
@@ -479,7 +500,7 @@ func seed(ctx context.Context) error {
 		{ID: "u-bob", Username: "bob", PasswordHash: string(aliceHash), TenantID: "t-other", Roles: "viewer"},
 	}
 	for _, u := range users {
-		if err := UserStore.Create(ctx, u); err != nil && err != store.ErrConflict {
+		if err := repos.User.Create(ctx, u); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
@@ -490,7 +511,7 @@ func seed(ctx context.Context) error {
 		{ID: "s-other-pwd", Name: "他租户口令", Content: "rds-t-other-1d4e8f", TenantID: "t-other"},
 	}
 	for _, s := range secrets {
-		if err := SecretStore.Create(ctx, s); err != nil && err != store.ErrConflict {
+		if err := repos.Secret.Create(ctx, s); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
@@ -511,7 +532,7 @@ func seed(ctx context.Context) error {
 		{ID: "menu-secret-delete", ParentID: "menu-secret", Type: "BUTTON", Name: "DeleteSecret", Path: "secret:delete", Title: "删除机密", Order: 1},
 	}
 	for _, m := range menus {
-		if err := MenuStore.Create(ctx, m); err != nil && err != store.ErrConflict {
+		if err := repos.Menu.Create(ctx, m); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
@@ -531,7 +552,7 @@ func seed(ctx context.Context) error {
 		{ID: "audit:list", Name: "查询审计日志", MenuIDs: "menu-audit"},
 	}
 	for _, p := range perms {
-		if err := PermissionStore.Create(ctx, p); err != nil && err != store.ErrConflict {
+		if err := repos.Permission.Create(ctx, p); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
@@ -545,7 +566,7 @@ func seed(ctx context.Context) error {
 		{ID: "yes_no", TenantID: "t-default", TypeName: "是否", SortOrder: 3},
 	}
 	for _, t := range dictTypes {
-		if err := DictTypeStore.Create(ctx, t); err != nil && err != store.ErrConflict {
+		if err := repos.DictType.Create(ctx, t); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
@@ -561,7 +582,7 @@ func seed(ctx context.Context) error {
 		{ID: "yes_no:n", TenantID: "t-default", TypeCode: "yes_no", Value: "n", Label: "否", Numeric: &num2, SortOrder: 2},
 	}
 	for _, e := range dictEntries {
-		if err := DictEntryStore.Create(ctx, e); err != nil && err != store.ErrConflict {
+		if err := repos.DictEntry.Create(ctx, e); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
@@ -577,20 +598,20 @@ func seed(ctx context.Context) error {
 		{ID: "fr-FR", LanguageName: "法语", NativeName: "Français", IsEnabled: true, SortOrder: 100},
 	}
 	for _, l := range languages {
-		if err := LanguageStore.Create(ctx, l); err != nil && err != store.ErrConflict {
+		if err := repos.Language.Create(ctx, l); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
 	// T3 角色策略种子（casbin p 行数据化，D3）：内容与被删除的静态 rbac_policy.csv
 	// 等价（存量授权行为零回归）+ menu/permission 管理域（仅 admin 写，viewer 只读）。
 	// RolePolicy 自增主键无业务唯一键，防重复种子用「非空即跳过」。
-	return seedPolicies(ctx)
+	return seedPolicies(ctx, repos)
 }
 
 // seedPolicies 种子化 casbin p 行（角色策略）。等价旧静态 rbac_policy.csv 的
 // 全部授权语义；g 行（subject→角色）不落表，装载时从 User.Roles 生成。
 // 主键 role:object:action 冲突即重复策略，防重与其他种子同构（ErrConflict 容忍）。
-func seedPolicies(ctx context.Context) error {
+func seedPolicies(ctx context.Context, repos *Repositories) error {
 	policies := []authmodel.RolePolicy{
 		// admin：机密/认证/管理面（M6.1 起存量）。
 		{Role: "admin", Object: "secret", Action: "get"},
@@ -797,7 +818,7 @@ func seedPolicies(ctx context.Context) error {
 	for i := range policies {
 		p := policies[i]
 		p.ID = p.Role + ":" + p.Object + ":" + p.Action
-		if err := RolePolicyStore.Create(ctx, &p); err != nil && err != store.ErrConflict {
+		if err := repos.RolePolicy.Create(ctx, &p); err != nil && err != store.ErrConflict {
 			return err
 		}
 	}
@@ -857,12 +878,12 @@ func resolveRedis() (addr, password string, db int) {
 //
 // 返回 csv 文本注入 contrib casbin。空库 → 空 csv → casbin 默认拒绝（fail-closed），
 // 即「无策略时全部请求 403」——授权不因缺数据而放开。
-func loadPolicyCSV(ctx context.Context) (string, error) {
-	policies, _, err := RolePolicyStore.List(ctx, &store.Where{})
+func loadPolicyCSV(ctx context.Context, repos *Repositories) (string, error) {
+	policies, _, err := repos.RolePolicy.List(ctx, &store.Where{})
 	if err != nil {
 		return "", fmt.Errorf("bootstrap: load role policies: %w", err)
 	}
-	users, _, err := UserStore.List(ctx, &store.Where{})
+	users, _, err := repos.User.List(ctx, &store.Where{})
 	if err != nil {
 		return "", fmt.Errorf("bootstrap: load users for policy: %w", err)
 	}

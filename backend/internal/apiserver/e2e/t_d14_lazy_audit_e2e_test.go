@@ -119,12 +119,13 @@ func TestD14_NilDBFailsOpen(t *testing.T) {
 //
 // 这是修复的**验收点**：审计写入后能在 AuditStore 查到。
 func TestD14_RealDBRecordsAudit(t *testing.T) {
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	ctx := context.Background()
 
-	before, err := bootstrappkg.AuditStore.Count(ctx, &store.Where{})
+	before, err := repos.Audit.Count(ctx, &store.Where{})
 	if err != nil {
 		t.Fatalf("count before: %v", err)
 	}
@@ -139,7 +140,7 @@ func TestD14_RealDBRecordsAudit(t *testing.T) {
 		Result:   audit.ResultAllow,
 	})
 
-	after, err := bootstrappkg.AuditStore.Count(ctx, &store.Where{})
+	after, err := repos.Audit.Count(ctx, &store.Where{})
 	if err != nil {
 		t.Fatalf("count after: %v", err)
 	}
@@ -148,7 +149,7 @@ func TestD14_RealDBRecordsAudit(t *testing.T) {
 	}
 
 	// 直查确认内容正确（不只看计数）。
-	recs, _, err := bootstrappkg.AuditStore.List(ctx, &store.Where{})
+	recs, _, err := repos.Audit.List(ctx, &store.Where{})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}

@@ -12,10 +12,11 @@ import (
 // TestSecretBiz_TenantIsolation 锁定 M6.3 真实 DAL + 多租户隔离：
 // t-default 用户可读本租户 secret，跨租户 s-other-pwd 被 store 隔离为 not found。
 func TestSecretBiz_TenantIsolation(t *testing.T) {
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	biz := New(bootstrappkg.SecretStore, nil) // 构造期注入仓储；缓存禁用（直连 store）。
+	repos = bootstrappkg.LastRepositories()
+	biz := New(repos.Secret, nil) // 构造期注入仓储；缓存禁用（直连 store）。
 
 	ctxDefault := contextx.WithTenantID(context.Background(), "t-default")
 	ctxOther := contextx.WithTenantID(context.Background(), "t-other")

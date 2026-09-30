@@ -31,10 +31,11 @@ import (
 // RED：修复前，连续 N 次调用在同一时钟粒度内撞键，Create 返回 conflict。
 // GREEN：修复后，N 次调用全部成功且 ID 互异。
 func TestRecordEvaluation_ConsecutiveIDsUnique(t *testing.T) {
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	biz := New(bootstrappkg.PermGroupStore, bootstrappkg.PolicyEvalLogStore)
+	repos = bootstrappkg.LastRepositories()
+	biz := New(repos.PermGroup, repos.PolicyEvalLog)
 	ctx := context.Background()
 
 	// 连续写 20 条（远超任何时钟粒度下的撞键概率窗口）。

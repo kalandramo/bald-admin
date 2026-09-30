@@ -40,53 +40,53 @@ import (
 // InitializeBiz 由 wire 生成实现：显式拼装 cache + 各 biz，依赖图编译期校验。
 //
 // Wave 3：各 biz 的仓储改为**构造期注入**（此前 biz 在请求期读 bootstrap 包级
-// 变量）。前提是 Wave 4.1 已把本函数的调用点移到 InitBridges **之后**——故此处
-// 读 bootstrap.XxxStore 拿到的是已就绪的真实实例，不再有「构造期快照固化 nil」。
+// 变量）。Wave 5：仓储经参数传入（InitBridges 的返回值 Repositories），bootstrap
+// 不再有包级 store 变量。
 // （本文件为 wire 生成产物；wire 本项目未启用 wire.Build 生成链，故此处手工维护，
 // 与 internal/apiserver/biz/v1/* 的 New 签名保持同步——见「待处理事项」。）
-func InitializeBiz() (*apiserver.BizSet, error) {
+func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 	mainSigner := provideSigner()
-	biz := auth.New(mainSigner, bootstrap.UserStore, bootstrap.TenantStore, bootstrap.ReloadPolicies)
+	biz := auth.New(mainSigner, repos.User, repos.Tenant, bootstrap.ReloadPolicies)
 	mainRedisAddr := provideRedisAddr()
 	cache, err := newRedisCache(mainRedisAddr)
 	if err != nil {
 		return nil, err
 	}
-	secretBiz := secret.New(bootstrap.SecretStore, cache)
-	tenantBiz := tenant.New(bootstrap.TenantStore)
-	userBiz := user.New(bootstrap.UserStore)
-	menuBiz := menu.New(bootstrap.MenuStore)
-	permissionBiz := permission.New(bootstrap.PermissionStore, bootstrap.RolePolicyStore)
-	dictBiz := dict.New(bootstrap.DictTypeStore, bootstrap.DictEntryStore, cache)
+	secretBiz := secret.New(repos.Secret, cache)
+	tenantBiz := tenant.New(repos.Tenant)
+	userBiz := user.New(repos.User)
+	menuBiz := menu.New(repos.Menu)
+	permissionBiz := permission.New(repos.Permission, repos.RolePolicy)
+	dictBiz := dict.New(repos.DictType, repos.DictEntry, cache)
 	// T5：文件 biz——元数据仓储 Wave 3 起构造期注入（InitBridges 已赋值）。
 	// MinIO 桥接与 file.bucket 兜底桶名仍为运行期：storage.minio/s3 段经契约
 	// provider 在 FromBootstrap 阶段 B 构造，构造期可能为 nil，main.go 在
 	// InitBridges 之后经 SetStorage/SetObjectStorage 补注；未配置时保持 nil，
 	// biz 内判 nil 返回明确错误。
-	fileBiz := file.New(bootstrap.FileStore, bootstrap.MinioStorage, bootstrap.FileBucket)
+	fileBiz := file.New(repos.File, bootstrap.MinioStorage, bootstrap.FileBucket)
 	// T6：审计查询 biz（只读，数据由写路径审计落库）。
-	auditLogBiz := auditlog.New(bootstrap.AuditStore)
+	auditLogBiz := auditlog.New(repos.Audit)
 	// Wave 1.5：MFA biz——因子仓储构造期注入；挑战存储（Redis）仍在 BeforeStart
 	// 经 SetChallenges 补注（与 file.SetStorage / auth.SetCaptchaStore 同款时序约定）。
-	mfaBiz := mfabiz.New(bootstrap.MFAFactorStore, nil)
+	mfaBiz := mfabiz.New(repos.MFAFactor, nil)
 	// Wave 1.6：identity 扩展域（credential + login_policy）。
-	identityBiz := identitybiz.New(bootstrap.CredentialStore, bootstrap.LoginPolicyStore)
+	identityBiz := identitybiz.New(repos.Credential, repos.LoginPolicy)
 	// Wave 1.7：组织架构（org_unit 树 + position）。
-	orgBiz := orgbiz.New(bootstrap.OrgUnitStore, bootstrap.PositionStore, bootstrap.UserStore)
+	orgBiz := orgbiz.New(repos.OrgUnit, repos.Position, repos.User)
 	// Wave 2.3：任务调度（scheduler 在 BeforeStart 后经 SetScheduler 注入）。
-	taskBiz := taskbiz.New(bootstrap.TaskStore)
+	taskBiz := taskbiz.New(repos.Task)
 	// Wave 2.5：站内消息（三表）。
-	messageBiz := msgbiz.New(bootstrap.MessageStore, bootstrap.MessageCategoryStore,
-		bootstrap.RecipientStore, bootstrap.UserStore)
+	messageBiz := msgbiz.New(repos.Message, repos.MessageCategory,
+		repos.Recipient, repos.User)
 	// Wave 3.4：首页分析（只读聚合）。
-	dashboardBiz := dashbiz.New(bootstrap.AuditStore, bootstrap.RoleStore, bootstrap.UserStore)
+	dashboardBiz := dashbiz.New(repos.Audit, repos.Role, repos.User)
 	// Wave 4.1：权限组 + 策略评估日志。
-	permGroupBiz := pgbiz.New(bootstrap.PermGroupStore, bootstrap.PolicyEvalLogStore)
+	permGroupBiz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
 	// Wave 4.2：套餐三件套。
-	planBiz := planbiz.New(bootstrap.PlanStore, bootstrap.PlanModuleStore, bootstrap.PlanQuotaStore)
-	languageBiz := langbiz.New(bootstrap.LanguageStore)
-	portalBiz := portalbiz.New(bootstrap.UserStore, bootstrap.RoleStore,
-		bootstrap.PermissionStore, bootstrap.MenuStore)
+	planBiz := planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota)
+	languageBiz := langbiz.New(repos.Language)
+	portalBiz := portalbiz.New(repos.User, repos.Role,
+		repos.Permission, repos.Menu)
 	cacheMonitorBiz := cmbiz.New(bootstrap.RedisClient)
 	// T10：BizSet 收敛到 apiserver 包（bizset.go）；cache 留在装配局部
 	// （仅 secret/dict 消费，server 层不知缓存实现）。

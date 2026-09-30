@@ -43,9 +43,10 @@ func statusCode(t *testing.T, err error) string {
 // startServer 构造受 Authn+Authz 保护的真实 gRPC server（:0 动态端口，标准 proto codec）。
 func startServer(t *testing.T) (*grpcserver.GRPCServer, string) {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	authnI := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		return grpcmw.AuthnInterceptor(bootstrappkg.Authenticator)(ctx, req, info, handler)
 	}
@@ -61,8 +62,8 @@ func startServer(t *testing.T) (*grpcserver.GRPCServer, string) {
 			grpc.ChainUnaryInterceptor(grpcmw.ErrorInterceptor(), authnI, authzI),
 		},
 		func(s *grpc.Server) {
-			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(bootstrappkg.SecretStore, nil)))
-			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New(bootstrappkg.UserStore)))
+			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(repos.Secret, nil)))
+			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New(repos.User)))
 		},
 	)
 	lis, err := listenLocal()
@@ -135,7 +136,7 @@ func TestGRPCTransport_Admin_OK(t *testing.T) {
 	defer conn.Close()
 
 	own := &authmodel.Secret{ID: "s-grpc-del-temp", Name: "待删资源", Content: "x", TenantID: "t-default"}
-	if err := bootstrappkg.SecretStore.Create(context.Background(), own); err != nil {
+	if err := repos.Secret.Create(context.Background(), own); err != nil {
 		t.Fatalf("seed temp secret: %v", err)
 	}
 
@@ -234,9 +235,10 @@ func TestGRPCTransport_MultiTenant_Isolation(t *testing.T) {
 // 链（认证/授权/多租户）。T2 起 REST GET /v1/user 经转码进入 UserService.ListUsers，
 // 跨租户隔离同样生效。
 func TestRESTGateway_MultiTenant_Isolation(t *testing.T) {
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
+	repos = bootstrappkg.LastRepositories()
 	// 后端 gRPC（:0 不可用于转码转发，故用 freeAddr 确定端口）。
 	grpcLis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -255,8 +257,8 @@ func TestRESTGateway_MultiTenant_Isolation(t *testing.T) {
 		&bootstrapv1.Server_Grpc{Addr: grpcAddr},
 		[]grpc.ServerOption{grpc.ChainUnaryInterceptor(grpcmw.ErrorInterceptor(), authnI, authzI)},
 		func(s *grpc.Server) {
-			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(bootstrappkg.SecretStore, nil)))
-			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New(bootstrappkg.UserStore)))
+			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(repos.Secret, nil)))
+			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New(repos.User)))
 		},
 	)
 	go func() { _ = grpcSrv.Serve(grpcLis) }()

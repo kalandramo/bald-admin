@@ -40,18 +40,19 @@ import (
 
 func startMessageREST(t *testing.T) string {
 	t.Helper()
-	if err := bootstrappkg.InitBridges(context.Background()); err != nil {
+	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
 	}
-	authBiz := authbiz.New(bootstrappkg.Signer, bootstrappkg.UserStore, bootstrappkg.TenantStore, bootstrappkg.ReloadPolicies)
+	repos = bootstrappkg.LastRepositories()
+	authBiz := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
 	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(bootstrappkg.SecretStore, nil), Tenant: tenantbiz.New(bootstrappkg.TenantStore),
-		User: userbiz.New(bootstrappkg.UserStore), Menu: menubiz.New(bootstrappkg.MenuStore), Permission: permissionbiz.New(bootstrappkg.PermissionStore, bootstrappkg.RolePolicyStore),
-		Dict: dictbiz.New(bootstrappkg.DictTypeStore, bootstrappkg.DictEntryStore, nil), File: filebiz.New(bootstrappkg.FileStore, nil, ""), AuditLog: auditlogbiz.New(bootstrappkg.AuditStore),
-		Task: taskbiz.New(bootstrappkg.TaskStore), Message: msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore),
+		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
+		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
+		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
+		Task: taskbiz.New(repos.Task), Message: msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User),
 	})
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -139,7 +140,7 @@ func TestWave2_5_SendIdempotent(t *testing.T) {
 	admin := loginAs(t, base, "admin", "admin123")
 	_ = base
 
-	biz := msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore)
+	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
 	ctx := context.Background()
 	tenant := "t-default"
 
@@ -261,7 +262,7 @@ func TestWave2_5_InboxLifecycle(t *testing.T) {
 	base := startMessageREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 
-	biz := msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore)
+	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
 	ctx := context.Background()
 	uid := "u-lifecycle-" + msgSuffix()
 
@@ -321,7 +322,7 @@ func TestWave2_5_Revoke(t *testing.T) {
 	base := startMessageREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 
-	biz := msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore)
+	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
 	ctx := context.Background()
 	suffix := msgSuffix()
 	u1, u2 := "u-rv1-"+suffix, "u-rv2-"+suffix
@@ -372,7 +373,7 @@ func TestWave2_5_MessageCRUD(t *testing.T) {
 	base := startMessageREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 
-	biz := msgbiz.New(bootstrappkg.MessageStore, bootstrappkg.MessageCategoryStore, bootstrappkg.RecipientStore, bootstrappkg.UserStore)
+	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
 	ctx := context.Background()
 
 	// 创建草稿。
