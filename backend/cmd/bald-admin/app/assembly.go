@@ -43,6 +43,8 @@ import (
 	"github.com/kalandramo/bald/log/bslog"
 	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/pkg/authn"
+	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
 	"github.com/kalandramo/bald/transport"
 	"github.com/kalandramo/bald/transport/asynq"
@@ -267,18 +269,31 @@ func newApp(
 	// app 先声明再进闭包：WithBeforeStart 在 Run 期才执行，届时已赋值
 	//（FromBootstrap 同款模式）。
 	//
-	// Wave 4.1：额外服务器（SSE / asynq）在构造期构造，但它们的**biz 接线**
-	// （wireMessageSSE / SetScheduler）依赖 Run 期构造的 bizSet，故两变量在此
-	// 声明、构造期赋值、钩子内做 biz 接线（钩子定义在其后，闭包按引用捕获）。
+	// Wave 4（建议一）：authenticator/authorizer 提升到函数作用域——它们在 Run 期
+	// 装配钩子内构造（依赖 InitBridges 建立的 store/Redis），再供两个**运行期**
+	// 消费者读取：
+	//   - appkit.WithGRPCOptions 的选项工厂（gRPC 拦截器链，Run 期 server 构造点求值）；
+	//   - appkit.WithExtraServerFunc 的 SSE 工厂。
+	// 二者都在业务 beforeStart 之后执行，届时读到真实实例——不再需要请求期解析的
+	// lateAuthn/lateAuthz（Wave 4 已删）。
+	//
+	// asynq：构造期构造（不依赖认证器），其 **biz 接线**（SetScheduler）依赖 Run 期
+	// 构造的 bizSet，故变量在此声明、构造期赋值、钩子内接线（闭包按引用捕获）。
 	var (
-		sseSrv   transport.Server
-		asynqSrv transport.Server
+		authenticator authn.Authenticator
+		authorizer    authz.Authorizer
+		asynqSrv      transport.Server
 	)
 	var app *appkit.AppKit
 	opts := []appkit.BootstrapOption{
 		// --- 能力声明（代码提供） ---
 		appkit.WithHTTP(router),
-		appkit.WithGRPC(registerGRPC, newGRPCServerOptions()...),
+		// Wave 4（建议一）：拦截器链改**运行期求值**——工厂在 Run 期 server 构造点
+		// 调用（业务 beforeStart 之后），可读上方运行期赋值的 authenticator/authorizer。
+		appkit.WithGRPC(registerGRPC),
+		appkit.WithGRPCOptions(func() []grpc.ServerOption {
+			return newGRPCServerOptions(authenticator, authorizer)
+		}),
 		// 健康检查默认装配：HTTP 双探针 + gRPC health 状态联动（新版归位后的唯一入口）。
 		appkit.WithHealth(healthChecker),
 
@@ -383,8 +398,10 @@ func newApp(
 				bootstrappkg.TokenStore = tokenStore
 			}
 			// 认证器：有 Redis 时带吊销检查（登出即时生效）；无 Redis 退化为纯验签。
-			authenticator := token.NewRevocationChecker(bootstrappkg.Authenticator, tokenStore)
-			authorizer := bootstrappkg.Authorizer
+			// Wave 4：赋给**函数作用域**变量（非 `:=` 新建）——运行期 gRPC 选项工厂
+			// 与 SSE 工厂读取同一实例。
+			authenticator = token.NewRevocationChecker(bootstrappkg.Authenticator, tokenStore)
+			authorizer = bootstrappkg.Authorizer
 			// Wave 4.1：业务装配（wire 构造 biz + 路由注册 + gRPC 服务注册）在此
 			// 运行期钩子内完成——此刻 store / Redis / TokenStore 已由 InitBridges
 			// 建立，biz 不再需要「构造期占位 + 请求期解析」。
@@ -401,12 +418,8 @@ func newApp(
 			apiserver.RegisterRoutes(router, authenticator, authorizer, bizSet)
 			// M10.2 管理面：运行期组件观测与热插拔（appRef 在 app.Run 前 set）。
 			registerAdminRoutes(router, appRef, authenticator, authorizer, componentFactories)
-			// Wave 3.2：把 message 域接到 SSE（源 RegisterInternalMessagePublisher）。
-			// SSE 未装配（sseSrv nil）时 wireMessageSSE 返回原 biz——降级为
-			// 「只落库不推送」。Wave 4.1：接线移到此处（bizSet 运行期才构造）。
-			if sseSrv != nil && bizSet != nil {
-				wireMessageSSE(sseSrv, bizSet.Message)
-			}
+			// Wave 3.2：message 域 → SSE 的接线已移入 WithExtraServerFunc 的 SSE
+			// 工厂（Wave 4）——那里在构造 SSE 后立即 wireMessageSSE(srv, bizSet.Message)。
 			// Wave 2.3：把 asynq server 适配为 task.Scheduler 注入 biz。
 			// 类型断言取回 *asynq.Server（buildAsynqServer 的返回类型是接口）。
 			if as, ok := asynqSrv.(*asynq.Server); ok && bizSet != nil && bizSet.Task != nil {
@@ -533,15 +546,23 @@ func newApp(
 	// Wave 3.1/3.2：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
 	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
 	//
-	// Wave 4.2：SSE 服务器在**构造期**创建（早于 InitBridges），其 authorize 钩子
-	// 在请求期执行——故认证器经本包 lateAuthn 请求期解析（见 latebinding.go）。
-	if built, serr := buildSSEServer(context.Background(), loadSSEConfig(svrOpts),
-		lateAuthn{}); serr != nil {
-		return nil, fmt.Errorf("build sse server: %w", serr)
-	} else if built != nil {
-		sseSrv = built
-		opts = append(opts, appkit.WithExtraServers(sseSrv))
-	}
+	// Wave 4（建议一）：SSE 改**运行期构造**（appkit.WithExtraServerFunc）——工厂在
+	// Run 期 server 构造点调用（业务 beforeStart 之后），彼时 InitBridges 已建好
+	// authenticator。biz 接线（wireMessageSSE）**一并移入工厂**：工厂返回服务器后
+	// 立即接线，故可在同一时机拿到 bizSet（而非等下方业务钩子里再补——那里 sseSrv
+	// 还是 nil）。未配置 SSE 时工厂返回 (nil, nil)，框架跳过追加（见 appkit
+	// extraServerFns 钩子的 srv != nil 判据）。
+	opts = append(opts, appkit.WithExtraServerFunc(func(ctx context.Context) (transport.Server, error) {
+		srv, err := buildSSEServer(ctx, loadSSEConfig(svrOpts), authenticator)
+		if err != nil {
+			return nil, fmt.Errorf("build sse server: %w", err)
+		}
+		if srv == nil || bizSet == nil {
+			return srv, nil
+		}
+		wireMessageSSE(srv, bizSet.Message)
+		return srv, nil
+	}))
 
 	// Wave 2.4：cron 定时器（逃生舱，决策与约束见 cron.go 文件头）。
 	// cron 无需外部依赖，总是启用。

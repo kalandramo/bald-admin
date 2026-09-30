@@ -22,13 +22,15 @@ import (
 	validation "github.com/kalandramo/bald-admin/internal/security/validation"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
+	"github.com/kalandramo/bald/pkg/authn"
+	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
 	grpcmw "github.com/kalandramo/bald/pkg/middleware/grpc"
 	"github.com/kalandramo/bald/transport"
 	gateway "github.com/kalandramo/bald/transport/gateway"
 )
 
-func newGRPCServerOptions() []grpc.ServerOption {
+func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Authorizer) []grpc.ServerOption {
 	// M10.1（P10 验证）：gRPC 无公开方法（全部需认证），整条链切 bundle——
 	// Error→RequestID→Observability→Authn→Audit→Authz 链序由 bundle 固化，
 	// 替代此前手写的 7 段拦截器组装（authnInterceptor/authzInterceptor 闭包删除）。
@@ -37,11 +39,12 @@ func newGRPCServerOptions() []grpc.ServerOption {
 	// bundle 显式接 Nop，请求审计与认证失败审计（bundle 会把 auditor 注入
 	// AuthnInterceptor）均静默失效。
 	grpcBundle := bundle.New(
-		// Wave 4.2：gRPC 拦截器链在**构造期**创建（Options 在 WithGRPC 时求值），
-		// 早于 InitBridges——故认证/授权经本包的 lateAuthn/lateAuthz 请求期解析
-		//（见 latebinding.go：该约束源自构造顺序，无法靠 Wave 4.1 消除）。
-		bundle.Authn(lateAuthn{}),
-		bundle.Authz(lateAuthz{}),
+		// Wave 4（建议一）：本函数经 appkit.WithGRPCOptions 在**运行期**（Run 期
+		// server 构造点、业务 beforeStart 之后）调用——彼时 InitBridges 已建好
+		// 真实 Authenticator/Authorizer，故直接持有真实实例，不再需要请求期解析
+		// 的 lateAuthn/lateAuthz 间接层。
+		bundle.Authn(authenticator),
+		bundle.Authz(authorizer),
 		bundle.Audit(securityaudit.Global()), // 动态转发：契约轨装配/热切轨切换即时生效
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
 		bundle.Normalized(), // P9：FullMethod → 与 HTTP 同源的权限点
