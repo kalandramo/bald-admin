@@ -523,8 +523,8 @@ github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
-github.com/kalandramo/bald v0.16.1 h1:3ziVsDi5Cz44nTiq97Cc/C8SbcC6sWMUDyRdLPm+x70=
-github.com/kalandramo/bald v0.16.1/go.mod h1:wM0NBUE8ZA+pwOfebf+9vMcGnEoDjvNcCt7EgqIQAgE=
+github.com/kalandramo/bald v0.17.0 h1:IJUIbtBd/QluqjENdHC8pxWmnLwBwmed76ksqMg5H6c=
+github.com/kalandramo/bald v0.17.0/go.mod h1:wM0NBUE8ZA+pwOfebf+9vMcGnEoDjvNcCt7EgqIQAgE=
 github.com/kalandramo/bald-crud/viewer v0.3.0 h1:qzFgCqZxxYks6qmtpTnTNYZ0+yM+AvQsnMVdZB+j55g=
 github.com/kalandramo/bald-crud/viewer v0.3.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
 github.com/kalandramo/bald/bconf v0.7.2 h1:9kajZIh3i9wonO2ShsgFe3iUFbiETyDQ2mWmA3Td/p8=
@@ -549,10 +549,10 @@ github.com/kalandramo/bald/circuitbreaker v0.1.0 h1:EKyGiuXMEfZnefemwvMe1fnMlfpB
 github.com/kalandramo/bald/circuitbreaker v0.1.0/go.mod h1:Ewecj3esrO6ZIM+UCrWib/JgIR84K3ltqJ7ROqZKNaQ=
 github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0 h1:ImfMDcRm+2ohQzhGbJi6ozyfoAwz796IIx3alHMtoMg=
 github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0/go.mod h1:goiDBDW18JkLe8ESnTGnDGAQUtsUs7DJmuUc9gxce0I=
-github.com/kalandramo/bald/contrib/audit-gorm v0.1.0 h1:YMkoENrpwN7JBydsZewlIW8x1SQEmg4MUyyUtXSp3F4=
-github.com/kalandramo/bald/contrib/audit-gorm v0.1.0/go.mod h1:m5UmZ+J1l0E+juF1PE1Vwxyubp9SkM/mqyLOtCMoK4c=
-github.com/kalandramo/bald/contrib/audit-stream v0.1.0 h1:S08HEfs7UPiyLJahsdJkDk90pqGGA7iDtcIiQBSWmRw=
-github.com/kalandramo/bald/contrib/audit-stream v0.1.0/go.mod h1:ARrwGCoshACDoYniKAZDWEbpmHBdzpbN3WUAi24ANBU=
+github.com/kalandramo/bald/contrib/audit-gorm v0.2.0 h1:IYG+QigrXcPesvHLHSBCCRGuasN7GN7tUqpIJAglu9g=
+github.com/kalandramo/bald/contrib/audit-gorm v0.2.0/go.mod h1:GmfQuvQwGvGHTiBo8dS08XpoBsJNDgEpARUkGG7rmjE=
+github.com/kalandramo/bald/contrib/audit-stream v0.3.0 h1:Y9EKAq0CPTqvBK7W7xJkDnvrrjgPXv1Zpp0w0UStffg=
+github.com/kalandramo/bald/contrib/audit-stream v0.3.0/go.mod h1:OaKrSmnvcoW9JeGgrWtHXttAbCMTyS8CK9UuW7l6N0I=
 github.com/kalandramo/bald/contrib/authn-jwt v0.1.4 h1:JGrDbdxYYsgdYCkpiwgEQfFXtK4Z2+CP7ehF0JCh8sM=
 github.com/kalandramo/bald/contrib/authn-jwt v0.1.4/go.mod h1:a45ewvm48NHe+6hV9ranj1cT+cKDZPmD/C0X9RBczVU=
 github.com/kalandramo/bald/contrib/authz-casbin v0.1.0 h1:3i2Ls9H1xGXx2lz+t6+VfGKLzeUn5P6QHhDJ4RRiCZs=

@@ -12,10 +12,11 @@ package audit
 //
 // ## 为何下沉到本包（而非留在 cmd/bald-admin）
 //
-// 生产路径（cmd/bald-admin/audit_wiring.go 的 lazyStoreAuditor）与 e2e
-// 路径（t6/t_w5_1 用 securityaudit.NewStore）**必须共用同一映射**——否则
-// 两条路径落库的列不同，e2e 测不出生产行为（分叉即静默失效）。本包是审计
-// 桥接层，是两条路径的公共汇合点，映射放这里最自然。
+// 生产路径（cmd/bald-admin/app/audit_wiring.go 的 provider，经
+// securityaudit.NewStore 构造）与 e2e 路径（t6/t_w5_1 亦用
+// securityaudit.NewStore）**共用同一映射**——否则两条路径落库的列不同，
+// e2e 测不出生产行为（分叉即静默失效）。本包是审计桥接层，是两条路径的
+// 公共汇合点，映射放这里最自然。
 //
 // 列名靠 gorm 默认蛇形映射（`HTTPMethod` → `http_method` 等），与框架默认
 // 模型的 12 列同名同列，故 `AutoMigrate` 无冲突。

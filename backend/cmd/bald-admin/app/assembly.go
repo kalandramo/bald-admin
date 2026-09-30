@@ -578,10 +578,10 @@ func newApp(
 		opts = append(opts, appkit.WithExtraServers(asynqSrv))
 	}
 
-	// D14 修复：注册审计后端 provider（store 惰性绑定 DB）。
-	// **必须在 FromBootstrap 之前**——registry 是 BootstrapOption；
-	// 但传入的是惰性工厂，真正的 DB 解析推迟到运行期首个审计事件
-	// （见 audit_wiring.go 文件头：appkit 的 buildAudit 先于 buildDatabases）。
+	// 审计后端 provider 注册（store 后端）。**必须在 FromBootstrap 之前**——
+	// registry 是 BootstrapOption；但 provider 本身在阶段 B 才被调用，届时
+	// res 已含装配完成的 database 客户端（框架保证 buildAudit 排在
+	// buildDatabases 之后），故构造期即取真实 DB——不再有惰性包装。
 	opts = append(opts, appkit.WithAuditRegistry(auditRegistry()))
 
 	app, err = appkit.FromBootstrap(bootstrap, opts...)
