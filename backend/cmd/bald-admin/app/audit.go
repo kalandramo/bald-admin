@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
+	auditstream "github.com/kalandramo/bald/contrib/audit-stream"
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/audit"
@@ -88,8 +90,11 @@ func (c *auditBackendComponent) Dispose(ctx context.Context) error {
 
 // buildAuditBackend 构造某后端的审计器（log 始终可用；store/stream 依赖桥接就绪）。
 // 桥接未就绪时返回 nil，协调器会跳过该后端（旁路语义，绝不阻断启动）。
-
-func buildAuditBackend(name string) audit.Auditor {
+//
+// streamName/streamBuf 是 stream 后端参数（取自协调器配置快照
+// audit.stream.stream / audit.stream.buffer）。空值/0 走实现缺省
+// （"audit.events" / 1024）——此前忽略该配置会导致声明被静默丢弃。
+func buildAuditBackend(name, streamName string, streamBuf int) audit.Auditor {
 	switch name {
 	case "log":
 		return securityaudit.New()
@@ -101,7 +106,13 @@ func buildAuditBackend(name string) audit.Auditor {
 		// D1：底层 client 经 bootstrap.RedisClient 复用（cache/redis 适配器
 		// 不暴露 client）；nil 即无 Redis，跳过该后端。
 		if bootstrappkg.RedisClient != nil {
-			return securityaudit.NewStream(bootstrappkg.RedisClient)
+			// stream/buffer 取自协调器配置快照。空串/0 由实现兜底
+			// （WithStream 对空串保持缺省 "audit.events"、New 对
+			// buffer<=0 回落到 1024），故直接传即可。
+			return securityaudit.NewStream(bootstrappkg.RedisClient,
+				auditstream.WithStream(streamName),
+				auditstream.WithBuffer(streamBuf),
+			)
 		}
 	}
 	return nil
@@ -129,8 +140,19 @@ func reconcileAudit(ctx context.Context, rctx *appkit.ReconcileCtx) error {
 		"add", strings.Join(add, ","), "remove", strings.Join(remove, ","))
 
 	// 新增：期望有、实际无 → 逐后端 Mount（底层 A1 组件生命周期 + 重组审计）。
+	// stream 后端参数取自协调器的配置快照（rctx 读 audit.stream.* 键）——
+	// 与期望态同源，热切换时新参数随之生效。
+	streamName := rctx.String("audit.stream.stream")
+	streamBuf := 0
+	if v := rctx.String("audit.stream.buffer"); v != "" {
+		if n, perr := strconv.Atoi(v); perr == nil {
+			streamBuf = n
+		}
+	}
 	for _, name := range add {
-		comp := &auditBackendComponent{name: name, build: func() audit.Auditor { return buildAuditBackend(name) }}
+		comp := &auditBackendComponent{name: name, build: func() audit.Auditor {
+			return buildAuditBackend(name, streamName, streamBuf)
+		}}
 		if err := rctx.Mount(ctx, comp.Name(), comp); err != nil {
 			// 失败不回滚，下次协调按实际态（reconItems）重新 diff 补齐。
 			baldlog.Error(ctx, "reconcile mount audit backend failed",

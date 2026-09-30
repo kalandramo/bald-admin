@@ -34,14 +34,19 @@ package app
 
 import (
 	"context"
+	"errors"
 
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/audit"
 
 	auditgorm "github.com/kalandramo/bald/contrib/audit-gorm"
+	auditstream "github.com/kalandramo/bald/contrib/audit-stream"
+	streamcontract "github.com/kalandramo/bald/contrib/audit-stream/contract"
+	goredis "github.com/redis/go-redis/v9"
 	gormpkg "gorm.io/gorm"
 
+	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 )
 
@@ -58,9 +63,13 @@ func auditRegistry() *appkit.AuditRegistry {
 // provider 在阶段 B 被调用时，res 已含装配完成的 database 客户端（框架保证
 // buildAudit 排在 buildDatabases 之后），故直接取真实 DB。
 //
-// 只注册 `store`：`stream` 的 provider 构造即需要 redis 客户端，当前配置未
-// 启用（见 configs/bald-admin.yaml 注释）；如需启用，按同款从
-// res.Cache("redis") 取实例即可。
+// 注册两个后端：
+//   - `store`：落库（同步，gorm）。DB 取自 res.Database("sql")，回退包级 DB。
+//   - `stream`：Redis Stream 异步后端。redis 客户端取自包级 RedisClient——
+//     它由 CacheProvider（buildCaches，阶段 B 且早于 buildAudit）经
+//     BuildRedisCache→UseRedisClient 填充；未配置 cache.redis 段时为 nil，
+//     此时 provider 返回错误（fail-fast：配置声明了 stream 却无 Redis 可用，
+//     属配置意图无法兑现，比静默降级可操作）。
 func registerAuditProviders(reg *appkit.AuditRegistry) {
 	reg.MustRegister("store", func(_ context.Context,
 		cfg *bootstrapv1.Audit, res *appkit.AppKit) (audit.Auditor, func(context.Context) error, error) {
@@ -78,6 +87,46 @@ func registerAuditProviders(reg *appkit.AuditRegistry) {
 		}
 		return securityaudit.NewStore(db), nil, nil
 	})
+
+	// stream 后端：**必须闭包内取** redis 客户端。
+	//
+	// 为何不用 streamcontract.NewStreamProvider(rdb)：它在 auditRegistry()
+	// 调用时即求值 rdb（构造期，早于阶段 B 的 buildCaches），会把 nil 固化进
+	// 闭包——实测表现为 `audit-stream: nil redis client`。与 store 分支同理：
+	// 依赖必须在**消费时点**（阶段 B 的 buildAudit）读取，而非注册时点。
+	reg.MustRegister(streamcontract.TypeStream, func(_ context.Context,
+		cfg *bootstrapv1.Audit, res *appkit.AppKit) (audit.Auditor, func(context.Context) error, error) {
+		rdb := resolveAuditRedis(res)
+		if rdb == nil {
+			return nil, nil, errors.New(
+				"audit-stream: no redis client (configure cache.redis, or drop \"stream\" from audit.backends)")
+		}
+		s := cfg.GetStream()
+		srv := auditstream.New(rdb,
+			auditstream.WithStream(s.GetStream()),
+			auditstream.WithBuffer(int(s.GetBuffer())),
+		)
+		if srv == nil {
+			return nil, nil, errors.New("audit-stream: nil redis client")
+		}
+		// cleanup 即 StreamAuditor.Close（停后台 goroutine + drain 尾批缓冲）。
+		return srv, func(context.Context) error { return srv.Close() }, nil
+	})
+}
+
+// resolveAuditRedis 返回审计 stream 后端用的 Redis 客户端（消费时点求值）。
+//
+// 取自包级 RedisClient——CacheProvider 在阶段 B 的 buildCaches 经
+// BuildRedisCache→UseRedisClient 填充，而 buildAudit 排在 buildCaches 之后，
+// 故此处读到的已是真实实例。
+//
+// res.Cache("redis") 不是候选：cache.Cache 适配器**刻意不暴露底层 client**
+// （见 cache/redis 包注释），而 stream 后端需原生 Redis 命令（XADD）。
+//
+// 注意：本函数是普通函数而非闭包字段——调用方（provider 闭包）在阶段 B
+// 才调用它，故拿到的是彼时的值。若改成在注册时求值会固化 nil（已踩过）。
+func resolveAuditRedis(_ *appkit.AppKit) goredis.UniversalClient {
+	return bootstrappkg.RedisClient
 }
 
 // resolveAuditDB 从已装配资源取审计落库用的 *gorm.DB。

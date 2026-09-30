@@ -15,11 +15,14 @@ import (
 // D1：入参类型为 redis.UniversalClient（与 cache/redis 适配器、contrib/audit-stream
 // 的 New 一致）——原 *redis.Client 是旧 cache-redis 的 Client() 返回类型，已随该
 // 组件删除而调整。
-func NewStream(rdb redis.UniversalClient) *auditstream.StreamAuditor {
+//
+// opts 透传给 auditstream.New（如 WithStream/WithBuffer）——调用方若需按契约段
+// 定制 stream 名/缓冲，传对应 Option；不传走实现缺省（"audit.events" / 1024）。
+func NewStream(rdb redis.UniversalClient, opts ...auditstream.Option) *auditstream.StreamAuditor {
 	if rdb == nil {
 		return nil
 	}
-	return auditstream.New(rdb)
+	return auditstream.New(rdb, opts...)
 }
 
 // NewMulti 构造组合审计后端（转发框架核心 MultiAuditor；空切片返回 nop）。
