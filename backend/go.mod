@@ -4,10 +4,18 @@
 // 若放进核心 module，这些依赖会进入核心依赖图。独立成 module 后，
 // 重依赖只存在于本 go.sum，核心 go.mod 保持最小。
 //
-// 依赖 bald v0.2.x 与各子模块 tag（bconf/transport/contrib 等，均经
+// 依赖 bald 与各子模块 tag（bconf/transport/contrib 等，均经
 // github.com/kalandramo/bald 仓库 submodule tag 发布）——零 replace，
 // clone 本仓库即可独立构建。若需联调本地 bald 改动，临时加
 // `go mod edit -replace=github.com/kalandramo/bald=../../bald` 即可。
+//
+// 升级注意（2026-09 实测）：
+//  1. bald 与 bootstrap 是**两个独立 module**（tag 命名空间分别为 vX.Y.Z 与
+//     bootstrap/vX.Y.Z）。跨子模块新增 API 时须**同时**发子模块 tag 并升本文件
+//     对应 require，否则 root 新版仍拿不到子模块新符号（消费方构建失败）。
+//  2. 发布后**不可依赖改写 tag**：Go module 代理把已缓存版本视为不可变快照，
+//     删 tag 重推不会传播（goproxy.cn/goproxy.io 均实测复现）。修正只能递增
+//     版本号重发（即 v0.16.0 的构建缺陷由 v0.16.1 修正，而非重推 v0.16.0）。
 //
 // 本示例用 bald 重构 go-wind-admin/backend，验证 P0–P9 在真实业务下的可用性；
 // 设计见 docs/设计文档.md，分层参考 osbuilder 脚手架模板。
@@ -28,10 +36,10 @@ require (
 	github.com/google/wire v0.7.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald v0.15.0
+	github.com/kalandramo/bald v0.16.1
 	github.com/kalandramo/bald/bconf v0.7.2
 	github.com/kalandramo/bald/berrors v0.1.1
-	github.com/kalandramo/bald/bootstrap v0.8.0
+	github.com/kalandramo/bald/bootstrap v0.9.0
 	github.com/kalandramo/bald/broker v0.1.0
 	github.com/kalandramo/bald/broker/redis v0.1.3
 	github.com/kalandramo/bald/cache v0.1.1
