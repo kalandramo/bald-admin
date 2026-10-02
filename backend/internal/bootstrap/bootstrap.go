@@ -870,6 +870,19 @@ func resolveRedis() (addr, password string, db int) {
 	return rc.GetAddr(), rc.GetPassword(), int(rc.GetDb())
 }
 
+// ResolveRedisAddr 返回生效的 Redis 地址（空串 = 未配置，消费方降级）。
+//
+// 供**运行期**消费者（asynq 服务器构造）使用——与 resolveRedis 同源同优先级
+// （env BALD_ADMIN_REDIS_ADDR > 契约段 cache.redis），避免两条链各读一处。
+//
+// 时序约束：须在 Configure（注入契约段）之后调用。构造期调用会因
+// depsBootstrap 尚未注入而只看到 env 通道——这正是 asynq 此前「配置文件里
+// 配了 cache.redis 也不生效」的根因（见 cmd/bald-admin/app/asynq.go 注释）。
+func ResolveRedisAddr() string {
+	addr, _, _ := resolveRedis()
+	return addr
+}
+
 // dsnScheme 的解析逻辑已上提 contrib/store-gorm（Open 的 scheme 推断）。
 
 // loadPolicyCSV 从 DB 装载 casbin 策略（D3 策略数据化）：

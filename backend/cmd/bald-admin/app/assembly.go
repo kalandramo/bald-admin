@@ -277,12 +277,12 @@ func newApp(
 	// 二者都在业务 beforeStart 之后执行，届时读到真实实例——不再需要请求期解析的
 	// lateAuthn/lateAuthz（Wave 4 已删）。
 	//
-	// asynq：构造期构造（不依赖认证器），其 **biz 接线**（SetScheduler）依赖 Run 期
-	// 构造的 bizSet，故变量在此声明、构造期赋值、钩子内接线（闭包按引用捕获）。
+	// asynq：**已移入 WithExtraServerFunc 工厂**（W2 修订）——运行期构造使其能读
+	// 契约段 cache.redis；biz 接线（SetScheduler）也在工厂内完成，故不再需要
+	// 跨作用域变量（原 asynqSrv 已删）。
 	var (
 		authenticator authn.Authenticator
 		authorizer    authz.Authorizer
-		asynqSrv      transport.Server
 	)
 	var app *appkit.AppKit
 	opts := []appkit.BootstrapOption{
@@ -420,13 +420,8 @@ func newApp(
 			apiserver.RegisterRoutes(router, authenticator, authorizer, bizSet)
 			// M10.2 管理面：运行期组件观测与热插拔（appRef 在 app.Run 前 set）。
 			registerAdminRoutes(router, appRef, authenticator, authorizer, componentFactories)
-			// Wave 3.2：message 域 → SSE 的接线已移入 WithExtraServerFunc 的 SSE
-			// 工厂（Wave 4）——那里在构造 SSE 后立即 wireMessageSSE(srv, bizSet.Message)。
-			// Wave 2.3：把 asynq server 适配为 task.Scheduler 注入 biz。
-			// 类型断言取回 *asynq.Server（buildAsynqServer 的返回类型是接口）。
-			if as, ok := asynqSrv.(*asynq.Server); ok && bizSet != nil && bizSet.Task != nil {
-				bizSet.Task.SetScheduler(newAsynqScheduler(as))
-			}
+			// Wave 2.3：asynq → task.Scheduler 的接线已移入 WithExtraServerFunc
+			// 的 asynq 工厂（W2 修订）——那里构造后立即 SetScheduler。
 			// T8：文件存储运行期接线。
 			//
 			// Wave 4.1 后此处已非必需：InitializeBiz 现于 InitBridges **之后**执行
@@ -538,13 +533,33 @@ func newApp(
 	// 二选一」，与本范例「gin 主面 + 独立转码面并存」不匹配。
 	opts = append(opts, appkit.WithExtraServers(buildGateway(bootstrap, svrOpts)...))
 
-	// Wave 2.1：asynq 任务队列服务器（逃生舱，决策见 asynq.go 文件头）。
-	// 无 Redis 地址时 buildAsynqServer 返回 nil，WithExtraServers 收到 nil 会
-	// panic——故先判空再追加。
-	asynqSrv, aerr := buildAsynqServer(context.Background(), asynqRedisAddr(svrOpts), asynqCodecName(svrOpts))
-	if aerr != nil {
-		return nil, fmt.Errorf("build asynq server: %w", aerr)
-	}
+	// Wave 2.1 + W2 修订：asynq 任务队列服务器（逃生舱，决策见 asynq.go 文件头）。
+	//
+	// **运行期构造**（与 SSE 同款 WithExtraServerFunc）——原为构造期构造，
+	// 那时配置尚未解码、契约段 cache.redis 也尚未装配，asynqRedisAddr 只能读到
+	// env 默认值，导致「配置文件里配了 cache.redis 仍不启用 asynq」（实测复现）。
+	// 工厂在业务 beforeStart（含 InitBridges/WireCache）之后、servers.Start 之前
+	// 执行，故可直接解析契约段地址；且仍在 Start 之前注册处理器（asynq 的硬约束：
+	// handler 在 Start 时绑定 mux，之后再注册无效）。
+	//
+	// biz 接线（SetScheduler）**一并移入工厂**（照搬 SSE 的做法）：工厂返回服务器
+	// 后立即接线，可在同一时机拿到 bizSet，避免跨作用域变量的时序坑。
+	// 无 Redis 地址时工厂返回 (nil, nil)，框架跳过追加（见 appkit extraServerFns
+	// 钩子的 srv != nil 判据），task 域退化为 ErrNoScheduler（显式错误非静默降级）。
+	opts = append(opts, appkit.WithExtraServerFunc(func(ctx context.Context) (transport.Server, error) {
+		srv, err := buildAsynqServer(ctx, asynqRedisAddr(), asynqCodecName(svrOpts))
+		if err != nil {
+			return nil, fmt.Errorf("build asynq server: %w", err)
+		}
+		if srv == nil {
+			return nil, nil
+		}
+		// Wave 2.3：把 asynq server 适配为 task.Scheduler 注入 biz。
+		if as, ok := srv.(*asynq.Server); ok && bizSet != nil && bizSet.Task != nil {
+			bizSet.Task.SetScheduler(newAsynqScheduler(as))
+		}
+		return srv, nil
+	}))
 	// Wave 3.1/3.2：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
 	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
 	//
@@ -572,10 +587,6 @@ func newApp(
 		return nil, fmt.Errorf("build cron server: %w", cerr)
 	} else if cronSrv != nil {
 		opts = append(opts, appkit.WithExtraServers(cronSrv))
-	}
-
-	if asynqSrv != nil {
-		opts = append(opts, appkit.WithExtraServers(asynqSrv))
 	}
 
 	// 审计后端 provider 注册（store 后端）。**必须在 FromBootstrap 之前**——

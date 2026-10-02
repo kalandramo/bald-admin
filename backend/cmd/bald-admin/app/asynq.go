@@ -26,6 +26,8 @@ package app
 import (
 	"context"
 	"fmt"
+
+	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 
 	"github.com/kalandramo/bald/encoding"
@@ -99,14 +101,20 @@ func asynqCodecName(opts *options.ServerOptions) string {
 	return opts.Asynq.Codec
 }
 
-// asynqRedisAddr 返回 asynq 用的 Redis 地址（W2 收敛：取自 ServerOptions.Redis.Addr，
-// 其默认值来源为 env BALD_ADMIN_REDIS_ADDR，集中在 NewServerOptions 内读取）。
+// asynqRedisAddr 返回 asynq 用的 Redis 地址。
 //
-// 注意时序：本函数在 FromBootstrap **之前**调用（构造期），此时 RedisClient
-// 可能尚未装配（BeforeStart 才赋值）。故用配置对象的**默认值通道**（构造期
-// 已就位），而非装载后的解码值——与替换前「构造期读 env」的时序约束一致。
-func asynqRedisAddr(opts *options.ServerOptions) string {
-	return opts.Redis.Addr
+// **运行期调用**（Wave 4 起，由 WithExtraServerFunc 的工厂触发）——彼时
+// WireCache 已把契约装配的 cache.redis 实例记入连接缓存，故可直接用契约段。
+//
+// 来源优先级与 InitBridges 的 resolveRedis 一致：env BALD_ADMIN_REDIS_ADDR
+// （覆盖手段）> 契约段 cache.redis。收敛到 bootstrap.ResolveRedisAddr 单一实现，
+// 避免「同源配置多条链」（W2 的既有教训）。
+//
+// 历史：本函数原在**构造期**调用，那时配置尚未解码、契约段也尚未装配，只能读
+// 环境变量的默认值通道——导致「配置文件里配了 cache.redis 也无法启用 asynq」
+// （实测：仅配 cache.redis 时 asynq 零日志）。改为运行期求值后消除该缺口。
+func asynqRedisAddr() string {
+	return bootstrappkg.ResolveRedisAddr()
 }
 
 // registerAsynqHandlers 注册任务处理器（Wave 2.3 task 域消费）。
