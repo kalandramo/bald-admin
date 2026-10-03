@@ -8,16 +8,16 @@
 //
 // ## 实测发现的两个关键约束（探针确认，记录为 D11）
 //
-// 1. **`NewTimerJob` 接受 6 字段 cron（含秒），与 asynq 的 5 字段相反**：
-//    `bald/transport/cron/server.go:66-68` 的 parser **硬编码**包含 `cron.Second`
-//    （`cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow`）。
-//    因此 `"*/10 * * * * *"`（6 字段）合法，而 `"*/5 * * * *"`（5 字段）会解析失败。
-//    **同一个框架内两个调度组件用不同的 cron 字段数**——极易混淆。
+//  1. **`NewTimerJob` 接受 6 字段 cron（含秒），与 asynq 的 5 字段相反**：
+//     `bald/transport/cron/server.go:66-68` 的 parser **硬编码**包含 `cron.Second`
+//     （`cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow`）。
+//     因此 `"*/10 * * * * *"`（6 字段）合法，而 `"*/5 * * * *"`（5 字段）会解析失败。
+//     **同一个框架内两个调度组件用不同的 cron 字段数**——极易混淆。
 //
-// 2. **契约的 `server.cron.seconds` 字段实际无效**：
-//    `bald/transport/cron/options.go:33-38` 的 `WithSeconds` 是**空实现**
-//    （函数体只有注释「默认已启用秒级，此选项保留用于未来扩展」）。
-//    故契约里配 `seconds: false` 不会有任何效果——秒级始终启用。
+//  2. **契约的 `server.cron.seconds` 字段实际无效**：
+//     `bald/transport/cron/options.go:33-38` 的 `WithSeconds` 是**空实现**
+//     （函数体只有注释「默认已启用秒级，此选项保留用于未来扩展」）。
+//     故契约里配 `seconds: false` 不会有任何效果——秒级始终启用。
 package app
 
 import (
@@ -25,21 +25,8 @@ import (
 	"fmt"
 
 	"github.com/kalandramo/bald/log"
-	"github.com/kalandramo/bald/transport"
 	"github.com/kalandramo/bald/transport/cron"
 )
-
-// buildCronServer 构造 cron 定时器服务器（Wave 2.4）。
-//
-// cron 无需外部依赖（进程内调度器），故**总是启用**——与 asynq 不同
-// （asynq 需 Redis，无 Redis 时不启用）。
-func buildCronServer(ctx context.Context) (transport.Server, error) {
-	srv := cron.NewServer()
-	if err := registerCronJobs(ctx, srv); err != nil {
-		return nil, err
-	}
-	return srv, nil
-}
 
 // registerCronJobs 注册周期任务（Wave 2.4 的验收：NewTimerJob 压真实周期任务）。
 //

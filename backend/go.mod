@@ -36,10 +36,10 @@ require (
 	github.com/google/wire v0.7.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald v0.17.0
-	github.com/kalandramo/bald/bconf v0.7.2
+	github.com/kalandramo/bald v0.19.0
+	github.com/kalandramo/bald/bconf v0.9.0
 	github.com/kalandramo/bald/berrors v0.1.1
-	github.com/kalandramo/bald/bootstrap v0.9.0
+	github.com/kalandramo/bald/bootstrap v0.10.0
 	github.com/kalandramo/bald/broker v0.1.0
 	github.com/kalandramo/bald/broker/redis v0.1.3
 	github.com/kalandramo/bald/cache v0.1.1
@@ -67,9 +67,9 @@ require (
 	github.com/kalandramo/bald/registry/nacos v0.1.0
 	github.com/kalandramo/bald/retry v0.1.0
 	github.com/kalandramo/bald/transport v0.2.1
-	github.com/kalandramo/bald/transport/asynq v0.1.0
-	github.com/kalandramo/bald/transport/cron v0.1.0
-	github.com/kalandramo/bald/transport/gateway v0.1.1
+	github.com/kalandramo/bald/transport/asynq v0.2.0
+	github.com/kalandramo/bald/transport/cron v0.3.0
+	github.com/kalandramo/bald/transport/gateway v0.2.0
 	github.com/kalandramo/bald/transport/grpc v0.1.1
 	github.com/kalandramo/bald/transport/sse v0.1.0
 	github.com/kalandramo/bald/transport/web v0.1.0

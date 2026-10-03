@@ -1,7 +1,34 @@
 server:
   http: { addr: ":8080" }
   grpc:  { addr: ":9090" }
-gateway: { addr: ":8081" }
+
+  # ---- Wave 4：协议服务器的契约装配（asynq / cron / gateway）----
+  #
+  # 三者原本走 appkit.WithExtraServers / WithExtraServerFunc 逃生舱；
+  # Wave 4 起由本仓注册的 provider 覆盖（见 cmd/bald-admin/app/registries.go
+  # 的 serverRegistry），改由契约段驱动。
+  #
+  # gateway：grpc-gateway REST 转码面（独立端口）。backend_grpc_addr 留空时
+  # 回退 server.grpc.addr。
+  gateway:
+    addr: ":8081"
+    # backend_grpc_addr: ":9090"   # 留空即用 server.grpc.addr
+
+  # asynq：任务队列（需 Redis）。redis_address 留空时回退
+  #   env BALD_ADMIN_REDIS_ADDR > 契约段 cache.redis（保既有部署兼容）。
+  # concurrency 缺省时用 asynq 实现默认（20）——此前硬编码为 4，故此处显式
+  # 写 4 以保持行为等价（迁移不引入并发度变更）。
+  asynq:
+    concurrency: 4
+    # codec: "json"                # 留空回退 env BALD_ADMIN_ASYNQ_CODEC
+    # queues: ["critical", "default"]  # 按优先级从高到低
+    # scheduler_enabled: true      # 未设置 → 实现默认
+
+  # cron：进程内定时调度器（无外部依赖）。seconds 默认启用（6 字段表达式）。
+  cron:
+    # seconds: true                # 未设置 → 实现默认（启用）
+    # location: "Asia/Shanghai"    # 留空用本地时区
+
 log: { level: "info", format: "json" }
 # audit.backends 逐项必须是**已注册**的 provider。当前注册了 `store` 与
 # `stream`（见 cmd/bald-admin/app/audit_wiring.go）。`stream` 需 cache.redis

@@ -31,3 +31,7 @@ coverage/
 # （buf.lock 已锁定依赖版本，重建结果确定）。
 # gen/go.mod + gen/go.sum **入库**——它们是隔离边界的声明，不是生成物。
 backend/api/protos-upstream/gen/go/
+
+# go.work：本地联调产物（跨仓 bald 子 module 引用），不入库
+backend/go.work
+backend/go.work.sum

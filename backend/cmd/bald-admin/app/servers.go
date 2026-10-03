@@ -16,18 +16,14 @@ import (
 	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/secret/v1"
 	tenantv1 "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1"
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
-	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	validation "github.com/kalandramo/bald-admin/internal/security/validation"
-	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
 	grpcmw "github.com/kalandramo/bald/pkg/middleware/grpc"
-	"github.com/kalandramo/bald/transport"
-	gateway "github.com/kalandramo/bald/transport/gateway"
 )
 
 func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Authorizer) []grpc.ServerOption {
@@ -61,52 +57,6 @@ func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Au
 	chain := append(grpcBundle.GRPCInterceptors(),
 		grpcmw.ValidatorInterceptor(validation.MustNew().Validate))
 	return []grpc.ServerOption{grpc.ChainUnaryInterceptor(chain...)}
-}
-
-// buildGateway 构造 grpc-gateway 第三服务器（U1：gRPC/HTTP 归 WithGRPC/WithHTTP
-// 契约装配，gateway 走 WithExtraServers 逃生舱——独立 :8081 与 gin 主面并存，
-// 契约 server.http.driver 的网关面模式是「同一端口二选一」，与此不匹配）。
-// 仅在注入 gatewayFactory 时挂载（默认构建即挂载，由 init 注入）。
-
-func buildGateway(
-	bootstrap *bootstrapv1.BootstrapConfig,
-	opts *options.ServerOptions,
-) []transport.Server {
-	if gatewayFactory == nil {
-		return nil
-	}
-	// gateway 需连到 gRPC 服务（用其监听地址，须可连接，不能是 :0）。
-	// gateway 配置在构造期即与 HTTP 同源绑定：地址走 ServerOptions.Gateway.Addr，
-	// TLS 直接取主 HTTP 的 http.tls 段，不再依赖 BeforeStart 运行时回填
-	//（消除全局可变态 + 时序耦合）。
-	gwHttpCfg := &bootstrapv1.Server_Http{Addr: gatewayAddr(opts)}
-	if t := bootstrap.GetServer().GetHttp(); t.GetTls() != nil {
-		gwHttpCfg.Tls = t.GetTls()
-	}
-	gw, err := gatewayFactory(gwHttpCfg, bootstrap.GetServer().GetGrpc())
-	if err != nil {
-		// 网关构造失败不应静默降级（否则 REST 路由凭空消失），直接 panic（fail-fast）。
-		panic("build gateway server: " + err.Error())
-	}
-	return []transport.Server{gw}
-}
-
-// gatewayFactory 构造 grpc-gateway 服务器（REST → gRPC 转码）。M5 默认挂载：
-// REST 请求经 registerGateway 转码进入 SecretService，复用同一 gRPC 拦截器链
-// （认证/授权/多租户）。
-//
-// 探针：第三服务器只是对外转码面，刻意不挂 /healthz /readyz——探针归主面
-// （:8080 由 appkit.WithHealth 默认装配），就绪状态同源，探主面即可。
-
-var gatewayFactory = func(httpCfg *bootstrapv1.Server_Http, grpcBackend *bootstrapv1.Server_Grpc) (*gateway.GatewayServer, error) {
-	return gateway.NewGatewayServer(httpCfg, grpcBackend, registerGateway)
-}
-
-// gatewayAddr 返回 gateway 监听地址（W2 收敛：由 ServerOptions.Gateway.Addr 提供，
-// 其默认值来源为 env BALD_GATEWAY_ADDR，缺省 :8081；与 HTTP 主服务分开避免端口冲突）。
-
-func gatewayAddr(opts *options.ServerOptions) string {
-	return opts.Gateway.Addr
 }
 
 // registerGateway 把 grpc-gateway 的 HTTP handler 注册到 runtime.ServeMux 并交回

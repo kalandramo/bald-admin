@@ -1,12 +1,14 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/spf13/pflag"
 
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
+	"github.com/kalandramo/bald-admin/internal/apiserver"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
@@ -16,6 +18,11 @@ import (
 	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/pkg/appkit"
 	nacoscontract "github.com/kalandramo/bald/registry/nacos/contract"
+	"github.com/kalandramo/bald/transport/asynq"
+	asynqcontract "github.com/kalandramo/bald/transport/asynq/contract"
+	"github.com/kalandramo/bald/transport/cron"
+	croncontract "github.com/kalandramo/bald/transport/cron/contract"
+	gatewaycontract "github.com/kalandramo/bald/transport/gateway/contract"
 )
 
 func tracerRegistry() *appkit.TracerRegistry {
@@ -38,8 +45,7 @@ func metricsRegistry() *appkit.MetricsRegistry {
 
 // applyObservabilityDefaults 在 FromBootstrap 构造前应用 bald-admin 的
 // 可观测性缺省态与 env 开关（U1：原 setupObservability 的缺省合成/env 半段
-// 前移——Build 半段归框架 buildObservability）：
-//   - metrics 段缺省 → 合成 `type: prometheus`（仅本地抓取，addr 缺省 :9091，
+// 前移——Build 半段归框架 buildObservability）：//   - metrics 段缺省 → 合成 `type: prometheus`（仅本地抓取，addr 缺省 :9091，
 //     T8 与 gRPC 错峰）——零配置可运行，冒烟/CI 不破；
 //   - BALD_ADMIN_METRICS_ADDR 覆盖暴露端口；BALD_ADMIN_OTLP_ADDR 覆盖双通道
 //     endpoint——只提供地址，不改变 type 声明的语义（配 prometheus 不会因
@@ -78,6 +84,25 @@ func applyObservabilityDefaults(bootstrap *bootstrapv1.BootstrapConfig, opts *op
 				tr.Otlp = &bootstrapv1.Tracer_Otlp{}
 			}
 			tr.Otlp.Endpoint = v
+		}
+	}
+
+	// Wave 4：server 协议段缺省合成（同 metrics 的「构造前填缺省」范式）。
+	//
+	// gateway / cron 此前由 bald-admin 的逃生舱**总是挂载**（gateway 由
+	// gatewayFactory 注入即挂载；cron 无外部依赖总启用）；迁到契约装配后，
+	// 「段缺失 = 不装配」会让它们默认消失——故合成默认段保持既有行为。
+	//
+	// 地址来源：ServerOptions.Gateway.Addr（env BALD_GATEWAY_ADDR / flag
+	// --gateway.addr，缺省 :8081）——迁到契约段后它不再有运行期消费者，
+	// 但作为「段未显式配置时的便捷通道」保留（与 U1 的 env 开关语义一致：
+	// 显式配置源配了 server.gateway 段则覆盖此合成值）。
+	if bootstrap.GetServer() != nil {
+		if bootstrap.GetServer().GetGateway() == nil && opts.Gateway.Addr != "" {
+			bootstrap.GetServer().Gateway = &bootstrapv1.Server_Gateway{Addr: opts.Gateway.Addr}
+		}
+		if bootstrap.GetServer().GetCron() == nil {
+			bootstrap.GetServer().Cron = &bootstrapv1.Server_Cron{}
 		}
 	}
 	return nil
@@ -168,6 +193,57 @@ func cacheRegistry() *baldbootstrap.CacheRegistry {
 	cr := baldbootstrap.NewCacheRegistry()
 	cr.MustRegister("redis", bootstrappkg.CacheProvider)
 	return cr
+}
+
+// serverRegistry 构造 server 协议域的契约装配注册表（Wave 4）。
+//
+// 注册三个后端子模块提供的 provider（框架不内置，见 bald bootstrap/server.go
+// 的 serverSections——asynq/cron/gateway 均为 implemented=false）：
+//
+//   - asynq：server.asynq 段 → transport/asynq/contract。任务 handler 注册与
+//     SetScheduler 接线在 provider 回调内完成（需 bizSet，故经 getter 传入）；
+//     段未配 redis_address / codec 时经 resolver 回退（保「配 cache.redis 即启用
+//     asynq」与 env BALD_ADMIN_ASYNQ_CODEC 的既有兼容）。
+//   - cron：server.cron 段 → transport/cron/contract。周期任务注册在回调内完成。
+//   - gateway：server.gateway 段 → transport/gateway/contract。转码注册回调复用
+//     本包的 registerGateway（与 HTTP 面同源）。
+//
+// bizGetter 返回**函数作用域**的 bizSet：provider 回调在 Run 期 server 构造点
+// 执行（业务 beforeStart 之后），届时 bizSet 已由 InitializeBiz 赋值——故用
+// getter 而非传值，保证读到最新引用。
+//
+// codecGetter 返回 ServerOptions.Asynq.Codec（env BALD_ADMIN_ASYNQ_CODEC 通道）。
+func serverRegistry(
+	bizGetter func() *apiserver.BizSet,
+	codecGetter func() string,
+) *baldbootstrap.ServerRegistry {
+	sr := baldbootstrap.NewServerRegistry()
+
+	sr.MustRegister(asynqcontract.Type, asynqcontract.Provider(
+		asynqcontract.WithCodecRegistration(registerAsynqCodecs),
+		asynqcontract.WithAddressResolver(bootstrappkg.ResolveRedisAddr),
+		asynqcontract.WithCodecResolver(codecGetter),
+		asynqcontract.WithHandlers(func(ctx context.Context, s *asynq.Server) error {
+			if err := registerAsynqHandlers(ctx, s); err != nil {
+				return err
+			}
+			// biz 接线：把 asynq server 适配为 task.Scheduler 注入 biz（Wave 2.3）。
+			if bs := bizGetter(); bs != nil && bs.Task != nil {
+				bs.Task.SetScheduler(newAsynqScheduler(s))
+			}
+			return nil
+		}),
+	))
+
+	sr.MustRegister(croncontract.Type, croncontract.Provider(
+		croncontract.WithJobs(func(s *cron.Server) error {
+			return registerCronJobs(context.Background(), s)
+		}),
+	))
+
+	sr.MustRegister(gatewaycontract.Type, gatewaycontract.Provider(registerGateway))
+
+	return sr
 }
 
 // buildLoginLimiter 从业务自持配置段构造登录限流器（Wave 1a）。

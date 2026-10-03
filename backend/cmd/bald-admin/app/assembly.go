@@ -47,7 +47,6 @@ import (
 	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
 	"github.com/kalandramo/bald/transport"
-	"github.com/kalandramo/bald/transport/asynq"
 )
 
 func serveRunE(_ *cobra.Command, _ []string) error {
@@ -330,6 +329,18 @@ func newApp(
 		appkit.WithTracerRegistry(tracerRegistry()),
 		appkit.WithMetricsRegistry(metricsRegistry()),
 
+		// Wave 4：server 协议域契约装配——asynq / cron / gateway 从逃生舱
+		// （WithExtraServers / WithExtraServerFunc）迁到契约驱动。
+		//
+		// provider 在本函数内构造（而非抽到 registries.go 的裸注册）：它们的回调
+		// 需读取**函数作用域**的 bizSet —— asynq 的 SetScheduler 与 handler 注册
+		// 都在 bizSet 就绪后执行（Run 期 server 构造点，业务 beforeStart 之后）。
+		// 传 getter（而非值）保证读到 Run 期赋值后的最新引用。
+		appkit.WithServerRegistry(serverRegistry(
+			func() *apiserver.BizSet { return bizSet },
+			func() string { return svrOpts.Asynq.Codec },
+		)),
+
 		// S1 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB
 		// 连接（BALD_ADMIN_DB_DSN，缺省 SQLite 内存），审计落库（StoreAuditor）依赖它。
 		appkit.WithProvides("db"),
@@ -528,38 +539,16 @@ func newApp(
 		}),
 	}
 
-	// M5：gateway 第三服务器（REST → gRPC 转码，独立 :8081 与 HTTP 主服务错峰）。
-	// WithExtraServers 逃生舱：契约 server.http.driver 的网关面模式是「同一端口
-	// 二选一」，与本范例「gin 主面 + 独立转码面并存」不匹配。
-	opts = append(opts, appkit.WithExtraServers(buildGateway(bootstrap, svrOpts)...))
+	// M5：gateway 转码面 —— 已迁到契约装配（server.gateway 段，见 WithServerRegistry）。
+	// 契约 server.http.driver 的「同端口二选一」表达不了「gin 主面 + 独立转码面并存」，
+	// 故用 server.gateway 段（独立 addr + backend_grpc_addr 回退 server.grpc.addr）。
 
-	// Wave 2.1 + W2 修订：asynq 任务队列服务器（逃生舱，决策见 asynq.go 文件头）。
-	//
-	// **运行期构造**（与 SSE 同款 WithExtraServerFunc）——原为构造期构造，
-	// 那时配置尚未解码、契约段 cache.redis 也尚未装配，asynqRedisAddr 只能读到
-	// env 默认值，导致「配置文件里配了 cache.redis 仍不启用 asynq」（实测复现）。
-	// 工厂在业务 beforeStart（含 InitBridges/WireCache）之后、servers.Start 之前
-	// 执行，故可直接解析契约段地址；且仍在 Start 之前注册处理器（asynq 的硬约束：
-	// handler 在 Start 时绑定 mux，之后再注册无效）。
-	//
-	// biz 接线（SetScheduler）**一并移入工厂**（照搬 SSE 的做法）：工厂返回服务器
-	// 后立即接线，可在同一时机拿到 bizSet，避免跨作用域变量的时序坑。
-	// 无 Redis 地址时工厂返回 (nil, nil)，框架跳过追加（见 appkit extraServerFns
-	// 钩子的 srv != nil 判据），task 域退化为 ErrNoScheduler（显式错误非静默降级）。
-	opts = append(opts, appkit.WithExtraServerFunc(func(ctx context.Context) (transport.Server, error) {
-		srv, err := buildAsynqServer(ctx, asynqRedisAddr(), asynqCodecName(svrOpts))
-		if err != nil {
-			return nil, fmt.Errorf("build asynq server: %w", err)
-		}
-		if srv == nil {
-			return nil, nil
-		}
-		// Wave 2.3：把 asynq server 适配为 task.Scheduler 注入 biz。
-		if as, ok := srv.(*asynq.Server); ok && bizSet != nil && bizSet.Task != nil {
-			bizSet.Task.SetScheduler(newAsynqScheduler(as))
-		}
-		return srv, nil
-	}))
+	// Wave 4：asynq 任务队列 —— 已迁到契约装配（server.asynq 段 + asynq contract）。
+	// 契约 provider 在 Run 期 server 构造点执行，可读 Run 期资源（cache.redis 段、
+	// bizSet）；handler 注册与 SetScheduler 接线都在 provider 回调内完成（见
+	// serverRegistry）。段未配 redis_address 时经 WithAddressResolver 回退
+	// bootstrap.ResolveRedisAddr（保既有「配 cache.redis 即启用」的兼容）。
+
 	// Wave 3.1/3.2：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
 	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
 	//
@@ -569,6 +558,10 @@ func newApp(
 	// 立即接线，故可在同一时机拿到 bizSet（而非等下方业务钩子里再补——那里 sseSrv
 	// 还是 nil）。未配置 SSE 时工厂返回 (nil, nil)，框架跳过追加（见 appkit
 	// extraServerFns 钩子的 srv != nil 判据）。
+	//
+	// 注：SSE 保持逃生舱——契约 server.sse 段无 provider，且其授权钩子绑定业务
+	// authenticator（契约段的声明式字段表达不了）。与 asynq/cron/gateway 不同：
+	// 后三者已由本仓 provider 覆盖（见 Wave 4 的 serverRegistry）。
 	opts = append(opts, appkit.WithExtraServerFunc(func(ctx context.Context) (transport.Server, error) {
 		srv, err := buildSSEServer(ctx, loadSSEConfig(svrOpts), authenticator)
 		if err != nil {
@@ -581,13 +574,8 @@ func newApp(
 		return srv, nil
 	}))
 
-	// Wave 2.4：cron 定时器（逃生舱，决策与约束见 cron.go 文件头）。
-	// cron 无需外部依赖，总是启用。
-	if cronSrv, cerr := buildCronServer(context.Background()); cerr != nil {
-		return nil, fmt.Errorf("build cron server: %w", cerr)
-	} else if cronSrv != nil {
-		opts = append(opts, appkit.WithExtraServers(cronSrv))
-	}
+	// Wave 4：cron 定时器 —— 已迁到契约装配（server.cron 段 + cron contract）。
+	// 周期任务注册在 provider 的 WithJobs 回调内完成（见 serverRegistry）。
 
 	// 审计后端 provider 注册（store 后端）。**必须在 FromBootstrap 之前**——
 	// registry 是 BootstrapOption；但 provider 本身在阶段 B 才被调用，届时

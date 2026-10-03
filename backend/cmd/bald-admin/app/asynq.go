@@ -27,9 +27,6 @@ import (
 	"context"
 	"fmt"
 
-	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
-	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
-
 	"github.com/kalandramo/bald/encoding"
 	"github.com/kalandramo/bald/encoding/json"
 	"github.com/kalandramo/bald/encoding/msgpack"
@@ -46,37 +43,6 @@ import (
 // 才暴露（且是「入队失败」而非启动失败）——故在装配期显式注册。
 var asynqCodecRegistered bool
 
-// buildAsynqServer 构造 asynq 任务服务器（Wave 2.1）。
-//
-// 返回 nil 表示未启用（无 Redis 地址）——调用方跳过注册，任务域退化为不可用
-// （与 file/redis 的同款降级语义：外部依赖缺失时该能力不可用，但**启动不阻断**）。
-//
-// **处理器在构造期注册**（不是 AfterStart）：asynq 的 handler 是**启动期配置**
-// ——`Start` 时绑定到 mux，启动后再注册无效（任务会被判为「无处理器」）。
-// 这是实测确认的时序约束（首版误放 AfterStart，任务入队后无消费者）。
-//
-// Wave 5.5：codec 由配置驱动（`asynq.codec`，默认 json）——压 `bald/encoding`
-// 轴（msgpack/proto 等替代 json）。**注册先于 WithCodec**：asynq 的
-// `WithCodec(name)` 内部 `encoding.GetCodec(name)` 对未注册名**静默设 nil**，
-// 故障延迟到首次入队才以 `codec is nil` 暴露——故此处显式注册后再传名。
-func buildAsynqServer(ctx context.Context, redisAddr, codecName string) (transport.Server, error) {
-	if redisAddr == "" {
-		return nil, nil
-	}
-	registerAsynqCodecs()
-
-	srv := asynq.NewServer(
-		asynq.WithRedisAddress(redisAddr),
-		// 并发度：契约段无此字段，正是「字段面不足」的体现（见文件头决策）。
-		asynq.WithConcurrency(4),
-		asynq.WithCodec(codecName),
-	)
-	if err := registerAsynqHandlers(ctx, srv); err != nil {
-		return nil, err
-	}
-	return srv, nil
-}
-
 // registerAsynqCodecs 注册 asynq 可用的全部 codec（幂等）。
 //
 // 注册 json 与 msgpack 两个：json 是缺省（`server.go:122` 默认 GetCodec("json")），
@@ -88,33 +54,6 @@ func registerAsynqCodecs() {
 	encoding.MustRegister(json.New())
 	encoding.MustRegister(msgpack.New())
 	asynqCodecRegistered = true
-}
-
-// asynqCodecName 返回 asynq 使用的 codec 名（配置 `asynq.codec`，默认 json）。
-//
-// 与 asynqRedisAddr 同款时序约束：本函数在 FromBootstrap **之前**调用（构造期），
-// 配置 store 尚未就绪，故读 env（`BALD_ADMIN_ASYNQ_CODEC`）作可靠路径。
-// 未配置时返回 "json"——与框架默认（server.go:122）一致，行为零回归。
-// asynqCodecName 返回 asynq 载荷编解码器名（W2 收敛：取自 ServerOptions.Asynq.Codec，
-// 其默认值来源为 env BALD_ADMIN_ASYNQ_CODEC，缺省 json）。
-func asynqCodecName(opts *options.ServerOptions) string {
-	return opts.Asynq.Codec
-}
-
-// asynqRedisAddr 返回 asynq 用的 Redis 地址。
-//
-// **运行期调用**（Wave 4 起，由 WithExtraServerFunc 的工厂触发）——彼时
-// WireCache 已把契约装配的 cache.redis 实例记入连接缓存，故可直接用契约段。
-//
-// 来源优先级与 InitBridges 的 resolveRedis 一致：env BALD_ADMIN_REDIS_ADDR
-// （覆盖手段）> 契约段 cache.redis。收敛到 bootstrap.ResolveRedisAddr 单一实现，
-// 避免「同源配置多条链」（W2 的既有教训）。
-//
-// 历史：本函数原在**构造期**调用，那时配置尚未解码、契约段也尚未装配，只能读
-// 环境变量的默认值通道——导致「配置文件里配了 cache.redis 也无法启用 asynq」
-// （实测：仅配 cache.redis 时 asynq 零日志）。改为运行期求值后消除该缺口。
-func asynqRedisAddr() string {
-	return bootstrappkg.ResolveRedisAddr()
 }
 
 // registerAsynqHandlers 注册任务处理器（Wave 2.3 task 域消费）。
