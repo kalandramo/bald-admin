@@ -134,25 +134,42 @@ func buildApp(
 	}
 
 	// M10.1（P10 验证）：横切关注点切 bundle 门面。
-	//   - gin 全局层：Recovery→RequestID→Logging→Audit（bundle 链序固化）。
-	//     Authn/Authz 不进全局 bundle——范例用「路由级分组保护」语义（/v1/login 必须公开），
-	//     分组链见 internal/apiserver/handler/gin/auth.go；bundle 的全局链模式与
-	//     分组保护模式是两种合法模式，范例各保其一（gRPC 侧为全 bundle 链）。
+	//   - gin 全局层：Recovery→RequestID→Tracing→Logging→CORS→Secure→Authn→Audit
+	//     （链序由 bundle 固化）。Authn/Authz 不进全局 bundle——范例用「路由级
+	//     分组保护」语义（/v1/login 必须公开），分组链见
+	//     internal/apiserver/handler/gin/auth.go；bundle 的全局链模式与分组保护
+	//     模式是两种合法模式，范例各保其一（gRPC 侧为全 bundle 链）。
 	//   - 增强点：切 bundle 后 /v1/login 也进入审计（此前散装手挂仅审计受保护路由）——
 	//     登录失败同样应留审计痕迹。
 	//   - T6 修复：审计层经 bundle.Audit 注入动态转发器（securityaudit.Global，
 	//     每次 Record 读全局）。此前散装 AuditMiddleware 在 main 期构造即快照
 	//     全局 nop（契约轨 BeforeStart 装配、R1-2 热切均晚于构造），请求审计
 	//     静默失效；收敛进 bundle 后由单层同时承担审计与指标（M8 同源 emit）。
-	ginBundle := bundle.New(
+	//
+	// 契约中间件段（server.http.middleware.*）：由 bundle.FromMiddleware 翻译为
+	// Option 后与上述业务 Option 合并。此前该段**七个子段全部零消费者**——配置
+	// 写了不生效（最坏形态：看起来生效了）。现在：
+	//   - recovery/request_id/logging 段缺失 → 保留 bundle 既有默认（链中仍在）；
+	//   - cors/tracing/rate_limit/timeout 段缺失 → 不挂（缺省不装配）；
+	//   - 段显式声明但非法（如 timeout.default_timeout_ms<=0）→ 构造期 fail-fast。
+	// 注：本仓 configs/bald-admin.yaml 的 server 段未声明 middleware，故默认行为
+	// 与迁移前完全一致；在配置里加 middleware 段即生效。
+	mwOpts, mwClose, err := bundle.FromMiddleware(
+		bootstrap.GetServer().GetHttp().GetMiddleware(),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("bundle: build http middleware from config: %w", err)
+	}
+
+	ginBundle := bundle.New(append([]bundle.Option{
 		bundle.Audit(securityaudit.Global()), // 动态转发：装配/热切对已挂中间件即时生效
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
 		bundle.Normalized(), // P9 归一化：审计 object/action 与 gRPC 同源
-	)
+	}, mwOpts...)...)
 	router := gin.New()
 	router.Use(ginBundle.Gin()...)
 
-	app, err := newApp(bootstrap, router, cfgReg, healthChecker, svrOpts, appRef, componentFactories)
+	app, err := newApp(bootstrap, router, cfgReg, healthChecker, svrOpts, appRef, componentFactories, mwClose)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -235,6 +252,7 @@ func newApp(
 	svrOpts *options.ServerOptions,
 	appRef *appRefT,
 	componentFactories map[string]apiserver.ComponentFactory,
+	mwClose func() error,
 ) (*appkit.AppKit, error) {
 	// Wave 4.1：biz 在 Run 期装配钩子内构造——InitializeBiz 依赖 InitBridges
 	// 建立的 store / Redis，构造期构造会固化 nil（时序倒置）。
@@ -353,6 +371,14 @@ func newApp(
 		appkit.WithOnKeyChange("server.http.addr", func(old, new string) {
 			baldlog.Info(context.Background(), "server.http.addr changed",
 				"old", old, "new", new)
+		}),
+
+		// 契约中间件段的资源释放（当前仅 rate_limit 的限流器需要 Close）。
+		// 挂停机 Effect：注册在框架 Effect 之后，逆序回放时**先于**框架底座执行
+		// （业务资源先收，与 WithEffect 的顺序约定一致）。mwClose 由
+		// bundle.FromMiddleware 返回，总非 nil（无资源时为 no-op）。
+		appkit.WithEffect("http-middleware", func(context.Context) error {
+			return mwClose()
 		}),
 
 		// 业务桥接（装载链之后执行——契约终值可读、数据/缓存/存储实例已由
