@@ -224,8 +224,9 @@ func isKnownCommand(root *cobra.Command, name string) bool {
 //
 // 业务保留（配置表达不了）：路由、gRPC service、拦截器链序、S1 能力声明、
 // 业务桥接（WithBeforeStart——装载链之后契约终值可读）、R1-2 审计协调、
-// gateway 第三服务器（独立 :8081，WithExtraServers 逃生舱——契约
-// server.http.driver 的网关面模式与「gin 主面 + 独立转码面并存」不匹配）。
+// gateway 第三服务器（独立 :8081，**已迁契约装配** `server.gateway` 段——见下方
+// M5 说明；此前走 WithExtraServers，因契约 `server.http.driver` 的「同端口二选一」
+// 表达不了「gin 主面 + 独立转码面并存」）。
 func newApp(
 	bootstrap *bootstrapv1.BootstrapConfig,
 	router *gin.Engine,
@@ -549,7 +550,9 @@ func newApp(
 	// serverRegistry）。段未配 redis_address 时经 WithAddressResolver 回退
 	// bootstrap.ResolveRedisAddr（保既有「配 cache.redis 即启用」的兼容）。
 
-	// Wave 3.1/3.2：SSE 传输轴（逃生舱——框架不装配 server.sse，见 sse.go 文件头）。
+	// SSE 传输轴（**运行期构造的逃生舱** WithExtraServerFunc——本仓未提供 sse 的
+	// contract provider，且其授权钩子需注入业务 authenticator 函数，声明式契约段
+	// 表达不了；详见 sse.go 文件头）。
 	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
 	//
 	// Wave 4（建议一）：SSE 改**运行期构造**（appkit.WithExtraServerFunc）——工厂在

@@ -1,23 +1,29 @@
-// cron.go —— Wave 2.4：cron 定时器装配。
+// cron.go —— cron 定时器装配（业务侧：周期任务注册）。
 //
-// ## 装配决策（与 asynq 同款：走 WithExtraServers 逃生舱）
+// ⚠️ **本节原记的装配决策已被取代**（保留作历史记录）：
+// 原决策＝「与 asynq 同款，走 WithExtraServers 逃生舱」。
+// **当前装配路径已是契约驱动**：
 //
-// 理由与 asynq 一致（见 asynq.go 文件头）：契约 Cron 段只有 **1 个字段**
-// （`seconds`，`server.proto:224-227`），而 `bald/transport/cron` 有 4 个 Option
-// ——契约驱动装配不可能，走逃生舱。
+//	registries.go → sr.MustRegister(croncontract.Type, croncontract.Provider(
+//	                    croncontract.WithJobs(registerCronJobs)))
+//	assembly.go   → appkit.WithServerRegistry(serverRegistry(...))
 //
-// ## 实测发现的两个关键约束（探针确认，记录为 D11）
+// 取代原因：契约 Cron 段字段已由 1 个扩到 **3 个**
+// （seconds、gracefully_shutdown、location），且
+// `bald/transport/cron/contract` 子包**已建立**（含 `WithJobs` 回调挂载周期任务）
+// ——契约驱动装配可行。
 //
-//  1. **`NewTimerJob` 接受 6 字段 cron（含秒），与 asynq 的 5 字段相反**：
-//     `bald/transport/cron/server.go:66-68` 的 parser **硬编码**包含 `cron.Second`
-//     （`cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow`）。
-//     因此 `"*/10 * * * * *"`（6 字段）合法，而 `"*/5 * * * *"`（5 字段）会解析失败。
-//     **同一个框架内两个调度组件用不同的 cron 字段数**——极易混淆。
+// ## 原记的两个关键约束（其一已由本轮修复闭合）
 //
-//  2. **契约的 `server.cron.seconds` 字段实际无效**：
-//     `bald/transport/cron/options.go:33-38` 的 `WithSeconds` 是**空实现**
-//     （函数体只有注释「默认已启用秒级，此选项保留用于未来扩展」）。
-//     故契约里配 `seconds: false` 不会有任何效果——秒级始终启用。
+//  1. **6 字段 cron 表达式**（含秒）——设计如此，非缺陷：`cron.NewServer` 的
+//     parser 默认含 `cron.Second`；`WithSeconds(false)` 可关闭（只收 5 字段）。
+//     与 asynq 默认 5 字段的差异是**刻意的**（asynq 走 robfig 标准语法）。
+//     ⇒ 本文件下方注册任务用 6 字段表达式是正确的。
+//
+//  2. ~~契约 `server.cron.seconds` 字段无效~~ —— **已修**：
+//     `WithSeconds` 曾是空实现（函数体只有注释），现已落地为
+//     `func(o *options) { o.seconds = enable }`，契约配 `seconds: false` 真正生效。
+//     （原记缺陷 D11.2 已闭合。）
 package app
 
 import (

@@ -1,19 +1,30 @@
-// sse.go —— Wave 3.1/3.2：SSE 传输轴装配 + message 域推送接线。
+// sse.go —— SSE 传输轴装配 + message 域推送接线。
 //
-// ## 装配路径：逃生舱（原因与 asynq/cron 不同）
+// ## 装配路径：运行期构造的**逃生舱**（`WithExtraServerFunc`，非 WithExtraServers）
 //
-// 契约 `server.sse` 段**存在**（`server.proto:151-157`：addr/path/tls），
-// 但 bald **框架不装配它**——`bald/bootstrap/server.go:93` 标注
-// `{"sse", false, ...}`，且 `bald/bootstrap/server_sections_test.go:20-40`
-// 断言「配了 `server.sse` 必须**报错**」。属 **D2 族**（契约段声明但实现没接）。
-// 故走 `WithExtraServers` 逃生舱，配置走环境变量。
+// 契约 `server.sse` 段**存在**（`server.proto`：addr/path/tls），但本仓**未提供
+// sse 的 contract provider**——`bald/transport/` 下现有 contract 子包只有
+// `asynq`/`cron`/`gateway` 三个；`bootstrap/server.go` 的 `serverSections`
+// 中 `sse` 为 `implemented=false`。故配了 `server.sse` 段而**未**注册 provider
+// 会 fail-fast（`validateServerSections`）。
+//
+// **为什么不为 sse 补 contract（与 asynq/cron/gateway 不同）**：
+// SSE 的接线本质是**函数注入**——授权钩子须绑业务 `authenticator`
+// （`baldsse.WithAuthorizeFunc(...)`），订阅回调与推送发布同理；而契约段是
+// **声明式配置字段**，表达不了函数。框架对同类需求（如审计后端注入
+// `AuditProvider`）同样是函数注入而非契约段。
+//
+// **为何用 `WithExtraServerFunc` 而非 `WithExtraServers`**：工厂在 **Run 期
+// server 构造点**（业务 beforeStart 之后）被调用，彼时 `InitBridges` 已建好
+// authenticator —— 故可**运行期构造**并当场完成 biz 接线；`WithExtraServers`
+// 收已构造实例，无法满足该时序。
 //
 // ## 与源项目的对照（3.2 接线）
 //
 // 源：`sse.NewSseServer(cfg.Server.Sse, WithSubscriberFunction(...),
 // WithAuthorizeFunc(internalMessageService.HandleAuthorize))`，
 // 然后 `internalMessageService.RegisterInternalMessagePublisher(srv)`。
-// bald 的 `transport/sse` 提供**同名同形的 Option**（`options.go:98-114`），
+// bald 的 `transport/sse` 提供**同名同形的 Option**（`options.go`），
 // 故三处对接（授权 / 订阅回调 / 推送发布）形态可一一对应。
 package app
 

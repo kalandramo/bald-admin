@@ -1,26 +1,34 @@
-// asynq.go —— Wave 2.1：asynq 任务队列装配。
+// asynq.go —— asynq 任务队列装配（业务侧：codec 注册 + handler 注册）。
 //
-// ## 装配决策（计划 2.1/2.2 要求二选一，此处记录结论）
+// ⚠️ **本节原记的装配决策已被取代**（保留作历史记录）：
+// 原决策＝「main 手工 NewServer + appkit.WithExtraServers，不扩契约段」。
+// **当前装配路径已是契约驱动**：
 //
-// **选「main 手工 NewServer + appkit.WithExtraServers」，不扩契约段。**
+//	registries.go → sr.MustRegister(asynqcontract.Type, asynqcontract.Provider(...))
+//	assembly.go   → appkit.WithServerRegistry(serverRegistry(...))
 //
-// 理由（三条，均基于实测）：
-//  1. `bald/transport/asynq` **无 contract 子包**——appkit 的契约驱动装配
-//     （ServerProvider 注册表）无法覆盖它，框架本身要求走逃生舱；
-//  2. 契约 `server.proto` 的 Asynq 段只有 **3 个字段**
-//     （redis_address / redis_password / redis_db），而实现有 **约 30 个 Option**
-//     （WithConcurrency / WithQueues / WithStrictPriority / 各种超时…）——
-//     3 字段不足以驱动真实装配；
-//  3. 计划 §R5 已定调「**倾向先记录后扩**，避免为凑装配而设计契约」，
-//     且 Wave 0.2 的教训是「契约段配了但无实现应 fail-fast」——
-//     扩契约需框架发版周期，超出本轮范围。
+// 取代原因（框架侧两轮变更）：
+//  1. `bald/transport/asynq/contract` 子包**已建立**（契约→Option 映射 + Provider）；
+//  2. 契约 Asynq 段字段由 3 个扩到 **10 个**（redis_address/password/db、concurrency、
+//     queues、codec、strict_priority、shutdown_timeout_ms、gracefully_shutdown、
+//     scheduler_enabled）——足以驱动常用装配；其余 Option 经
+//     `asynqcontract.WithServerOptions` 补齐；
+//  3. `bootstrap.validateServerSections` 已支持「段已注册 provider 即放行」
+//     （签名含 registered map）——使 implemented=false 的段也能走契约装配。
 //
-// 逃生舱是框架**明确提供**的（`appkit.WithExtraServers`，
-// `bald/pkg/appkit/bootstrap.go:186`），且本仓已有先例（gateway 第三服务器，
-// `main.go:232/421`）——与 `pkg/appkit/bootstrap.go:392-396` 注释载明的
-// 「能力声明在代码，是刻意的」一致。
+// 历史决策原文（保留）：曾选「不扩契约段、走逃生舱」，理由为
 //
-// **已记录缺陷 D8**：契约 Asynq 段字段面 << 实现 Option 面，契约驱动装配不可能。
+//	①`bald/transport/asynq` 无 contract 子包；②契约段仅 3 字段 << 实现约 30 个
+//	Option；③计划 §R5 定调「倾向先记录后扩，避免为凑装配而设计契约」。
+//
+// 所记缺陷 **D8**（契约 Asynq 段字段面 << 实现 Option 面）已随字段扩展闭合。
+//
+// 逃生舱本身仍是框架**明确提供**的合法扩展点
+// （`appkit.WithExtraServers` / `WithExtraServerFunc`，见 pkg/appkit/bootstrap.go），
+// 只是 asynq 不再需要它。
+//
+// 本文件保留的实装：codec 注册（`registerAsynqCodecs`）与 handler 注册
+// （`registerAsynqHandlers`）——两者的**调用点**已移入 registries.go 的 provider 回调。
 package app
 
 import (
