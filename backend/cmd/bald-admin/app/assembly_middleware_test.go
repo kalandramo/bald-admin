@@ -153,6 +153,51 @@ func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
 	}
 }
 
+// TestAssemblyPath_MiddlewareOnBusinessRoute 配置的 cors 段必须在**真实业务
+// 路由**（/v1/*，此前由路由组自带 mid.CORS(mid.DefaultCORS()) 覆盖）上生效。
+//
+// 回归场景（本测试要防的回退）：若有人再把 mid.CORS(...) 挂回某个路由组，
+// 该组响应头会被硬编码默认值（Allow-Origin: *）覆盖，本测试即红——这正是
+// 移除组内 CORS、统一走全局链的目的。
+func TestAssemblyPath_MiddlewareOnBusinessRoute(t *testing.T) {
+	app, err := setupAssemblyWithConfig(t, middlewareTestConfig)
+	require.NoError(t, err, "buildApp 装配")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runErr := make(chan error, 1)
+	go func() { runErr <- app.Run(ctx) }()
+	require.Eventually(t, func() bool {
+		c, derr := net.DialTimeout("tcp", middlewareTestHTTPAddr, 200*time.Millisecond)
+		if derr != nil {
+			return false
+		}
+		_ = c.Close()
+		return true
+	}, 30*time.Second, 200*time.Millisecond, "服务未在超时内监听")
+
+	// /v1/ping 是真实业务路由（此前该组自带 CORS，是覆盖点）。
+	req, rerr := http.NewRequest(http.MethodGet, "http://localhost"+middlewareTestHTTPAddr+"/v1/ping", nil)
+	require.NoError(t, rerr)
+	resp, herr := http.DefaultClient.Do(req)
+	require.NoError(t, herr)
+	defer resp.Body.Close()
+
+	// 配置值必须生效——若被组内 mid.DefaultCORS() 覆盖，这里会是 "*"。
+	assert.Equal(t, "https://console.example", resp.Header.Get("Access-Control-Allow-Origin"),
+		"业务路由 /v1/ping 上配置的 cors.allowed_origins 未生效（疑又被组内 CORS 覆盖）")
+	assert.Equal(t, "X-Total-Count", resp.Header.Get("Access-Control-Expose-Headers"),
+		"业务路由上配置的 cors.exposed_headers 未生效")
+
+	cancel()
+	select {
+	case err := <-runErr:
+		assert.NoError(t, err, "Run 应正常停机")
+	case <-time.After(30 * time.Second):
+		t.Fatal("app 未在停机超时内退出")
+	}
+}
+
 // TestAssemblyPath_InvalidMiddlewareFailsFast 显式声明非法中间件值 → 装配期报错
 // （而非静默忽略配置）。
 func TestAssemblyPath_InvalidMiddlewareFailsFast(t *testing.T) {
