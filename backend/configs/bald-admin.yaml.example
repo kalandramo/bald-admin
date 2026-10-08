@@ -1,6 +1,43 @@
 server:
-  http: { addr: ":8080" }
-  grpc:  { addr: ":9090" }
+  http:
+    addr: ":8080"
+    # ---- 中间件段（契约 server.http.middleware.*）----
+    # 由 bundle.FromMiddleware 翻译为 gin 中间件链（见 cmd/bald-admin/app/assembly.go）。
+    # 该段此前**零消费者**（配置写了不生效），现已在生产装配路径接通。
+    #
+    # 缺省语义（不写本段时的行为）：
+    #   - recovery / request_id / logging：**本就默认开启**（bundle 链无条件挂载），
+    #     本段仅用于覆盖其参数（stack_trace / header_name / skip_paths）；
+    #   - cors / tracing / rate_limit / timeout：**段缺失即不挂**，需在此显式声明。
+    middleware:
+      request_id:
+        header_name: "X-Request-ID"
+      # 跨域。开发期允许任意来源；生产请改为前端实际来源列表。
+      #
+      # ⚠️ `allowed_origins: ["*"]` 与 `allow_credentials: true` **不可同时出现**
+      # ——W3C Fetch 规范禁止带凭证的响应使用通配来源，浏览器会拒绝该响应；装配期
+      # 对此 fail-fast（见 bald pkg/middleware/gin CORSConfig.Validate）。需携带
+      # Cookie/凭证时，必须显式列出来源：
+      #   allowed_origins: ["https://console.example.com"]
+      #   allow_credentials: true
+      cors:
+        allowed_origins: ["*"]
+        allowed_methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+        allowed_headers: ["Content-Type", "Authorization", "X-Request-ID"]
+        # 浏览器 JS 可读的额外响应头（CORS 安全列表之外的）。
+        exposed_headers: ["X-Request-ID", "X-Total-Count"]
+        allow_credentials: false
+        max_age: 86400
+      # 请求超时（可选，整段缺省即不启用）。超时以 status_code 结束响应（默认 503）。
+      # ⚠️ 超时**不中断** handler（Go 无法杀死 goroutine），只保证响应及时返回；
+      # 需真正终止时，handler 应自行监听 ctx.Done 做清理。
+      # timeout:
+      #   default_timeout_ms: 30000
+      #   status_code: 503
+      # 链路追踪（可选）。与 logging 的区别：只起 span/注入 trace_id，不写请求日志。
+      # tracing: {}
+  grpc:
+    addr: ":9090"
 
   # ---- Wave 4：协议服务器的契约装配（asynq / cron / gateway）----
   #
@@ -124,8 +161,11 @@ file:
   bucket: "bald-admin"
 
 # ---- Wave 1a：登录限流（业务自持段）----
-# 框架契约的 server.http.rate_limit 是**中间件级**限流且当前零实现
-#（无 Go 代码消费该段），故业务级登录限流走自持配置段。
+# 与框架契约的 server.http.middleware.rate_limit 是**两个层次**：
+#   - 契约段（server.http.middleware.rate_limit）是**中间件级**限流，现已实现并
+#     接通（按 IP/全局维度拦流量，见上）；
+#   - 本段是**业务级**限流，作用于「登录尝试」这一具体业务动作（可按用户名等
+#     业务维度计数），故仍由业务自持配置。
 # 未配置（或 rate/burst 非正）→ 禁用态：不阻断登录（fail-open，对齐源项目
 # LoginRateLimiter 的语义——限流是防御性增强，不应因组件故障导致登录不可用）。
 # 限流在凭据校验**之前**生效（先拦流量再做昂贵 bcrypt 比较）。
