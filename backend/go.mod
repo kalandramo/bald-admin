@@ -35,7 +35,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald v0.19.0
+	github.com/kalandramo/bald v0.21.0
 	github.com/kalandramo/bald/bconf v0.9.0
 	github.com/kalandramo/bald/berrors v0.1.1
 	github.com/kalandramo/bald/bootstrap v0.10.0
@@ -61,7 +61,7 @@ require (
 	github.com/kalandramo/bald/oss/s3 v0.1.0
 	github.com/kalandramo/bald/ratelimit v0.1.0
 	github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0
-	github.com/kalandramo/bald/registry v0.1.0
+	github.com/kalandramo/bald/registry v0.1.1
 	github.com/kalandramo/bald/registry/etcd v0.1.1
 	github.com/kalandramo/bald/registry/nacos v0.1.0
 	github.com/kalandramo/bald/retry v0.1.0

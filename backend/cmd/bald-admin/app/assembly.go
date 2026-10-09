@@ -612,6 +612,12 @@ func newApp(
 	// buildDatabases 之后），故构造期即取真实 DB——不再有惰性包装。
 	opts = append(opts, appkit.WithAuditRegistry(auditRegistry()))
 
+	// 配置命名空间：env 前缀（BALD_ADMIN_*）与多环境文件名（bald-admin-prod.yaml）
+	// 的来源。必须是代码层常量——FromBootstrap 路径下若取自契约 app.name
+	// 会构成自指（配置文件写 app.name 会让全部 BALD_ADMIN_* 覆盖静默失效）。
+	// 取值与上面 bootstrap.GetApp().Name 及 registries.go 预装载的硬编码名一致。
+	opts = append(opts, appkit.WithConfigNamespace("bald-admin"))
+
 	app, err = appkit.FromBootstrap(bootstrap, opts...)
 	if err != nil {
 		// 契约与能力声明不一致（如声明了 WithHTTP 但契约删了 server.http 段）
