@@ -168,8 +168,18 @@ func buildApp(
 
 // NewCommand 构造 bald-admin 根命令。
 //
-// appkit 自行解析 os.Args 中的 --config / --http.addr 等业务 flag（见
-// appkit.loadConfig），故 cobra 需放行未知 flag，避免它因不识别 --config 而提前报错退出。
+// **flag 的注册不在 cobra 层**——root 不注册任何 flag（无 Flags()/PersistentFlags()
+// 调用）。全部 flag 由 appkit.loadConfig 自建 pflag.FlagSet 注册，两类来源合流：
+//   - 框架：FromBootstrap 硬编码绑定 `--server.http.*` / `--server.grpc.*`
+//     与 `--log.*` 壳（appkit/bootstrap.go）；
+//   - 业务：本包的 appkit.WithBind("", svrOpts) → ServerOptions.AddFlags，
+//     注册 `--login.rate_limit.rate` / `--gateway.addr` 等业务项。
+//
+// 二者经同一个 bindFlags 进入装载 FlagSet，共享「flag > env > 文件 > 远程」优先级。
+//
+// 故 cobra 只需放行未知 flag（FParseErrWhitelist.UnknownFlags）——否则它解析
+// os.Args 时会因不认识 `--config` / `--server.http.addr` / `--login.*` 而提前
+// 报错退出。cobra 在这里只负责「识别子命令 + 放行参数」，不参与 flag 定义。
 func NewCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "bald-admin",
