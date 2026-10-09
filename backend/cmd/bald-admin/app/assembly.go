@@ -64,7 +64,7 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	bootstrap.GetApp().Version = "v0.1.0"
 	bootstrap.GetApp().StopTimeout = durationpb.New(15 * time.Second)
 
-	// W2：业务配置聚合对象**最先创建**——构造期的若干步骤（可观测性 env 开关、
+	// 业务配置聚合对象**最先创建**——构造期的若干步骤（可观测性 env 开关、
 	// gateway/asynq/SSE 地址）需要其默认值通道；实际配置值在各钩子内解码覆盖。
 	svrOpts := options.NewServerOptions()
 
@@ -79,21 +79,20 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("bootstrap config sources: %w", err)
 	}
 
-	// T9 可观测性缺省态合成（U1）：bald-admin 语义「metrics 段缺省仍暴露
+	// 可观测性缺省态合成：bald-admin 语义「metrics 段缺省仍暴露
 	// :9091」——FromBootstrap 的保守缺省是「段缺省不装配」，故构造前合成默认
 	// 段。env 开关（BALD_ADMIN_METRICS_ADDR / BALD_ADMIN_OTLP_ADDR）同处应用；
 	// 显式配置源（文件/远程）若配 metrics 段将覆盖合成值——env 开关退居
-	// 「段未显式配置时的便捷」，显式声明优先（与契约「配置驱动」哲学一致，
-	// 行为收敛见设计文档 U1 变更记录）。
+	// 「段未显式配置时的便捷」，显式声明优先（与契约「配置驱动」哲学一致）。
 	if err := applyObservabilityDefaults(bootstrap, svrOpts); err != nil {
 		return err
 	}
 
-	// 2. 约定装配（U1）：Bind×3 / 配置装载+校验 / 日志两阶段 / 热更新 / registrar /
+	// 2. 约定装配：Bind×3 / 配置装载+校验 / 日志两阶段 / 热更新 / registrar /
 	//    可观测性 / 停机 Effect 全部由 FromBootstrap 内化（详见 newApp）。
-	//    Wave 4.1：biz 构造 + 路由注册 + gRPC 服务注册在 newApp 内的 Run 期
+	//    biz 构造 + 路由注册 + gRPC 服务注册在 newApp 内的 Run 期
 	//    装配钩子里完成（依赖 InitBridges 建立的 store / Redis）。
-	//    Wave 4.3：装配编排抽到 buildApp，使端到端装配测试复用**同一条**生产路径。
+	//    装配编排抽到 buildApp，使端到端装配测试复用**同一条**生产路径。
 	app, _, err := buildApp(bootstrap, svrOpts, cfgReg)
 	if err != nil {
 		return err
@@ -110,17 +109,16 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 // buildApp 执行**生产装配路径**（构造期骨架 + newApp 内的运行期钩子装配），
 // 返回未启动的 AppKit（与 appRef）。
 //
-// 抽出理由（Wave 4.3）：端到端装配测试需要驱动**真实**的装配路径——历史上多个
-// 真 bug（M10.1 认证静默失效、Wave 1d 吊销检查失效）之所以未被拦截，正是因 e2e
-// 自行拼装、绕过了 main。把编排抽成函数后，测试与生产共用同一实现，装配缺陷不
-// 再有藏身处。
+// 抽出理由：端到端装配测试需要驱动**真实**的装配路径——历史上认证静默失效、
+// 吊销检查失效等真 bug 之所以未被拦截，正是因 e2e 自行拼装、绕过了 main。
+// 把编排抽成函数后，测试与生产共用同一实现，装配缺陷不再有藏身处。
 func buildApp(
 	bootstrap *bootstrapv1.BootstrapConfig,
 	svrOpts *options.ServerOptions,
 	cfgReg *baldbootstrap.Registry,
 ) (*appkit.AppKit, *appRefT, error) {
 	// 1. 构造期只建伺服面骨架（router + 全局中间件）。**业务装配**（biz 构造、
-	//    路由注册、gRPC 服务注册）移至 Run 期装配钩子（见 newApp）——Wave 4.1：
+	//    路由注册、gRPC 服务注册）移至 Run 期装配钩子（见 newApp）——
 	//    消除「构造期消费运行期资源（store / Redis）」的时序倒置。
 	//
 	//    健康检查聚合器：HTTP /healthz /readyz 与 gRPC 标准健康服务状态同源，由
@@ -128,7 +126,7 @@ func buildApp(
 	//    本范例尚无依赖项要检查，空聚合器=恒就绪（等价于迁移前的 ready 桩）。
 	healthChecker := health.New()
 
-	// M10.2 管理面：运行期组件观测与热插拔（工厂目录由业务定义——核心只管挂载原语）。
+	// 管理面：运行期组件观测与热插拔（工厂目录由业务定义——核心只管挂载原语）。
 	// demo.heartbeat 演示带 goroutine 的组件生命周期（Start 起心跳、Dispose 收），与
 	// StreamAuditor 同构；admin 角色经 /admin/components 端点挂载/卸载。
 	appRef := &appRefT{}
@@ -136,7 +134,7 @@ func buildApp(
 		"demo.heartbeat": func() appkit.Component { return newHeartbeatComponent(appRef.get) },
 	}
 
-	// M10.1（P10 验证）：横切关注点切 bundle 门面。
+	// 横切关注点切 bundle 门面。
 	//   - gin 全局层：Recovery→RequestID→Tracing→Logging→CORS→Secure→Authn→Audit
 	//     （链序由 bundle 固化）。Authn/Authz 不进全局 bundle——范例用「路由级
 	//     分组保护」语义（/v1/login 必须公开），分组链见
@@ -144,10 +142,10 @@ func buildApp(
 	//     模式是两种合法模式，范例各保其一（gRPC 侧为全 bundle 链）。
 	//   - 增强点：切 bundle 后 /v1/login 也进入审计（此前散装手挂仅审计受保护路由）——
 	//     登录失败同样应留审计痕迹。
-	//   - T6 修复：审计层经 bundle.Audit 注入动态转发器（securityaudit.Global，
-	//     每次 Record 读全局）。此前散装 AuditMiddleware 在 main 期构造即快照
-	//     全局 nop（契约轨 BeforeStart 装配、R1-2 热切均晚于构造），请求审计
-	//     静默失效；收敛进 bundle 后由单层同时承担审计与指标（M8 同源 emit）。
+	//   - 审计层经 bundle.Audit 注入动态转发器（securityaudit.Global，
+	//     每次 Record 读全局），而非在构造期快照。若改为构造期快照，会拿到
+	//     当时还是 nop 的全局实例（契约轨装配与热切均晚于此处构造），
+	//     导致请求审计**静默失效**；收敛进 bundle 后由单层同时承担审计与指标。
 	//
 	// 契约中间件段（server.http.middleware.*）：由 bundle.FromMiddleware 翻译为
 	// Option 后与上述业务 Option 合并。此前该段**七个子段全部零消费者**——配置
@@ -167,7 +165,7 @@ func buildApp(
 	ginBundle := bundle.New(append([]bundle.Option{
 		bundle.Audit(securityaudit.Global()), // 动态转发：装配/热切对已挂中间件即时生效
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
-		bundle.Normalized(), // P9 归一化：审计 object/action 与 gRPC 同源
+		bundle.Normalized(), // 归一化：审计 object/action 与 gRPC 同源
 	}, mwOpts...)...)
 	router := gin.New()
 	router.Use(ginBundle.Gin()...)
@@ -176,7 +174,7 @@ func buildApp(
 	if err != nil {
 		return nil, nil, err
 	}
-	appRef.set(app) // M10.2：管理面 handler 经 appRef 请求期取 AppKit（规避装配时序）
+	appRef.set(app) // 管理面 handler 经 appRef 请求期取 AppKit（规避装配时序）
 	return app, appRef, nil
 }
 
@@ -226,7 +224,7 @@ func isKnownCommand(root *cobra.Command, name string) bool {
 	return false
 }
 
-// newApp 用 appkit.FromBootstrap 做约定装配（U1：从 New 手动装配切换）。
+// newApp 用 appkit.FromBootstrap 做约定装配（替代手写 New 装配）。
 //
 // 框架内化（原手写样板，语义与 New 路径等价）：
 //   - Bind×3（server.http / server.grpc / --log.* flag 壳）；
@@ -235,17 +233,17 @@ func isKnownCommand(root *cobra.Command, name string) bool {
 //   - OnConfigChange：热更新副本试装载+校验后整契约原子落盘并重建 Logger
 //     （比原手写版多了 Validate 拦截——坏配置降级保留旧契约，不落半成品）；
 //   - app 元数据（name/version/stop_timeout）取自契约 app 段；
-//   - T7 registrar：契约 registry 段经 RegistrarRegistry Build，cleanup 挂
+//   - registrar：契约 registry 段经 RegistrarRegistry Build，cleanup 挂
 //     停机 Effect（原 regRegistry.Build + SetRegistrar + regCleanup 样板）；
-//   - T9 可观测性：tracer/metrics 段经双 Registry 装配，trace shutdown 与
-//     metrics 暴露端/flush 挂 Effect 逆序回放最后执行（原 setupObservability
-//   - observabilityWiring + traceComp 样板）；
+//   - 可观测性：tracer/metrics 段经双 Registry 装配，trace shutdown 与
+//     metrics 暴露端/flush 挂 Effect 逆序回放最后执行（原
+//     setupObservability + observabilityWiring + traceComp 样板）；
 //   - 配置层 Build 与释放（原 buildConfigLayers 的 Build 半段 + cleanup defer）。
 //
-// 业务保留（配置表达不了）：路由、gRPC service、拦截器链序、S1 能力声明、
-// 业务桥接（WithBeforeStart——装载链之后契约终值可读）、R1-2 审计协调、
+// 业务保留（配置表达不了）：路由、gRPC service、拦截器链序、能力声明、
+// 业务桥接（WithBeforeStart——装载链之后契约终值可读）、审计期望态协调、
 // gateway 第三服务器（独立 :8081，**已迁契约装配** `server.gateway` 段——见下方
-// M5 说明；此前走 WithExtraServers，因契约 `server.http.driver` 的「同端口二选一」
+// 说明；此前走 WithExtraServers，因契约 `server.http.driver` 的「同端口二选一」
 // 表达不了「gin 主面 + 独立转码面并存」）。
 func newApp(
 	bootstrap *bootstrapv1.BootstrapConfig,
@@ -257,7 +255,7 @@ func newApp(
 	componentFactories map[string]apiserver.ComponentFactory,
 	mwClose func() error,
 ) (*appkit.AppKit, error) {
-	// Wave 4.1：biz 在 Run 期装配钩子内构造——InitializeBiz 依赖 InitBridges
+	// biz 在 Run 期装配钩子内构造——InitializeBiz 依赖 InitBridges
 	// 建立的 store / Redis，构造期构造会固化 nil（时序倒置）。
 	// 框架保证业务 beforeStart 钩子先于 server 构造钩子执行（注册序=执行序，
 	// 见 bald pkg/appkit/bootstrap.go），故 registerGRPC 被调用时 bizSet 已就绪。
@@ -269,7 +267,7 @@ func newApp(
 		err    error
 	)
 
-	// T2：gRPC service 注册回调捕获 Run 期装配的 biz（全部 service 需 biz 注入）。
+	// gRPC service 注册回调捕获 Run 期装配的 biz（全部 service 需 biz 注入）。
 	// secret 的 DeleteSecret 同经 biz 真实删除（gRPC 直连与 gateway 转码共用）。
 	registerGRPC := func(s *grpc.Server) {
 		adminv1.RegisterSecretServiceServer(s, secretgrpc.NewServer(bizSet.Secret))
@@ -279,9 +277,9 @@ func newApp(
 		permissionv1.RegisterPermissionServiceServer(s, secretgrpc.NewPermissionServer(bizSet.Permission))
 		dictv1.RegisterDictTypeServiceServer(s, secretgrpc.NewDictTypeServer(bizSet.Dict))
 		dictv1.RegisterDictEntryServiceServer(s, secretgrpc.NewDictEntryServer(bizSet.Dict))
-		filev1.RegisterFileServiceServer(s, secretgrpc.NewFileServer(bizSet.File))        // T5
-		auditv1.RegisterAuditServiceServer(s, secretgrpc.NewAuditServer(bizSet.AuditLog)) // T6
-		// Wave 1.7 补齐：组织架构（org_unit 7 rpc + position 7 rpc）。
+		filev1.RegisterFileServiceServer(s, secretgrpc.NewFileServer(bizSet.File))
+		auditv1.RegisterAuditServiceServer(s, secretgrpc.NewAuditServer(bizSet.AuditLog))
+		// 组织架构（org_unit 7 rpc + position 7 rpc）。
 		// 授权 object 经别名层落到策略 "org-units"/"positions"（见 bootstrap.grpcObjectAliases）。
 		identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(bizSet.Org))
 		identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(bizSet.Org))
@@ -290,15 +288,15 @@ func newApp(
 	// app 先声明再进闭包：WithBeforeStart 在 Run 期才执行，届时已赋值
 	//（FromBootstrap 同款模式）。
 	//
-	// Wave 4（建议一）：authenticator/authorizer 提升到函数作用域——它们在 Run 期
+	// authenticator/authorizer 提升到函数作用域——它们在 Run 期
 	// 装配钩子内构造（依赖 InitBridges 建立的 store/Redis），再供两个**运行期**
 	// 消费者读取：
 	//   - appkit.WithGRPCOptions 的选项工厂（gRPC 拦截器链，Run 期 server 构造点求值）；
 	//   - appkit.WithExtraServerFunc 的 SSE 工厂。
-	// 二者都在业务 beforeStart 之后执行，届时读到真实实例——不再需要请求期解析的
-	// lateAuthn/lateAuthz（Wave 4 已删）。
+	// 二者都在业务 beforeStart 之后执行，届时读到真实实例——不再需要「请求期
+	// 解析」的 lateAuthn/lateAuthz 适配层。
 	//
-	// asynq：**已移入 WithExtraServerFunc 工厂**（W2 修订）——运行期构造使其能读
+	// asynq：**已移入 WithExtraServerFunc 工厂**——运行期构造使其能读
 	// 契约段 cache.redis；biz 接线（SetScheduler）也在工厂内完成，故不再需要
 	// 跨作用域变量（原 asynqSrv 已删）。
 	var (
@@ -309,7 +307,7 @@ func newApp(
 	opts := []appkit.BootstrapOption{
 		// --- 能力声明（代码提供） ---
 		appkit.WithHTTP(router),
-		// Wave 4（建议一）：拦截器链改**运行期求值**——工厂在 Run 期 server 构造点
+		// 拦截器链改**运行期求值**——工厂在 Run 期 server 构造点
 		// 调用（业务 beforeStart 之后），可读上方运行期赋值的 authenticator/authorizer。
 		appkit.WithGRPC(registerGRPC),
 		appkit.WithGRPCOptions(func() []grpc.ServerOption {
@@ -329,29 +327,29 @@ func newApp(
 		// --- 配置驱动参数 ---
 		appkit.WithConfigFile(configFileDefault),
 		appkit.WithWatchConfig(true),
-		// W2：业务配置 flag 通道（--login.rate_limit.rate=9 / --gateway.addr=… 等）。
+		// 业务配置 flag 通道（--login.rate_limit.rate=9 / --gateway.addr=… 等）。
 		// 缺此注册时业务 flag 进不了装载 FlagSet，「flag > env > 文件」对业务
 		// 配置项整条失效（用户显式传参被静默忽略）。
 		appkit.WithBind("", svrOpts),
 		// 契约 config 段 → 配置层（注册序=层优先级；Build/释放由框架管）。
 		appkit.WithConfigRegistry(cfgReg),
 
-		// T7：注册中心契约装配（显式注册表声明可用后端，未 import 的后端零依赖；
+		// 注册中心契约装配（显式注册表声明可用后端，未 import 的后端零依赖；
 		// registry 段不支持热更新）。
 		appkit.WithRegistrarRegistry(registrarRegistry()),
 
-		// U1：数据/缓存/存储契约段经透传 provider 消费（构造语义保留业务桥接的
+		// 数据/缓存/存储契约段经透传 provider 消费（构造语义保留业务桥接的
 		// env 优先级与降级语义，连接生命周期上挂框架停机 Effect；实例经
 		// app.Database/Cache/Storage 取回注入桥接变量，见 WithBeforeStart）。
 		appkit.WithDatabaseRegistry(databaseRegistry()),
 		appkit.WithCacheRegistry(cacheRegistry()),
 		appkit.WithStorageRegistry(storageRegistry()),
 
-		// T9：可观测性契约装配（tracer/metrics 段；段不支持热更新）。
+		// 可观测性契约装配（tracer/metrics 段；段不支持热更新）。
 		appkit.WithTracerRegistry(tracerRegistry()),
 		appkit.WithMetricsRegistry(metricsRegistry()),
 
-		// Wave 4：server 协议域契约装配——asynq / cron / gateway 从逃生舱
+		// server 协议域契约装配——asynq / cron / gateway 从逃生舱
 		// （WithExtraServers / WithExtraServerFunc）迁到契约驱动。
 		//
 		// provider 在本函数内构造（而非抽到 registries.go 的裸注册）：它们的回调
@@ -363,12 +361,12 @@ func newApp(
 			func() string { return svrOpts.Asynq.Codec },
 		)),
 
-		// S1 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB
+		// 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB
 		// 连接（BALD_ADMIN_DB_DSN，缺省 SQLite 内存），审计落库（StoreAuditor）依赖它。
 		appkit.WithProvides("db"),
 		appkit.WithRequires("audit.store", "db"),
 
-		// R1 增量协调（key 级订阅）：仅当 http.addr 实际变化才触发（同值刷新、
+		// 增量协调（key 级订阅）：仅当 http.addr 实际变化才触发（同值刷新、
 		// 其他 key 变更均不波及），与全量 reload 互补——全量做 Unmarshal 重建，
 		// key 级做定点观测/定点重载。
 		appkit.WithOnKeyChange("server.http.addr", func(old, new string) {
@@ -387,7 +385,7 @@ func newApp(
 		// 业务桥接（装载链之后执行——契约终值可读、数据/缓存/存储实例已由
 		// 阶段 B 构建）：
 		appkit.WithBeforeStart(func(ctx context.Context) error {
-			// W2：装载后的业务配置快照解码进 ServerOptions（覆盖默认值）并校验。
+			// 装载后的业务配置快照解码进 ServerOptions（覆盖默认值）并校验。
 			// 时机：必须在本钩子内（装载链之后，快照才非 nil）；校验 fail-fast，
 			// 非法配置在启动期报错而非静默取零值。
 			if err := svrOpts.DecodeInto(app.Settings()); err != nil {
@@ -396,7 +394,7 @@ func newApp(
 			if err := svrOpts.Validate(); err != nil {
 				return err
 			}
-			// U1：契约装配实例注入桥接变量（DatabaseProvider 等透传 provider 的
+			// 契约装配实例注入桥接变量（DatabaseProvider 等透传 provider 的
 			// 产物；nil 实例 = 降级态，Wire* 对 nil 为 no-op，InitBridges 走自建/降级）。
 			if v, ok := app.Database("sql"); ok {
 				bootstrappkg.WireDatabase(v)
@@ -407,12 +405,12 @@ func newApp(
 			if v, ok := app.Storage("minio"); ok {
 				bootstrappkg.WireStorage(v)
 			}
-			// Wave 5.4：storage.type=s3 时装配 s3 后端（与 minio 互斥择一）。
+			// storage.type=s3 时装配 s3 后端（与 minio 互斥择一）。
 			// WireStorage 按实际类型分派，两者共用 ObjectStorageBridge。
 			if v, ok := app.Storage(s3contract.Type); ok {
 				bootstrappkg.WireStorage(v)
 			}
-			// T0：注入真实依赖配置（业务自持 file.bucket；database/cache/storage
+			// 注入真实依赖配置（业务自持 file.bucket；database/cache/storage
 			// 段已由透传 provider 消费，此处仅传桥接所需的余下配置）。
 			bootstrappkg.Configure(bootstrap, svrOpts.File.Bucket)
 			// 审计兜底租户（可选，缺省 t-default）：login 失败/permission/
@@ -420,16 +418,15 @@ func newApp(
 			// 隔离下仍可见（见 internal/security/audit/record_mapper.go）。
 			// **必须在 audit store 构造前调用**——映射在构造期求值。
 			securityaudit.SetFallbackTenant(svrOpts.Audit.FallbackTenant)
-			// 在 bootstrap 包内装配 bald 桥接（P7/P8/P9 注册点）：M1+ 注入
-			// Authenticator / Authorizer / store.RegisterTenant / store.RegisterDataScope。
-			// Wave 5：仓储经返回值显式取出（不再写包级变量）。
+			// 在 bootstrap 包内装配 bald 桥接（注入 Authenticator / Authorizer /
+			// store.RegisterTenant / store.RegisterDataScope）。
+			// 仓储经返回值显式取出（不再写包级变量）。
 			repos, err := bootstrappkg.InitBridges(ctx)
 			if err != nil {
 				return fmt.Errorf("init bridges: %w", err)
 			}
-			// Wave 4.2：认证/授权依赖在**路由注册之前**构造完毕——Wave 4.1 已把
-			// 装配移到运行期，故此处可直接传真实实例（不再需要请求期解析的
-			// lazy 适配器族）。
+			// 认证/授权依赖在**路由注册之前**构造完毕——装配已在运行期，
+			// 故此处可直接传真实实例（不再需要请求期解析的 lazy 适配器族）。
 			//
 			// **次序至关重要**：RegisterRoutes 需要带吊销检查的认证器，而吊销检查
 			// 依赖 TokenStore（Redis）。若先注册路由再构造 TokenStore，
@@ -441,11 +438,11 @@ func newApp(
 				bootstrappkg.TokenStore = tokenStore
 			}
 			// 认证器：有 Redis 时带吊销检查（登出即时生效）；无 Redis 退化为纯验签。
-			// Wave 4：赋给**函数作用域**变量（非 `:=` 新建）——运行期 gRPC 选项工厂
+			// 赋给**函数作用域**变量（非 `:=` 新建）——运行期 gRPC 选项工厂
 			// 与 SSE 工厂读取同一实例。
 			authenticator = token.NewRevocationChecker(bootstrappkg.Authenticator, tokenStore)
 			authorizer = bootstrappkg.Authorizer
-			// Wave 4.1：业务装配（wire 构造 biz + 路由注册 + gRPC 服务注册）在此
+			// 业务装配（wire 构造 biz + 路由注册 + gRPC 服务注册）在此
 			// 运行期钩子内完成——此刻 store / Redis / TokenStore 已由 InitBridges
 			// 建立，biz 不再需要「构造期占位 + 请求期解析」。
 			//
@@ -456,21 +453,21 @@ func newApp(
 			if err != nil {
 				return fmt.Errorf("initialize biz (wire): %w", err)
 			}
-			// gin 路由注册。Wave 4.2：认证器/授权器为**真实实例**（上方已构造），
+			// gin 路由注册。认证器/授权器为**真实实例**（上方已构造），
 			// 中间件直接持有——无请求期解析层。
 			apiserver.RegisterRoutes(router, authenticator, authorizer, bizSet)
-			// M10.2 管理面：运行期组件观测与热插拔（appRef 在 app.Run 前 set）。
+			// 管理面：运行期组件观测与热插拔（appRef 在 app.Run 前 set）。
 			registerAdminRoutes(router, appRef, authenticator, authorizer, componentFactories)
-			// Wave 2.3：asynq → task.Scheduler 的接线已移入 WithExtraServerFunc
-			// 的 asynq 工厂（W2 修订）——那里构造后立即 SetScheduler。
-			// T8：文件存储运行期接线。
+			// asynq → task.Scheduler 的接线已移入 WithExtraServerFunc
+			// 的 asynq 工厂——那里构造后立即 SetScheduler。
+			// 文件存储运行期接线。
 			//
-			// Wave 4.1 后此处已非必需：InitializeBiz 现于 InitBridges **之后**执行
+			// 此处已非必需：InitializeBiz 现于 InitBridges **之后**执行
 			// （上方），wire 构造 file biz 时 bootstrap.MinioStorage 已就绪，
 			// 「构造期值拷贝拿到 nil」的前提消失。保留为**幂等补注**——降级路径
 			// （storage 段未配置 → ObjectStorageBridge/MinioStorage 均 nil）下
 			// 两个分支都不写入，biz 内判 nil 返回明确错误，语义不变。
-			// Wave 5.4：注 ObjectStorageBridge（按 storage.type 已包成 minio/s3
+			// 注 ObjectStorageBridge（按 storage.type 已包成 minio/s3
 			// 适配器）——minio 与 s3 走同一条接线，签名差异由适配层吸收。
 			if bootstrappkg.ObjectStorageBridge != nil {
 				bizSet.File.SetObjectStorage(bootstrappkg.ObjectStorageBridge, bootstrappkg.FileBucket)
@@ -482,27 +479,27 @@ func newApp(
 			// env 通道（BALD_ADMIN_REDIS_ADDR）拿不到完整参数、对带密码实例 ping
 			// 即失败；不接线则配置驱动运行下缓存静默失效。未配置段时 RedisCache
 			// 为 nil，SetCache 不覆盖，保留 wire env 通道（CI 覆盖手段）。
-			// D1：SetCache 接收通用 KV 适配器（cache.Cache），biz 内部包装为
+			// SetCache 接收通用 KV 适配器（cache.Cache），biz 内部包装为
 			// loadable 读穿透缓存（loader 构造期绑定，从 key 反解业务参数）。
 			if bootstrappkg.RedisCache != nil {
 				bizSet.Secret.SetCache(bootstrappkg.RedisCache)
 				bizSet.Dict.SetCache(bootstrappkg.RedisCache)
 			}
-			// Wave 1a：登录限流接线（业务自持配置段 login.rate_limit.*——
+			// 登录限流接线（业务自持配置段 login.rate_limit.*——
 			// 与 file.bucket 同模式）。框架契约的 server.http.rate_limit 段是
 			// **中间件级**限流且当前零实现（无消费者），故业务级登录限流走自持段。
 			// 未配置时保持 nil = 禁用态（不阻断登录，fail-open）。
 			if lim := buildLoginLimiter(svrOpts); lim != nil {
 				bizSet.Auth.SetLoginLimiter(lim)
 			}
-			// Wave 1b：登录 DB 查询熔断接线（业务自持配置段 login.breaker.*）。
+			// 登录 DB 查询熔断接线（业务自持配置段 login.breaker.*）。
 			// 熔断的意义：DB 故障时快速失败（503），避免所有登录请求都卡在超时上。
 			// 用 hystrix（阈值式）而非 sres——sres 是 SRE 概率式，即使全成功也会
-			// 概率拒绝且 State 永不返回 Closed（与契约语义不符，见 Wave 1b 报告）。
+			// 概率拒绝且 State 永不返回 Closed（与契约语义不符）。
 			if cb := buildLoginBreaker(svrOpts); cb != nil {
 				bizSet.Auth.SetLoginBreaker(cb)
 			}
-			// Wave 1c：登录 DB 查询重试接线（业务自持配置段 login.retry.*）。
+			// 登录 DB 查询重试接线（业务自持配置段 login.retry.*）。
 			// 与熔断组合：retry 处理偶发抖动，熔断处理持续故障。
 			if r := buildLoginRetrier(svrOpts); r != nil {
 				bizSet.Auth.SetLoginRetrier(r)
@@ -516,18 +513,18 @@ func newApp(
 			// **无条件注入**（不像上面几个 setter 有 nil 分支）——判据是纯函数，
 			// 无外部依赖、无时序要求，不存在「未就绪」状态。
 			bizSet.Auth.SetPlatformResolver(authmodel.IsPlatformUser)
-			// Wave 1d：令牌校验器接线（Logout 吊销 / RefreshToken 刷新 /
+			// 令牌校验器接线（Logout 吊销 / RefreshToken 刷新 /
 			// ValidateToken 校验）。
 			//
-			// Wave 4.2：TokenStore 与带吊销检查的认证器已在**路由注册前**构造
+			// TokenStore 与带吊销检查的认证器已在**路由注册前**构造
 			//（见上），此处只把同一实例注入 biz（ValidateToken 与中间件同源，故
 			// 「登出后 ValidateToken 报 invalid」与「登出后中间件拒绝」语义一致）。
 			if tokenStore != nil {
 				bizSet.Auth.SetTokenStore(tokenStore)
 				bizSet.Auth.SetAuthenticator(authenticator)
-				// Wave 1d-2：验证码存储（复用同一 Redis）。
+				// 验证码存储（复用同一 Redis）。
 				bizSet.Auth.SetCaptchaStore(captcha.NewRedisStore(bootstrappkg.RedisClient))
-				// Wave 1.5：MFA 挑战存储（复用同一 Redis）。
+				// MFA 挑战存储（复用同一 Redis）。
 				// Redis 故障时 MFA 走 fail-closed（biz 层判 nil 返回错误）——
 				// MFA 是安全边界，不能像限流那样 fail-open。
 				if bizSet.MFA != nil {
@@ -548,7 +545,7 @@ func newApp(
 			return nil
 		}),
 
-		// R1-2 期望态协调：以 audit.backends 为期望态，与当前生效后端集合 diff，
+		// 期望态协调：以 audit.backends 为期望态，与当前生效后端集合 diff，
 		// 自动重建 MultiAuditor 收敛（幂等）。首次收敛在 AfterStart 前（runReconcilers
 		// 于基线 loadConfig 后、BeforeStart 链之后触发）；后续 OnConfigChange 携带新
 		// 快照再次触发，实现运行期热切换而无需重启。
@@ -569,11 +566,11 @@ func newApp(
 		}),
 	}
 
-	// M5：gateway 转码面 —— 已迁到契约装配（server.gateway 段，见 WithServerRegistry）。
+	// gateway 转码面 —— 已迁到契约装配（server.gateway 段，见 WithServerRegistry）。
 	// 契约 server.http.driver 的「同端口二选一」表达不了「gin 主面 + 独立转码面并存」，
 	// 故用 server.gateway 段（独立 addr + backend_grpc_addr 回退 server.grpc.addr）。
 
-	// Wave 4：asynq 任务队列 —— 已迁到契约装配（server.asynq 段 + asynq contract）。
+	// asynq 任务队列 —— 已迁到契约装配（server.asynq 段 + asynq contract）。
 	// 契约 provider 在 Run 期 server 构造点执行，可读 Run 期资源（cache.redis 段、
 	// bizSet）；handler 注册与 SetScheduler 接线都在 provider 回调内完成（见
 	// serverRegistry）。段未配 redis_address 时经 WithAddressResolver 回退
@@ -584,7 +581,7 @@ func newApp(
 	// 表达不了；详见 sse.go 文件头）。
 	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
 	//
-	// Wave 4（建议一）：SSE 改**运行期构造**（appkit.WithExtraServerFunc）——工厂在
+	// SSE 改**运行期构造**（appkit.WithExtraServerFunc）——工厂在
 	// Run 期 server 构造点调用（业务 beforeStart 之后），彼时 InitBridges 已建好
 	// authenticator。biz 接线（wireMessageSSE）**一并移入工厂**：工厂返回服务器后
 	// 立即接线，故可在同一时机拿到 bizSet（而非等下方业务钩子里再补——那里 sseSrv
@@ -593,7 +590,7 @@ func newApp(
 	//
 	// 注：SSE 保持逃生舱——契约 server.sse 段无 provider，且其授权钩子绑定业务
 	// authenticator（契约段的声明式字段表达不了）。与 asynq/cron/gateway 不同：
-	// 后三者已由本仓 provider 覆盖（见 Wave 4 的 serverRegistry）。
+	// 后三者已由本仓 provider 覆盖（见 serverRegistry）。
 	opts = append(opts, appkit.WithExtraServerFunc(func(ctx context.Context) (transport.Server, error) {
 		srv, err := buildSSEServer(ctx, loadSSEConfig(svrOpts), authenticator)
 		if err != nil {
@@ -606,7 +603,7 @@ func newApp(
 		return srv, nil
 	}))
 
-	// Wave 4：cron 定时器 —— 已迁到契约装配（server.cron 段 + cron contract）。
+	// cron 定时器 —— 已迁到契约装配（server.cron 段 + cron contract）。
 	// 周期任务注册在 provider 的 WithJobs 回调内完成（见 serverRegistry）。
 
 	// 审计后端 provider 注册（store 后端）。**必须在 FromBootstrap 之前**——
