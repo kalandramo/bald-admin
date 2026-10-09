@@ -1,3 +1,16 @@
+# ---- 应用元数据（契约 app 段）----
+# 这些值原写在代码里（cmd/bald-admin/app/assembly.go），现由本段驱动。
+# 缺省时回退契约内置值（app.name="bald-app" / version="v0.0.0" /
+# stop_timeout=30s），故**建议显式声明**以免服务身份与预期不符。
+#
+# 注意 app.name 是**服务身份**（日志 attrs / 注册中心实例名），
+# 不决定 env 前缀——配置命名空间由代码层 appkit.WithConfigNamespace 声明。
+app:
+  name: "bald-admin"
+  version: "v0.1.0"
+  # 优雅停机超时：等待在途请求完成的上限。
+  stop_timeout: "15s"
+
 server:
   http:
     addr: ":8080"
@@ -66,7 +79,26 @@ server:
     # seconds: true                # 未设置 → 实现默认（启用）
     # location: "Asia/Shanghai"    # 留空用本地时区
 
-log: { level: "info", format: "json" }
+# 日志（契约字段名是 `logger`，非 `log`）
+#
+# ⚠️ 本段原先写作 `log: { level, format }` —— **双重错误**：键名应为 `logger`，
+# 且 level/format 属于 backends[].slog 而非顶层。该写法下整段被 DiscardUnknown
+# 丢弃，日志实际一直用契约默认（format=console），配置看起来生效实则无声失效。
+logger:
+  # 全局脱敏 key 清单：命中 key 的属性值统一替换为 ***（属性保留不丢弃）。
+  # 覆盖**位置参数对**（Info(ctx, "password", v)）与 **ctx 属性流**两类来源，
+  # **全部后端统一生效**（含 loki/SLS 等远端可检索平台——合规宁全勿漏）。
+  #
+  # ⚠️ 与代码里的 bslog.WithFilter 是**互补**关系，不是重复：
+  #   本段（契约层）不处理 slog.Attr 形式（slog.String("password", v)），
+  #   那由 assembly.go 的 bslog.WithFilter(FilterKey(...)) 在 handler 层覆盖。
+  #   两者缺一即有来源未被掩码，故并存。
+  filter_keys: ["password", "token"]
+  backends:
+    - type: "slog"
+      slog:
+        level: "info"
+        format: "json"
 # audit.backends 逐项必须是**已注册**的 provider。当前注册了 `store` 与
 # `stream`（见 cmd/bald-admin/app/audit_wiring.go）。`stream` 需 cache.redis
 # 可达，否则启动 fail-fast（配置意图无法兑现，不静默降级）。

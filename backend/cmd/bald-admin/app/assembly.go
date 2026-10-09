@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	auditv1 "github.com/kalandramo/bald-admin/api/gen/go/audit/v1"
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
@@ -51,18 +50,12 @@ import (
 
 func serveRunE(_ *cobra.Command, _ []string) error {
 	// 0. 框架级配置：proto 是唯一真相源，直接持有 Bootstrap 指针。
-	bootstrap := bconf.NewBootstrap()
-	bootstrap.GetServer().GetHttp().Addr = ":8080"
-
-	// 业务身份默认值：app 元数据由契约 app 段驱动（FromBootstrap 内化
-	// Name/Version/StopTimeout Option）。此后若配置文件/env 写了 app 段，
-	// 会覆盖这里的值——本处仅提供契约缺省时的兜底。
 	//
-	// 注意 app.name 只是**服务身份**（日志 / 注册中心实例名），不决定 env 前缀；
-	// 配置命名空间由下方 newApp 的 WithConfigNamespace 单独声明。
-	bootstrap.GetApp().Name = "bald-admin"
-	bootstrap.GetApp().Version = "v0.1.0"
-	bootstrap.GetApp().StopTimeout = durationpb.New(15 * time.Second)
+	// 应用元数据（app.name/version/stop_timeout）与 server.http.addr 均**由配置文件
+	// 驱动**（见 configs/bald-admin.yaml 的 app 段与 server 段），此处不再重复赋值——
+	// 契约内置缺省（app.name="bald-app" / version="v0.0.0" / stop_timeout=30s /
+	// http.addr=":8080"）仅在配置缺失时兜底。
+	bootstrap := bconf.NewBootstrap()
 
 	// 业务配置聚合对象**最先创建**——构造期的若干步骤（可观测性 env 开关、
 	// gateway/asynq/SSE 地址）需要其默认值通道；实际配置值在各钩子内解码覆盖。
@@ -316,8 +309,15 @@ func newApp(
 		// 健康检查默认装配：HTTP 双探针 + gRPC health 状态联动（新版归位后的唯一入口）。
 		appkit.WithHealth(healthChecker),
 
-		// 日志脱敏装饰：阶段 A（启动默认）/ 阶段 B（契约重建）统一生效
-		//（原 setLogger 两处手挂收敛至此）。
+		// 日志装饰：脱敏 + 固定结构化属性。
+		//
+		// 两套脱敏机制**互补，不是重复**（实测验证）：
+		//   - 契约 `logger.filter_keys`（见 configs/bald-admin.yaml）包在
+		//     MultiLogger 外层，覆盖**位置参数对**（"password", v）与 **ctx 属性流**；
+		//   - 下面 bslog.WithFilter 是 slog handler 层装饰器，覆盖 **slog.Attr**
+		//     形式（slog.String("password", v)）。契约版不处理 Attr——其 filterArgs
+		//     按「偶数下标为 key」匹配，Attr 不是字符串对，会被漏过。
+		// 二者缺一即有来源未被掩码，故并存。
 		appkit.WithLogDecorators(
 			bslog.WithFilter(bslog.FilterKey("password")),
 			bslog.WithFilter(bslog.FilterKey("token")),
