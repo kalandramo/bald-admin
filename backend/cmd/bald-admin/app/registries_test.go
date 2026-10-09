@@ -13,13 +13,13 @@ import (
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 )
 
-// TestGatewayAddr_M6 验证 M6 生产化：gateway 地址可经 env BALD_GATEWAY_ADDR 配置。
+// TestApplyObservabilityDefaults_GatewayAddr 验证 gateway 地址的**配置优先级契约**：
+// 显式 `server.gateway` 段 > env `BALD_GATEWAY_ADDR` > 缺省 `:8081`。
 //
-// W2：env 读取收敛到 options.NewServerOptions()（唯一默认值来源）。
-// Wave 4：gateway 改契约装配（server.gateway 段）；env/flag 值经
-// applyObservabilityDefaults 合成到该段，故断言改为「经 NewServerOptions 构造 +
-// 缺省合成后，契约段地址符合期望」——行为语义不变。
-func TestGatewayAddr_M6(t *testing.T) {
+// 被测对象：本包 `registries.go` 的 `applyObservabilityDefaults`（测试文件与之同名就近）。
+// env/flag 值经该函数从 `options.NewServerOptions()`（唯一默认值来源）合成到契约段，
+// 显式配置源已配该段时**不被合成值覆盖**。
+func TestApplyObservabilityDefaults_GatewayAddr(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		os.Unsetenv("BALD_GATEWAY_ADDR")
 		svrOpts := options.NewServerOptions()
