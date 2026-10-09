@@ -17,6 +17,10 @@ import (
 	"github.com/kalandramo/bald/pkg/audit"
 )
 
+// reconAuditors 是 R1-2 协调的「实际态」载体：协调器逐后端 Mount/Unmount，
+// 每个后端组件在 Start 时把自己塞入此表、Dispose 时移除，并刷新全局 MultiAuditor。
+// 由 ReconcileCtx.Mount/Unmount（底层 A1 组件生命周期 + reconItems 归属表）串行化，
+// 自身无需额外加锁——协调器单次执行是串行的，且框架对多协调器按注册序串行。
 var reconAuditors = struct {
 	mu  sync.Mutex
 	set map[string]audit.Auditor
@@ -198,6 +202,3 @@ func contains(s []string, v string) bool {
 	}
 	return false
 }
-
-// appRefT 是 AppKit 的线程安全迟到绑定句柄：管理面路由在 appkit.New 之前注册
-// （gin 装配先于 app 构造），handler 闭包捕获 appRef、请求期读取最新 App 实例。

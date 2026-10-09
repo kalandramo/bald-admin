@@ -25,6 +25,9 @@ import (
 	gatewaycontract "github.com/kalandramo/bald/transport/gateway/contract"
 )
 
+// tracerRegistry 显式注册 trace 后端契约 provider（appkit.TracerRegistry：
+// 契约 tracer 段 → 全局 TracerProvider，tracer.type 单选）。装配与停机
+// flush 由 FromBootstrap 内化。
 func tracerRegistry() *appkit.TracerRegistry {
 	tr := appkit.NewTracerRegistry()
 	tr.MustRegister(otlpcontract.TracerType, otlpcontract.NewTracerProvider("bald-admin"))
@@ -267,8 +270,3 @@ func storageRegistry() *baldbootstrap.StorageRegistry {
 	sr.MustRegister(s3contract.Type, s3contract.Provider)
 	return sr
 }
-
-// reconAuditors 是 R1-2 协调的「实际态」载体：协调器逐后端 Mount/Unmount，
-// 每个后端组件在 Start 时把自己塞入此表、Dispose 时移除，并刷新全局 MultiAuditor。
-// 由 ReconcileCtx.Mount/Unmount（底层 A1 组件生命周期 + reconItems 归属表）串行化，
-// 自身无需额外加锁——协调器单次执行是串行的，且框架对多协调器按注册序串行。

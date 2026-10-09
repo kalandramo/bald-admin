@@ -15,6 +15,8 @@ import (
 	"github.com/kalandramo/bald/pkg/authz"
 )
 
+// appRefT 是 AppKit 的线程安全迟到绑定句柄：管理面路由在 appkit.New 之前注册
+// （gin 装配先于 app 构造），handler 闭包捕获 appRef、请求期读取最新 App 实例。
 type appRefT struct {
 	mu  sync.RWMutex
 	app *appkit.AppKit

@@ -54,9 +54,12 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 	bootstrap := bconf.NewBootstrap()
 	bootstrap.GetServer().GetHttp().Addr = ":8080"
 
-	// 业务身份默认值（U1）：app 元数据改由契约 app 段驱动（FromBootstrap 内化
-	// Name/Version/StopTimeout Option）。env 前缀（BALD_ADMIN_*）由 Name
-	// 规范化派生，必须在 FromBootstrap 构造前就位——坑见框架文档「已知耦合」。
+	// 业务身份默认值：app 元数据由契约 app 段驱动（FromBootstrap 内化
+	// Name/Version/StopTimeout Option）。此后若配置文件/env 写了 app 段，
+	// 会覆盖这里的值——本处仅提供契约缺省时的兜底。
+	//
+	// 注意 app.name 只是**服务身份**（日志 / 注册中心实例名），不决定 env 前缀；
+	// 配置命名空间由下方 newApp 的 WithConfigNamespace 单独声明。
 	bootstrap.GetApp().Name = "bald-admin"
 	bootstrap.GetApp().Version = "v0.1.0"
 	bootstrap.GetApp().StopTimeout = durationpb.New(15 * time.Second)
@@ -626,7 +629,3 @@ func newApp(
 	}
 	return app, nil
 }
-
-// tracerRegistry 显式注册 trace 后端契约 provider（appkit.TracerRegistry：
-// 契约 tracer 段 → 全局 TracerProvider，tracer.type 单选）。装配与停机
-// flush 由 FromBootstrap 内化（U1：原 setupObservability + traceComp 样板删）。

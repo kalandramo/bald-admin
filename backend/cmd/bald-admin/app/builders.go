@@ -126,6 +126,3 @@ func buildTokenStore() token.Store {
 	}
 	return token.NewRedisStore(bootstrappkg.RedisClient)
 }
-
-// configFloat 已删除（W2）：其存在本身即「无强类型配置」的标志——所有业务
-// 配置读取已收敛到 options.ServerOptions 的强类型字段。
