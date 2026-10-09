@@ -144,15 +144,26 @@ type GatewayOptions struct {
 	Addr string `mapstructure:"addr"`
 }
 
-// MetricsOptions 可观测性暴露端 env 开关（W2 收敛：原散在 registries.go 的
-// os.Getenv 两处集中于此）。
+// MetricsOptions 可观测性暴露端的历史 env 通道（**已退役**）。
 //
-// 语义（U1 既定）：env 开关在**构造期**应用于合成/预装载态；显式配置源若配
-// metrics 段则覆盖之（显式声明优先）。
+// 退役理由（W3）：本结构的字段曾由 BALD_ADMIN_METRICS_ADDR /
+// BALD_ADMIN_OTLP_ADDR 填充，经由 applyObservabilityDefaults 在**契约装载
+// 之前**注入。但那两个短名会被框架 env 层截获成 `metrics.addr` /
+// `metrics.otlp`（契约无此键，被 DiscardUnknown 丢弃）；第二次完整装载
+// （syncBootstrap）又用配置文件的值覆盖了注入结果——净效果是「配置里声明了
+// metrics 段时，env 静默失效」，且无任何提示。
+//
+// 现统一走框架路径名（`BALD_ADMIN_METRICS_PROMETHEUS_ADDR` /
+// `BALD_ADMIN_METRICS_OTLP_ENDPOINT` / `BALD_ADMIN_TRACER_OTLP_ENDPOINT`），
+// 优先级与其余契约字段一致（env 层高于本地文件层）。
+//
+// 字段与类型保留仅为兼容「程序化覆写」的既有结构（无 flag 绑定）；
+// 运行期消费者已删，改端口/端点请用上述路径名或对应配置段。
 type MetricsOptions struct {
-	// Addr 覆盖 prometheus 暴露端口（BALD_ADMIN_METRICS_ADDR）。
+	// Addr 历史字段（无消费者）。改暴露端口请用 `metrics.prometheus.addr`。
 	Addr string `mapstructure:"addr"`
-	// OtlpAddr 覆盖 OTLP 直推 endpoint（BALD_ADMIN_OTLP_ADDR）。
+	// OtlpAddr 历史字段（无消费者）。改端点请用 `metrics.otlp.endpoint`
+	// 与 `tracer.otlp.endpoint`（两者需分别设置）。
 	OtlpAddr string `mapstructure:"otlp_addr"`
 }
 
@@ -201,17 +212,24 @@ func NewServerOptions() *ServerOptions {
 		File:  FileOptions{Bucket: ""}, // 空 = 未配置对象存储（file 模块降级）
 		Audit: AuditOptions{FallbackTenant: "t-default"},
 		Auth:  AuthOptions{AccessTTLMinutes: 120, RefreshTTLHours: 168},
-		// Asynq/Redis/SSE/Gateway 的 env 兼容通道（构造期需要，见各字段注释）。
+		// Asynq/Redis/SSE 的 env 兼容通道（构造期需要，见各字段注释）。
 		// 集中在此处读取——替换前它们散落在 asynq.go/sse.go/servers.go 各自
 		// os.Getenv（「同源配置多条链」），现收敛为唯一默认值来源。
-		Asynq:   AsynqOptions{Codec: envDefault("BALD_ADMIN_ASYNQ_CODEC", "json")},
-		Redis:   RedisOptions{Addr: os.Getenv("BALD_ADMIN_REDIS_ADDR")},
-		SSE:     SSEOptions{Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"), Path: os.Getenv("BALD_ADMIN_SSE_PATH")},
-		Gateway: GatewayOptions{Addr: envDefault("BALD_GATEWAY_ADDR", ":8081")},
-		Metrics: MetricsOptions{
-			Addr:     os.Getenv("BALD_ADMIN_METRICS_ADDR"),
-			OtlpAddr: os.Getenv("BALD_ADMIN_OTLP_ADDR"),
-		},
+		//
+		// 注：Metrics/Gateway 的短名 env（BALD_ADMIN_METRICS_ADDR /
+		// BALD_ADMIN_OTLP_ADDR / BALD_GATEWAY_ADDR）已退役——它们会被框架
+		// env 层截获成契约不存在的键而被静默丢弃，且写入时机早于契约装载、
+		// 会被配置段覆盖。改用框架路径名后优先级与其余字段一致。
+		// SSE 例外：契约 `server.sse` 段无 provider（registered=false），
+		// 用路径名会 fail-fast，故保留短名通道（见 sse.go 文件头）。
+		Asynq: AsynqOptions{Codec: envDefault("BALD_ADMIN_ASYNQ_CODEC", "json")},
+		Redis: RedisOptions{Addr: os.Getenv("BALD_ADMIN_REDIS_ADDR")},
+		SSE:   SSEOptions{Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"), Path: os.Getenv("BALD_ADMIN_SSE_PATH")},
+		// gateway 缺省 :8081（与迁移前一致；Validate 要求非空）。此值仅在
+		// 契约 `server.gateway` 段缺失时被合成使用——若配置段或
+		// `BALD_ADMIN_SERVER_GATEWAY_ADDR` 提供了值，显式值优先。
+		Gateway: GatewayOptions{Addr: ":8081"},
+		Metrics: MetricsOptions{},
 	}
 }
 

@@ -88,8 +88,13 @@ tasks:
     desc: 起服务并直推 OTLP 远端（需本地 collector :4318）
     dir: "{{.MOD}}"
     env:
-      BALD_ADMIN_OTLP_ADDR: http://localhost:4318
-      BALD_ADMIN_METRICS_ADDR: ":9091"
+      # 框架路径名（BALD_ADMIN_<点路径>，下划线即分隔符）。
+      # 勿用旧短名 BALD_ADMIN_OTLP_ADDR / BALD_ADMIN_METRICS_ADDR——它们会被
+      # env 层截获成契约不存在的键（metrics.otlp / metrics.addr）而静默丢弃，
+      # 且注定被配置段覆盖（本仓 configs/bald-admin.yaml 已声明 metrics 段）。
+      BALD_ADMIN_METRICS_OTLP_ENDPOINT: http://localhost:4318
+      BALD_ADMIN_TRACER_OTLP_ENDPOINT: http://localhost:4318
+      BALD_ADMIN_METRICS_PROMETHEUS_ADDR: ":9091"
     cmds:
       - go run ./cmd/bald-admin --config=configs/bald-admin.yaml
 

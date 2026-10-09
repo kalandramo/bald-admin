@@ -1,7 +1,6 @@
 package app
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,34 +12,55 @@ import (
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 )
 
-// TestApplyObservabilityDefaults_GatewayAddr 验证 gateway 地址的**配置优先级契约**：
-// 显式 `server.gateway` 段 > env `BALD_GATEWAY_ADDR` > 缺省 `:8081`。
+// TestApplyObservabilityDefaults_GatewayAddr 验证 gateway 地址的**合成优先级契约**：
+// 显式 `server.gateway` 段 > 合成缺省（ServerOptions 的 :8081）。
 //
 // 被测对象：本包 `registries.go` 的 `applyObservabilityDefaults`（测试文件与之同名就近）。
-// env/flag 值经该函数从 `options.NewServerOptions()`（唯一默认值来源）合成到契约段，
-// 显式配置源已配该段时**不被合成值覆盖**。
+//
+// W3 变更：本测试原先还覆盖「env BALD_GATEWAY_ADDR 覆盖缺省」——该 env 通道
+// 已退役（短名会被框架 env 层截获成契约不存在的键，且优先级与装载链不一致）。
+// 改用框架路径名 `BALD_ADMIN_SERVER_GATEWAY_ADDR`，其优先级由装载链处理，
+// 故不再由本函数的合成逻辑断言（见 appkit/config 的 env 层测试）。
 func TestApplyObservabilityDefaults_GatewayAddr(t *testing.T) {
-	t.Run("default", func(t *testing.T) {
-		os.Unsetenv("BALD_GATEWAY_ADDR")
+	t.Run("合成缺省", func(t *testing.T) {
 		svrOpts := options.NewServerOptions()
 		cfg := bconf.NewBootstrap()
 		require.NoError(t, applyObservabilityDefaults(cfg, svrOpts))
 		assert.Equal(t, ":8081", cfg.GetServer().GetGateway().GetAddr())
 	})
-	t.Run("env override", func(t *testing.T) {
-		t.Setenv("BALD_GATEWAY_ADDR", ":18081")
-		svrOpts := options.NewServerOptions()
-		cfg := bconf.NewBootstrap()
-		require.NoError(t, applyObservabilityDefaults(cfg, svrOpts))
-		assert.Equal(t, ":18081", cfg.GetServer().GetGateway().GetAddr())
-	})
-	t.Run("explicit section wins", func(t *testing.T) {
-		os.Unsetenv("BALD_GATEWAY_ADDR")
+	t.Run("显式段优先（不被合成值覆盖）", func(t *testing.T) {
 		svrOpts := options.NewServerOptions()
 		cfg := bconf.NewBootstrap()
 		cfg.GetServer().Gateway = &bootstrapv1.Server_Gateway{Addr: ":28081"}
 		require.NoError(t, applyObservabilityDefaults(cfg, svrOpts))
 		assert.Equal(t, ":28081", cfg.GetServer().GetGateway().GetAddr(),
-			"显式 server.gateway 段必须优先于 env 合成值")
+			"显式 server.gateway 段必须优先于合成缺省值")
+	})
+	t.Run("metrics 段缺省时合成 prometheus", func(t *testing.T) {
+		svrOpts := options.NewServerOptions()
+		cfg := bconf.NewBootstrap()
+		require.NoError(t, applyObservabilityDefaults(cfg, svrOpts))
+		require.NotNil(t, cfg.GetMetrics())
+		assert.Equal(t, "prometheus", cfg.GetMetrics().GetType())
+		// addr 留空 → 框架缺省 :9091（appkit.StartMetricsServer 内回退）。
+		assert.Empty(t, cfg.GetMetrics().GetPrometheus().GetAddr(),
+			"合成值不应写死端口，交由框架缺省 :9091")
+	})
+	t.Run("显式 metrics 段不被覆盖", func(t *testing.T) {
+		svrOpts := options.NewServerOptions()
+		cfg := bconf.NewBootstrap()
+		cfg.Metrics = &bootstrapv1.Metrics{
+			Type:       "otlp",
+			Prometheus: &bootstrapv1.Metrics_Prometheus{Addr: ":19091"},
+		}
+		require.NoError(t, applyObservabilityDefaults(cfg, svrOpts))
+		assert.Equal(t, "otlp", cfg.GetMetrics().GetType())
+		assert.Equal(t, ":19091", cfg.GetMetrics().GetPrometheus().GetAddr())
+	})
+	t.Run("cron 段缺省时合成", func(t *testing.T) {
+		svrOpts := options.NewServerOptions()
+		cfg := bconf.NewBootstrap()
+		require.NoError(t, applyObservabilityDefaults(cfg, svrOpts))
+		assert.NotNil(t, cfg.GetServer().GetCron())
 	})
 }

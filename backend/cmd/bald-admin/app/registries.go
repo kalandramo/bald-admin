@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/spf13/pflag"
@@ -47,47 +46,27 @@ func metricsRegistry() *appkit.MetricsRegistry {
 }
 
 // applyObservabilityDefaults 在 FromBootstrap 构造前应用 bald-admin 的
-// 可观测性缺省态与 env 开关（U1：原 setupObservability 的缺省合成/env 半段
-// 前移——Build 半段归框架 buildObservability）：//   - metrics 段缺省 → 合成 `type: prometheus`（仅本地抓取，addr 缺省 :9091，
+// 可观测性/协议段**缺省合成**（U1：原 setupObservability 的缺省合成半段
+// 前移；Build 半段归框架 buildObservability）：
+//   - metrics 段缺省 → 合成 `type: prometheus`（仅本地抓取，addr 缺省 :9091，
 //     T8 与 gRPC 错峰）——零配置可运行，冒烟/CI 不破；
-//   - BALD_ADMIN_METRICS_ADDR 覆盖暴露端口；BALD_ADMIN_OTLP_ADDR 覆盖双通道
-//     endpoint——只提供地址，不改变 type 声明的语义（配 prometheus 不会因
-//     env 翻转成推送；otlp endpoint 与 type=prometheus 的矛盾声明仍报错）。
+//   - server.gateway / server.cron 段缺省 → 合成（保持「逃生舱时代总是挂载」
+//     的行为；契约装配的语义是「段缺失即不装配」）。
 //
-// 时机语义（U1 行为收敛）：env 开关在构造前应用于合成/预装载态；显式配置源
-// （文件/远程）若配了 metrics/tracer 段，装载时覆盖 env 值——显式声明优先
-// 于 env 开关（原 New 路径 env 后置于装载，语义为 env > 文件；收敛原因：
-// FromBootstrap 的 Build 在装载后立即执行，业务无介入位，且「配置说开了」
-// 胜过「环境变量说没开」与契约哲学一致）。
-
+// 关于 env（W3 收敛）：本函数**不再**读取任何 env 开关。原
+// BALD_ADMIN_METRICS_ADDR / BALD_ADMIN_OTLP_ADDR 的注入已退役——那两个短名
+// 会被框架 env 层映射成 `metrics.addr`/`metrics.otlp`（契约无此键，被
+// DiscardUnknown 丢弃），且注入发生在契约装载**之前**，会被第二次完整装载
+// 覆盖，净效果是「配置声明该段时 env 静默失效」。现统一走框架路径名
+// （`BALD_ADMIN_METRICS_PROMETHEUS_ADDR` 等），由装载链自身处理优先级。
+//
+// 合成值的优先级：显式契约段（配置段/env 路径名）**总是优先**于此处合成——
+// 合成仅填空缺（`GetX() == nil` 判据）。
 func applyObservabilityDefaults(bootstrap *bootstrapv1.BootstrapConfig, opts *options.ServerOptions) error {
 	// metrics 缺省合成：段缺省 → 仅暴露（T9 语义：零配置仍可抓取）。
+	// addr 留空即走框架缺省 :9091（见 appkit.StartMetricsServer）。
 	if bootstrap.GetMetrics() == nil {
 		bootstrap.Metrics = &bootstrapv1.Metrics{Type: otlpcontract.TypePrometheus}
-	}
-	m := bootstrap.GetMetrics()
-	if v := opts.Metrics.Addr; v != "" {
-		if m.Prometheus == nil {
-			m.Prometheus = &bootstrapv1.Metrics_Prometheus{}
-		}
-		m.Prometheus.Addr = v
-	}
-	if v := opts.Metrics.OtlpAddr; v != "" {
-		switch m.GetType() {
-		case otlpcontract.TypeOTLP:
-			if m.Otlp == nil {
-				m.Otlp = &bootstrapv1.Metrics_Otlp{}
-			}
-			m.Otlp.Endpoint = v
-		case otlpcontract.TypePrometheus:
-			return fmt.Errorf("metrics.type=prometheus conflicts with BALD_ADMIN_OTLP_ADDR configured (use type \"otlp\" to enable push)")
-		}
-		if tr := bootstrap.GetTracer(); tr != nil {
-			if tr.Otlp == nil {
-				tr.Otlp = &bootstrapv1.Tracer_Otlp{}
-			}
-			tr.Otlp.Endpoint = v
-		}
 	}
 
 	// Wave 4：server 协议段缺省合成（同 metrics 的「构造前填缺省」范式）。
@@ -96,10 +75,9 @@ func applyObservabilityDefaults(bootstrap *bootstrapv1.BootstrapConfig, opts *op
 	// gatewayFactory 注入即挂载；cron 无外部依赖总启用）；迁到契约装配后，
 	// 「段缺失 = 不装配」会让它们默认消失——故合成默认段保持既有行为。
 	//
-	// 地址来源：ServerOptions.Gateway.Addr（env BALD_GATEWAY_ADDR / flag
-	// --gateway.addr，缺省 :8081）——迁到契约段后它不再有运行期消费者，
-	// 但作为「段未显式配置时的便捷通道」保留（与 U1 的 env 开关语义一致：
-	// 显式配置源配了 server.gateway 段则覆盖此合成值）。
+	// 合成值来自 ServerOptions（缺省 :8081）。配置段
+	// `server.gateway` 或 env `BALD_ADMIN_SERVER_GATEWAY_ADDR` 已提供时，
+	// GetGateway() 非 nil，此处跳过。
 	if bootstrap.GetServer() != nil {
 		if bootstrap.GetServer().GetGateway() == nil && opts.Gateway.Addr != "" {
 			bootstrap.GetServer().Gateway = &bootstrapv1.Server_Gateway{Addr: opts.Gateway.Addr}

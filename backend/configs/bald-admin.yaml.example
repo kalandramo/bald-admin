@@ -142,16 +142,23 @@ audit:
   fallback_tenant: "t-default"
 
 # ---- T0 新增：真实服务依赖（云端地址由用户填写）----
+# 注：本段与 cache 段的 env 用的是**短名**（BALD_ADMIN_DB_DSN /
+# BALD_ADMIN_REDIS_ADDR），与 metrics/tracer 的路径名（BALD_ADMIN_METRICS_*）
+# 不同。这是框架既有设计：短名由 `contrib/store-gorm` 的 `WithEnv` 与
+# `bootstrap.resolveRedis` 直接读取（绕过配置树，属**框架提供的**覆盖通道，
+# 有专门测试），而 metrics/tracer 走通用 env 层（名字即路径）。
+# 两者优先级方向因此不同，见各自段落说明——不是笔误。
 database:
   # DSN 优先级：**env BALD_ADMIN_DB_DSN > 本段 database.sql > SQLite 内存库**。
-  # env 存在即整体覆盖（注意方向与下方 metrics 段相反——那里是配置段胜出）。
+  # （与 metrics 段方向相反：那里 env 路径名层级更高，但读的是配置树；
+  # 这里 env 直接短路，不经配置树。）
   # 三者皆空则回退 SQLite 内存库（零依赖可跑，但数据不持久）。
   sql:
     driver: "postgres"
     source: "host=<PG_HOST> port=5432 user=<PG_USER> password=<PG_PASSWORD> dbname=<PG_DB> sslmode=disable"
     migrate: true
 cache:
-  # 优先级：**env BALD_ADMIN_REDIS_ADDR > 本段 cache.redis**。
+  # 优先级：**env BALD_ADMIN_REDIS_ADDR > 本段 cache.redis**（同上，短名短路）。
   # ⚠️ env 通道只携带**地址**（password/db 强制为空/0）——对启用了密码的实例
   # 会 ping 失败。带密码的实例必须用本段（或让本段胜出），不要依赖 env。
   redis:
@@ -219,19 +226,23 @@ metrics:
   # prometheus 暴露端点总是挂载（供本地抓取），otlp 段非空则叠加直推。
   type: "otlp"
   prometheus: { addr: ":9091", path: "/metrics" }
-  # ---- env 开关（应用层，见 cmd/bald-admin/app/registries.go 的
-  # applyObservabilityDefaults）----
-  # 两者都**只提供地址，不改变 type 声明的语义**：
-  #   BALD_ADMIN_METRICS_ADDR  覆盖 prometheus 暴露端（缺省 :9091）
-  #   BALD_ADMIN_OTLP_ADDR     覆盖 metrics.otlp.endpoint 与 tracer.otlp.endpoint
+  # ---- env 覆盖（框架路径名，无独立开关）----
+  # 覆盖本段（及 tracer 段）请用框架的 env 路径名——**名字即路径**：
+  #   BALD_ADMIN_METRICS_PROMETHEUS_ADDR     → metrics.prometheus.addr
+  #   BALD_ADMIN_METRICS_OTLP_ENDPOINT       → metrics.otlp.endpoint
+  #   BALD_ADMIN_TRACER_OTLP_ENDPOINT        → tracer.otlp.endpoint
+  # （下划线即路径分隔；点路径请用 `.` 的父名拼写。）
   #
-  # 优先级：**本文件的显式段 > env 开关 > 内置缺省**。env 值在契约装载
-  # **之前**注入，随后被本文件同名键覆盖——故「配置里写了」胜过「环境变量说开了」。
+  # 优先级：**env 路径名 > 本文件 > 内置缺省**。env 层在合并时最后叠加，
+  # 故「环境变量说开了」胜过「配置文件说没开」。
   #
-  # ⚠️ type 与 env 不得矛盾：type=prometheus 时设 BALD_ADMIN_OTLP_ADDR 会启动期
-  # 报错（推送需 type: "otlp"）。
+  # ⚠️ 历史短名 BALD_ADMIN_METRICS_ADDR / BALD_ADMIN_OTLP_ADDR **已退役**——
+  # 它们被 env 层截获成 `metrics.addr`/`metrics.otlp`（契约无此键，被
+  # DiscardUnknown 丢弃），且应用层注入发生在契约装载之前、必被本文件覆盖，
+  # 净效果是「配了本段则 env 静默失效」且无提示。请改用上面的路径名。
   #
-  # 本段**整段缺省**时合成 type: prometheus（仅本地抓取，零配置可运行）。
+  # 本段**整段缺省**时合成 type: prometheus（仅本地抓取，addr 走框架缺省
+  # :9091，零配置可运行）。
   otlp:
     endpoint: "<OTLP_HOST>:4318"
     insecure: true
