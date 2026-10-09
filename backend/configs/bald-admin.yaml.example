@@ -1,3 +1,25 @@
+# =============================================================================
+# BALD-ADMIN 配置模板
+# =============================================================================
+#
+# ⚠️ 顶层键名写错会被**静默丢弃**，不报错。
+#
+# 原因：契约解析用 DiscardUnknown（bconf/unmarshal.go），以便 proto 未声明的
+# 业务段（本文件的 file / login / gateway）与框架段共存。代价是无法区分
+# 「合法业务段」与「拼错的契约字段」——两者都被丢弃。
+#
+# 已有真实案例：本文件原先写作 `log: { level, format }`，而契约字段名是
+# `logger`，且 level/format 属于 `logger.backends[].slog`。整段被丢弃，
+# 日志实际一直用契约默认 `format=console`，配置看起来生效实则从未生效。
+#
+# 改动配置前，请对照契约顶层字段名（共 15 个，缺一即拼错）：
+#   app  server  config  registry  logger  tracer  metrics  broker  storage
+#   ai   workflow  cache  script  database  audit
+# 以及本项目自有的业务段：
+#   file  login  （以及 server 下的 gateway 子段）
+#
+# =============================================================================
+
 # ---- 应用元数据（契约 app 段）----
 # 这些值原写在代码里（cmd/bald-admin/app/assembly.go），现由本段驱动。
 # 缺省时回退契约内置值（app.name="bald-app" / version="v0.0.0" /
