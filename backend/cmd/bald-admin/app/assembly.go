@@ -50,11 +50,6 @@ import (
 
 func serveRunE(_ *cobra.Command, _ []string) error {
 	// 0. 框架级配置：proto 是唯一真相源，直接持有 Bootstrap 指针。
-	//
-	// 应用元数据（app.name/version/stop_timeout）与 server.http.addr 均**由配置文件
-	// 驱动**（见 configs/bald-admin.yaml 的 app 段与 server 段），此处不再重复赋值——
-	// 契约内置缺省（app.name="bald-app" / version="v0.0.0" / stop_timeout=30s /
-	// http.addr=":8080"）仅在配置缺失时兜底。
 	bootstrap := bconf.NewBootstrap()
 
 	// 业务配置聚合对象**最先创建**——构造期的若干步骤（可观测性 env 开关、
@@ -72,11 +67,9 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("bootstrap config sources: %w", err)
 	}
 
-	// 可观测性缺省态合成：bald-admin 语义「metrics 段缺省仍暴露
-	// :9091」——FromBootstrap 的保守缺省是「段缺省不装配」，故构造前合成默认
-	// 段。env 开关（BALD_ADMIN_METRICS_ADDR / BALD_ADMIN_OTLP_ADDR）同处应用；
-	// 显式配置源（文件/远程）若配 metrics 段将覆盖合成值——env 开关退居
-	// 「段未显式配置时的便捷」，显式声明优先（与契约「配置驱动」哲学一致）。
+	// 可观测性缺省态合成（详注与优先级说明见 configs/bald-admin.yaml.example 的
+	// metrics 段）：bald-admin 语义「metrics 段缺省仍暴露 :9091」，而 FromBootstrap
+	// 的保守缺省是「段缺省不装配」，故构造前合成默认段。
 	if err := applyObservabilityDefaults(bootstrap, svrOpts); err != nil {
 		return err
 	}
@@ -146,8 +139,10 @@ func buildApp(
 	//   - recovery/request_id/logging 段缺失 → 保留 bundle 既有默认（链中仍在）；
 	//   - cors/tracing/rate_limit/timeout 段缺失 → 不挂（缺省不装配）；
 	//   - 段显式声明但非法（如 timeout.default_timeout_ms<=0）→ 构造期 fail-fast。
-	// 注：本仓 configs/bald-admin.yaml 的 server 段未声明 middleware，故默认行为
-	// 与迁移前完全一致；在配置里加 middleware 段即生效。
+	// 注：各段是否声明、以及缺省语义的逐条说明，见 configs/bald-admin.yaml.example
+	// 的 server.http.middleware 段。本仓 configs/bald-admin.yaml 已声明该段
+	// （cors + request_id），故此处非空——迁移前「仅有 bundle 默认链」的状态
+	// 已随该段的声明而改变。
 	mwOpts, mwClose, err := bundle.FromMiddleware(
 		bootstrap.GetServer().GetHttp().GetMiddleware(),
 	)
@@ -312,7 +307,7 @@ func newApp(
 		// 日志装饰：脱敏 + 固定结构化属性。
 		//
 		// 两套脱敏机制**互补，不是重复**（实测验证）：
-		//   - 契约 `logger.filter_keys`（见 configs/bald-admin.yaml）包在
+		//   - 契约 `logger.filter_keys`（见 configs/bald-admin.yaml.example）包在
 		//     MultiLogger 外层，覆盖**位置参数对**（"password", v）与 **ctx 属性流**；
 		//   - 下面 bslog.WithFilter 是 slog handler 层装饰器，覆盖 **slog.Attr**
 		//     形式（slog.String("password", v)）。契约版不处理 Attr——其 filterArgs
@@ -335,7 +330,7 @@ func newApp(
 		appkit.WithConfigRegistry(cfgReg),
 
 		// 注册中心契约装配（显式注册表声明可用后端，未 import 的后端零依赖；
-		// registry 段不支持热更新）。
+		// 热更新支持矩阵见 configs/bald-admin.yaml.example 的 tracer 段）。
 		appkit.WithRegistrarRegistry(registrarRegistry()),
 
 		// 数据/缓存/存储契约段经透传 provider 消费（构造语义保留业务桥接的
@@ -345,7 +340,8 @@ func newApp(
 		appkit.WithCacheRegistry(cacheRegistry()),
 		appkit.WithStorageRegistry(storageRegistry()),
 
-		// 可观测性契约装配（tracer/metrics 段；段不支持热更新）。
+		// 可观测性契约装配（tracer/metrics 段；热更新支持矩阵见
+		// configs/bald-admin.yaml.example 的 tracer 段）。
 		appkit.WithTracerRegistry(tracerRegistry()),
 		appkit.WithMetricsRegistry(metricsRegistry()),
 
@@ -362,7 +358,8 @@ func newApp(
 		)),
 
 		// 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB
-		// 连接（BALD_ADMIN_DB_DSN，缺省 SQLite 内存），审计落库（StoreAuditor）依赖它。
+		// 连接，审计落库（StoreAuditor）依赖它。DSN 来源与缺省见
+		// configs/bald-admin.yaml.example 的 database 段（env 优先于契约段）。
 		appkit.WithProvides("db"),
 		appkit.WithRequires("audit.store", "db"),
 
@@ -475,10 +472,10 @@ func newApp(
 				bizSet.File.SetStorage(bootstrappkg.MinioStorage, bootstrappkg.FileBucket)
 			}
 			// 同款时序：secret/dict 的 Cache-Aside 接入配置驱动的 RedisCache——
-			// cache.redis 段（含 password/db）只流向 bootstrap.RedisCache，wire 的
-			// env 通道（BALD_ADMIN_REDIS_ADDR）拿不到完整参数、对带密码实例 ping
-			// 即失败；不接线则配置驱动运行下缓存静默失效。未配置段时 RedisCache
-			// 为 nil，SetCache 不覆盖，保留 wire env 通道（CI 覆盖手段）。
+			// cache.redis 段（含 password/db）只流向 bootstrap.RedisCache；wire 的
+			// env 通道只带地址、拿不到完整参数（详见 configs/bald-admin.yaml.example
+			// 的 cache 段）；不接线则配置驱动运行下缓存静默失效。未配置段时
+			// RedisCache 为 nil，SetCache 不覆盖，保留 wire env 通道（CI 覆盖手段）。
 			// SetCache 接收通用 KV 适配器（cache.Cache），biz 内部包装为
 			// loadable 读穿透缓存（loader 构造期绑定，从 key 反解业务参数）。
 			if bootstrappkg.RedisCache != nil {

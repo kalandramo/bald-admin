@@ -35,6 +35,8 @@ app:
 
 server:
   http:
+    # 缺省兜底 `:8080`（契约内置值）。显式写空串**不会**清空它——proto3 标量
+    # 无 presence，无法区分「未配置」与「配置为空」，要改端口请写具体地址。
     addr: ":8080"
     # ---- 中间件段（契约 server.http.middleware.*）----
     # 由 bundle.FromMiddleware 翻译为 gin 中间件链（见 cmd/bald-admin/app/assembly.go）。
@@ -141,11 +143,17 @@ audit:
 
 # ---- T0 新增：真实服务依赖（云端地址由用户填写）----
 database:
+  # DSN 优先级：**env BALD_ADMIN_DB_DSN > 本段 database.sql > SQLite 内存库**。
+  # env 存在即整体覆盖（注意方向与下方 metrics 段相反——那里是配置段胜出）。
+  # 三者皆空则回退 SQLite 内存库（零依赖可跑，但数据不持久）。
   sql:
     driver: "postgres"
     source: "host=<PG_HOST> port=5432 user=<PG_USER> password=<PG_PASSWORD> dbname=<PG_DB> sslmode=disable"
     migrate: true
 cache:
+  # 优先级：**env BALD_ADMIN_REDIS_ADDR > 本段 cache.redis**。
+  # ⚠️ env 通道只携带**地址**（password/db 强制为空/0）——对启用了密码的实例
+  # 会 ping 失败。带密码的实例必须用本段（或让本段胜出），不要依赖 env。
   redis:
     addr: "<REDIS_HOST>:6379"
     password: "<REDIS_PASSWORD>"   # 无密码留空
@@ -191,6 +199,12 @@ config:
     password: "<NACOS_PASSWORD>"
 
 # ---- T9 新增：可观测性（tracer/metrics 契约段）----
+# ⚠️ **热更新支持矩阵**（列举即全，其余契约段均支持热更新）：
+#   registry / tracer / metrics —— 本段**不支持热更新**，改动需重启进程生效。
+#   原因：registry 客户端重建侵入性大；tracer/metrics 的导出器已持有连接与
+#   后台 goroutine，原地换端点会泄漏旧导出器。
+#   （database / cache / storage / server 协议段同样在启动期构造，不随热更新重装。）
+#
 # tracer.otlp.endpoint 空则 trace 走核心 no-op（零配置可运行）。
 tracer:
   type: "otlp"
@@ -205,6 +219,19 @@ metrics:
   # prometheus 暴露端点总是挂载（供本地抓取），otlp 段非空则叠加直推。
   type: "otlp"
   prometheus: { addr: ":9091", path: "/metrics" }
+  # ---- env 开关（应用层，见 cmd/bald-admin/app/registries.go 的
+  # applyObservabilityDefaults）----
+  # 两者都**只提供地址，不改变 type 声明的语义**：
+  #   BALD_ADMIN_METRICS_ADDR  覆盖 prometheus 暴露端（缺省 :9091）
+  #   BALD_ADMIN_OTLP_ADDR     覆盖 metrics.otlp.endpoint 与 tracer.otlp.endpoint
+  #
+  # 优先级：**本文件的显式段 > env 开关 > 内置缺省**。env 值在契约装载
+  # **之前**注入，随后被本文件同名键覆盖——故「配置里写了」胜过「环境变量说开了」。
+  #
+  # ⚠️ type 与 env 不得矛盾：type=prometheus 时设 BALD_ADMIN_OTLP_ADDR 会启动期
+  # 报错（推送需 type: "otlp"）。
+  #
+  # 本段**整段缺省**时合成 type: prometheus（仅本地抓取，零配置可运行）。
   otlp:
     endpoint: "<OTLP_HOST>:4318"
     insecure: true
