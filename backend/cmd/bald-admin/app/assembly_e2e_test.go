@@ -37,21 +37,21 @@ import (
 	"github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
-// assemblyTestHTTPAddr 是装配测试的固定 HTTP 地址（非 :0——测试需确定性地
-// 轮询端口就绪；选高位端口避免与开发环境冲突）。
-const assemblyTestHTTPAddr = ":18099"
-
-// sqliteTestConfig 是不依赖任何远程服务的装配测试配置（剥离 nacos/otlp/minio，
+// sqliteTestConfigFor 生成「不依赖任何远程服务」的装配测试配置（剥离 nacos/otlp/minio，
 // 数据库走 SQLite 文件）。config.file.path 指向自身——契约 config 段是引导信息，
 // 与 appkit 的 --config 两阶段装载同源。
-const sqliteTestConfig = `config:
+//
+// httpPort/grpcPort 由调用方传入**动态空闲端口**（见 testaddr_test.go 的根因说明：
+// 硬编码端口会被残留进程冒名顶替，导致就绪判据失真）。
+func sqliteTestConfigFor(httpPort, grpcPort string) string {
+	return `config:
   file:
     path: "configs/bald-admin.yaml"
     format: "yaml"
     watch: false
 server:
-  http: { addr: ":18099" }
-  grpc:  { addr: ":19099" }
+  http: { addr: "` + httpPort + `" }
+  grpc:  { addr: "` + grpcPort + `" }
 log: { level: "error", format: "json" }
 audit:
   backends: "store"
@@ -62,6 +62,7 @@ database:
     source: "probe.db"
     migrate: true
 `
+}
 
 // TestAssemblyPath_ReadyAfterStart 驱动真实装配路径，断言服务监听后
 // 认证器/授权器/仓储均已构造（非 nil）。
@@ -70,10 +71,14 @@ database:
 // InitBridges），或 biz 恢复「请求期读包级变量」，则装配出的是 nil 快照——
 // 本测试将在服务起来后观察到 nil 而失败。
 func TestAssemblyPath_ReadyAfterStart(t *testing.T) {
+	// 动态端口（见 testaddr_test.go：固定端口会被残留进程冒名顶替）。
+	httpAddr := freeTCPAddr(t)
+	grpcAddr := freeTCPAddr(t)
+
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "configs"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "configs", "bald-admin.yaml"),
-		[]byte(sqliteTestConfig), 0o644))
+		[]byte(sqliteTestConfigFor(mustPort(t, httpAddr), mustPort(t, grpcAddr))), 0o644))
 	// buildApp → newApp 内 WithConfigFile(configFileDefault) 用相对路径，preloadBootstrap
 	// 同样以 configFileDefault 解析 os.Args——切到临时目录使二者都命中。
 	t.Chdir(dir)
@@ -97,8 +102,9 @@ func TestAssemblyPath_ReadyAfterStart(t *testing.T) {
 	go func() { runErr <- app.Run(ctx) }()
 
 	// 就绪判据：端口可连（监听发生在整条装配链之后）。
+	// 端口为本次运行专属的空闲端口——不会被残留进程冒名顶替（见 testaddr_test.go）。
 	require.Eventually(t, func() bool {
-		c, derr := net.DialTimeout("tcp", assemblyTestHTTPAddr, 200*time.Millisecond)
+		c, derr := net.DialTimeout("tcp", httpAddr, 200*time.Millisecond)
 		if derr != nil {
 			return false
 		}

@@ -31,18 +31,19 @@ import (
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 )
 
-const middlewareTestHTTPAddr = ":18199"
-
-// middlewareTestConfig 与原 e2e 配置同构，**唯一差异是加了 server.http.middleware 段**
+// middlewareTestConfigFor 与原 e2e 配置同构，**唯一差异是加了 server.http.middleware 段**
 // ——故任何行为差异都可归因于该段。
-const middlewareTestConfig = `config:
+//
+// 端口由调用方传入动态空闲端口（见 testaddr_test.go 的根因说明）。
+func middlewareTestConfigFor(httpPort, grpcPort string) string {
+	return `config:
   file:
     path: "configs/bald-admin.yaml"
     format: "yaml"
     watch: false
 server:
   http:
-    addr: ":18199"
+    addr: "` + httpPort + `"
     middleware:
       recovery:
         stack_trace: false
@@ -55,7 +56,7 @@ server:
         exposed_headers: ["X-Total-Count"]
         allow_credentials: true
         max_age: 1800
-  grpc:  { addr: ":19199" }
+  grpc:  { addr: "` + grpcPort + `" }
 log: { level: "error", format: "json" }
 audit:
   backends: "store"
@@ -66,6 +67,7 @@ database:
     source: "probe-mw.db"
     migrate: true
 `
+}
 
 // setupAssemblyWithConfig 把配置写入临时工作目录并切到该目录（与既有 e2e 同款：
 // buildApp 内 WithConfigFile(configFileDefault) 与 preloadBootstrap 均以 cwd
@@ -97,7 +99,9 @@ func setupAssemblyWithConfig(t *testing.T, cfgYAML string) (*appkit.AppKit, erro
 //   - request_id.header_name=X-Corr-Id → 响应带 X-Corr-Id 头（且不带默认头）；
 //   - cors 各字段 → 响应带对应 Access-Control-* 头（含 exposed_headers/max_age）。
 func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
-	app, err := setupAssemblyWithConfig(t, middlewareTestConfig)
+	httpAddr := mustPort(t, freeTCPAddr(t))
+	app, err := setupAssemblyWithConfig(t,
+		middlewareTestConfigFor(httpAddr, mustPort(t, freeTCPAddr(t))))
 	require.NoError(t, err, "buildApp 装配")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -106,7 +110,7 @@ func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
 	go func() { runErr <- app.Run(ctx) }()
 
 	require.Eventually(t, func() bool {
-		c, derr := net.DialTimeout("tcp", middlewareTestHTTPAddr, 200*time.Millisecond)
+		c, derr := net.DialTimeout("tcp", httpAddr, 200*time.Millisecond)
 		if derr != nil {
 			return false
 		}
@@ -120,7 +124,7 @@ func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
 	//   - 故用 gin 的 NoRoute 路径（未匹配任何路由）：全局中间件仍会执行，
 	//     且不会落入 /v1 路由组（该组自带 mid.CORS(mid.DefaultCORS())，会覆盖
 	//     全局 CORS 配置——见测试末尾注释）。
-	req, rerr := http.NewRequest(http.MethodGet, "http://localhost"+middlewareTestHTTPAddr+"/middleware-probe", nil)
+	req, rerr := http.NewRequest(http.MethodGet, "http://localhost"+httpAddr+"/middleware-probe", nil)
 	require.NoError(t, rerr)
 	resp, herr := http.DefaultClient.Do(req)
 	require.NoError(t, herr, "请求应可达")
@@ -160,7 +164,9 @@ func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
 // 该组响应头会被硬编码默认值（Allow-Origin: *）覆盖，本测试即红——这正是
 // 移除组内 CORS、统一走全局链的目的。
 func TestAssemblyPath_MiddlewareOnBusinessRoute(t *testing.T) {
-	app, err := setupAssemblyWithConfig(t, middlewareTestConfig)
+	httpAddr := mustPort(t, freeTCPAddr(t))
+	app, err := setupAssemblyWithConfig(t,
+		middlewareTestConfigFor(httpAddr, mustPort(t, freeTCPAddr(t))))
 	require.NoError(t, err, "buildApp 装配")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -168,7 +174,7 @@ func TestAssemblyPath_MiddlewareOnBusinessRoute(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() { runErr <- app.Run(ctx) }()
 	require.Eventually(t, func() bool {
-		c, derr := net.DialTimeout("tcp", middlewareTestHTTPAddr, 200*time.Millisecond)
+		c, derr := net.DialTimeout("tcp", httpAddr, 200*time.Millisecond)
 		if derr != nil {
 			return false
 		}
@@ -177,7 +183,7 @@ func TestAssemblyPath_MiddlewareOnBusinessRoute(t *testing.T) {
 	}, 30*time.Second, 200*time.Millisecond, "服务未在超时内监听")
 
 	// /v1/ping 是真实业务路由（此前该组自带 CORS，是覆盖点）。
-	req, rerr := http.NewRequest(http.MethodGet, "http://localhost"+middlewareTestHTTPAddr+"/v1/ping", nil)
+	req, rerr := http.NewRequest(http.MethodGet, "http://localhost"+httpAddr+"/v1/ping", nil)
 	require.NoError(t, rerr)
 	resp, herr := http.DefaultClient.Do(req)
 	require.NoError(t, herr)
