@@ -48,28 +48,44 @@ import (
 	"github.com/kalandramo/bald/transport"
 )
 
+// serveRunE 是根命令的 RunE——bald-admin 的**启动主流程**，按三阶段推进：
+//
+//	0  框架级准备：构造契约（bconf.NewBootstrap）与业务配置聚合对象
+//	   （options.NewServerOptions），后者充当各钩子的缺省值通道；
+//	1  配置源预装载 + 可观测性缺省合成：preloadBootstrap 填契约 config 段的
+//	   引导信息（远程源地址/凭据/dataId 必须本地可得）；applyObservabilityDefaults
+//	   在构造前补齐 metrics/gateway/cron 的缺省段；
+//	2  装配：buildApp 走生产装配路径（构造期骨架 + newApp 的运行期钩子），
+//	   返回**未启动**的 AppKit；
+//	3  运行：app.Run 阻塞至收到信号或被取消；退出错误经 baldlog 记录后返回。
+//
+// 参数被忽略（`_ *cobra.Command, _ []string`）——本命令不接受位置参数：全部
+// 配置经 flag 层（appkit 注册）与配置文件/env 进入契约，而非命令行参数。
+// 这也与 NewCommand 放行未知 flag 的分工一致（cobra 不参与 flag 定义）。
 func serveRunE(_ *cobra.Command, _ []string) error {
 	// 0. 框架级配置：proto 是唯一真相源，直接持有 Bootstrap 指针。
 	bootstrap := bconf.NewBootstrap()
 
-	// 业务配置聚合对象**最先创建**——构造期的若干步骤（可观测性 env 开关、
-	// gateway/asynq/SSE 地址）需要其默认值通道；实际配置值在各钩子内解码覆盖。
+	// 业务配置聚合对象**最先创建**——构造期的若干步骤（gateway/asynq/SSE
+	// 的缺省值与 flag 通道）需要其承载；实际配置值在各钩子内解码覆盖。
 	svrOpts := options.NewServerOptions()
 
-	// 配置源预装载（两阶段装载的第一阶段）：契约 config 段（nacos/kubernetes
-	// 的地址/凭据/dataId）是引导信息，必须本地可得——先装载本地配置文件填
-	// 契约 config 段。配置层的 Build 由 FromBootstrap 构造期执行
-	// （WithConfigRegistry），层在 Run 期 loadConfig 参与合并（优先级低于
-	// 本地文件/env/flag：远程只补本地未定义的键）并支持热更新（nacos
-	// ListenConfig 推送），层 reader 释放挂框架停机 Effect。
+	// 1. 配置源预装载（两阶段装载的第一阶段）：契约 config 段（nacos/kubernetes
+	//    的地址/凭据/dataId）是引导信息，必须本地可得——先装载本地配置文件填
+	//    契约 config 段。配置层的 Build 由 FromBootstrap 构造期执行
+	//    （WithConfigRegistry），层在 Run 期 loadConfig 参与合并（优先级低于
+	//    本地文件/env/flag：远程只补本地未定义的键）并支持热更新（nacos
+	//    ListenConfig 推送），层 reader 释放挂框架停机 Effect。
 	cfgReg, err := preloadBootstrap(bootstrap)
 	if err != nil {
 		return fmt.Errorf("bootstrap config sources: %w", err)
 	}
 
-	// 可观测性缺省态合成（详注与优先级说明见 configs/bald-admin.yaml.example 的
-	// metrics 段）：bald-admin 语义「metrics 段缺省仍暴露 :9091」，而 FromBootstrap
-	// 的保守缺省是「段缺省不装配」，故构造前合成默认段。
+	// 可观测性/协议段缺省合成（实现与优先级见 registries.go 的
+	// applyObservabilityDefaults，段落说明见 configs/bald-admin.yaml.example 的
+	// metrics 段）：bald-admin 语义「metrics 段缺省仍可抓取（:9091，addr 留空
+	// 时由框架缺省补齐）」，而 FromBootstrap 的保守缺省是「段缺省不装配」，
+	// 故构造前合成默认段。显式契约段总是优先（此处仅填空缺）。
 	if err := applyObservabilityDefaults(bootstrap, svrOpts); err != nil {
 		return err
 	}
