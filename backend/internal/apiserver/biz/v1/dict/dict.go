@@ -91,7 +91,6 @@ func (b *Biz) loadEntries(ctx context.Context, key string) ([]byte, error) {
 	return buf, nil
 }
 
-
 // ---- 字典类型 ----
 
 // ListTypes 列出调用方租户的字典类型，SortOrder 升序稳定排序。

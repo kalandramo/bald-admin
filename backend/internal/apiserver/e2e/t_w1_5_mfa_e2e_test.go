@@ -24,17 +24,16 @@ import (
 	"time"
 
 	gingonic "github.com/gin-gonic/gin"
-	goredis "github.com/redis/go-redis/v9"
 	"github.com/pquerna/otp/totp"
-
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
 	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
-	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
 	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
+	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
 	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
 	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
@@ -76,7 +75,6 @@ func startMFAREST(t *testing.T, cs mfa.ChallengeStore) string {
 	t.Cleanup(srv.Close)
 	return srv.URL
 }
-
 
 // freshUser 注册一个全新用户并登录（避免测试间共享 MFA 因子状态——
 // 同一用户重复绑定会被 ErrEnrollExists 拒绝，导致后续测试 Skip 成假绿）。

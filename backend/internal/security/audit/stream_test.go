@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
 	"github.com/glebarez/sqlite" // 纯 Go driver：无 gcc 环境零 CGO（与 gorm.io/driver/sqlite 同签名）
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"github.com/kalandramo/bald/pkg/audit"

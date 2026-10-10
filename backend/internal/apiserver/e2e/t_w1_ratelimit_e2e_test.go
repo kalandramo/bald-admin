@@ -22,7 +22,6 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald/ratelimit/tokenbucket"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
@@ -34,6 +33,7 @@ import (
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald/ratelimit/tokenbucket"
 )
 
 // startLoginRESTWithLimiter 起真实 gin 引擎 + 注入指定限流器（nil = 禁用态）。

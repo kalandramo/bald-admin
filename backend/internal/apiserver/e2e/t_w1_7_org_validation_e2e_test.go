@@ -33,8 +33,8 @@ import (
 	identityv1 "github.com/kalandramo/bald-admin/api/gen/go/identity/v1"
 	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
-	validation "github.com/kalandramo/bald-admin/internal/security/validation"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	validation "github.com/kalandramo/bald-admin/internal/security/validation"
 )
 
 // annotationErrMarker 是注解层错误消息的特征串（internal/security/validation

@@ -29,7 +29,7 @@ import (
 // 用**唯一用户名**（时间戳后缀）：包内其他测试（store_login_e2e_test.go:110）
 // 使用固定用户名 "newbie"，共享固定数据会与注册测试互相污染——shuffle 模式下
 // 顺序不定，先跑者成功、后跑者撞唯一约束。这是本会话实测到的真实污染
-//（`go test -shuffle=on` 时 TestStoreWrite_TenantInjection 因 "newbie" 冲突 FAIL）。
+// （`go test -shuffle=on` 时 TestStoreWrite_TenantInjection 因 "newbie" 冲突 FAIL）。
 func TestWave1d_RegisterUser(t *testing.T) {
 	base := startAuthRESTWithCaptcha(t, nil)
 

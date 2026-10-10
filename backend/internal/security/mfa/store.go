@@ -22,9 +22,9 @@ const (
 	MaxLoginFailures = 5
 )
 
-func keyEnroll(opID string) string  { return "mfa:enroll:" + opID }
-func keyLogin(opID string) string   { return "mfa:login:" + opID }
-func keyFail(opID string) string    { return "mfa:fail:" + opID }
+func keyEnroll(opID string) string   { return "mfa:enroll:" + opID }
+func keyLogin(opID string) string    { return "mfa:login:" + opID }
+func keyFail(opID string) string     { return "mfa:fail:" + opID }
 func keyCooldown(t, u string) string { return "mfa:cd:" + t + ":" + u }
 
 // RedisChallengeStore 是基于 Redis 的 ChallengeStore 实现。

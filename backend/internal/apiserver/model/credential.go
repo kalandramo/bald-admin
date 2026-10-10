@@ -38,13 +38,13 @@ type UserCredential struct {
 // 源的关键设计：白名单若配错格式会静默不命中 → **全员被锁**，
 // 故 Create/Update 必须做值格式校验（见 internal/security/loginpolicy）。
 type LoginPolicy struct {
-	ID       string `gorm:"primaryKey"` // "<tenant>:<type>:<method>:<value>"
-	TenantID string `gorm:"index"`
-	TargetID string `gorm:"index"` // 目标用户 ID（空 = 租户级策略）
-	Type     string // BLACKLIST / WHITELIST
-	Method   string // IP / MAC / REGION / TIME / DEVICE
-	Value    string // 限制值（IP/CIDR、MAC、地区码、HH:MM-HH:MM、设备 ID）
-	Reason   string
+	ID        string `gorm:"primaryKey"` // "<tenant>:<type>:<method>:<value>"
+	TenantID  string `gorm:"index"`
+	TargetID  string `gorm:"index"` // 目标用户 ID（空 = 租户级策略）
+	Type      string // BLACKLIST / WHITELIST
+	Method    string // IP / MAC / REGION / TIME / DEVICE
+	Value     string // 限制值（IP/CIDR、MAC、地区码、HH:MM-HH:MM、设备 ID）
+	Reason    string
 	CreatedBy string
 	UpdatedBy string
 	CreatedAt time.Time

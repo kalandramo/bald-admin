@@ -31,7 +31,7 @@ type Task struct {
 	// Remark 备注。
 	Remark string
 	// 运行态（由 scheduler 回填，非持久化）。
-	Running   bool `gorm:"-"`
+	Running   bool   `gorm:"-"`
 	EntryID   string `gorm:"-"`
 	CreatedAt time.Time
 	UpdatedAt time.Time

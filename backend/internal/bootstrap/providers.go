@@ -21,8 +21,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/kalandramo/bald/cache"
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
+	"github.com/kalandramo/bald/cache"
 	"github.com/kalandramo/bald/log"
 
 	miniooss "github.com/kalandramo/bald/oss/minio"

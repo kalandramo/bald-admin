@@ -22,12 +22,12 @@ type OrgUnit struct {
 	Status    string // ON / OFF
 	SortOrder int32
 	// LeaderID 负责人用户 ID（回填时从 User 表取 username → LeaderName）。
-	LeaderID   string
-	LeaderName string `gorm:"-"` // 非持久化：查询时回填（源同此，proto:11）
-	Remark     string
+	LeaderID    string
+	LeaderName  string `gorm:"-"` // 非持久化：查询时回填（源同此，proto:11）
+	Remark      string
 	Description string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Position 职位（Wave 1.7，自源 position.proto 精简移植）。
@@ -35,19 +35,19 @@ type OrgUnit struct {
 // 与 OrgUnit 的关联：OrgUnitID 指向所属组织单元，回填 OrgUnitName（proto:23）；
 // ReportsToPositionID 指向汇报上级职位，回填 ReportsToPositionName（proto:25）。
 type Position struct {
-	ID       string `gorm:"primaryKey"` // "<tenant>:<code>"
-	TenantID string `gorm:"index"`
-	Name     string
-	Code     string `gorm:"index"`
-	Headcount int32
-	SortOrder int32
-	Status    string
-	Type      string // 职位类型
-	Remark    string
-	Description string
-	JobFamily string
-	JobGrade  string
-	Level     int32
+	ID            string `gorm:"primaryKey"` // "<tenant>:<code>"
+	TenantID      string `gorm:"index"`
+	Name          string
+	Code          string `gorm:"index"`
+	Headcount     int32
+	SortOrder     int32
+	Status        string
+	Type          string // 职位类型
+	Remark        string
+	Description   string
+	JobFamily     string
+	JobGrade      string
+	Level         int32
 	IsKeyPosition bool
 	// OrgUnitID 所属组织单元（回填 OrgUnitName）。
 	OrgUnitID   string `gorm:"index"`
@@ -55,7 +55,7 @@ type Position struct {
 	// ReportsToPositionID 汇报上级职位（回填 ReportsToPositionName）。
 	ReportsToPositionID   string
 	ReportsToPositionName string `gorm:"-"`
-	StartAt   *time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	StartAt               *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }

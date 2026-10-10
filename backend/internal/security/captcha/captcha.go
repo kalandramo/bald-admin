@@ -1,7 +1,7 @@
 // Package captcha 提供图片验证码的生成与校验（Wave 1d-2）。
 //
 // 对应源 go-wind-admin 的 GenerateCaptcha / VerifyCaptcha 两个 rpc
-//（authentication.proto L58/L61）。图片生成用 github.com/mojocn/base64Captcha
+// （authentication.proto L58/L61）。图片生成用 github.com/mojocn/base64Captcha
 // ——**与源项目同一库**（源 go.mod:179 用 v1.3.8），行为对齐而非自研重造。
 //
 // 框架能力验证结论：bald v0.8.1 **不提供** captcha 组件（实测
@@ -13,7 +13,7 @@
 //   - **TTL**：验证码有有效期（默认 5 分钟），过期自动失效。
 //
 // 为什么用 Redis 而非进程内存：多实例部署下，生成与校验可能落在不同实例
-//（负载均衡），进程内存会导致「A 实例生成、B 实例校验」必然失败。
+// （负载均衡），进程内存会导致「A 实例生成、B 实例校验」必然失败。
 package captcha
 
 import (

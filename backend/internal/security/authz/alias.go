@@ -25,8 +25,9 @@
 //   - 双写会在 RolePolicy 表产生影子行，两处命名需同步维护，真源分裂。
 //
 // 本方案（应用层装饰器，与 ReloadableAuthorizer 同款手法）：
-//   内层明确拒绝后，按别名表用**另一个 object 名**重试一次。
-//   重试的是同一 subject/action 下的同一资源的不同书写形态——不放宽任何语义边界。
+//
+//	内层明确拒绝后，按别名表用**另一个 object 名**重试一次。
+//	重试的是同一 subject/action 下的同一资源的不同书写形态——不放宽任何语义边界。
 package authz
 
 import (

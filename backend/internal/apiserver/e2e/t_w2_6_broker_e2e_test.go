@@ -59,6 +59,7 @@ func brokerTestAddr() string { return redisTestURL() }
 //   - 不可达      → dial tcp ... connection refused
 //   - 认证失败    → WRONGPASS invalid username-password pair
 //   - 正常        → nil
+//
 // 故改用 `Connect()` 判可达性——判据单一（与测试主体同一条代码路径），
 // 且顺带覆盖 `Init()`（D13.1 的 addr 赋值），比旁路 Ping 更贴近真实用法。
 //

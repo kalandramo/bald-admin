@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	gingonic "github.com/gin-gonic/gin"
 	apiserver "github.com/kalandramo/bald-admin/internal/apiserver"
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
@@ -43,7 +44,6 @@ import (
 	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/contextx"
 	ginmw "github.com/kalandramo/bald/pkg/middleware/gin"
-	gingonic "github.com/gin-gonic/gin"
 )
 
 // startPlatformREST 起真实 REST 引擎，**并按 main.go 同款注入平台判据**。
@@ -125,7 +125,7 @@ func TestPlatform_SuperAdminRoleGrantsCrossTenant(t *testing.T) {
 // 设计动机（一次测试设计纠错）：最初想用 alice（viewer）做「无平台身份」的
 // 对照，但实测 403 —— `subject=u-alice, object=audit, action=get` 被拒。
 // 原因：casbin 的 p 行里**只有 admin 角色**有 `audit:get/list`
-//（bootstrap.go:807-808），viewer 在**授权层**就被拦，走不到租户隔离层。
+// （bootstrap.go:807-808），viewer 在**授权层**就被拦，走不到租户隔离层。
 // 用 alice 对照会同时改变「权限」与「平台身份」两个变量，结论不可归因。
 //
 // 改用**同 subject、同权限、只差 Platform 标记**的两种令牌：

@@ -24,13 +24,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"time"
 	"testing"
+	"time"
 
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald/circuitbreaker"
-	"github.com/kalandramo/bald/circuitbreaker/hystrix"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
@@ -42,6 +40,8 @@ import (
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald/circuitbreaker"
+	"github.com/kalandramo/bald/circuitbreaker/hystrix"
 )
 
 // startLoginRESTWithBreaker 起真实 gin 引擎 + 注入指定熔断器。

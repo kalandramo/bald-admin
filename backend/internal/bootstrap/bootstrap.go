@@ -233,7 +233,7 @@ type Repositories struct {
 // 的 22 个 helper 与装配根反复调用，幂等 guard 命中时须返回「同一套仓储」——
 // 每次新建 Repositories 会与首轮建立的 store（底层 gorm 连接）脱钩，调用方拿到
 // 的句柄也不一致。故保留一个**只写一次**的引用：它不承载「请求期读取」语义
-//（那正是本 Wave 要消除的），只作幂等返回值缓存。
+// （那正是本 Wave 要消除的），只作幂等返回值缓存。
 var lastRepos *Repositories
 
 // LastRepositories 返回首次 InitBridges 建立的仓储聚合（未初始化时为 nil）。
@@ -353,11 +353,11 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	}
 	// Wave 5（建议二）：仓储聚合为**显式返回值**，不再写入包级变量。
 	repos := &Repositories{
-		User: store.NewStore[authmodel.User](baldgorm.NewGormProvider(db, func(u *authmodel.User) string { return u.ID })),
-		Role: store.NewStore[authmodel.Role](baldgorm.NewGormProvider(db, func(r *authmodel.Role) string { return r.ID }), store.WithPlatformLevel[authmodel.Role]()),
-		Secret: store.NewStore[authmodel.Secret](baldgorm.NewGormProvider(db, func(s *authmodel.Secret) string { return s.ID })),
-		Tenant: store.NewStore[authmodel.Tenant](baldgorm.NewGormProvider(db, func(t *authmodel.Tenant) string { return t.ID }), store.WithPlatformLevel[authmodel.Tenant]()),
-		Menu:   store.NewStore[authmodel.Menu](baldgorm.NewGormProvider(db, func(m *authmodel.Menu) string { return m.ID }), store.WithPlatformLevel[authmodel.Menu]()),
+		User:       store.NewStore[authmodel.User](baldgorm.NewGormProvider(db, func(u *authmodel.User) string { return u.ID })),
+		Role:       store.NewStore[authmodel.Role](baldgorm.NewGormProvider(db, func(r *authmodel.Role) string { return r.ID }), store.WithPlatformLevel[authmodel.Role]()),
+		Secret:     store.NewStore[authmodel.Secret](baldgorm.NewGormProvider(db, func(s *authmodel.Secret) string { return s.ID })),
+		Tenant:     store.NewStore[authmodel.Tenant](baldgorm.NewGormProvider(db, func(t *authmodel.Tenant) string { return t.ID }), store.WithPlatformLevel[authmodel.Tenant]()),
+		Menu:       store.NewStore[authmodel.Menu](baldgorm.NewGormProvider(db, func(m *authmodel.Menu) string { return m.ID }), store.WithPlatformLevel[authmodel.Menu]()),
 		Permission: store.NewStore[authmodel.Permission](baldgorm.NewGormProvider(db, func(p *authmodel.Permission) string { return p.ID }), store.WithPlatformLevel[authmodel.Permission]()),
 		RolePolicy: store.NewStore[authmodel.RolePolicy](baldgorm.NewGormProvider(db,
 			func(p *authmodel.RolePolicy) string { return p.ID }), store.WithPlatformLevel[authmodel.RolePolicy]()),

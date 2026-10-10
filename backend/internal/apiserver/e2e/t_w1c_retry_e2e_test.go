@@ -25,8 +25,6 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald/pkg/store"
-	"github.com/kalandramo/bald/retry"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
@@ -38,6 +36,8 @@ import (
 	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald/pkg/store"
+	"github.com/kalandramo/bald/retry"
 )
 
 // startLoginRESTWithRetrier 起真实 gin 引擎 + 注入指定重试器。

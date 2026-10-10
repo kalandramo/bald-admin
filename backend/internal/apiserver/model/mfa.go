@@ -21,14 +21,14 @@ const (
 // 这是与 token 存储的取舍差异——TOTP secret 必须可读才能算码，无法只存哈希。
 // 代价记录在缺陷报告：DB 泄漏即等于 MFA 被绕过（源同样如此，属已知设计）。
 type UserMFAFactor struct {
-	ID        string    `gorm:"primaryKey"` // "<tenant>:<user>:<method>"
-	TenantID  string    `gorm:"index"`
-	UserID    string    `gorm:"index"`
-	Method    MFAMethod // 当前仅 "TOTP"
-	Secret    string    // base32 TOTP secret（明文，见结构注释）
-	Display   string    // 展示名（源 display，如设备名）
-	Enabled   bool
+	ID         string    `gorm:"primaryKey"` // "<tenant>:<user>:<method>"
+	TenantID   string    `gorm:"index"`
+	UserID     string    `gorm:"index"`
+	Method     MFAMethod // 当前仅 "TOTP"
+	Secret     string    // base32 TOTP secret（明文，见结构注释）
+	Display    string    // 展示名（源 display，如设备名）
+	Enabled    bool
 	LastUsedAt *time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }

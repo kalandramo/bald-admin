@@ -3,7 +3,7 @@
 // 框架能力缺口（实测，待上游确认）：
 // bald 的 authz.Authorizer 接口只有 Authorize 一个方法（pkg/authz/authz.go:15-20），
 // contrib/authz-casbin 的实现也只暴露 New/NewWithModel/Authorize
-//（contrib/authz-casbin/casbin.go:48/55/80）——**没有任何热重载策略的入口**。
+// （contrib/authz-casbin/casbin.go:48/55/80）——**没有任何热重载策略的入口**。
 //
 // 后果（本会话端到端实测）：casbin 的 g 行（subject→角色绑定）在启动时经
 // bootstrap.loadPolicyCSV 从 UserStore 一次性装载。**运行期新增的用户不在其中**——
