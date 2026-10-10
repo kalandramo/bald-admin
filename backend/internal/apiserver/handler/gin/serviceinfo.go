@@ -3,11 +3,16 @@ package gin
 import (
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/health"
+	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/serviceinfo"
 )
 
-// RegisterHealth 把 health 业务域暴露为 HTTP 路由（薄适配层）。
+// RegisterServiceInfo 把 serviceinfo 业务域暴露为 HTTP 路由（薄适配层）。
 // 真实校验/错误映射由 web 与 berrors 统一处理；M0 仅做最简演示。
+//
+// 命名说明：本文件原名 health.go、函数原名 RegisterHealth，与框架的
+// `bald/health`（探针聚合，经 appkit.WithHealth 装配为 /healthz /readyz）
+// 同名——但二者无关：这里挂的是服务自述端点 /v1/ping、/v1/info。
+// 改名以消除 grep「health」时的歧义。
 //
 // CORS 不在此挂载：跨域是**应用级**横切关注点，统一由全局中间件链提供
 // （bundle.Gin() 的 cors 层，配置源 server.http.middleware.cors）。
@@ -15,12 +20,12 @@ import (
 // 路由组均无 CORS），造成「只有 /v1/ping 与 /v1/info 带 CORS 头」的不一致；
 // 更糟的是，即使全局配了 cors 段，该组响应仍被这里的硬编码默认值覆盖
 // （配置看起来生效、实际失效）。移除后由全局链统一供给。
-func RegisterHealth(e *gingonic.Engine) {
+func RegisterServiceInfo(e *gingonic.Engine) {
 	v1 := e.Group("/v1")
 	v1.GET("/ping", func(c *gingonic.Context) {
-		c.String(200, health.Ping(c.Request.Context()))
+		c.String(200, serviceinfo.Ping(c.Request.Context()))
 	})
 	v1.GET("/info", func(c *gingonic.Context) {
-		c.JSON(200, health.Info(c.Request.Context()))
+		c.JSON(200, serviceinfo.Info(c.Request.Context()))
 	})
 }

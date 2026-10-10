@@ -36,7 +36,7 @@ func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticato
 	// 挂在此处（而非 main.go 的 router）保证**生产与 e2e 共用同一装配路径**。
 	e.Use(apiaudit.Middleware())
 
-	hgin.RegisterHealth(e)
+	hgin.RegisterServiceInfo(e)
 	hgin.RegisterOpenAPI(e)
 	hgin.RegisterAuth(e, authenticator, authorizer, biz.Auth, biz.Secret)
 	hgin.RegisterTenant(e, authenticator, authorizer, biz.Tenant)
