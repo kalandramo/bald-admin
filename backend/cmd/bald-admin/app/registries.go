@@ -66,9 +66,30 @@ func configRegistry() *baldbootstrap.Registry {
 	return reg
 }
 
-// configFileDefault 与 appkit.ConfigFile 的缺省一致（两处必须同步改）。
+// configNamespace 是本进程的**配置命名空间**——唯一事实来源。它同时决定两件事：
+//
+//  1. `--config` 缺省路径：`configs/{namespace}.yaml`（见 configFileDefault）；
+//  2. env 前缀（`BALD_ADMIN_*`）与多环境文件名（`bald-admin-{env}.yaml`）
+//     ——经 appkit.WithConfigNamespace 声明（见 assembly.go）。
+//
+// 为什么必须是代码层常量：FromBootstrap 路径下若取自契约 app.name，会构成
+// 自指（配置文件写 app.name 会让全部 BALD_ADMIN_* env 覆盖静默失效）。
+//
+// 为什么收在一处：preloadBootstrap（预装载引导信息）与 appkit（完整装载）
+// 必须命中**同一个文件**——两阶段装载同源是启动正确性的前提。此前文件名与
+// 命名空间分别是两处硬编码字面量，改一处漏一处不会报错，只会静默装载不到。
+const configNamespace = "bald-admin"
 
-const configFileDefault = "configs/bald-admin.yaml"
+// configFileDefault 本地配置文件缺省路径，由 configNamespace 派生而非独立字面量。
+//
+// 必须显式声明路径（不能传空串让框架自动发现）——两者行为不同：
+//   - 显式路径：文件缺失 → fail-fast（`open ...: cannot find the path`），
+//     启动即暴露，且报错直指缺失文件；
+//   - 空串：框架 discoverLocalFile 找不到文件时静默跳过文件层，最终以
+//     `no config source configured` 报错——真实原因（文件不在）被掩盖。
+//
+// 本服务的配置携带 DB/Redis 凭据，宁可启动即失败也不要半配置运行。
+const configFileDefault = "configs/" + configNamespace + ".yaml"
 
 // preloadBootstrap 预装载本地配置文件（--config flag 优先，解析行为与 appkit
 // loadConfig 同源：pflag + 未知 flag 白名单）填契约 config 段，并返回配置源
@@ -90,7 +111,9 @@ func preloadBootstrap(dst *bootstrapv1.BootstrapConfig) (*baldbootstrap.Registry
 	fs.StringVar(&cfgFile, "config", configFileDefault, "config file")
 	_ = fs.Parse(os.Args[1:])
 
-	s, err := baldconfig.Load(baldconfig.Options{Name: "bald-admin", ConfigFile: cfgFile})
+	// Name 与框架侧 WithConfigNamespace 同源（同一常量）——决定 env 前缀与
+	// 多环境文件名，必须与 configFileDefault 的派生基准一致。
+	s, err := baldconfig.Load(baldconfig.Options{Name: configNamespace, ConfigFile: cfgFile})
 	if err != nil {
 		return nil, err
 	}
