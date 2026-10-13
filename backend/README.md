@@ -51,8 +51,8 @@ BALD_ADMIN_SERVER_HTTP_ADDR=:18080 go run ./cmd/bald-admin
 |------|------|----------|
 | `:8080` | HTTP(gin) 主服务 | `--server.http.addr` / `BALD_ADMIN_SERVER_HTTP_ADDR` / yaml `server.http.addr` |
 | `:9090` | gRPC | `--server.grpc.addr` / `BALD_ADMIN_SERVER_GRPC_ADDR` / yaml `server.grpc.addr` |
-| `:8081` | grpc-gateway REST 转码 | `BALD_GATEWAY_ADDR`（独立 env） / yaml `gateway.addr` |
-| `:9091` | `/metrics` Prometheus 抓取 | `BALD_ADMIN_METRICS_ADDR` |
+| `:8081` | grpc-gateway REST 转码 | yaml `server.gateway.addr`（无 flag；见下） |
+| `:9091` | `/metrics` Prometheus 抓取 | yaml `metrics.prometheus.addr`（`type` 必填） |
 
 > env 键名由 app name 规范化派生（`bald-admin` → `BALD_ADMIN_` 前缀，
 > 下划线即点路径分隔：`BALD_ADMIN_SERVER_HTTP_ADDR` ⇔ `server.http.addr`）。

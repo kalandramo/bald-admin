@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 
@@ -43,50 +42,6 @@ func metricsRegistry() *appkit.MetricsRegistry {
 	mr.MustRegister(otlpcontract.TypePrometheus, otlpcontract.NewPrometheusProvider("bald-admin"))
 	mr.MustRegister(otlpcontract.TypeOTLP, otlpcontract.NewOTLPProvider("bald-admin"))
 	return mr
-}
-
-// applyObservabilityDefaults 在 FromBootstrap 构造前应用 bald-admin 的
-// 可观测性/协议段**缺省合成**（U1：原 setupObservability 的缺省合成半段
-// 前移；Build 半段归框架 buildObservability）：
-//   - metrics 段缺省 → 合成 `type: prometheus`（仅本地抓取，addr 缺省 :9091，
-//     T8 与 gRPC 错峰）——零配置可运行，冒烟/CI 不破；
-//   - server.gateway / server.cron 段缺省 → 合成（保持「逃生舱时代总是挂载」
-//     的行为；契约装配的语义是「段缺失即不装配」）。
-//
-// 关于 env（W3 收敛）：本函数**不再**读取任何 env 开关。原
-// BALD_ADMIN_METRICS_ADDR / BALD_ADMIN_OTLP_ADDR 的注入已退役——那两个短名
-// 会被框架 env 层映射成 `metrics.addr`/`metrics.otlp`（契约无此键，被
-// DiscardUnknown 丢弃），且注入发生在契约装载**之前**，会被第二次完整装载
-// 覆盖，净效果是「配置声明该段时 env 静默失效」。现统一走框架路径名
-// （`BALD_ADMIN_METRICS_PROMETHEUS_ADDR` 等），由装载链自身处理优先级。
-//
-// 合成值的优先级：显式契约段（配置段/env 路径名）**总是优先**于此处合成——
-// 合成仅填空缺（`GetX() == nil` 判据）。
-func applyObservabilityDefaults(bootstrap *bootstrapv1.BootstrapConfig, opts *options.ServerOptions) error {
-	// metrics 缺省合成：段缺省 → 仅暴露（T9 语义：零配置仍可抓取）。
-	// addr 留空即走框架缺省 :9091（见 appkit.StartMetricsServer）。
-	if bootstrap.GetMetrics() == nil {
-		bootstrap.Metrics = &bootstrapv1.Metrics{Type: otlpcontract.TypePrometheus}
-	}
-
-	// Wave 4：server 协议段缺省合成（同 metrics 的「构造前填缺省」范式）。
-	//
-	// gateway / cron 此前由 bald-admin 的逃生舱**总是挂载**（gateway 由
-	// gatewayFactory 注入即挂载；cron 无外部依赖总启用）；迁到契约装配后，
-	// 「段缺失 = 不装配」会让它们默认消失——故合成默认段保持既有行为。
-	//
-	// 合成值来自 ServerOptions（缺省 :8081）。配置段
-	// `server.gateway` 或 env `BALD_ADMIN_SERVER_GATEWAY_ADDR` 已提供时，
-	// GetGateway() 非 nil，此处跳过。
-	if bootstrap.GetServer() != nil {
-		if bootstrap.GetServer().GetGateway() == nil && opts.Gateway.Addr != "" {
-			bootstrap.GetServer().Gateway = &bootstrapv1.Server_Gateway{Addr: opts.Gateway.Addr}
-		}
-		if bootstrap.GetServer().GetCron() == nil {
-			bootstrap.GetServer().Cron = &bootstrapv1.Server_Cron{}
-		}
-	}
-	return nil
 }
 
 // configRegistry 显式注册配置源契约 provider（bootstrap.Registry：契约 config

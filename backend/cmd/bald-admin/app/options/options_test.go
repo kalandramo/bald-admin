@@ -44,9 +44,6 @@ func TestNewServerOptions_Defaults(t *testing.T) {
 	if o.Audit.FallbackTenant != "t-default" {
 		t.Errorf("audit.fallback_tenant default = %q, want t-default", o.Audit.FallbackTenant)
 	}
-	if o.Gateway.Addr != ":8081" {
-		t.Errorf("gateway.addr default = %q, want :8081", o.Gateway.Addr)
-	}
 }
 
 // 关键行为保持：未配置的段不因「有默认值」而被静默启用。
@@ -71,7 +68,6 @@ func TestServerOptions_Validate(t *testing.T) {
 		{"限流 rate 为负", func(o *ServerOptions) { o.Login.RateLimit.Rate = -1 }, true},
 		{"重试次数为负（启用后）", func(o *ServerOptions) { o.Login.Retry = &RetryOptions{MaxAttempts: -1} }, true},
 		{"TTL 为零", func(o *ServerOptions) { o.Auth.AccessTTLMinutes = 0 }, true},
-		{"gateway 地址为空", func(o *ServerOptions) { o.Gateway.Addr = "" }, true},
 		{"熔断错误率越界（启用后）", func(o *ServerOptions) { o.Login.Breaker = &BreakerOptions{ErrorThreshold: 1.5} }, true},
 		{"SSE addr 无 path", func(o *ServerOptions) { o.SSE.Addr = ":8090" }, true},
 	}
@@ -95,15 +91,14 @@ func TestServerOptions_ValidateAggregatesAllErrors(t *testing.T) {
 	o := NewServerOptions()
 	o.Login.RateLimit.Rate = -1
 	o.Auth.AccessTTLMinutes = 0
-	o.Gateway.Addr = ""
 
 	err := o.Validate()
 	if err == nil {
 		t.Fatal("Validate() = nil, want aggregated error")
 	}
 	msg := err.Error()
-	// 三处非法值都应出现在同一条错误里。
-	for _, frag := range []string{"rate", "access_ttl", "gateway"} {
+	// 两处非法值都应出现在同一条错误里。
+	for _, frag := range []string{"rate", "access_ttl"} {
 		if !strings.Contains(msg, frag) {
 			t.Errorf("aggregated error %q missing %q", msg, frag)
 		}

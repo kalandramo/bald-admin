@@ -49,7 +49,6 @@ type ServerOptions struct {
 	Asynq   AsynqOptions   `mapstructure:"asynq"`
 	Redis   RedisOptions   `mapstructure:"redis"`
 	SSE     SSEOptions     `mapstructure:"sse"`
-	Gateway GatewayOptions `mapstructure:"gateway"`
 	Metrics MetricsOptions `mapstructure:"metrics"`
 
 	// flagShadow 是 AddFlags 的绑定目标（pflag 需要一个可写地址）。
@@ -139,19 +138,16 @@ type SSEOptions struct {
 	Path string `mapstructure:"path"`
 }
 
-// GatewayOptions grpc-gateway 转码面监听地址。
-type GatewayOptions struct {
-	Addr string `mapstructure:"addr"`
-}
-
 // MetricsOptions 可观测性暴露端的历史 env 通道（**已退役**）。
 //
 // 退役理由（W3）：本结构的字段曾由 BALD_ADMIN_METRICS_ADDR /
-// BALD_ADMIN_OTLP_ADDR 填充，经由 applyObservabilityDefaults 在**契约装载
-// 之前**注入。但那两个短名会被框架 env 层截获成 `metrics.addr` /
-// `metrics.otlp`（契约无此键，被 DiscardUnknown 丢弃）；第二次完整装载
-// （syncBootstrap）又用配置文件的值覆盖了注入结果——净效果是「配置里声明了
-// metrics 段时，env 静默失效」，且无任何提示。
+// BALD_ADMIN_OTLP_ADDR 填充，在**契约装载之前**注入（当时的缺省合成
+// 函数 `applyObservabilityDefaults` 已整体删除——可观测性/协议段改由
+// 契约 + 配置驱动，不再由应用层合成缺省段）。那两个短名会被框架 env
+// 层截获成 `metrics.addr` / `metrics.otlp`（契约无此键，被
+// DiscardUnknown 丢弃）；第二次完整装载（syncBootstrap）又用配置文件的
+// 值覆盖了注入结果——净效果是「配置里声明了 metrics 段时，env 静默
+// 失效」，且无任何提示。
 //
 // 现统一走框架路径名（`BALD_ADMIN_METRICS_PROMETHEUS_ADDR` /
 // `BALD_ADMIN_METRICS_OTLP_ENDPOINT` / `BALD_ADMIN_TRACER_OTLP_ENDPOINT`），
@@ -222,13 +218,9 @@ func NewServerOptions() *ServerOptions {
 		// 会被配置段覆盖。改用框架路径名后优先级与其余字段一致。
 		// SSE 例外：契约 `server.sse` 段无 provider（registered=false），
 		// 用路径名会 fail-fast，故保留短名通道（见 sse.go 文件头）。
-		Asynq: AsynqOptions{Codec: envDefault("BALD_ADMIN_ASYNQ_CODEC", "json")},
-		Redis: RedisOptions{Addr: os.Getenv("BALD_ADMIN_REDIS_ADDR")},
-		SSE:   SSEOptions{Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"), Path: os.Getenv("BALD_ADMIN_SSE_PATH")},
-		// gateway 缺省 :8081（与迁移前一致；Validate 要求非空）。此值仅在
-		// 契约 `server.gateway` 段缺失时被合成使用——若配置段或
-		// `BALD_ADMIN_SERVER_GATEWAY_ADDR` 提供了值，显式值优先。
-		Gateway: GatewayOptions{Addr: ":8081"},
+		Asynq:   AsynqOptions{Codec: envDefault("BALD_ADMIN_ASYNQ_CODEC", "json")},
+		Redis:   RedisOptions{Addr: os.Getenv("BALD_ADMIN_REDIS_ADDR")},
+		SSE:     SSEOptions{Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"), Path: os.Getenv("BALD_ADMIN_SSE_PATH")},
 		Metrics: MetricsOptions{},
 	}
 }
@@ -321,8 +313,6 @@ func (o *ServerOptions) AddFlags(fs *pflag.FlagSet) {
 		"SSE transport listen address (empty disables).")
 	fs.StringVar(&o.SSE.Path, "sse.path", o.SSE.Path,
 		"SSE transport route path.")
-	fs.StringVar(&o.Gateway.Addr, "gateway.addr", o.Gateway.Addr,
-		"grpc-gateway (REST transcoding) listen address.")
 }
 
 // Validate 校验配置合法性，**聚合**全部错误后一次性返回。
@@ -363,10 +353,6 @@ func (o *ServerOptions) Validate() error {
 	}
 	if o.Auth.RefreshTTLHours <= 0 {
 		errs = append(errs, fmt.Sprintf("auth.refresh_ttl_hours must be > 0 (got %d)", o.Auth.RefreshTTLHours))
-	}
-	// gateway：监听地址不能为空（否则转码面静默消失）。
-	if strings.TrimSpace(o.Gateway.Addr) == "" {
-		errs = append(errs, "gateway.addr must not be empty")
 	}
 	// SSE：addr 与 path 要么都空（不启用），要么都非空。
 	if (strings.TrimSpace(o.SSE.Addr) == "") != (strings.TrimSpace(o.SSE.Path) == "") {

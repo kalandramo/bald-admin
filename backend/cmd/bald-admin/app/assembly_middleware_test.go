@@ -87,7 +87,6 @@ func setupAssemblyWithConfig(t *testing.T, cfgYAML string) (*appkit.AppKit, erro
 
 	cfgReg, err := preloadBootstrap(bootstrapCfg)
 	require.NoError(t, err, "配置源预装载")
-	require.NoError(t, applyObservabilityDefaults(bootstrapCfg, svrOpts))
 
 	app, _, err := buildApp(bootstrapCfg, svrOpts, cfgReg)
 	return app, err
