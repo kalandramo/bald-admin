@@ -25,20 +25,21 @@ import (
 	ssecontract "github.com/kalandramo/bald/transport/sse/contract"
 )
 
-// tracerRegistry 显式注册 trace 后端契约 provider（appkit.TracerRegistry：
-// 契约 tracer 段 → 全局 TracerProvider，tracer.type 单选）。装配与停机
-// flush 由 FromBootstrap 内化。
+// tracerRegistry 显式注册 trace 后端契约 provider。装配与停机 flush 由 FromBootstrap 内化。
 func tracerRegistry() *appkit.TracerRegistry {
 	tr := appkit.NewTracerRegistry()
 	tr.MustRegister(otlpcontract.TracerType, otlpcontract.NewTracerProvider("bald-admin"))
 	return tr
 }
 
-// metricsRegistry 显式注册指标后端契约 provider（appkit.MetricsRegistry：
-// 契约 metrics 段 → 双通道装配，metrics.type 单选——"prometheus"=仅本地
-// 抓取，"otlp"=抓取+直推，同一实现的两种声明形态）。装配与停机关闭/flush
-// 由 FromBootstrap 内化（U1）。
-
+// metricsRegistry 注册指标后端 provider。
+//
+// 契约 metrics.type **单选**——此处注册两个 key 供其选择，不是同时启用：
+//   - "prometheus"：仅本地抓取端点；
+//   - "otlp"：本地抓取 + OTLP 周期推送（两个 reader 挂在**同一 MeterProvider**）。
+//
+// 两个 reader 是**同源双出口**（各从 MeterProvider 取指标），不是「抓本地
+// /metrics 再转发」——故 OTLP 推送不依赖 :9091 端点是否监听。
 func metricsRegistry() *appkit.MetricsRegistry {
 	mr := appkit.NewMetricsRegistry()
 	mr.MustRegister(otlpcontract.TypePrometheus, otlpcontract.NewPrometheusProvider("bald-admin"))
