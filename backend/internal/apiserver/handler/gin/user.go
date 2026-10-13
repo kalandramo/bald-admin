@@ -1,6 +1,6 @@
 package gin
 
-// user.go 用户管理 REST handler（T2）。租户内读写：跨租户访问由 P8 自动拦为 404；
+// user.go 用户管理 REST handler。租户内读写：跨租户访问由 P8 自动拦为 404；
 // 授权经 P9 归一化权限点（user + get/post/put/delete），admin 全权、viewer 只读。
 
 import (

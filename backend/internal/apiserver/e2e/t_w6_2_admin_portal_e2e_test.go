@@ -1,6 +1,6 @@
 package e2e
 
-// t_w6_2_admin_portal_e2e_test.go —— Wave 6.2：管理面真新增（AdminPortalService）。
+// t_w6_2_admin_portal_e2e_test.go —— ：管理面真新增（AdminPortalService）。
 //
 // ## 源的 3 rpc（admin/service/v1/i_admin_portal.proto）
 //
@@ -14,7 +14,7 @@ package e2e
 //
 // 即「当前登录用户 → 其角色 → 角色权限码 → 权限点关联的菜单 → 过滤出路由」。
 // 这是**跨域聚合**（user + role + permission + menu 四域），无单一对标 biz
-// ——故是 Wave 6 的真新增（裁定见计划 §Wave 6.1）。
+// ——故是 的真新增（裁定见计划 §）。
 //
 // ## 测试数据策略（关键）
 //
@@ -126,7 +126,7 @@ func TestWave6_2_GetNavigation(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	// 策略数据化装载后需热重载才生效（D7 的绕行：改角色后须调 ReloadPolicies）。
+	// 策略数据化装载后需热重载才生效（的绕行：改角色后须调 ReloadPolicies）。
 	if err := bootstrappkg.ReloadPolicies(); err != nil {
 		t.Fatalf("reload policies: %v", err)
 	}

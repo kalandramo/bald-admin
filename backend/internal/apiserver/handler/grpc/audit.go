@@ -1,8 +1,8 @@
 package grpc
 
-// audit.go 审计日志查询 gRPC service（T6）。实现生成的 auditv1.AuditServiceServer，
+// audit.go 审计日志查询 gRPC service。实现生成的 auditv1.AuditServiceServer，
 // 经 main.go registerGRPC 注册；与 REST 共用同一 auditlog biz 与 casbin 策略
-// （P9 归一化：AuditService → "audit" + get/list）。只读查询接口。
+// （归一化：AuditService → "audit" + get/list）。只读查询接口。
 
 import (
 	"context"

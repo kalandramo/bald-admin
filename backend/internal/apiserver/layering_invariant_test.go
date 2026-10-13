@@ -1,11 +1,11 @@
 package apiserver_test
 
-// 本文件是 Wave 3「层间解耦」的**机械化不变量测试**（计划 §Wave 3 任务 3.4）。
+// 本文件是 「层间解耦」的**机械化不变量测试**（计划 §任务 3.4）。
 //
 // ## 为什么需要它
 //
 // bald 项目的《待处理事项》反复出现同一类教训：**同一不变量的多个违反点只修
-// 一个**（#3b / #3d / #18）。Wave 3 把 20 个 biz 包对 internal/bootstrap 的
+// 一个**（#3b / #3d / #18）。把 20 个 biz 包对 internal/bootstrap 的
 // 依赖（135 处 bootstrappkg.XxxStore）清成零——但这类「结构性约束」如果没有
 // 测试固化，下一次新增 biz（或复制旧包作模板）时极易悄悄把依赖加回来，而
 // 那正是 G2「控制面单向依赖数据面」被破坏的起点。
@@ -13,7 +13,7 @@ package apiserver_test
 // ## 断言什么
 //
 // data 面（internal/apiserver/biz/）下的**非测试** .go 文件，不得 import
-// internal/bootstrap。业务依赖走构造期注入（Wave 3），不再请求期回读装配根。
+// internal/bootstrap。业务依赖走构造期注入，不再请求期回读装配根。
 //
 // 反例：往任意 biz 包加 `import bootstrappkg "...internal/bootstrap"` 即
 // 红——这正是我们想要的「响亮失败」。
@@ -27,7 +27,7 @@ import (
 )
 
 // TestInvariant_BizDoesNotImportBootstrap 锁定 G2 分层边界：
-// biz 层不得依赖装配根 internal/bootstrap（Wave 3 已清零，此测试防回退）。
+// biz 层不得依赖装配根 internal/bootstrap（已清零，此测试防回退）。
 //
 // 采用与 platform_superadmin_e2e_test.go 同款的**目录级扫描**而非写死文件
 // 清单——后者会因文件搬迁/拆分而假红。扫描 biz 子树全部非测试 .go。

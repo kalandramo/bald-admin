@@ -184,7 +184,7 @@ func callListUsers(t *testing.T, conn *grpc.ClientConn, tok string) (*userv1.Lis
 	return resp, err
 }
 
-// userIDs 提取 ListUsersResponse 的用户 ID 列表（T2 起为对象列表，原为 string 列表）。
+// userIDs 提取 ListUsersResponse 的用户 ID 列表（起为对象列表，原为 string 列表）。
 func userIDs(resp *userv1.ListUsersResponse) []string {
 	ids := make([]string, 0, len(resp.GetUsers()))
 	for _, u := range resp.GetUsers() {
@@ -193,7 +193,7 @@ func userIDs(resp *userv1.ListUsersResponse) []string {
 	return ids
 }
 
-// TestGRPCTransport_MultiTenant_Isolation 真实传输：多租户隔离（P8 自动注入 tenant_id）。
+// TestGRPCTransport_MultiTenant_Isolation 真实传输：多租户隔离（自动注入 tenant_id）。
 //
 // t-default 的 admin 只能看到本租户用户（u-admin/u-alice）；t-other 的 bob 只能看到
 // 自己（u-bob）。未见 cross-tenant 泄漏。store.Where.T(ctx) 由 pkg/store 在翻译查询时

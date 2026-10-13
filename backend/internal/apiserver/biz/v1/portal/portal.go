@@ -1,4 +1,4 @@
-// Package portal 是管理面聚合业务（Wave 6.2，自 go-wind-admin admin 域
+// Package portal 是管理面聚合业务（，自 go-wind-admin admin 域
 // i_admin_portal.proto 精简移植，3 rpc）。
 //
 // ## 跨域聚合（本包存在的理由）
@@ -42,14 +42,14 @@ var ErrNoUser = errors.New("portal: no authenticated user in context")
 // Biz 管理面聚合业务。
 type Biz struct {
 	// userStore / roleStore / permStore / menuStore 是聚合链依赖的四域仓储
-	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	// （构造期注入，替代请求期读包级变量）。
 	userStore *store.Store[authmodel.User]
 	roleStore *store.Store[authmodel.Role]
 	permStore *store.Store[authmodel.Permission]
 	menuStore *store.Store[authmodel.Menu]
 }
 
-// New 构造 portal 业务。us/rs/ps/ms 是用户/角色/权限/菜单仓储（Wave 3
+// New 构造 portal 业务。us/rs/ps/ms 是用户/角色/权限/菜单仓储（
 // 构造期注入——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
 func New(us *store.Store[authmodel.User], rs *store.Store[authmodel.Role], ps *store.Store[authmodel.Permission], ms *store.Store[authmodel.Menu]) *Biz {
 	return &Biz{userStore: us, roleStore: rs, permStore: ps, menuStore: ms}

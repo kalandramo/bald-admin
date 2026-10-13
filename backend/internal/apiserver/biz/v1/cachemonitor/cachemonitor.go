@@ -1,4 +1,4 @@
-// Package cachemonitor 是 Redis 缓存监控业务（Wave 6.2，自 go-wind-admin
+// Package cachemonitor 是 Redis 缓存监控业务（，自 go-wind-admin
 // redis_cache 域精简移植，1 rpc）。
 //
 // ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）
@@ -30,12 +30,12 @@ const slowLogFetchLimit = 10
 
 // Biz 缓存监控业务。
 type Biz struct {
-	// rdb 是 Redis 客户端（Wave 3：构造期注入，替代请求期读 bootstrap.RedisClient）。
+	// rdb 是 Redis 客户端（构造期注入，替代请求期读 bootstrap.RedisClient）。
 	// nil = Redis 未装配，Info 返回空视图（fail-soft，对齐源语义）。
 	rdb goredis.UniversalClient
 }
 
-// New 构造缓存监控业务。rdb 是 Redis 客户端（Wave 3 构造期注入——InitializeBiz
+// New 构造缓存监控业务。rdb 是 Redis 客户端（构造期注入——InitializeBiz
 // 现于 InitBridges 之后执行，RedisClient 已就绪）。nil 表示 Redis 未装配。
 func New(rdb goredis.UniversalClient) *Biz { return &Biz{rdb: rdb} }
 

@@ -1,6 +1,6 @@
 package e2e
 
-// tenant_e2e_test.go 租户管理 REST e2e（T2 验收）：真实 gin 引擎 + httptest，
+// tenant_e2e_test.go 租户管理 REST e2e（验收）：真实 gin 引擎 + httptest，
 // 走完整中间件链（分组 Authn/Authz）与 biz/store/DB。
 //
 // 验证点：

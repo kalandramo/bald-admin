@@ -1,4 +1,4 @@
-// Package language 是语言管理业务（Wave 5.3，自 go-wind-admin dict 域 language
+// Package language 是语言管理业务（，自 go-wind-admin dict 域 language
 // 精简移植，7 rpc）。
 //
 // ## 平台级数据（无租户隔离）
@@ -38,11 +38,11 @@ var ErrConflict = store.ErrConflict
 
 // Biz 语言管理业务。
 type Biz struct {
-	// langStore 是语言仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	// langStore 是语言仓储（构造期注入，替代请求期读包级变量）。
 	langStore *store.Store[authmodel.Language]
 }
 
-// New 构造语言业务。st 是语言仓储（Wave 3 构造期注入——InitializeBiz 现于
+// New 构造语言业务。st 是语言仓储（构造期注入——InitializeBiz 现于
 // InitBridges 之后执行，store 已就绪）。
 func New(st *store.Store[authmodel.Language]) *Biz { return &Biz{langStore: st} }
 

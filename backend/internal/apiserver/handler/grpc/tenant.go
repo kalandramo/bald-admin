@@ -1,8 +1,8 @@
 package grpc
 
-// tenant.go 租户管理 gRPC service（T2）。实现生成的 tenantv1.TenantServiceServer，
+// tenant.go 租户管理 gRPC service。实现生成的 tenantv1.TenantServiceServer，
 // 经 main.go registerGRPCService 注册；gRPC 与 REST 共用同一 tenant biz 与 casbin
-// 策略（P9 归一化：FullMethod → "tenant" + get/list/write/delete）。
+// 策略（归一化：FullMethod → "tenant" + get/list/write/delete）。
 
 import (
 	"context"

@@ -1,7 +1,7 @@
 package gin
 
-// dict.go 字典管理 REST handler（T4）。路由挂载遵循仓库双范式：
-// 分组级 Authn（/v1 需登录）+ 路由级 Authz（P9 归一化权限点）。
+// dict.go 字典管理 REST handler。路由挂载遵循仓库双范式：
+// 分组级 Authn（/v1 需登录）+ 路由级 Authz（归一化权限点）。
 // REST 路径用单数段（/v1/dict_type、/v1/dict_entry），与 gRPC
 // DefaultGRPCObject("DictTypeService/...")="dict_type"、"dict_entry" 同源——
 // casbin 策略单写即覆盖双协议。

@@ -1,4 +1,4 @@
-// Package mfa 实现 MFA 业务逻辑（Wave 1.5，biz 层）。
+// Package mfa 实现 MFA 业务逻辑（，biz 层）。
 //
 // 复刻范围严格对齐源 `mfa_service.go`：实现 TOTP 的 7 条 rpc；
 // StartMFAChallenge / GenerateBackupCodes / ListBackupCodes 返回 ErrUnimplemented
@@ -26,12 +26,12 @@ var ErrTooFrequent = errors.New("mfa: enroll too frequent, retry later")
 
 // Biz 是 MFA 业务。
 type Biz struct {
-	// factorStore 是 MFA 因子仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	// factorStore 是 MFA 因子仓储（构造期注入，替代请求期读包级变量）。
 	factorStore *store.Store[authmodel.UserMFAFactor]
 	challenges  mfa.ChallengeStore
 }
 
-// New 构造 MFA Biz。st 是 MFA 因子仓储（Wave 3 构造期注入——InitializeBiz 现于
+// New 构造 MFA Biz。st 是 MFA 因子仓储（构造期注入——InitializeBiz 现于
 // InitBridges 之后执行，MFAFactorStore 已就绪）；challenges 为挑战存储，nil =
 // 运行期经 SetChallenges 补注。
 func New(st *store.Store[authmodel.UserMFAFactor], challenges mfa.ChallengeStore) *Biz {

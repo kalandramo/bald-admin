@@ -1,4 +1,4 @@
-// Package loginpolicy 提供登录策略的**值格式校验**（Wave 1.6）。
+// Package loginpolicy 提供登录策略的**值格式校验**。
 //
 // 为什么单独成包：源的 `ValidateLoginPolicyValue`（`login_policy_checker.go:147`）
 // 承担一个关键安全职责——**白名单策略若配错格式，匹配器会静默不命中，导致全员

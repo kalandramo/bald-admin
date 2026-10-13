@@ -1,15 +1,15 @@
 package e2e
 
-// t_w5_1_audit_five_categories_e2e_test.go —— Wave 5.1：审计五类落库与查询。
+// t_w5_1_audit_five_categories_e2e_test.go —— ：审计五类落库与查询。
 //
 // ## 背景
 //
 // 源 go-wind-admin 的 audit 域是**五类独立表**（operation / login / api /
 // data_access / permission），各 3 rpc。bald-admin 当前是**单表 + category**
-// （T6 精简，仅 operation/login 两类有数据），五类中的 api / data_access /
+// （精简，仅 operation/login 两类有数据），五类中的 api / data_access /
 // permission 三类**从未落库**。
 //
-// Wave 5.1 决策（用户确认）：**保持单表 + category**，把五类差异字段扩为
+// 决策（用户确认）：**保持单表 + category**，把五类差异字段扩为
 // nullable 列。理由：现有单表是刻意决策且查询面已统一；拆五表要新增 5 个
 // model + 5 个 store + 5 组 handler，代价大而收益仅是表结构对齐。能力验证
 // 的重点是「五类事件能落库 + 能查询」，不是表结构逐字对齐。
@@ -73,7 +73,7 @@ func TestWave5_1_APICategoryAutoCollected(t *testing.T) {
 
 // TestWave5_1_DataAccessCategory —— data_access 类审计（SQL 执行被采集）。
 //
-// 依赖 Wave 5.2 的 SQL 采集机制（gorm callback）。本测试只断言「有 data_access
+// 依赖 的 SQL 采集机制（gorm callback）。本测试只断言「有 data_access
 // 类记录且含 table_name」，具体的采集实现见 5.2。
 func TestWave5_1_DataAccessCategory(t *testing.T) {
 	base := startAuditREST(t)

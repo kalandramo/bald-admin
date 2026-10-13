@@ -1,8 +1,8 @@
 package grpc
 
-// dict.go 字典管理 gRPC service（T4）。实现生成的 dictv1.DictTypeServiceServer
+// dict.go 字典管理 gRPC service。实现生成的 dictv1.DictTypeServiceServer
 // 与 dictv1.DictEntryServiceServer，经 main.go registerGRPC 注册；gRPC 与 REST
-// 共用同一 dict biz 与 casbin 策略（P9 归一化：FullMethod → "dict_type"/
+// 共用同一 dict biz 与 casbin 策略（归一化：FullMethod → "dict_type"/
 // "dict_entry" + get/list/write）。
 
 import (

@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1_ratelimit_e2e_test.go —— Wave 1a 登录限流 e2e（RED 起点）。
+// t_w1_ratelimit_e2e_test.go —— 登录限流 e2e（RED 起点）。
 //
 // 验收（计划 1.2，对齐源项目 LoginRateLimiter 的 fail-open 语义）：
 //  1. 连续错误凭据触发限流 → 后续请求 429（而非继续 401）
@@ -12,7 +12,7 @@ package e2e
 // 与源项目的语义对齐：源用 Redis 计数（LoginRateLimiter.CheckAndIncr），
 // 本实现用 bald 的 ratelimit/tokenbucket（进程内），故 fail-open 的触发条件
 // 从「Redis 不可用」变为「限流器未注入」——这是能力轴替换带来的语义映射，
-// 已在 Wave 1 交付报告记录。
+// 已在 交付报告记录。
 
 import (
 	"context"

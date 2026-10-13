@@ -140,7 +140,7 @@ type SSEOptions struct {
 
 // MetricsOptions 可观测性暴露端的历史 env 通道（**已退役**）。
 //
-// 退役理由（W3）：本结构的字段曾由 BALD_ADMIN_METRICS_ADDR /
+// 退役理由：本结构的字段曾由 BALD_ADMIN_METRICS_ADDR /
 // BALD_ADMIN_OTLP_ADDR 填充，在**契约装载之前**注入（当时的缺省合成
 // 函数 `applyObservabilityDefaults` 已整体删除——可观测性/协议段改由
 // 契约 + 配置驱动，不再由应用层合成缺省段）。那两个短名会被框架 env

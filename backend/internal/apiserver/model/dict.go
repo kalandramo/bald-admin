@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// DictType 字典类型（T4，自 go-wind-admin sys_dict_types 精简移植）。ID 即类型
+// DictType 字典类型（自 go-wind-admin sys_dict_types 精简移植）。ID 即类型
 // 编码（源 type_code，immutable 语义——业务键做主键，同 Menu/Permission 范式）。
 // 带 TenantID 字段：字典是租户级业务数据（源 mixin TenantID），P8 自动隔离；
 // Cache-Aside 键亦含租户维度（dict biz）。
@@ -17,7 +17,7 @@ type DictType struct {
 	UpdatedAt time.Time
 }
 
-// DictEntry 字典项（T4，自 go-wind-admin sys_dict_entries 精简移植）。主键 =
+// DictEntry 字典项（自 go-wind-admin sys_dict_entries 精简移植）。主键 =
 // "<type_code>:<entry_value>" 业务键（同 RolePolicy 范式：Create 冲突即条目重复，
 // 源「同租户同类型 entry_value 唯一」约束的等价实现——type_code/value 不可变，
 // Update 仅改展示属性）。Label 内联源 sys_dict_entry_i18n 的 zh 条目（i18n 表按

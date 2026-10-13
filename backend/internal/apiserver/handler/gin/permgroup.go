@@ -1,4 +1,4 @@
-// Package gin 提供权限组与策略评估日志的 HTTP handler（Wave 4.1，源 7 rpc）。
+// Package gin 提供权限组与策略评估日志的 HTTP handler（，源 7 rpc）。
 package gin
 
 import (

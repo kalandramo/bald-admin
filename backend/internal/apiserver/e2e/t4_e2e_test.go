@@ -1,6 +1,6 @@
 package e2e
 
-// t4_e2e_test.go 字典管理 REST e2e（T4 验收）：真实 gin 引擎 + httptest +
+// t4_e2e_test.go 字典管理 REST e2e（验收）：真实 gin 引擎 + httptest +
 // miniredis 真实 Redis（dict biz 注入 Cache-Aside）。
 //
 // 验收点（移植计划 T4）：
@@ -147,7 +147,7 @@ func TestDictREST_TypeLifecycle(t *testing.T) {
 }
 
 // TestDictREST_EntryLifecycleAndCache 条目 CRUD + Cache-Aside 命中/写穿透失效
-// （T4 核心验收：缓存键真实存在于 miniredis，失效可观测）。
+// （核心验收：缓存键真实存在于 miniredis，失效可观测）。
 func TestDictREST_EntryLifecycleAndCache(t *testing.T) {
 	base, cacheInst := startDictREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
@@ -216,7 +216,7 @@ func TestDictREST_EntryLifecycleAndCache(t *testing.T) {
 // TestDictAuthz_DictPoliciesAndTenantIsolation 授权 + 租户隔离（P9/P8 同源验证）：
 //   - viewer 读 dict_type/dict_entry 200（p 行 viewer 只读）；
 //   - viewer 写 403（写策略行仅授予 admin）；
-//   - t-other 用户看不到 t-default 的字典种子（P8 隔离；缓存键含租户维度）。
+//   - t-other 用户看不到 t-default 的字典种子（隔离；缓存键含租户维度）。
 func TestDictAuthz_DictPoliciesAndTenantIsolation(t *testing.T) {
 	base, _ := startDictREST(t)
 	viewer := tenantToken(t, "alice", "u-alice", "viewer", "t-default")

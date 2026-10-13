@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// Menu 菜单节点（T3，自 go-wind-admin sys_menus 精简移植）。自引用树：ParentID
+// Menu 菜单节点（自 go-wind-admin sys_menus 精简移植）。自引用树：ParentID
 // 空串 = 根节点（源 parent_id=0 语义——uint32 零值做不了"未设置"，string 空
 // 串天然区分）。本表是平台侧管理面（无 TenantID 字段，P8 不作用于它，全量读写
 // 即平台语义，同 Tenant 表）。

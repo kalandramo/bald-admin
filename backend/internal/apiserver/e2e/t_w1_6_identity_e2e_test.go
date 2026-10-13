@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1_6_identity_e2e_test.go —— Wave 1.6：identity 扩展域
+// t_w1_6_identity_e2e_test.go —— ：identity 扩展域
 //（user_credential 10 rpc + login_policy 6 rpc + user_profile 2 rpc 源空实现）。
 //
 // 核心验证点：

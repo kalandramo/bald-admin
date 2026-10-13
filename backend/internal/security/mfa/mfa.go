@@ -1,4 +1,4 @@
-// Package mfa 提供多因素认证（MFA）能力（Wave 1.5）。
+// Package mfa 提供多因素认证（MFA）能力。
 //
 // 对应源 go-wind-admin 的 MFAService（10 rpc，`mfa.proto`）。**复刻范围严格对齐
 // 源实现**——源 `mfa_service.go` 文件头注释明载「本轮仅落地 TOTP；非 TOTP 方法、

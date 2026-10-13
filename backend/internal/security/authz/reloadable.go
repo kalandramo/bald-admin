@@ -1,4 +1,4 @@
-// Package authz 提供授权器的**应用层装饰器**（Wave 1d-3）。
+// Package authz 提供授权器的**应用层装饰器**。
 //
 // 框架能力缺口（实测，待上游确认）：
 // bald 的 authz.Authorizer 接口只有 Authorize 一个方法（pkg/authz/authz.go:15-20），

@@ -1,4 +1,4 @@
-// Package tenant 是租户管理业务（T2，自 go-wind-admin identity 域精简移植）。
+// Package tenant 是租户管理业务（自 go-wind-admin identity 域精简移植）。
 //
 // 平台侧管理面：本表（model.Tenant）无 TenantID 字段，查询不调 Where.T——
 // P8 隔离对租户管理面天然不生效，全量读写即平台语义（源 PlatformTenantID=0 等价物）。
@@ -15,13 +15,13 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 )
 
-// Biz 租户管理业务。store 是租户仓储（Wave 3：构造期注入，替代请求期读包级
+// Biz 租户管理业务。store 是租户仓储（构造期注入，替代请求期读包级
 // 变量——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
 type Biz struct {
 	store *store.Store[authmodel.Tenant]
 }
 
-// New 构造租户业务。st 是租户仓储（Wave 3 构造期注入）。
+// New 构造租户业务。st 是租户仓储（构造期注入）。
 func New(st *store.Store[authmodel.Tenant]) *Biz { return &Biz{store: st} }
 
 // Get 取租户（按编码）。不存在返回 ErrNotFound。

@@ -1,4 +1,4 @@
-// Package secret 实现 Secret 业务层（M6.3 起落库，消除 handler 硬编码返回）。
+// Package secret 实现 Secret 业务层（起落库，消除 handler 硬编码返回）。
 //
 // 设计约束：业务层只依赖 bald 核心的 store.Store 抽象（依赖倒置），不直接耦合 gorm/gin/grpc；
 // 查询自动经 store 的多租户过滤（Where.T(ctx) 由 pkg/store 注入 TenantID），业务不手写隔离 SQL。
@@ -22,7 +22,7 @@ import (
 
 // SecretBiz Secret 业务服务。
 type SecretBiz struct {
-	// store 是 Secret 仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	// store 是 Secret 仓储（构造期注入，替代请求期读包级变量）。
 	// nil 容错保留（测试可传 nil 表达「无仓储」），生产路径由装配保证非 nil。
 	store *store.Store[authmodel.Secret]
 	// cache 是读穿透缓存（cache/loadable 组合器）；nil = 禁用，直连 store。
@@ -31,7 +31,7 @@ type SecretBiz struct {
 	cache *loadable.Cache
 }
 
-// New 构造 SecretBiz。st 是 Secret 仓储（Wave 3 构造期注入——InitializeBiz 现
+// New 构造 SecretBiz。st 是 Secret 仓储（构造期注入——InitializeBiz 现
 // 在 InitBridges 之后执行，store 已就绪，不再需要「请求期读包级变量」绕行）。
 // backend 是通用 KV 缓存（cache.Cache）；非 nil 时包装为 loadable 读穿透缓存
 // （loader 构造期绑定，从 key 反解 id/tenant）。nil = 禁用。

@@ -1,4 +1,4 @@
-// Package captcha 提供图片验证码的生成与校验（Wave 1d-2）。
+// Package captcha 提供图片验证码的生成与校验。
 //
 // 对应源 go-wind-admin 的 GenerateCaptcha / VerifyCaptcha 两个 rpc
 // （authentication.proto L58/L61）。图片生成用 github.com/mojocn/base64Captcha

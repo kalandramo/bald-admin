@@ -1,6 +1,6 @@
 // audit_wiring.go —— 审计后端 provider 注册（store 后端）。
 //
-// ## 历史（D14 与它的惰性包装）
+// ## 历史（与它的惰性包装）
 //
 // 项目配置声明 `audit: { backends: "store" }` 时曾启动失败：
 //

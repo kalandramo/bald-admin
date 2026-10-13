@@ -1,7 +1,7 @@
 package gin
 
-// audit.go 审计日志查询 REST handler（T6）。分组级 Authn + 路由级 Authz
-// （P9 归一化权限点 "audit"——REST /v1/audit 与 gRPC AuditService 同源，
+// audit.go 审计日志查询 REST handler。分组级 Authn + 路由级 Authz
+// （归一化权限点 "audit"——REST /v1/audit 与 gRPC AuditService 同源，
 // casbin 策略单写覆盖双协议）。只读接口（list/get），admin 专属。
 // 复用 pb.go 的 bindPB/writePB 与本包 toAuditPB 转换。
 

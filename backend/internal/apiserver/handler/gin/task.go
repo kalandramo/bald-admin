@@ -1,4 +1,4 @@
-// Package gin 提供任务调度域的 HTTP handler（Wave 2.3）。
+// Package gin 提供任务调度域的 HTTP handler。
 package gin
 
 import (
@@ -16,7 +16,7 @@ import (
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 )
 
-// RegisterTask 挂载任务调度路由（Wave 2.3，源 11 rpc）。
+// RegisterTask 挂载任务调度路由（，源 11 rpc）。
 func RegisterTask(
 	e *gingonic.Engine,
 	authenticator authn.Authenticator,

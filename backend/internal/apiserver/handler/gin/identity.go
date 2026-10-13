@@ -1,4 +1,4 @@
-// Package gin 提供 identity 扩展域的 HTTP handler（Wave 1.6，协议层）。
+// Package gin 提供 identity 扩展域的 HTTP handler（，协议层）。
 package gin
 
 import (
@@ -16,7 +16,7 @@ import (
 	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
 )
 
-// RegisterIdentity 挂载 identity 扩展域路由（Wave 1.6）。
+// RegisterIdentity 挂载 identity 扩展域路由。
 //
 // 覆盖源 user_credential（10 rpc）+ login_policy（6 rpc）+ user_profile（2 rpc 源空实现）。
 // 全部经 authzMW 保护——凭证与登录策略是**安全敏感**资源，仅管理员可操作。

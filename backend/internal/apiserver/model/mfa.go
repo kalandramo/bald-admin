@@ -11,7 +11,7 @@ const (
 	MFAMethodTOTP MFAMethod = "TOTP"
 )
 
-// UserMFAFactor 是用户 MFA 因子（Wave 1.5，自源 usermfafactor 精简移植）。
+// UserMFAFactor 是用户 MFA 因子（，自源 usermfafactor 精简移植）。
 //
 // 主键用业务键 `"<tenant>:<user>:<method>"`：源以 (tenant,user,method) 唯一约束
 // 防重复绑定（`mfa_service.go:140-148` 的 HasEnabledTotp 预检 + 唯一索引兜底）。

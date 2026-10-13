@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1_7_org_e2e_test.go —— Wave 1.7：组织架构域
+// t_w1_7_org_e2e_test.go —— ：组织架构域
 //（org_unit 7 rpc 树形 + position 7 rpc 关联回填）。
 //
 // **Wave P0.5 迁移说明**：本域已从 B 轨（Go DTO + encoding/json）迁移为

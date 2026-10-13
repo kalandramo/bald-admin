@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// Task 任务定义（Wave 2.3，自源 task.proto 精简移植）。
+// Task 任务定义（，自源 task.proto 精简移植）。
 //
 // 语义：一条 Task 是**任务的定义**（类型/调度表达式/参数），不是某次执行。
 // 按 Type 分派到 asynq：

@@ -1,7 +1,7 @@
 package gin
 
-// permission.go 权限管理 REST handler（T3）：权限点注册表 + 角色策略数据化管理。
-// 路由挂载遵循仓库双范式：分组级 Authn + 路由级 Authz（P9 归一化权限点）。
+// permission.go 权限管理 REST handler：权限点注册表 + 角色策略数据化管理。
+// 路由挂载遵循仓库双范式：分组级 Authn + 路由级 Authz（归一化权限点）。
 // REST 路径用单数段（/v1/permission），与 gRPC
 // DefaultGRPCObject("PermissionService/...")="permission" 同源——策略单写。
 

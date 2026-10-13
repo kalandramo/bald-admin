@@ -1,6 +1,6 @@
 package e2e
 
-// t_w6_2_cache_monitor_e2e_test.go —— Wave 6.2：Redis 缓存监控（1 rpc）。
+// t_w6_2_cache_monitor_e2e_test.go —— ：Redis 缓存监控（1 rpc）。
 //
 // ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）
 //
@@ -77,7 +77,7 @@ func startCacheMonitorREST(t *testing.T) string {
 func TestWave6_2_CacheMonitorFailSoft(t *testing.T) {
 	// **显式控制全局态**：RedisClient 是进程级单例，同包其他测试可能已注入
 	// 真实客户端（如 TestWave6_2_CacheMonitorWithRedis）——不隔离会让本测试
-	// 的「空视图」断言随执行顺序时红时绿（跨测试全局态污染，同 Wave 5.5 教训）。
+	// 的「空视图」断言随执行顺序时红时绿（跨测试全局态污染，同 教训）。
 	prev := bootstrappkg.RedisClient
 	bootstrappkg.RedisClient = nil
 	t.Cleanup(func() { bootstrappkg.RedisClient = prev })

@@ -1,4 +1,4 @@
-// Package gin 提供套餐三件套的 HTTP handler（Wave 4.2，源 14 rpc）。
+// Package gin 提供套餐三件套的 HTTP handler（，源 14 rpc）。
 package gin
 
 import (

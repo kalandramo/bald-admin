@@ -10,7 +10,7 @@
 // 认证链路——**框架零改动**（bald 的 AuthnMiddleware 只依赖 authn.Authenticator
 // 接口，装饰器是同一接口的合法实现）。
 //
-// 框架能力验证结论（Wave 1d 实测）：bald v0.8.1 **不提供** session/token 管理
+// 框架能力验证结论（实测）：bald v0.8.1 **不提供** session/token 管理
 // 组件（`grep -rl "captcha\|session" --include="*.go" bald/` 零命中），故本包为
 // 业务自建——这是「能力轴缺口」的一条实测记录。
 //
@@ -52,7 +52,7 @@ type Store interface {
 	// 防止同一 refresh_token 被重放）。返回关联的 subject；不存在返回 ErrNotFound。
 	ConsumeRefresh(ctx context.Context, refreshToken string) (string, error)
 
-	// TrackAccess 把访问令牌登记到 subject 的活跃集合（Wave 1d-4，供
+	// TrackAccess 把访问令牌登记到 subject 的活跃集合，供
 	// GetAccessTokens 列出）。ttl 为该令牌的剩余有效期。
 	TrackAccess(ctx context.Context, subject, token string, ttl time.Duration) error
 
@@ -95,7 +95,7 @@ func fingerprint(token string) string {
 func keyRevoked(token string) string { return "auth:revoked:" + fingerprint(token) }
 func keyRefresh(token string) string { return "auth:refresh:" + fingerprint(token) }
 
-// keyAccessIndex 是「某用户的活跃访问令牌」索引键（Wave 1d-4）。
+// keyAccessIndex 是「某用户的活跃访问令牌」索引键。
 //
 // 用 **ZSET** 而非 SET 或 SCAN：
 //   - 源的实现用 `SCAN at:{ct}:{uid}:*` 全库模式匹配（`user_token_cache.go:387-411`）
@@ -109,7 +109,7 @@ func keyRefresh(token string) string { return "auth:refresh:" + fingerprint(toke
 // 「存明文等于在缓存层复制可用凭证」）。
 func keyAccessIndex(subject string) string { return "auth:at:" + subject }
 
-// keyBlocked 是「封禁详情」键（Wave 1d-4）：存 JSON（原因 + 到期时刻）。
+// keyBlocked 是「封禁详情」键：存 JSON（原因 + 到期时刻）。
 func keyBlocked(token string) string { return "auth:blocked:" + fingerprint(token) }
 
 // blockedInfo 是封禁记录的存储结构。
@@ -207,7 +207,7 @@ type RevocationChecker struct {
 }
 
 // NewRevocationChecker 包装认证器，加入吊销检查。store 为 nil 时直接返回 inner
-// （禁用态——与 Wave 1a/1b/1c 的 nil 即禁用语义一致）。
+// （禁用态——与 /1b/1c 的 nil 即禁用语义一致）。
 func NewRevocationChecker(inner authn.Authenticator, store Store) authn.Authenticator {
 	if store == nil {
 		return inner
@@ -247,7 +247,7 @@ func (c *RevocationChecker) AuthenticateToken(token string) (*authn.AuthClaims, 
 	return claims, nil
 }
 
-// ---- Wave 1d-4：活跃令牌索引 + 封禁（token 管理 4 rpc 的存储支撑）----
+// ---- -4：活跃令牌索引 + 封禁（token 管理 4 rpc 的存储支撑）----
 
 // TrackAccess 实现 Store：把令牌登记到 subject 的活跃集合。
 //

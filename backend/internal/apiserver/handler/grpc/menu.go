@@ -1,8 +1,8 @@
 package grpc
 
-// menu.go 菜单管理 gRPC service（T3）。实现生成的 menuv1.MenuServiceServer，
+// menu.go 菜单管理 gRPC service。实现生成的 menuv1.MenuServiceServer，
 // 经 main.go registerGRPC 注册；gRPC 与 REST 共用同一 menu biz 与 casbin
-// 策略（P9 归一化：FullMethod → "menu" + get/list/write/delete）。
+// 策略（归一化：FullMethod → "menu" + get/list/write/delete）。
 
 import (
 	"context"

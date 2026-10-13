@@ -1,6 +1,6 @@
 package model
 
-// PermissionGroup 权限组（Wave 4.1，自源 permission_group.proto 精简移植）。
+// PermissionGroup 权限组（，自源 permission_group.proto 精简移植）。
 //
 // **树形结构**：源用物化路径（materialized path）——`Path` 格式
 // `/1/10/101/`（**含自身、首尾带 `/`**，见 `permission_group.proto:53-56`
@@ -26,7 +26,7 @@ type PermissionGroup struct {
 	Remark string
 }
 
-// PolicyEvaluationLog 策略评估日志（Wave 4.1，自源 policy_evaluation_log.proto 精简）。
+// PolicyEvaluationLog 策略评估日志（，自源 policy_evaluation_log.proto 精简）。
 //
 // 语义：每次权限判定（casbin 评估）落一条——记录「谁、对什么、请求哪个 API、
 // 结果如何、为何拒绝」。源的字段已精简为项目实际可得的数据

@@ -1,6 +1,6 @@
 package e2e
 
-// t_w2_6_broker_e2e_test.go —— Wave 2.6：`bald/broker` 能力勘探。
+// t_w2_6_broker_e2e_test.go —— ：`bald/broker` 能力勘探。
 //
 // ## 本波的性质（重要，与其余波次不同）
 //
@@ -16,7 +16,7 @@ package e2e
 //
 // 故本波改为**能力勘探**——本任务目标之一是「验证 bald 框架能力与缺陷」，
 // 而 broker 是框架里**零消费者的休眠组件**，勘探它就是有价值的产出。
-// 不造无意义消费者；为 Wave 3（SSE 跨实例扇出）预留通道。
+// 不造无意义消费者；为 （SSE 跨实例扇出）预留通道。
 //
 // ## 勘探到的两个未文档化约束（探针实测，记为 D13）
 //
@@ -61,7 +61,7 @@ func brokerTestAddr() string { return redisTestURL() }
 //   - 正常        → nil
 //
 // 故改用 `Connect()` 判可达性——判据单一（与测试主体同一条代码路径），
-// 且顺带覆盖 `Init()`（D13.1 的 addr 赋值），比旁路 Ping 更贴近真实用法。
+// 且顺带覆盖 `Init`（的 addr 赋值），比旁路 Ping 更贴近真实用法。
 //
 // 选 v0.1.2 而非 v0.1.1 的原因：v0.1.1 的探活失败路径会丢弃 pool
 // （`b.pool = nil`）但 Disconnect 无 nil 防护 → 调用即 panic。本函数
@@ -87,7 +87,7 @@ func TestWave2_6_BrokerCrossInstance(t *testing.T) {
 	requireRedis(t) // 独立探测（不能靠 Connect 的假成功判可达性，见 helper 注释）
 	topic := "bald-admin.probe." + time.Now().Format("150405.000000")
 
-	// 订阅方（实例 A）。**必须先 Init**（D13.1）。
+	// 订阅方（实例 A）。**必须先 Init**。
 	sub := redisbroker.NewBroker(option.DriverTypePubSub, broker.WithAddress(brokerTestAddr()))
 	if err := sub.Init(); err != nil {
 		t.Fatalf("sub.Init: %v", err)
@@ -175,7 +175,7 @@ func TestWave2_6_BrokerRequiresInit(t *testing.T) {
 
 // TestWave2_6_BrokerDegrade —— 降级路径（计划 2.6 的验收项）。
 //
-// **原勘探结果（D13.2）**：`Connect()` 曾对不可达 Redis 返回 **nil**（假成功），
+// **原勘探结果**：`Connect` 曾对不可达 Redis 返回 **nil**（假成功），
 // 故障延迟到首次 Publish/Subscribe——调用方信任返回值会在启动期误判「已连通」。
 //
 // **2026-09-23 更新**：D13.2 已在 broker/redis v0.1.1 修复（Connect 取连接
@@ -226,7 +226,7 @@ func TestWave2_6_BrokerDegrade(t *testing.T) {
 
 // TestWave2_6_BrokerStreamDriver —— 另一 driver（stream）是否同样需 Init。
 //
-// 两 driver 的 NewBroker 都不调 Init——同族约束（D13.1 覆盖两者）。
+// 两 driver 的 NewBroker 都不调 Init——同族约束（覆盖两者）。
 func TestWave2_6_BrokerStreamDriver(t *testing.T) {
 	requireRedis(t)
 	b := redisbroker.NewBroker(option.DriverTypeStream, broker.WithAddress(brokerTestAddr()))

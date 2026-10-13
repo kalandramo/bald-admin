@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1d_register_e2e_test.go —— Wave 1d-3：RegisterUser（源 authentication.proto L31）。
+// t_w1d_register_e2e_test.go —— -3：RegisterUser（源 authentication.proto L31）。
 //
 // 验收：
 //   - 注册新用户 → 返回 user_id；该用户**能立即登录**（这是最关键的端到端断言：

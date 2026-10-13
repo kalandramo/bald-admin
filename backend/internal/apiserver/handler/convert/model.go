@@ -175,7 +175,7 @@ func AuditRecordToPB(m *authmodel.AuditRecord) *auditv1.AuditRecord {
 		UserAgent: m.UserAgent,
 		RequestId: m.RequestID,
 		TraceId:   m.TraceID,
-		// Wave 5.1：五类差异字段（各分类按需非空）。
+		// 五类差异字段（各分类按需非空）。
 		HttpMethod:   m.HTTPMethod,
 		Path:         m.Path,
 		StatusCode:   m.StatusCode,

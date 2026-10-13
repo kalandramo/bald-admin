@@ -1,4 +1,4 @@
-// pb.go 统一 proto 消息的 HTTP 绑定与序列化（T2）。
+// pb.go 统一 proto 消息的 HTTP 绑定与序列化。
 //
 // 为什么不用 c.ShouldBindJSON / c.JSON（encoding/json）：grpc-gateway 按 proto3 JSON
 // 规范（protojson）编解码——枚举输出符号名（"FREEZE"）、Timestamp 输出 RFC3339、
@@ -129,7 +129,7 @@ func handlePB[T any, PT interface {
 	writePB(c, code, resp)
 }
 
-// writeBizErr 统一 biz 错误 → 决策⑧错误体（T2 起的三层判定语义保持）：
+// writeBizErr 统一 biz 错误 → 决策⑧错误体（起的三层判定语义保持）：
 //   - *berrors.Error → 框架 ErrorResponse 主路径（httperr.CodeToHTTP 映射，
 //     message=可展示文案，reason/metadata 进 details）；
 //   - store.ErrNotFound / ErrConflict 哨兵（biz 经 fmt.Errorf %w 包装，errors.Is

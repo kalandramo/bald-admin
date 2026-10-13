@@ -1,4 +1,4 @@
-// Package file 文件模块业务层（T5，自 go-wind-admin storage 域精简移植）。
+// Package file 文件模块业务层（自 go-wind-admin storage 域精简移植）。
 //
 // ossutil.go 自源项目 go-wind-admin/backend/pkg/oss 精简移植：只保留上传链路
 // 用到的常量与工具，语义对齐源 constants.go / utils.go。差异点：
@@ -69,7 +69,7 @@ func IsAllowedMimeType(mimeType string) bool {
 	}
 	// http.DetectContentType 输出带参数（如 "text/plain; charset=utf-8"），
 	// 精确匹配前必须剥参数，否则 text/* 与 application/json 等无魔术头类型
-	// 永不命中白名单（T8 §9 真调暴露的 e2e 盲区：t5 只覆盖 PNG/exe 两极）。
+	// 永不命中白名单（§9 真调暴露的 e2e 盲区：t5 只覆盖 PNG/exe 两极）。
 	if mt, _, err := mime.ParseMediaType(mimeType); err == nil {
 		mimeType = mt
 	}

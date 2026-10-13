@@ -1,15 +1,15 @@
 package e2e
 
-// t_w1b_circuitbreaker_e2e_test.go —— Wave 1b 登录 DB 查询熔断 e2e（RED 起点）。
+// t_w1b_circuitbreaker_e2e_test.go —— 登录 DB 查询熔断 e2e（RED 起点）。
 //
-// 验收（计划 1.3 的**场景修正**，见 Wave 1a 提交说明）：
+// 验收（计划 1.3 的**场景修正**，见 提交说明）：
 // 计划原提「circuitbreaker 包裹审计落库」收益极低——审计是旁路不阻断语义
 //（recordSafely 有 recover 兜底），给失败无感的旁路加熔断没有意义。真正的
 // 雪崩点在**主链路的 DB 查询**（Login 的 UserStore.Get）：DB 故障会让所有
 // 登录请求卡在超时上。故本波把熔断挂在这里。
 //
 // 断言策略说明（重要）：本测试用 **hystrix** 而非 sres 作为实现。
-// 原因（实测发现，见 Wave 1b 交付报告）：sres 是 SRE 概率式熔断，其
+// 原因（实测发现，见 交付报告）：sres 是 SRE 概率式熔断，其
 // accept = (requests - K*errors)/(requests+1) **恒 < 1**，故：
 //   (a) 100 次全成功路径下仍概率拒绝（K=2 时实测拒 12 次）；
 //   (b) State 永不返回 StateClosed（恒 half-open）——违反契约

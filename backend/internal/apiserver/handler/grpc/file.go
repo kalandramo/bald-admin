@@ -1,8 +1,8 @@
 package grpc
 
-// file.go 文件管理 gRPC service（T5）。实现生成的 filev1.FileServiceServer，
+// file.go 文件管理 gRPC service。实现生成的 filev1.FileServiceServer，
 // 经 main.go registerGRPC 注册；gRPC 与 REST 共用同一 file biz 与 casbin 策略
-// （P9 归一化：FullMethod → "file" + get/list/write/delete）。bytes 上传/下载
+// （归一化：FullMethod → "file" + get/list/write/delete）。bytes 上传/下载
 // 经 gRPC 直连承载（gateway 转码为 base64 JSON 可用）；推荐二进制流走 gin 主
 // 服务的 multipart/流式 REST。
 

@@ -1,4 +1,4 @@
-// Package gin 提供站内消息域的 HTTP handler（Wave 2.5）。
+// Package gin 提供站内消息域的 HTTP handler。
 package gin
 
 import (
@@ -16,7 +16,7 @@ import (
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
 )
 
-// RegisterMessage 挂载站内消息路由（Wave 2.5，源 24 rpc）。
+// RegisterMessage 挂载站内消息路由（，源 24 rpc）。
 //
 // 权限设计：
 //   - 管理面（消息/分类的 CRUD、发送、撤销）→ 仅 admin；

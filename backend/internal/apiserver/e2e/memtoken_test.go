@@ -1,6 +1,6 @@
 package e2e
 
-// memtoken_test.go —— 内存版 token.Store 测试替身（Wave 5.1 补）。
+// memtoken_test.go —— 内存版 token.Store 测试替身（补）。
 //
 // ## 为什么需要它
 //

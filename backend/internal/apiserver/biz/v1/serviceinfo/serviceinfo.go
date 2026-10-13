@@ -9,7 +9,7 @@ package serviceinfo
 
 import "context"
 
-// Info 返回服务基本信息（M0 占位，后续从配置/注册表读取）。
+// Info 返回服务基本信息（占位，后续从配置/注册表读取）。
 func Info(_ context.Context) map[string]string {
 	return map[string]string{
 		"service": "bald-admin",
@@ -18,7 +18,7 @@ func Info(_ context.Context) map[string]string {
 	}
 }
 
-// Ping 返回存活应答（M0 占位；**不是**健康探针——探针见 bald/health）。
+// Ping 返回存活应答（占位；**不是**健康探针——探针见 bald/health）。
 func Ping(_ context.Context) string {
 	return "pong"
 }

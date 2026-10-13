@@ -1,6 +1,6 @@
 package e2e
 
-// t5_file_e2e_test.go 文件管理 REST e2e（T5 验收）：真实 gin 引擎 + httptest +
+// t5_file_e2e_test.go 文件管理 REST e2e（验收）：真实 gin 引擎 + httptest +
 // 真实 MinIO（§0 硬性：外部依赖禁止 fake/mock/stub）。MinIO 连接经 env 注入：
 //
 //	BALD_ADMIN_TEST_MINIO_ENDPOINT   host:port（必填，缺省则整组 Skip）
@@ -150,7 +150,7 @@ func statObject(t *testing.T, mc *miniooss.Storage, bucket, key string) bool {
 }
 
 // TestFileREST_UploadDownloadLifecycle 上传 → 落桶可查 → 下载内容一致 →
-// 删除 → 对象与元数据一并消失（T5 核心验收）。
+// 删除 → 对象与元数据一并消失（核心验收）。
 func TestFileREST_UploadDownloadLifecycle(t *testing.T) {
 	base, fb, mc := startFileREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
@@ -221,7 +221,7 @@ func TestFileREST_UploadDownloadLifecycle(t *testing.T) {
 }
 
 // TestFileREST_MimeWhitelistAndLimits 非白名单 MIME 拒绝 / 目录穿越拒绝 /
-// 超 50MiB 拒绝（T5 验收 2）。
+// 超 50MiB 拒绝（验收 2）。
 func TestFileREST_MimeWhitelistAndLimits(t *testing.T) {
 	base, _, _ := startFileREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")

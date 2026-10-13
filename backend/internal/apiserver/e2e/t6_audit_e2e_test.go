@@ -1,6 +1,6 @@
 package e2e
 
-// t6_audit_e2e_test.go 审计增强+查询 REST e2e（T6 验收）：真实 gin 引擎 +
+// t6_audit_e2e_test.go 审计增强+查询 REST e2e（验收）：真实 gin 引擎 +
 // httptest + 真实 SQLite 内存库（StoreAuditor 落库 → AuditStore 查询，§0 禁 fake）。
 //
 // 验收点（移植计划 T6）：
@@ -109,7 +109,7 @@ func listAudit(t *testing.T, base, tok, query string) *auditv1.ListAuditRecordsR
 }
 
 // TestAuditREST_LoginAuditFields 登录成功/失败均落 category=login 审计，
-// IP/UA 独立列（T6 验收 1）。
+// IP/UA 独立列（验收 1）。
 func TestAuditREST_LoginAuditFields(t *testing.T) {
 	base := startAuditREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
@@ -178,7 +178,7 @@ func TestAuditREST_OperationAudit(t *testing.T) {
 }
 
 // TestAuditREST_PaginationAndInvalidToken 分页翻页 + 非法 page_token 400
-// （T6 验收 3；唯一 subject 隔离数据保证精确 total）。
+// （验收 3；唯一 subject 隔离数据保证精确 total）。
 func TestAuditREST_PaginationAndInvalidToken(t *testing.T) {
 	base := startAuditREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
@@ -250,7 +250,7 @@ func TestAuditREST_GetAuditRecord(t *testing.T) {
 	}
 }
 
-// TestAuditREST_ViewerForbidden audit 查询 admin 专属：viewer 403（T6 验收 4）。
+// TestAuditREST_ViewerForbidden audit 查询 admin 专属：viewer 403（验收 4）。
 func TestAuditREST_ViewerForbidden(t *testing.T) {
 	base := startAuditREST(t)
 	viewer := tenantToken(t, "alice", "u-alice", "viewer", "t-default")

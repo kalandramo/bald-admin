@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// UserCredential 用户凭证（Wave 1.6，自源 user_credential.proto 精简移植）。
+// UserCredential 用户凭证（，自源 user_credential.proto 精简移植）。
 //
 // 源设计为「一个用户可有多种身份类型的凭证」（USERNAME/EMAIL/PHONE/OAuth/SSO/
 // API Key/设备/生物识别…，见 proto 的 IdentityType 枚举 12 项），本表承载同一模型。
@@ -32,7 +32,7 @@ type UserCredential struct {
 	UpdatedAt time.Time
 }
 
-// LoginPolicy 登录策略（Wave 1.6，自源 login_policy.proto 精简移植）。
+// LoginPolicy 登录策略（，自源 login_policy.proto 精简移植）。
 //
 // 语义：限制**哪些来源**可以登录（黑/白名单 × IP/MAC/地区/时间/设备）。
 // 源的关键设计：白名单若配错格式会静默不命中 → **全员被锁**，

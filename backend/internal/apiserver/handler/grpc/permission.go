@@ -1,8 +1,8 @@
 package grpc
 
-// permission.go 权限管理 gRPC service（T3）：权限点注册表 + 角色策略数据化管理。
+// permission.go 权限管理 gRPC service：权限点注册表 + 角色策略数据化管理。
 // 实现生成的 permissionv1.PermissionServiceServer；gRPC 与 REST 共用同一 biz 与
-// casbin 策略（P9 归一化：FullMethod → "permission" + get/list/write/delete）。
+// casbin 策略（归一化：FullMethod → "permission" + get/list/write/delete）。
 
 import (
 	"context"

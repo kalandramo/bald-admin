@@ -31,7 +31,7 @@ import (
 
 // RegisterOrg 挂载组织架构路由（org_unit 7 rpc，树形 + position 7 rpc，关联回填）。
 //
-// 路由与 gRPC DefaultGRPCObject 同源（P9 归一化权限点）：
+// 路由与 gRPC DefaultGRPCObject 同源（归一化权限点）：
 //   - GET    /v1/org-units            列表（树形）
 //   - GET    /v1/org-units/count      统计
 //   - GET    /v1/org-units/:code      取单个

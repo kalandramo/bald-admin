@@ -1,4 +1,4 @@
-// Package task 实现任务调度域（Wave 2.3，源 655 行，Wave 2 最大业务域）。
+// Package task 实现任务调度域（，源 655 行，最大业务域）。
 //
 // 复刻范围（源 11 rpc）：List/Count/Get/Create/Update/Delete/ListTaskTypeName/
 // RestartAllTask/StartAllTask/StopAllTask/ControlTask。
@@ -66,14 +66,14 @@ type Scheduler interface {
 
 // Biz 是任务调度业务。
 type Biz struct {
-	// store 是任务仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	// store 是任务仓储（构造期注入，替代请求期读包级变量）。
 	store     *store.Store[authmodel.Task]
 	scheduler Scheduler
 	// running 记录运行中的任务（typeName → entryID）。
 	running map[string]string
 }
 
-// New 构造 Biz。st 是任务仓储（Wave 3 构造期注入——InitializeBiz 现于
+// New 构造 Biz。st 是任务仓储（构造期注入——InitializeBiz 现于
 // InitBridges 之后执行，store 已就绪）。
 func New(st *store.Store[authmodel.Task]) *Biz {
 	return &Biz{store: st, running: map[string]string{}}
@@ -103,7 +103,7 @@ type Task struct {
 	CreatedAt   int64  `json:"created_at,omitempty"`
 }
 
-// validateCronSpec 校验 cron 表达式（Wave 2.3）。
+// validateCronSpec 校验 cron 表达式。
 //
 // **实测发现的约束**：asynq 的 `NewPeriodicTask` 用**标准 5 字段** cron
 // （`分 时 日 月 周`），传 6 字段（含秒，如 `*/2 * * * * *`）会在注册时失败

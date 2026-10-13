@@ -1,6 +1,6 @@
 package gin
 
-// redis_cache_monitor.go Redis 缓存监控 REST handler（Wave 6.2）。只读运维接口，
+// redis_cache_monitor.go Redis 缓存监控 REST handler。只读运维接口，
 // admin 专属（object 归一化 "redis_cache_monitor"）。
 
 import (

@@ -1,9 +1,9 @@
-// Package bootstrap 负责桥接 bald 核心能力到本应用（M1 认证 + M2 数据化）。
+// Package bootstrap 负责桥接 bald 核心能力到本应用（认证 + M2 数据化）。
 //
 // InitBridges 构造并保存：
 //   - Authenticator：来自 bald-authn-jwt（HMAC 对称，MVP）；
 //   - Authorizer：RBAC，角色→权限为静态策略，subject→角色从 store(User) 加载；
-//   - DB / UserStore / RoleStore：bald-store-gorm 接入（M2，SQLite 内存库）。
+//   - DB / UserStore / RoleStore：bald-store-gorm 接入（SQLite 内存库）。
 //
 // server 层装配中间件/gRPC service 时引用这些包级变量。
 package bootstrap
@@ -49,10 +49,10 @@ var Authenticator authn.Authenticator
 // 注入 auth biz 的 Login，独占 RSA 私钥；与 Authenticator 分离，实现签发/验签权解耦。
 var Signer authnjwt.Signer
 
-// Authorizer 授权器（M6.1 起由 casbin 桥接 authz.Authorizer 实现）。
+// Authorizer 授权器（起由 casbin 桥接 authz.Authorizer 实现）。
 var Authorizer authz.Authorizer
 
-// grpcObjectAliases 是 gRPC 归一化名 → 策略 object 名的别名表（Wave 1.7）。
+// grpcObjectAliases 是 gRPC 归一化名 → 策略 object 名的别名表。
 //
 // 为什么需要：P9 归一化把 gRPC Service 名压成无分隔小写（DefaultGRPCObject：
 // 取 Service 段、去 "Service" 后缀、ToLower），而 seedPolicies 的 object 沿用
@@ -66,7 +66,7 @@ var Authorizer authz.Authorizer
 // 与策略一致，不入表（避免冗余映射掩盖真实命名问题）。
 //
 // 未挂 gRPC 但 proto 已存在的域（adminportal / rediscachemonitor）提前入表，
-// 防止「将来注册即中招」——见 Wave 3 的不变量测试。
+// 防止「将来注册即中招」——见 的不变量测试。
 var grpcObjectAliases = map[string]string{
 	"orgunit":           "org-units",
 	"position":          "positions",
@@ -76,16 +76,16 @@ var grpcObjectAliases = map[string]string{
 	"rediscachemonitor": "redis-cache-monitor",
 }
 
-// 注：原 lazyAuthn / lazyAuthz / lazySigner 适配器族已于 Wave 4.2 删除。
+// 注：原 lazyAuthn / lazyAuthz / lazySigner 适配器族已于 删除。
 // 它们的存在理由是装配时序倒置——路由/服务在构造期注册时 Authenticator /
-// Authorizer / Signer 尚为 nil，只能请求期解析。Wave 4.1 已把业务装配移到
+// Authorizer / Signer 尚为 nil，只能请求期解析。已把业务装配移到
 // Run 期（InitBridges 之后），装配层可直接传真实实例，故适配器成为死代码。
 
-// TokenStore 是令牌服务端状态存储（Wave 1d：吊销名单 + 刷新令牌）。
+// TokenStore 是令牌服务端状态存储（吊销名单 + 刷新令牌）。
 // 由 BeforeStart 装配（复用 RedisClient）；nil = 无 Redis，降级语义见各调用点。
 var TokenStore token.Store
 
-// policyReloader 是 casbin 策略热重载钩子（Wave 1d-3）。
+// policyReloader 是 casbin 策略热重载钩子。
 //
 // 背景（框架能力缺口）：authz.Authorizer 接口只有 Authorize（pkg/authz/authz.go:15），
 // contrib/authz-casbin 也无热重载入口——运行期新增用户/改角色后，权限必须重启
@@ -113,7 +113,7 @@ func ReloadPolicies() error {
 // 供 main 装配 ReloadableAuthorizer 的 build 函数使用（InitBridges 内的首次构造
 // 也走同一逻辑，保证首次与重载语义一致）。
 //
-// Wave 5：repos 由调用方显式传入——本函数不再读包级仓储变量。装配根的 reloadable
+// repos 由调用方显式传入——本函数不再读包级仓储变量。装配根的 reloadable
 // 闭包捕获首次 InitBridges 返回的 repos（见 InitBridges），故重载读的是同一套仓储。
 func BuildAuthorizer(ctx context.Context, repos *Repositories) (authz.Authorizer, error) {
 	csv, err := loadPolicyCSV(ctx, repos)
@@ -123,14 +123,14 @@ func BuildAuthorizer(ctx context.Context, repos *Repositories) (authz.Authorizer
 	return casbinauthz.New(csv)
 }
 
-// 注：原 lazyAuthnWithRevocation / LazyAuthenticatorWithRevocation 于 Wave 4.2 删除。
+// 注：原 lazyAuthnWithRevocation / LazyAuthenticatorWithRevocation 于 删除。
 // 它同样是把「验签 + 吊销检查」延后到请求期解析的适配器——理由是 RegisterRoutes
-// 曾在装配期执行而 TokenStore 在 BeforeStart 才就绪。Wave 4.2 已把 TokenStore 的
+// 曾在装配期执行而 TokenStore 在 BeforeStart 才就绪。已把 TokenStore 的
 // 构造**移到路由注册之前**（assembly.go），装配层直接传
 // token.NewRevocationChecker(Authenticator, TokenStore) 真实实例即可，
 // 吊销检查语义不因删除适配器而丢失（已由 e2e 吊销用例与端到端验证覆盖）。
 
-// DB 是应用主库（M2 起为 SQLite 内存库，T0 起默认经配置 database.sql 切外部 PostgreSQL）。
+// DB 是应用主库（起为 SQLite 内存库，T0 起默认经配置 database.sql 切外部 PostgreSQL）。
 var DB *gorm.DB
 
 // RedisClient 是底层 go-redis 客户端（可空：nil 表示无 Redis 环境）。
@@ -139,20 +139,20 @@ var DB *gorm.DB
 // bootstrap 自行持有并管理生命周期。
 var RedisClient goredis.UniversalClient
 
-// RedisCache 是可选 Redis 缓存后端（M6.2 Cache-Aside；D1 由
+// RedisCache 是可选 Redis 缓存后端（Cache-Aside；D1 由
 // contrib/cache-redis 迁移到 cache/redis 适配器）。nil 表示无 Redis 环境，
 // 调用方（缓存直连 store / 审计流降级）应降级。
 var RedisCache cache.Cache
 
-// MinioStorage 是可选 MinIO 对象存储后端（T0 起由 storage.minio 配置段构造，
+// MinioStorage 是可选 MinIO 对象存储后端（起由 storage.minio 配置段构造，
 // T5 文件模块消费）。SDK() 为 nil 表示未配置或构造失败，调用方应降级。
 var MinioStorage *miniooss.Storage
 
-// S3Storage 是可选 S3 兼容对象存储后端（Wave 5.4，storage.s3 配置段）。
+// S3Storage 是可选 S3 兼容对象存储后端（，storage.s3 配置段）。
 // 与 MinioStorage 并列：二者按配置择一装配。
 var S3Storage *s3oss.Storage
 
-// ObjectStorageBridge 是文件模块实际消费的对象存储抽象（Wave 5.4）。
+// ObjectStorageBridge 是文件模块实际消费的对象存储抽象。
 //
 // 由 WireStorage 按注入的后端类型填充（minio → MinioAdapter；s3 → S3Adapter），
 // 吸收两者**签名差异**（minio 逐调用传 bucket，s3 构造期固定 bucket）。
@@ -163,7 +163,7 @@ var ObjectStorageBridge filestore.ObjectStorage
 // bconf storage.minio 契约无 bucket 字段，见移植计划 §5）。
 var FileBucket string
 
-// depsBootstrap 是 Configure 注入的框架契约配置（T0 真实依赖段）。
+// depsBootstrap 是 Configure 注入的框架契约配置（真实依赖段）。
 // BeforeStart 完成配置 Unmarshal 后调用 Configure，InitBridges 消费；
 // 未调用时保持既有行为（env 变量 + SQLite 内存库），既有测试零改动。
 var depsBootstrap *bootstrapv1.BootstrapConfig
@@ -176,7 +176,7 @@ func Configure(cfg *bootstrapv1.BootstrapConfig, fileBucket string) {
 	FileBucket = fileBucket
 }
 
-// Repositories 聚合 InitBridges 建立的业务仓储（Wave 5，建议二）。
+// Repositories 聚合 InitBridges 建立的业务仓储（，建议二）。
 //
 // 为什么不再用 26 个包级变量：包级 var 让「装配根」与「biz」都反向读取本包的
 // 全局态——装配时机一变（构造期 vs 运行期）就产生「读到 nil」的时序耦合，测试
@@ -195,33 +195,33 @@ type Repositories struct {
 	RolePolicy *store.Store[authmodel.RolePolicy] // casbin p 行数据化（D3 策略装载真源）
 	DictType   *store.Store[authmodel.DictType]
 	DictEntry  *store.Store[authmodel.DictEntry]
-	// 语言仓储（Wave 5.3；平台级数据，无租户维度）。
+	// 语言仓储（；平台级数据，无租户维度）。
 	Language *store.Store[authmodel.Language]
 	// 文件元数据仓储（T5；MinIO 对象经 MinioStorage 桥接，元数据落本库）。
 	File *store.Store[authmodel.File]
-	// 审计日志仓储（T6 查询面；写路径经 security/audit.StoreAuditor 落库，
+	// 审计日志仓储（查询面；写路径经 security/audit.StoreAuditor 落库，
 	// 同表双通道：写走审计后端、读走本仓储）。
 	Audit *store.Store[authmodel.AuditRecord]
-	// 用户 MFA 因子仓储（Wave 1.5）。
+	// 用户 MFA 因子仓储。
 	MFAFactor *store.Store[authmodel.UserMFAFactor]
-	// 用户凭证仓储（Wave 1.6）。
+	// 用户凭证仓储。
 	Credential *store.Store[authmodel.UserCredential]
-	// 登录策略仓储（Wave 1.6）。
+	// 登录策略仓储。
 	LoginPolicy *store.Store[authmodel.LoginPolicy]
-	// 组织单元仓储（Wave 1.7，树形）。
+	// 组织单元仓储（，树形）。
 	OrgUnit *store.Store[authmodel.OrgUnit]
-	// 职位仓储（Wave 1.7）。
+	// 职位仓储。
 	Position *store.Store[authmodel.Position]
-	// 任务定义仓储（Wave 2.3）。
+	// 任务定义仓储。
 	Task *store.Store[authmodel.Task]
-	// 套餐三件套（Wave 4.2）。
+	// 套餐三件套。
 	Plan       *store.Store[authmodel.Plan]
 	PlanModule *store.Store[authmodel.PlanModule]
 	PlanQuota  *store.Store[authmodel.PlanQuota]
-	// 权限组与策略评估日志（Wave 4.1）。
+	// 权限组与策略评估日志。
 	PermGroup     *store.Store[authmodel.PermissionGroup]
 	PolicyEvalLog *store.Store[authmodel.PolicyEvaluationLog]
-	// 站内消息三表（Wave 2.5）。
+	// 站内消息三表。
 	Message         *store.Store[authmodel.InternalMessage]
 	MessageCategory *store.Store[authmodel.InternalMessageCategory]
 	Recipient       *store.Store[authmodel.InternalMessageRecipient]
@@ -284,9 +284,9 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	)
 
 	// 2) Store（bald-store-gorm，M4 起 DSN 可配置）。
-	// U1：DB/Redis/MinIO 优先消费注入实例（WireDatabase/WireCache/WireStorage，
+	// DB/Redis/MinIO 优先消费注入实例（WireDatabase/WireCache/WireStorage，
 	// FromBootstrap 阶段 B 经透传 provider 构造）；未注入才自建（既有测试与
-	// 独立调用路径零改动）。默认 SQLite 内存库（M2），生产经 env
+	// 独立调用路径零改动）。默认 SQLite 内存库，生产经 env
 	// BALD_ADMIN_DB_DSN 切换到外部 PostgreSQL/MySQL。
 	db := DB
 	if db == nil {
@@ -309,7 +309,7 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	}
 	DB = db
 
-	// Wave 5.2：注册 data_access 类审计的 gorm SQL 采集回调。
+	// 注册 data_access 类审计的 gorm SQL 采集回调。
 	// 源用 ent 的 dialect.Driver 包装采集 SQL；bald-admin 用 gorm，对应机制是
 	// Callback（见 sqlaudit 包头注）。**必须在 AutoMigrate 之后**——否则迁移
 	// 期间的 DDL 也会被采集（噪音），且审计表尚未建好。
@@ -351,7 +351,7 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 			}
 		}
 	}
-	// Wave 5（建议二）：仓储聚合为**显式返回值**，不再写入包级变量。
+	// （建议二）：仓储聚合为**显式返回值**，不再写入包级变量。
 	repos := &Repositories{
 		User:       store.NewStore[authmodel.User](baldgorm.NewGormProvider(db, func(u *authmodel.User) string { return u.ID })),
 		Role:       store.NewStore[authmodel.Role](baldgorm.NewGormProvider(db, func(r *authmodel.Role) string { return r.ID }), store.WithPlatformLevel[authmodel.Role]()),
@@ -374,35 +374,35 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 		Audit: store.NewStore[authmodel.AuditRecord](baldgorm.NewGormProvider(db, func(r *authmodel.AuditRecord) string {
 			return strconv.FormatUint(uint64(r.ID), 10)
 		}), store.WithPageSize[authmodel.AuditRecord](50), store.WithMaxPageSize[authmodel.AuditRecord](200)),
-		// Wave 1.5：MFA 因子仓储（业务键主键，同 RolePolicy 范式）。
+		// MFA 因子仓储（业务键主键，同 RolePolicy 范式）。
 		MFAFactor: store.NewStore[authmodel.UserMFAFactor](baldgorm.NewGormProvider(db,
 			func(f *authmodel.UserMFAFactor) string { return f.ID })),
-		// Wave 1.6：凭证 + 登录策略仓储（业务键主键）。
+		// 凭证 + 登录策略仓储（业务键主键）。
 		Credential: store.NewStore[authmodel.UserCredential](baldgorm.NewGormProvider(db,
 			func(c *authmodel.UserCredential) string { return c.ID })),
 		LoginPolicy: store.NewStore[authmodel.LoginPolicy](baldgorm.NewGormProvider(db,
 			func(p *authmodel.LoginPolicy) string { return p.ID })),
-		// Wave 1.7：组织单元（树）+ 职位仓储。
+		// 组织单元（树）+ 职位仓储。
 		OrgUnit: store.NewStore[authmodel.OrgUnit](baldgorm.NewGormProvider(db,
 			func(o *authmodel.OrgUnit) string { return o.ID })),
 		Position: store.NewStore[authmodel.Position](baldgorm.NewGormProvider(db,
 			func(p *authmodel.Position) string { return p.ID })),
-		// Wave 2.3：任务定义仓储。
+		// 任务定义仓储。
 		Task: store.NewStore[authmodel.Task](baldgorm.NewGormProvider(db,
 			func(t *authmodel.Task) string { return t.ID })),
-		// Wave 2.5：站内消息三表。
+		// 站内消息三表。
 		Message: store.NewStore[authmodel.InternalMessage](baldgorm.NewGormProvider(db,
 			func(m *authmodel.InternalMessage) string { return m.ID })),
 		MessageCategory: store.NewStore[authmodel.InternalMessageCategory](baldgorm.NewGormProvider(db,
 			func(c *authmodel.InternalMessageCategory) string { return c.ID })),
 		Recipient: store.NewStore[authmodel.InternalMessageRecipient](baldgorm.NewGormProvider(db,
 			func(r *authmodel.InternalMessageRecipient) string { return r.ID })),
-		// Wave 4.1：权限组 + 策略评估日志。
+		// 权限组 + 策略评估日志。
 		PermGroup: store.NewStore[authmodel.PermissionGroup](baldgorm.NewGormProvider(db,
 			func(g *authmodel.PermissionGroup) string { return g.ID })),
 		PolicyEvalLog: store.NewStore[authmodel.PolicyEvaluationLog](baldgorm.NewGormProvider(db,
 			func(l *authmodel.PolicyEvaluationLog) string { return l.ID })),
-		// Wave 4.2：套餐三件套。
+		// 套餐三件套。
 		Plan: store.NewStore[authmodel.Plan](baldgorm.NewGormProvider(db,
 			func(p *authmodel.Plan) string { return p.ID })),
 		PlanModule: store.NewStore[authmodel.PlanModule](baldgorm.NewGormProvider(db,
@@ -415,13 +415,13 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 		return nil, err
 	}
 
-	// 2.5) 多租户隔离（P8）：注册 tenant_id 维度，Store 查询自动注入等值过滤，
+	// 2.5) 多租户隔离：注册 tenant_id 维度，Store 查询自动注入等值过滤，
 	// 业务 handler 无需手写，避免跨租户数据泄漏。DefaultTenantFunc 读取 authn
 	// 认证后注入 contextx 的 TenantID。
 	store.RegisterTenant("tenant_id", store.DefaultTenantFunc)
 
-	// 3) Authorizer：M6.1 起由 casbin 桥接 authz.Authorizer 实现（P11 起实现晋升 contrib
-	//    bald-authz-casbin，内嵌通用 RBAC 模型）。T3 起策略数据化装载（D3）：p 行读
+	// 3) Authorizer：M6.1 起由 casbin 桥接 authz.Authorizer 实现（起实现晋升 contrib
+	//    bald-authz-casbin，内嵌通用 RBAC 模型）。T3 起策略数据化装载：p 行读
 	//    RolePolicy 表、g 行读 User.Roles——静态 rbac_policy.csv 已删除，策略单一真源
 	//    收敛到 DB（改库重启即生效；无策略行时 casbin 默认拒绝，fail-closed）。
 	policyCSV, err := loadPolicyCSV(ctx, repos)
@@ -432,14 +432,14 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Wave 1d-3：用可热重载装饰器包装——运行期新增用户/改角色后，
+	// -3：用可热重载装饰器包装——运行期新增用户/改角色后，
 	// 业务调用 ReloadPolicies() 即可让新权限生效（否则须重启进程）。
 	// 重建函数复用 BuildAuthorizer（与首次构造同一逻辑，语义一致）。
-	// Wave 5：闭包捕获本次的 repos——重载读同一套仓储（C7 已核实该闭包在运行期触发）。
+	// 闭包捕获本次的 repos——重载读同一套仓储（已核实该闭包在运行期触发）。
 	reloadable := appauthz.NewReloadable(az, func() (authz.Authorizer, error) {
 		return BuildAuthorizer(context.Background(), repos)
 	})
-	// Wave 1.7：再包一层 object 别名装饰器。P9 归一化把 gRPC Service 名压成
+	// 再包一层 object 别名装饰器。P9 归一化把 gRPC Service 名压成
 	// 无分隔小写（OrgUnitService→"orgunit"），而策略 object 沿用 HTTP 路径段
 	// 命名（"org-units"）；casbin 精确匹配下 gRPC 面恒 403（实测复现）。
 	// 装饰器在内层**明确拒绝**后按别名重试一次，不放宽任何语义边界。
@@ -481,7 +481,7 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// 密码以 bcrypt 哈希写入（M3 起，不再明文存储）。
+	// 密码以 bcrypt 哈希写入（起，不再明文存储）。
 	adminHash, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -586,7 +586,7 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// Wave 5.3 语言种子：对齐源 constants.DefaultLanguages 的 7 条
+	// 语言种子：对齐源 constants.DefaultLanguages 的 7 条
 	// （zh-CN 为默认；sort_order 源值 0/1/100——zh-CN 最小在前）。
 	languages := []*authmodel.Language{
 		{ID: "zh-CN", LanguageName: "中文（简体）", NativeName: "简体中文", IsDefault: true, IsEnabled: true, SortOrder: 0},
@@ -613,16 +613,16 @@ func seed(ctx context.Context, repos *Repositories) error {
 // 主键 role:object:action 冲突即重复策略，防重与其他种子同构（ErrConflict 容忍）。
 func seedPolicies(ctx context.Context, repos *Repositories) error {
 	policies := []authmodel.RolePolicy{
-		// admin：机密/认证/管理面（M6.1 起存量）。
+		// admin：机密/认证/管理面（起存量）。
 		{Role: "admin", Object: "secret", Action: "get"},
 		{Role: "admin", Object: "secret", Action: "delete"},
 		{Role: "admin", Object: "secret", Action: "list"},
 		{Role: "admin", Object: "auth", Action: "get"},
-		// Wave 1d-4：token 管理（GetAccessTokens/BlockToken/UnblockToken/RevokeTokenById）
+		// -4：token 管理（GetAccessTokens/BlockToken/UnblockToken/RevokeTokenById）
 		// 是**写操作**（POST）——授权归一化把 POST 映射为 "post"（DefaultHTTPAction）。
 		// 此前 admin 只有 {auth, get}，故 token 管理路由全部 403（实测）。
 		{Role: "admin", Object: "auth", Action: "post"},
-		// Wave 1.5：MFA 域。
+		// MFA 域。
 		// **admin 与 viewer 都需 {mfa, get/post}**——MFA 是用户对**自己账号**的
 		// 安全设置，任何登录用户都应能绑定/解绑自己的因子（源的 MFA 管理面
 		// 从 auth.FromContext 取 operator，强制只能操作本人）。
@@ -631,7 +631,7 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "admin", Object: "mfa", Action: "post"},
 		{Role: "viewer", Object: "mfa", Action: "get"},
 		{Role: "viewer", Object: "mfa", Action: "post"},
-		// Wave 1.6：凭证与登录策略——**安全敏感，仅 admin**。
+		// 凭证与登录策略——**安全敏感，仅 admin**。
 		// viewer 不得读写凭证/策略（凭证明文操作、策略配错会锁全员）。
 		{Role: "admin", Object: "credentials", Action: "get"},
 		{Role: "admin", Object: "credentials", Action: "post"},
@@ -645,7 +645,7 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "admin", Object: "profile", Action: "post"},
 		// viewer 只能操作自己的凭证（改密码），不能读他人。
 		{Role: "viewer", Object: "credentials", Action: "post"},
-		// Wave 1.7：组织架构（org_unit / position）。
+		// 组织架构（org_unit / position）。
 		// admin 全权；viewer 只读（组织架构是全员可见的公共组织信息）。
 		// 动作**六元组**（对齐 dict 域先例，见下方 dict_type/dict_entry）：REST 归一化
 		// 为 HTTP 动词小写（DefaultHTTPAction → get/post/put/delete），gRPC 归一化为
@@ -668,12 +668,12 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "viewer", Object: "org-units", Action: "list"},
 		{Role: "viewer", Object: "positions", Action: "get"},
 		{Role: "viewer", Object: "positions", Action: "list"},
-		// Wave 2.3：任务调度——**仅 admin**（启停任务影响后台作业，属运维面）。
+		// 任务调度——**仅 admin**（启停任务影响后台作业，属运维面）。
 		{Role: "admin", Object: "tasks", Action: "get"},
 		{Role: "admin", Object: "tasks", Action: "post"},
 		{Role: "admin", Object: "tasks", Action: "put"},
 		{Role: "admin", Object: "tasks", Action: "delete"},
-		// Wave 2.5：站内消息。
+		// 站内消息。
 		// 管理面（消息/分类 CRUD、发送、撤销）→ 仅 admin；
 		// **收件箱 → 任何登录用户**（操作自己的收件箱，源同此语义）。
 		{Role: "admin", Object: "messages", Action: "get"},
@@ -692,15 +692,15 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "admin", Object: "inbox", Action: "delete"},
 		{Role: "admin", Object: "recipients", Action: "get"},
 		{Role: "admin", Object: "recipients", Action: "post"},
-		// Wave 3.4：dashboard 只读聚合（仅 admin——分析页是管理面功能）。
+		// dashboard 只读聚合（仅 admin——分析页是管理面功能）。
 		{Role: "admin", Object: "dashboard", Action: "get"},
-		// Wave 4.1：权限组 + 策略评估日志（仅 admin——权限配置是管理面功能）。
+		// 权限组 + 策略评估日志（仅 admin——权限配置是管理面功能）。
 		{Role: "admin", Object: "permission-groups", Action: "get"},
 		{Role: "admin", Object: "permission-groups", Action: "post"},
 		{Role: "admin", Object: "permission-groups", Action: "put"},
 		{Role: "admin", Object: "permission-groups", Action: "delete"},
 		{Role: "admin", Object: "policy-evaluation-logs", Action: "get"},
-		// Wave 4.2：套餐三件套（仅 admin）。
+		// 套餐三件套（仅 admin）。
 		{Role: "admin", Object: "plans", Action: "get"},
 		{Role: "admin", Object: "plans", Action: "post"},
 		{Role: "admin", Object: "plans", Action: "put"},
@@ -716,7 +716,7 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "admin", Object: "admin", Action: "get"},
 		{Role: "admin", Object: "admin", Action: "post"},
 		{Role: "admin", Object: "admin", Action: "delete"},
-		// admin：租户/用户管理（T2）。
+		// admin：租户/用户管理。
 		{Role: "admin", Object: "tenant", Action: "get"},
 		{Role: "admin", Object: "tenant", Action: "post"},
 		{Role: "admin", Object: "tenant", Action: "put"},
@@ -729,7 +729,7 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "admin", Object: "user", Action: "delete"},
 		{Role: "admin", Object: "user", Action: "list"},
 		{Role: "admin", Object: "user", Action: "write"},
-		// admin：菜单/权限管理（T3 新增管理域）。动作六元组（get/post/put/delete/
+		// admin：菜单/权限管理（新增管理域）。动作六元组（get/post/put/delete/
 		// list/write）：REST 归一化为 HTTP 动词小写（DefaultHTTPAction），gRPC 归一化为
 		// get/list/write（DefaultGRPCAction，Create/Update→write）——双协议同源全放行。
 		{Role: "admin", Object: "menu", Action: "get"},
@@ -750,12 +750,12 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "viewer", Object: "auth", Action: "get"},
 		{Role: "viewer", Object: "user", Action: "get"},
 		{Role: "viewer", Object: "user", Action: "list"},
-		// viewer：菜单/权限只读（T3，前端渲染可见性；不持有写动作）。
+		// viewer：菜单/权限只读（前端渲染可见性；不持有写动作）。
 		{Role: "viewer", Object: "menu", Action: "get"},
 		{Role: "viewer", Object: "menu", Action: "list"},
 		{Role: "viewer", Object: "permission", Action: "get"},
 		{Role: "viewer", Object: "permission", Action: "list"},
-		// admin：字典管理（T4）。dict_type/dict_entry 同款六元组（REST HTTP 动词
+		// admin：字典管理。dict_type/dict_entry 同款六元组（REST HTTP 动词
 		// 小写 + gRPC get/list/write 双协议全放行）。
 		{Role: "admin", Object: "dict_type", Action: "get"},
 		{Role: "admin", Object: "dict_type", Action: "post"},
@@ -769,12 +769,12 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "admin", Object: "dict_entry", Action: "delete"},
 		{Role: "admin", Object: "dict_entry", Action: "list"},
 		{Role: "admin", Object: "dict_entry", Action: "write"},
-		// viewer：字典只读（T4，业务数据读取开放给登录用户）。
+		// viewer：字典只读（业务数据读取开放给登录用户）。
 		{Role: "viewer", Object: "dict_type", Action: "get"},
 		{Role: "viewer", Object: "dict_type", Action: "list"},
 		{Role: "viewer", Object: "dict_entry", Action: "get"},
 		{Role: "viewer", Object: "dict_entry", Action: "list"},
-		// admin：语言管理（Wave 5.3）。object 归一化：REST /v1/language →
+		// admin：语言管理。object 归一化：REST /v1/language →
 		// DefaultHTTPObject="language"；gRPC LanguageService/* →
 		// DefaultGRPCObject="language"（去 Service 后缀）——双协议同源。
 		{Role: "admin", Object: "language", Action: "get"},
@@ -786,7 +786,7 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		// viewer：语言只读（语言是平台级基础数据，登录用户可读）。
 		{Role: "viewer", Object: "language", Action: "get"},
 		{Role: "viewer", Object: "language", Action: "list"},
-		// Wave 6.2 管理面聚合（AdminPortalService）：object 用 **admin_portal**
+		// 管理面聚合（AdminPortalService）：object 用 **admin_portal**
 		// （自定义 resolver 产出，见 handler/gin/admin_portal.go）——**不能用
 		// "admin"**：/admin/components 的管理面组件目录也归一化为 "admin"，
 		// 给 viewer 开 admin:get 会连带放开它（实测回归：TestAdmin_Forbidden
@@ -797,10 +797,10 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		// viewer 需拉导航/权限码（前端初始化），故只读开放。
 		{Role: "viewer", Object: "admin_portal", Action: "get"},
 		{Role: "viewer", Object: "admin_portal", Action: "list"},
-		// Wave 6.2 缓存监控（RedisCacheMonitorService）：admin 专属运维接口。
+		// 缓存监控（RedisCacheMonitorService）：admin 专属运维接口。
 		{Role: "admin", Object: "redis-cache-monitor", Action: "get"},
 		{Role: "admin", Object: "redis-cache-monitor", Action: "list"},
-		// admin：文件管理（T5）。同款六元组（REST HTTP 动词小写 + gRPC
+		// admin：文件管理。同款六元组（REST HTTP 动词小写 + gRPC
 		// get/list/write 双协议全放行；DefaultGRPCObject("FileService/...")="file"）。
 		{Role: "admin", Object: "file", Action: "get"},
 		{Role: "admin", Object: "file", Action: "post"},
@@ -810,7 +810,7 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		// viewer：文件只读（T5；上传/删除仅 admin）。
 		{Role: "viewer", Object: "file", Action: "get"},
 		{Role: "viewer", Object: "file", Action: "list"},
-		// admin：审计查询（T6，审计数据敏感仅 admin；REST /v1/audit 与 gRPC
+		// admin：审计查询（审计数据敏感仅 admin；REST /v1/audit 与 gRPC
 		// AuditService 同源归一化 "audit"）。
 		{Role: "admin", Object: "audit", Action: "get"},
 		{Role: "admin", Object: "audit", Action: "list"},
@@ -885,7 +885,7 @@ func ResolveRedisAddr() string {
 
 // dsnScheme 的解析逻辑已上提 contrib/store-gorm（Open 的 scheme 推断）。
 
-// loadPolicyCSV 从 DB 装载 casbin 策略（D3 策略数据化）：
+// loadPolicyCSV 从 DB 装载 casbin 策略（策略数据化）：
 //   - p 行：RolePolicy 表全量（role,object,action 三元组）；
 //   - g 行：UserStore 全量用户的 Roles 字段展开（subject→角色绑定）。
 //
@@ -912,5 +912,5 @@ func loadPolicyCSV(ctx context.Context, repos *Repositories) (string, error) {
 	return sb.String(), nil
 }
 
-// loadRBACMaps 已从 bootstrap 移除（M6.1）：RBAC 策略改由 casbin 桥接加载；
+// loadRBACMaps 已从 bootstrap 移除：RBAC 策略改由 casbin 桥接加载；
 // T3 起进一步数据化——p 行 RolePolicy 表、g 行 User.Roles（见 loadPolicyCSV）。

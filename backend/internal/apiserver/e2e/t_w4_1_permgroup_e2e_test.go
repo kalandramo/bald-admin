@@ -1,6 +1,6 @@
 package e2e
 
-// t_w4_1_permgroup_e2e_test.go —— Wave 4.1：权限组 + 策略评估日志（源 7 rpc）。
+// t_w4_1_permgroup_e2e_test.go —— ：权限组 + 策略评估日志（源 7 rpc）。
 //
 // 源：`i_permission_group.proto`（5 rpc）+ `i_policy_evaluation_log.proto`（2 rpc）。
 //

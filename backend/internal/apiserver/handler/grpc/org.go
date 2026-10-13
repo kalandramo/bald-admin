@@ -1,10 +1,10 @@
 package grpc
 
-// org.go 组织架构域 gRPC service（Wave 1.7 补齐）。
+// org.go 组织架构域 gRPC service（补齐）。
 //
 // 实现生成的 identityv1.OrgUnitServiceServer（7 rpc）+ PositionServiceServer（7 rpc），
 // 经 main.go 的 registerGRPC 注册；gRPC 与 REST 共用同一 org biz 与 casbin 策略
-// （P9 归一化：FullMethod → "orgunit"/"position" → 经别名层落到策略 "org-units"/"positions"）。
+// （归一化：FullMethod → "orgunit"/"position" → 经别名层落到策略 "org-units"/"positions"）。
 //
 // 与 gin 侧（handler/gin/org.go）的关系：
 //   - 同一 biz 路径（biz/v1/org），同一租户语义（claims.TenantID）；

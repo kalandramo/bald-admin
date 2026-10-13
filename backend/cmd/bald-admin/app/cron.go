@@ -34,7 +34,7 @@ import (
 	"github.com/kalandramo/bald/transport/cron"
 )
 
-// registerCronJobs 注册周期任务（Wave 2.4 的验收：NewTimerJob 压真实周期任务）。
+// registerCronJobs 注册周期任务（的验收：NewTimerJob 压真实周期任务）。
 //
 // 目前注册一个**可观测的探针任务**（每 30 秒），用于验证装配闭环；
 // 真实业务周期任务（如审计归档、租户到期扫描）在后续波次补。

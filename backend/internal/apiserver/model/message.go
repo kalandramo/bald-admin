@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// InternalMessage 站内消息本体（Wave 2.5，自源 internal_message.proto 精简移植）。
+// InternalMessage 站内消息本体（，自源 internal_message.proto 精简移植）。
 //
 // 语义分层：本表是**消息本体**（谁发的、标题内容、状态），
 // 与 InternalMessageRecipient（**每个收件人一份投递记录**）是 1:N 关系。
@@ -23,7 +23,7 @@ type InternalMessage struct {
 	UpdatedAt  time.Time
 }
 
-// InternalMessageCategory 消息分类（Wave 2.5）。
+// InternalMessageCategory 消息分类。
 type InternalMessageCategory struct {
 	ID        string `gorm:"primaryKey"` // "<tenant>:<code>"
 	TenantID  string `gorm:"index"`
@@ -36,7 +36,7 @@ type InternalMessageCategory struct {
 	UpdatedAt time.Time
 }
 
-// InternalMessageRecipient 消息收件记录（Wave 2.5）——**每收件人一份**。
+// InternalMessageRecipient 消息收件记录——**每收件人一份**。
 //
 // 主键用业务键 `"<message_id>:<recipient_user_id>"`：源的幂等性正建立在这个
 // 唯一约束上（`SendMessage` 注释：「重试幂等性由 (message_id, recipient_user_id)

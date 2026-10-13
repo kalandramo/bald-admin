@@ -1,4 +1,4 @@
-// Package message 实现站内消息域（Wave 2.5，源 24 rpc，701 行）。
+// Package message 实现站内消息域（，源 24 rpc，701 行）。
 //
 // 复刻范围（三表）：
 //   - message（7 rpc）：List/Get/Create/Update/Delete/Send/Revoke
@@ -17,7 +17,7 @@
 //  4. **SendMessage 三模式**：全员广播（源走 asynq，进程重启后自动重试）/
 //     单收件人 / 多收件人（同步，上报失败数而非静默丢弃）。
 //
-// **本波不实现 SSE 实时推送**（源的 publishNotification）——那是 Wave 3 的传输轴，
+// **本波不实现 SSE 实时推送**（源的 publishNotification）——那是 的传输轴，
 // 本波只做「落库 + 收件箱读取」。
 package message
 
@@ -73,7 +73,7 @@ type Publisher interface {
 // Biz 是站内消息业务。
 type Biz struct {
 	// messageStore / categoryStore / recipientStore / userStore 是消息本体/分类/
-	// 收件记录/用户仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	// 收件记录/用户仓储（构造期注入，替代请求期读包级变量）。
 	messageStore   *store.Store[authmodel.InternalMessage]
 	categoryStore  *store.Store[authmodel.InternalMessageCategory]
 	recipientStore *store.Store[authmodel.InternalMessageRecipient]
@@ -83,7 +83,7 @@ type Biz struct {
 }
 
 // New 构造 Biz（无 SSE 推送能力）。ms/cs/rs/us 是消息本体/分类/收件记录/用户仓储
-// （Wave 3 构造期注入——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+// （构造期注入——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
 func New(ms *store.Store[authmodel.InternalMessage], cs *store.Store[authmodel.InternalMessageCategory], rs *store.Store[authmodel.InternalMessageRecipient], us *store.Store[authmodel.User]) *Biz {
 	return &Biz{messageStore: ms, categoryStore: cs, recipientStore: rs, userStore: us}
 }

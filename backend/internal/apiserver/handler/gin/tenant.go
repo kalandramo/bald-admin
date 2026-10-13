@@ -1,7 +1,7 @@
 package gin
 
-// tenant.go 租户管理 REST handler（T2）。路由挂载遵循仓库双范式：
-// 分组级 Authn（/v1 需登录）+ 路由级 Authz（P9 归一化权限点）。
+// tenant.go 租户管理 REST handler。路由挂载遵循仓库双范式：
+// 分组级 Authn（/v1 需登录）+ 路由级 Authz（归一化权限点）。
 // REST 路径用单数段（/v1/tenant），与 gRPC DefaultGRPCObject("TenantService/...")="tenant"
 // 同源——casbin 策略单写即覆盖双协议。
 

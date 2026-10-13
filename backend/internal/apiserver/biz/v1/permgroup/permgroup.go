@@ -1,4 +1,4 @@
-// Package permgroup 实现权限组与策略评估日志域（Wave 4.1，源 7 rpc）。
+// Package permgroup 实现权限组与策略评估日志域（，源 7 rpc）。
 //
 // 源：
 //   - `i_permission_group.proto`（5 rpc：List/Get/Create/Update/Delete）
@@ -45,12 +45,12 @@ var ErrConflict = store.ErrConflict
 // Biz 是权限组 + 策略评估日志业务。
 type Biz struct {
 	// groupStore / evalLogStore 是权限组/策略评估日志仓储
-	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	// （构造期注入，替代请求期读包级变量）。
 	groupStore   *store.Store[authmodel.PermissionGroup]
 	evalLogStore *store.Store[authmodel.PolicyEvaluationLog]
 }
 
-// New 构造 Biz。gs/els 是权限组/策略评估日志仓储（Wave 3 构造期注入——
+// New 构造 Biz。gs/els 是权限组/策略评估日志仓储（构造期注入——
 // InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
 func New(gs *store.Store[authmodel.PermissionGroup], els *store.Store[authmodel.PolicyEvaluationLog]) *Biz {
 	return &Biz{groupStore: gs, evalLogStore: els}
@@ -274,7 +274,7 @@ func toGroup(m *authmodel.PermissionGroup) *Group {
 // RecordEvaluation 落一条策略评估日志。
 //
 // **本域是「读为主」**（源只有 List/Get）——写入由权限判定链路调用。
-// 本项目当前未在 authz 中间件里接线（那是 Wave 4 后续或独立改动），
+// 本项目当前未在 authz 中间件里接线（那是 后续或独立改动），
 // 故此处提供写入能力供测试与后续接线使用。
 //
 // ID 用 uuid（非 `UnixNano()`）：Windows 的 `time.Now().UnixNano()` 实际分辨率

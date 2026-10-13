@@ -49,7 +49,7 @@ import (
 
 // ensureJSONCodec 确保 json codec 已注册（SSE 的 PublishData* 依赖它）。
 //
-// **与 asynq 同族约束**（Wave 2.1 已踩过）：bald 的 `encoding` 是全局注册表，
+// **与 asynq 同族约束**（已踩过）：bald 的 `encoding` 是全局注册表，
 // `NewServer` 内 `GetCodec("json")` 在未注册时返回 nil 且**不报错**，
 // 直到 `PublishData*` 才返回
 // `sse: codec is nil (nothing registered); register one via encoding.MustRegister`。
@@ -148,7 +148,7 @@ func (e sseUnauthorizedError) Error() string { return e.msg }
 
 func errSSEUnauthorized(msg string) error { return sseUnauthorizedError{msg: msg} }
 
-// ---- message 域 → SSE 的适配器（Wave 3.2）----
+// ---- message 域 → SSE 的适配器----
 
 // sseMessagePublisher 把 message 域的 `Publisher` 接口适配到 `*sse.Server`。
 //

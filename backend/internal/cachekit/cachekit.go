@@ -1,6 +1,6 @@
 // Package cachekit 提供 Cache-Aside 的键构造工具（纯函数，零依赖）。
 //
-// 抽出原因（Wave 3）：这些函数原在 internal/bootstrap/cacheaside.go，但它们是
+// 抽出原因：这些函数原在 internal/bootstrap/cacheaside.go，但它们是
 // **纯字符串工具**、无任何状态——留在 bootstrap 会让 biz 层为了拼一个缓存键而
 // 反向依赖装配根（违反 G2「控制面单向依赖数据面」）。迁到本包后，biz 只依赖
 // 纯函数，装配根与 biz 之间不再有这条隐式边。

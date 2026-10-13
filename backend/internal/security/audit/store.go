@@ -13,7 +13,7 @@ import (
 // （同一 audit_records 表，migrate 无冲突）；落库失败/panic 降级 fallback
 // 双写语义不变。
 //
-// Wave 5.1：注入 `RecordMapper` 把 Meta 里的五类分类专属字段（api/
+// 注入 `RecordMapper` 把 Meta 里的五类分类专属字段（api/
 // data_access/permission/login）提取到 `authmodel.AuditRecord` 的扩展列——
 // **生产路径（audit_wiring.go）与 e2e 路径共用同一映射**，避免两条路径
 // 落库列不同导致 e2e 测不出生产行为（见 record_mapper.go 头注）。

@@ -1,4 +1,4 @@
-// Package identity 实现 identity 扩展域（Wave 1.6）：
+// Package identity 实现 identity 扩展域：
 // user_credential（10 rpc）+ login_policy（6 rpc）+ user_profile（2 rpc，源空实现）。
 //
 // 复刻范围对齐源：
@@ -38,12 +38,12 @@ var ErrValidation = errors.New("identity: validation failed")
 // Biz 是 identity 扩展业务。
 type Biz struct {
 	// credentialStore / loginPolicyStore 是凭证/登录策略仓储
-	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	// （构造期注入，替代请求期读包级变量）。
 	credentialStore  *store.Store[authmodel.UserCredential]
 	loginPolicyStore *store.Store[authmodel.LoginPolicy]
 }
 
-// New 构造 Biz。cs/lps 是凭证/登录策略仓储（Wave 3 构造期注入——
+// New 构造 Biz。cs/lps 是凭证/登录策略仓储（构造期注入——
 // InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
 func New(cs *store.Store[authmodel.UserCredential], lps *store.Store[authmodel.LoginPolicy]) *Biz {
 	return &Biz{credentialStore: cs, loginPolicyStore: lps}

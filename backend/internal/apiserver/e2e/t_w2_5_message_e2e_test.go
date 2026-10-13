@@ -1,6 +1,6 @@
 package e2e
 
-// t_w2_5_message_e2e_test.go —— Wave 2.5：站内消息域（源 24 rpc，三表）。
+// t_w2_5_message_e2e_test.go —— ：站内消息域（源 24 rpc，三表）。
 //
 // 核心验证点（对应源语义）：
 //   - 三模式发送：全员广播 / 单收件人 / 多收件人；

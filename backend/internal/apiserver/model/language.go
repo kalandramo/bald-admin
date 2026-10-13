@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// Language 语言条目（Wave 5.3，自 go-wind-admin dict 域 language 精简移植）。
+// Language 语言条目（，自 go-wind-admin dict 域 language 精简移植）。
 //
 // ## 平台级数据（无 TenantID）——重要判断
 //

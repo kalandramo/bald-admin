@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1d_auth_e2e_test.go —— Wave 1d-1：authentication 域补全（ValidateToken /
+// t_w1d_auth_e2e_test.go —— -1：authentication 域补全（ValidateToken /
 // RefreshToken / Logout）的 e2e 测试（RED 起点）。
 //
 // 验收（对应源 go-wind-admin/backend/api/protos/authentication/service/v1/
@@ -57,12 +57,12 @@ func newTestTokenStore(t *testing.T) *token.RedisStore {
 }
 
 // startAuthREST 起真实 gin 引擎，认证中间件包一层吊销检查（装饰器）。
-// ts 为 nil 时不包装（禁用态，行为与 Wave 1d 之前一致）。
+// ts 为 nil 时不包装（禁用态，行为与 之前一致）。
 func startAuthREST(t *testing.T, ts token.Store) string {
 	return startAuthRESTFull(t, ts, nil)
 }
 
-// startAuthRESTWithCaptcha 同上，但额外注入验证码存储（Wave 1d-2）。
+// startAuthRESTWithCaptcha 同上，但额外注入验证码存储。
 func startAuthRESTWithCaptcha(t *testing.T, cs captcha.Store) string {
 	return startAuthRESTFull(t, nil, cs)
 }
@@ -211,7 +211,7 @@ func TestWave1d_RefreshToken_RejectsInvalid(t *testing.T) {
 	}
 }
 
-// TestWave1d_Logout_RevokesToken 是 Wave 1d 最强的端到端证据：
+// TestWave1d_Logout_RevokesToken 是 最强的端到端证据：
 // 登出后同一 token 必须被认证中间件拒绝——证明装饰器真的查了黑名单，
 // 而不只是把 token 记进 Redis（JWT 无状态，不查名单则 token 照样通过验签）。
 func TestWave1d_Logout_RevokesToken(t *testing.T) {
@@ -308,7 +308,7 @@ func TestWave1d_TokenStore_RevokeExpiry(t *testing.T) {
 //
 // 本测试走 **RegisterRoutes**（生产同款入口），验证**中间件层**的吊销生效。
 //
-// Wave 5.1 修正两点（原实现有缺陷）：
+// 修正两点（原实现有缺陷）：
 //  1. 原用 newTestTokenStore（Redis）——无 Redis 时整个用例 SKIP，「吊销是否接入
 //     中间件」这条安全不变量在无 Redis 环境**从未被执行**。改用内存实现
 //     （newMemTokenStore），使该断言在任意环境都真跑。

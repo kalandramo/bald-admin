@@ -1,6 +1,6 @@
 package model
 
-// Plan 套餐（Wave 4.2，自源 identity/service/v1/plan.proto 精简移植）。
+// Plan 套餐（，自源 identity/service/v1/plan.proto 精简移植）。
 //
 // 三件套的**父实体**：Plan（套餐）→ PlanModule（含哪些模块）+
 // PlanQuota（各项配额）。源用 ent 的 Edge 关系
@@ -24,7 +24,7 @@ type Plan struct {
 	Remark string
 }
 
-// PlanModule 套餐包含的模块（Wave 4.2）。
+// PlanModule 套餐包含的模块。
 //
 // 源实体（`plan_module.proto`）：`plan_id` + `module`（Module 枚举）。
 // 本项目用字符串标识模块（与 menu/权限码同风格）。
@@ -37,7 +37,7 @@ type PlanModule struct {
 	Module string `gorm:"index"`
 }
 
-// PlanQuota 套餐配额项（Wave 4.2）。
+// PlanQuota 套餐配额项。
 //
 // 源实体（`plan_quota.proto`）：`plan_id` + `quota_type`（QuotaType 枚举）
 // + `quota_value`（uint64）。

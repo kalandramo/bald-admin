@@ -1,13 +1,13 @@
 package file
 
-// file.go 文件模块业务层（T5）。语义对齐源 go-wind-admin file_transfer_service.go：
+// file.go 文件模块业务层。语义对齐源 go-wind-admin file_transfer_service.go：
 // 上传校验（大小上限/MIME 白名单/目录安全）→ 按内容类型分桶 + 兜底建桶 →
 // MinIO PutObject → 元数据落库（SHA256/大小/扩展名/原始名）；下载按元数据重建
 // 对象键读取内容；删除先删对象再删元数据。
 //
 // 文件是租户级业务数据（源 mixin TenantID）：store 层 P8 自动注入与隔离
 // TenantID（Where.T）；CreatedBy 取认证后的 UserID（contextx）。
-// store 经构造期注入（Wave 3 起；此前为请求期读 bootstrap 包级变量）。
+// store 经构造期注入（起；此前为请求期读 bootstrap 包级变量）。
 
 import (
 	"bytes"
@@ -37,18 +37,18 @@ const (
 
 // Biz 文件业务：对象存储抽象 + 兜底桶名。FileStore 经 bootstrap 包级引用。
 //
-// Wave 5.4：`store` 字段由具体 `*miniooss.Storage` 改为 `filestore.ObjectStorage`
+// `store` 字段由具体 `*miniooss.Storage` 改为 `filestore.ObjectStorage`
 // 抽象——吸收 minio/s3 的**签名差异**（minio 逐调用传 bucket，s3 构造期固定
 // bucket）。构造入口保留 `New(mc *miniooss.Storage, ...)` 以零回归既有调用方
 // （10+ e2e + wire），内部自动包成 MinioAdapter；s3 路径经 SetObjectStorage 注入。
 type Biz struct {
-	// fileStore 是文件元数据仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	// fileStore 是文件元数据仓储（构造期注入，替代请求期读包级变量）。
 	fileStore     *store.Store[authmodel.File]
 	store         filestore.ObjectStorage
 	defaultBucket string // file.bucket 配置：files 类内容的兜底桶名
 }
 
-// New 构造 File biz。st 是文件元数据仓储（Wave 3 构造期注入——InitializeBiz 现于
+// New 构造 File biz。st 是文件元数据仓储（构造期注入——InitializeBiz 现于
 // InitBridges 之后执行，FileStore 已就绪）；mc 由 bootstrap 桥接装配；defaultBucket
 // 为 file.bucket 配置，空 = 沿用源默认 "files"。
 //
@@ -56,7 +56,7 @@ type Biz struct {
 // FromBootstrap 阶段 B 构造，故构造期值拷贝 mc 可能为 nil——此处构造后仍须在
 // BeforeStart（InitBridges 之后）调用 SetStorage / SetObjectStorage 补注
 // （对齐 appkit.SetRegistrar 的「构造期 nil + 运行期接线」模式）。**仓储**已不再
-// 有此问题（Wave 3 起构造期注入），仅对象存储实例保留该约定。
+// 有此问题（起构造期注入），仅对象存储实例保留该约定。
 func New(st *store.Store[authmodel.File], mc *miniooss.Storage, defaultBucket string) *Biz {
 	return &Biz{fileStore: st, store: filestore.NewMinioAdapter(mc), defaultBucket: defaultBucket}
 }
@@ -67,7 +67,7 @@ func (b *Biz) SetStorage(mc *miniooss.Storage, defaultBucket string) {
 	b.defaultBucket = defaultBucket
 }
 
-// SetObjectStorage 注入任意对象存储后端（Wave 5.4：s3 路径）。
+// SetObjectStorage 注入任意对象存储后端（s3 路径）。
 //
 // 与 SetStorage 的差异：SetStorage 专收 minio（既有调用方零改动）；本方法收
 // 抽象接口，供 storage.type=s3 时注入 S3Adapter。nil 不覆盖（保留既有后端，

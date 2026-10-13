@@ -1,4 +1,4 @@
-// Package dashboard 实现后台首页分析域的只读聚合统计（Wave 3.4，源 4 rpc）。
+// Package dashboard 实现后台首页分析域的只读聚合统计（，源 4 rpc）。
 //
 // 源实现：`go-wind-admin/backend/app/admin/service/internal/service/dashboard_service.go`
 // + `data/dashboard_repo.go`。4 条 rpc：
@@ -37,13 +37,13 @@ import (
 // Biz 是 dashboard 业务（只读聚合）。
 type Biz struct {
 	// auditStore / roleStore / userStore 是审计/角色/用户仓储
-	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	// （构造期注入，替代请求期读包级变量）。
 	auditStore *store.Store[authmodel.AuditRecord]
 	roleStore  *store.Store[authmodel.Role]
 	userStore  *store.Store[authmodel.User]
 }
 
-// New 构造 Biz。as/rs/us 是审计/角色/用户仓储（Wave 3 构造期注入——
+// New 构造 Biz。as/rs/us 是审计/角色/用户仓储（构造期注入——
 // InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
 func New(as *store.Store[authmodel.AuditRecord], rs *store.Store[authmodel.Role], us *store.Store[authmodel.User]) *Biz {
 	return &Biz{auditStore: as, roleStore: rs, userStore: us}

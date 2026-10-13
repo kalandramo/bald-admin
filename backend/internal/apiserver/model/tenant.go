@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// Tenant 业务租户（T2，自 go-wind-admin sys_tenants 精简移植，见移植计划 §6 D2）。
+// Tenant 业务租户（自 go-wind-admin sys_tenants 精简移植，见移植计划 §6 D2）。
 // ID 即租户编码（如 "platform"、"t-acme"），与 bald P8 的 tenant_id 同一命名空间：
 // 业务租户创建后即可作为 users/secrets 等业务表的隔离维度值使用。
 //

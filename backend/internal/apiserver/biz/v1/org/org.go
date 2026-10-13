@@ -1,4 +1,4 @@
-// Package org 实现组织架构域（Wave 1.7）：
+// Package org 实现组织架构域：
 // org_unit（7 rpc，树形）+ position（7 rpc，关联回填）。
 //
 // 复刻范围对齐源：两者都是标准 CRUD + **树构建** + **关联字段回填**。
@@ -57,13 +57,13 @@ func conflict(reason, format string, args ...any) error {
 // Biz 是组织架构业务。
 type Biz struct {
 	// orgUnitStore / positionStore / userStore 是组织单元/职位/用户仓储
-	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	// （构造期注入，替代请求期读包级变量）。
 	orgUnitStore  *store.Store[authmodel.OrgUnit]
 	positionStore *store.Store[authmodel.Position]
 	userStore     *store.Store[authmodel.User]
 }
 
-// New 构造 Biz。ous/ps/us 是组织单元/职位/用户仓储（Wave 3 构造期注入——
+// New 构造 Biz。ous/ps/us 是组织单元/职位/用户仓储（构造期注入——
 // InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
 func New(ous *store.Store[authmodel.OrgUnit], ps *store.Store[authmodel.Position], us *store.Store[authmodel.User]) *Biz {
 	return &Biz{orgUnitStore: ous, positionStore: ps, userStore: us}

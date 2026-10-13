@@ -1,4 +1,4 @@
-// Package gin 提供 dashboard 域的 HTTP handler（Wave 3.4，源 4 rpc）。
+// Package gin 提供 dashboard 域的 HTTP handler（，源 4 rpc）。
 package gin
 
 import (

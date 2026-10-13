@@ -10,7 +10,7 @@ import (
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 )
 
-// asynqScheduler 把 bald 的 asynq.Server 适配为 task.Scheduler 接口（Wave 2.3）。
+// asynqScheduler 把 bald 的 asynq.Server 适配为 task.Scheduler 接口。
 //
 // ## 一个必须说清的命名陷阱（实测发现，天权称量后记录）
 //

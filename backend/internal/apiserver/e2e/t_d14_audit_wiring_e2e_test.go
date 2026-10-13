@@ -1,8 +1,8 @@
 package e2e
 
-// t_d14_audit_wiring_e2e_test.go —— 审计后端装配回归（D14 → 2026-09-28 修订）。
+// t_d14_audit_wiring_e2e_test.go —— 审计后端装配回归（→ 2026-09-28 修订）。
 //
-// ## 历史（D14 与惰性包装）
+// ## 历史（与惰性包装）
 //
 // 配置声明 `audit: { backends: "store" }` 曾启动失败：
 // `appkit: audit provider "store" not registered`。根因两层：provider 未注册；

@@ -104,7 +104,7 @@ func TestAuthz_Viewer_ForbiddenDelete(t *testing.T) {
 	}
 }
 
-// TestDeleteSecret_RealDelete admin 删除后该 secret 真正从 store 消失（M6 CR 修复：
+// TestDeleteSecret_RealDelete admin 删除后该 secret 真正从 store 消失（CR 修复：
 // DELETE 不再返回占位 {"deleted":id}，而是经 biz 落 store，并清空缓存条目）。
 // 为避免与共享 seed 用例相互污染（顺序无关），本用例自建一条专属 secret（t-default 租户）后删除。
 func TestDeleteSecret_RealDelete(t *testing.T) {

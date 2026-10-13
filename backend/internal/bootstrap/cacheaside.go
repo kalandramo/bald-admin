@@ -18,7 +18,7 @@
 // loader 从 key 反解业务参数：租户段取自 ctx（与写键同源，避免键/上下文不一致），
 // 业务键段经已知前缀裁剪并**校验前缀**（不匹配即报错，不静默取错数据）。
 //
-// 该形态限制（loadable 无请求期 loader 变体）已记录为框架反馈，见 Wave 0 交付报告。
+// 该形态限制（loadable 无请求期 loader 变体）已记录为框架反馈，见 交付报告。
 package bootstrap
 
 import (
@@ -31,7 +31,7 @@ import (
 )
 
 // DefaultCacheTTL / CacheKey / CacheKeyPrefix / CutCacheKeyPrefix 已迁至
-// internal/cachekit（Wave 3）——它们是纯字符串工具、无状态，留在 bootstrap 会
+// internal/cachekit——它们是纯字符串工具、无状态，留在 bootstrap 会
 // 让 biz 为拼缓存键而反向依赖装配根（违反 G2 控制面单向依赖）。
 
 // BuildRedisCache 按地址建连（含真实探活，避免假连接）并装配 KV 适配器。

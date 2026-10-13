@@ -1,16 +1,16 @@
 package e2e
 
-// t_w1_7_org_grpc_e2e_test.go —— Wave 1.7 补齐：org 域 gRPC 面。
+// t_w1_7_org_grpc_e2e_test.go —— 补齐：org 域 gRPC 面。
 //
 // 本文件验证两件事，对应本次改动的两个层次：
-//   A. **授权归一化错配已修**（Wave 1）：P9 把 gRPC Service 名压成无分隔小写
+//   A. **授权归一化错配已修**：P9 把 gRPC Service 名压成无分隔小写
 //      （OrgUnitService→"orgunit"），而策略 object 是 HTTP 路径段风格
 //      （"org-units"）；casbin 精确匹配下 gRPC 面恒 403。别名装饰器修复后，
 //      admin 调 org gRPC 方法应放行。
-//   B. **org gRPC service 实现可用**（Wave 2）：真实 gRPC server 注册后，
+//   B. **org gRPC service 实现可用**：真实 gRPC server 注册后，
 //      经完整拦截器链调用 ListOrgUnits/CreateOrgUnit 应成功返回。
 //
-// 复现说明（修复前的红灯形态）：本文件 A 部分的用例在 Wave 1 修复前会因
+// 复现说明（修复前的红灯形态）：本文件 A 部分的用例在 修复前会因
 // `orgunit` 无策略行而返回 PermissionDenied——即「gRPC 面 403」的实测证据。
 // 计划期已用探针复现（见计划「反证/复现」复现 2），本文件把它固化为回归测试。
 

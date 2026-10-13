@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1_5_mfa_e2e_test.go —— Wave 1.5：MFA 域（源 mfa.proto，10 rpc）。
+// t_w1_5_mfa_e2e_test.go —— ：MFA 域（源 mfa.proto，10 rpc）。
 //
 // **复刻范围严格对齐源**：源 `mfa_service.go` 文件头注释载明「本轮仅落地 TOTP；
 // 非 TOTP 方法、StartMFAChallenge、备份码相关 RPC 本轮返回 UNIMPLEMENTED」。
@@ -214,7 +214,7 @@ func TestWave1_5_TOTPWindow(t *testing.T) {
 	if !mfa.ValidateTOTP(code, key.Secret) {
 		t.Fatal("当前码应通过")
 	}
-	// 前一周期（-1）：窗口内，应通过。
+	// 前一周期：窗口内，应通过。
 	prev, _ := totp.GenerateCode(key.Secret, now.Add(-30*time.Second))
 	if !mfa.ValidateTOTP(prev, key.Secret) {
 		t.Fatal("-1 周期应在窗口内（skew=1）")
@@ -391,7 +391,7 @@ func TestWave1_5_DisableAndRevoke(t *testing.T) {
 	t.Logf("凭证撤销 ✅")
 }
 
-// TestWave1_5_DisableIdempotent —— 回归测试（Wave 2.5 发现同不变量违反点）。
+// TestWave1_5_DisableIdempotent —— 回归测试（发现同不变量违反点）。
 //
 // **不变量的违反点**：`biz.Disable` 在 credentialID 为空时按 (tenant,user)
 // 删**集合**（源语义：「不传 credentialID 时清空该用户全部该方法因子」）。

@@ -50,14 +50,14 @@ func RegisterAuth(
 				web.ErrorResponse(c, berrors.Unauthenticated("auth/bad_credential").WithMessage("%s", err))
 				return
 			}
-			// Wave 1a：限流归 429，与凭据错误区分——前端据此提示「尝试过于频繁」
+			// 限流归 429，与凭据错误区分——前端据此提示「尝试过于频繁」
 			// 而非「密码错」。用 ResourceExhausted（berrors 无 TooManyRequests 工厂；
 			// httperr.go:33 将其映射为 HTTP 429，语义注释即「资源耗尽（限流）」）。
 			if errors.Is(err, authbiz.ErrRateLimited) {
 				web.ErrorResponse(c, berrors.ResourceExhausted("auth/rate_limited").WithMessage("%s", err))
 				return
 			}
-			// Wave 1b：登录依赖（DB）熔断打开 → 503（服务暂不可用），
+			// 登录依赖（DB）熔断打开 → 503（服务暂不可用），
 			// 而非 500——语义是「暂时不可用，稍后重试」，不是「内部错误」。
 			if errors.Is(err, authbiz.ErrLoginUnavailable) {
 				web.ErrorResponse(c, berrors.Unavailable("auth/login_unavailable").WithMessage("%s", err))
@@ -69,7 +69,7 @@ func RegisterAuth(
 		c.JSON(http.StatusOK, pair)
 	})
 
-	// Wave 1d：RefreshToken 是**公开端点**（不要求 access_token）。
+	// RefreshToken 是**公开端点**（不要求 access_token）。
 	//
 	// 为什么不能在需认证组：refresh 的用途正是「access_token 已过期时换新的」。
 	// 若要求先认证（有效 access_token），逻辑上循环——access_token 没过期根本
@@ -96,7 +96,7 @@ func RegisterAuth(
 		c.JSON(http.StatusOK, pair)
 	})
 
-	// Wave 1d-2：验证码（公开端点——登录前获取，此时必然未认证）。
+	// -2：验证码（公开端点——登录前获取，此时必然未认证）。
 	// 对齐源 authentication.proto L58/L61。
 	e.GET("/v1/auth/captcha", func(c *gingonic.Context) {
 		res, err := biz.GenerateCaptcha(c.Request.Context())
@@ -134,7 +134,7 @@ func RegisterAuth(
 		c.JSON(http.StatusOK, gingonic.H{"valid": valid})
 	})
 
-	// Wave 1d-3：用户注册（公开端点——注册时必然未认证）。
+	// -3：用户注册（公开端点——注册时必然未认证）。
 	// 对齐源 authentication.proto L31。
 	e.POST("/v1/auth/register", func(c *gingonic.Context) {
 		var req struct {
@@ -175,14 +175,14 @@ func RegisterAuth(
 	// 需认证分组。
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
-	// Authz 由路由级中间件按 (资源名, 动作) 判定；归一化由核心拦截器完成（P9 反哺）：
+	// Authz 由路由级中间件按 (资源名, 动作) 判定；归一化由核心拦截器完成（反哺）：
 	// HTTP 侧经 DefaultHTTPObject/DefaultHTTPAction 把 path/method 翻译为与 gRPC 同源的权限点。
 	authzMW := mid.AuthzMiddleware(authorizer,
 		mid.WithObjectResolver(authz.DefaultHTTPObject),
 		mid.WithActionResolver(authz.DefaultHTTPAction),
 	)
 
-	// Wave 1d：Logout 在需认证组内——它需要从 ctx 取当前 token 才能拉黑。
+	// Logout 在需认证组内——它需要从 ctx 取当前 token 才能拉黑。
 	// 跳过 authzMW：登出是「对自己 token 的操作」，不属于任何业务资源权限点
 	//（源项目同样不为其定义 RBAC 权限）。认证是唯一门槛。
 	authed.POST("/auth/logout", func(c *gingonic.Context) {
@@ -209,7 +209,7 @@ func RegisterAuth(
 		c.JSON(http.StatusOK, biz.ValidateToken(c.Request.Context(), req.Token))
 	})
 
-	// Wave 1d-4：token 管理（源 authentication.proto L41/L44/L47/L50）。
+	// -4：token 管理（源 authentication.proto L41/L44/L47/L50）。
 	//
 	// 全部经 authzMW 保护——token 是敏感资源，只有管理员能操作**他人**的 token。
 	// 权限点 (auth, post)：授权归一化把 POST 映射为 "post"（DefaultHTTPAction
@@ -325,7 +325,7 @@ func RegisterAuth(
 	})
 }
 
-// writeTokenErr 映射 token 管理的错误（Wave 1d-4）。
+// writeTokenErr 映射 token 管理的错误。
 func writeTokenErr(c *gingonic.Context, err error) {
 	if errors.Is(err, authbiz.ErrTokenStoreUnavailable) {
 		web.ErrorResponse(c, berrors.Unavailable("auth/token_mgmt_unavailable").WithMessage("%s", err))

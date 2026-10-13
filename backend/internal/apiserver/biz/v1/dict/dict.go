@@ -1,4 +1,4 @@
-// Package dict 是字典管理业务（T4，自 go-wind-admin dict 域 sys_dict_types/
+// Package dict 是字典管理业务（自 go-wind-admin dict 域 sys_dict_types/
 // sys_dict_entries 精简移植）。
 //
 // 字典是租户级业务数据：查询自动经 store 的 P8 隔离（Where.T 注入 TenantID），
@@ -25,9 +25,9 @@ import (
 )
 
 // Biz 字典管理业务。cache 可选（nil/禁用时直连 store）；仓储经 store() 请求期
-// 读取（T0 确立的时序约定：biz 引用 bootstrap 包级桥接禁止构造期快照）。
+// 读取（确立的时序约定：biz 引用 bootstrap 包级桥接禁止构造期快照）。
 type Biz struct {
-	// typeStore / entryStore 是字典类型/条目仓储（Wave 3：构造期注入，
+	// typeStore / entryStore 是字典类型/条目仓储（构造期注入，
 	// 替代请求期读包级变量）。nil 容错保留（测试可传 nil），生产由装配保证。
 	typeStore  *store.Store[authmodel.DictType]
 	entryStore *store.Store[authmodel.DictEntry]
@@ -37,7 +37,7 @@ type Biz struct {
 	cache *loadable.Cache
 }
 
-// New 构造字典业务。ts/es 是字典类型/条目仓储（Wave 3 构造期注入——InitializeBiz
+// New 构造字典业务。ts/es 是字典类型/条目仓储（构造期注入——InitializeBiz
 // 现于 InitBridges 之后执行，store 已就绪）。backend 是通用 KV 缓存（cache.Cache）；
 // 非 nil 时包装为 loadable 读穿透缓存（loader 构造期绑定，从 key 反解 typeCode）。
 // nil = 禁用。

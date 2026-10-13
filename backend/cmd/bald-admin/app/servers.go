@@ -27,7 +27,7 @@ import (
 )
 
 func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Authorizer) []grpc.ServerOption {
-	// M10.1（P10 验证）：gRPC 无公开方法（全部需认证），整条链切 bundle——
+	// M10.1（验证）：gRPC 无公开方法（全部需认证），整条链切 bundle——
 	// Error→RequestID→Observability→Authn→Audit→Authz 链序由 bundle 固化，
 	// 替代此前手写的 7 段拦截器组装（authnInterceptor/authzInterceptor 闭包删除）。
 	// P9 归一化经 bundle.Normalized() 内置于 Authz 与 Audit 两层。
@@ -35,7 +35,7 @@ func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Au
 	// bundle 显式接 Nop，请求审计与认证失败审计（bundle 会把 auditor 注入
 	// AuthnInterceptor）均静默失效。
 	grpcBundle := bundle.New(
-		// Wave 4（建议一）：本函数经 appkit.WithGRPCOptions 在**运行期**（Run 期
+		// （建议一）：本函数经 appkit.WithGRPCOptions 在**运行期**（Run 期
 		// server 构造点、业务 beforeStart 之后）调用——彼时 InitBridges 已建好
 		// 真实 Authenticator/Authorizer，故直接持有真实实例，不再需要请求期解析
 		// 的 lateAuthn/lateAuthz 间接层。
@@ -92,7 +92,7 @@ func registerGateway(ctx context.Context, conn *grpc.ClientConn) (http.Handler, 
 	if err := auditv1.RegisterAuditServiceHandler(ctx, mux, conn); err != nil {
 		return nil, err
 	}
-	// Wave 1.7 补齐：组织架构网关转码面（复用同一 gRPC 拦截器链）。
+	// 补齐：组织架构网关转码面（复用同一 gRPC 拦截器链）。
 	if err := identityv1.RegisterOrgUnitServiceHandler(ctx, mux, conn); err != nil {
 		return nil, err
 	}

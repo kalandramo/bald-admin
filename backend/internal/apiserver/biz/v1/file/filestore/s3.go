@@ -14,7 +14,7 @@ import (
 
 // S3Adapter 把 `bald/oss/s3.Storage` 适配为 ObjectStorage。
 //
-// ## 签名差异的处理（Wave 5.4 核心）
+// ## 签名差异的处理（核心）
 //
 // `bald/oss/s3` 的 bucket **在构造期固定**（`Config.Bucket`），其
 // `PutObject(ctx, key, body, contentType)` **不接受 bucket 参数**。而业务

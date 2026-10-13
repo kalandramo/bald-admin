@@ -1,8 +1,8 @@
-// Package permission 是权限管理业务（T3，自 go-wind-admin permission 域精简移植）。
+// Package permission 是权限管理业务（自 go-wind-admin permission 域精简移植）。
 //
 // 两块职责（与 proto 对应）：
 //  1. 权限点注册表（model.Permission）：权限码 → 名称/菜单可见性；
-//  2. 角色策略（model.RolePolicy）：casbin p 行的数据化持久层（D3 策略数据化）。
+//  2. 角色策略（model.RolePolicy）：casbin p 行的数据化持久层（策略数据化）。
 //
 // 平台侧管理面（无 TenantID 字段，同 Tenant/Menu Biz）；授权在中间件层完成。
 package permission
@@ -20,7 +20,7 @@ import (
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 )
 
-// Biz 权限管理业务。两个仓储均构造期注入（Wave 3：替代请求期读包级变量
+// Biz 权限管理业务。两个仓储均构造期注入（替代请求期读包级变量
 // bootstrap.PermissionStore / RolePolicyStore）。
 type Biz struct {
 	// permStore 是权限点仓储（权限码 → 名称/菜单可见性）。
@@ -29,7 +29,7 @@ type Biz struct {
 	policyStore *store.Store[authmodel.RolePolicy]
 }
 
-// New 构造权限业务。ps 是权限点仓储，rps 是角色策略仓储（Wave 3 构造期注入
+// New 构造权限业务。ps 是权限点仓储，rps 是角色策略仓储（构造期注入
 // ——InitializeBiz 现于 InitBridges 之后执行，两个 store 均已就绪）。
 func New(ps *store.Store[authmodel.Permission], rps *store.Store[authmodel.RolePolicy]) *Biz {
 	return &Biz{permStore: ps, policyStore: rps}
@@ -138,7 +138,7 @@ func (b *Biz) CreateRolePolicy(ctx context.Context, role, object, action string)
 	if err := b.policyStore.Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("permission.CreateRolePolicy(%s,%s,%s): %w", role, object, action, err)
 	}
-	// Wave 5.1：permission 类审计（源 PermissionAuditLog 的 GRANT 语义）。
+	// permission 类审计（源 PermissionAuditLog 的 GRANT 语义）。
 	auditPermission(ctx, "grant", role, p.ID, "", role+":"+object+":"+action)
 	return p, nil
 }
@@ -157,7 +157,7 @@ func (b *Biz) DeleteRolePolicy(ctx context.Context, id string) (bool, error) {
 	if _, err := b.policyStore.Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("permission.DeleteRolePolicy(%s): %w", id, err)
 	}
-	// Wave 5.1：permission 类审计（源 PermissionAuditLog 的 REVOKE 语义）。
+	// permission 类审计（源 PermissionAuditLog 的 REVOKE 语义）。
 	auditPermission(ctx, "revoke", old.Role, id, old.Role+":"+old.Object+":"+old.Action, "")
 	return true, nil
 }

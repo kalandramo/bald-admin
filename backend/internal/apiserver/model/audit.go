@@ -1,6 +1,6 @@
 package model
 
-// AuditRecord 审计事件落库实体（M9 延伸：审计后端落库）。
+// AuditRecord 审计事件落库实体（延伸：审计后端落库）。
 // 与 User/Secret 不同，审计表刻意「全量记录」——不走现有 pkg/store 的 TenantID 自动过滤
 // （那是读隔离语义，审计是写全量留痕）；TenantID 仅作为列存储，由审计查询方按需过滤。
 type AuditRecord struct {
@@ -21,7 +21,7 @@ type AuditRecord struct {
 	RequestID string // 全局请求 ID（Meta["request_id"]，关联网关日志）
 	TraceID   string // W3C 链路 ID（Meta["trace_id"]）
 
-	// ---- Wave 5.1：五类差异字段并集（nullable，各分类按需填充）----
+	// ---- 五类差异字段并集（nullable，各分类按需填充）----
 	// 决策：单表 + category 承载源五类（源是五张独立表、字段差异大），
 	// 取并集为可空列，避免拆 5 表带来的 model/store/handler 三重膨胀。
 	// 能力验证重点是「五类能落库 + 能查询」，非表结构逐字对齐。

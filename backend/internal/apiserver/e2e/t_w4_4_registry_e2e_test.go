@@ -1,6 +1,6 @@
 package e2e
 
-// t_w4_4_registry_e2e_test.go —— Wave 4.4：registry 后端验证（etcd）。
+// t_w4_4_registry_e2e_test.go —— ：registry 后端验证（etcd）。
 //
 // 计划原文：「`bald/registry/{etcd,consul}` 作为 nacos 的替代后端验证
 // （当前只用 nacos）」——验收「切换后端后服务注册/发现生效」。

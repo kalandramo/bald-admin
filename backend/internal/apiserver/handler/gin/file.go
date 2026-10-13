@@ -1,7 +1,7 @@
 package gin
 
-// file.go 文件管理 REST handler（T5）。分组级 Authn（/v1 需登录）+ 路由级
-// Authz（P9 归一化权限点 "file"）。上传走 multipart form（二进制流不走
+// file.go 文件管理 REST handler。分组级 Authn（/v1 需登录）+ 路由级
+// Authz（归一化权限点 "file"）。上传走 multipart form（二进制流不走
 // protojson），下载流式输出并携带原始文件名的 Content-Disposition；元数据
 // 操作与 dict 同构（bindPB/writePB）。REST 路径用单数段 /v1/file，与 gRPC
 // DefaultGRPCObject("FileService/...")="file" 同源——casbin 策略单写即覆盖

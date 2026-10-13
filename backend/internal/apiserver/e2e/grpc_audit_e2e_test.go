@@ -34,7 +34,7 @@ func (m *memAuditor) all() []audit.AuditEvent {
 	return out
 }
 
-// invokeWithAudit 串联 Authn + Authz + Audit（M7）拦截器，返回 (err, 审计事件)。
+// invokeWithAudit 串联 Authn + Authz + Audit拦截器，返回 (err, 审计事件)。
 func invokeWithAudit(t *testing.T, a *memAuditor, token, fullMethod string) error {
 	t.Helper()
 	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {

@@ -6,14 +6,14 @@ package e2e
 //（压成无分隔小写，如 OrgUnitService→"orgunit"），而 casbin 策略的 object 沿用
 // HTTP 路径段风格（"org-units"）；casbin 精确匹配（r.obj == p.obj），两者不等即 403。
 //
-// Wave 1.7 用别名表（bootstrap.grpcObjectAliases）桥接了已知的 6 个多词 service。
+// 用别名表（bootstrap.grpcObjectAliases）桥接了已知的 6 个多词 service。
 // 本测试是**防复发闸门**：枚举 proto 里全部 service，断言每个的归一化结果
 // 「要么直接命中策略 object，要么在别名表中有映射」——新增多词 service 却忘记
 // 加别名时，本测试立即变红（而不是等到线上 403 才被发现）。
 //
 // 注意：本测试**不查 DB**——它断言的是「命名空间闭合性」这一静态不变量，
 // 与策略表是否已 seed 无关（seed 行由 bootstrap.seedPolicies 负责，其内容
-// 由 Wave 1 的改动保证）。
+// 由 的改动保证）。
 
 import (
 	"testing"
@@ -24,7 +24,7 @@ import (
 // registeredGRPCServices 是当前经 main.go registerGRPC 注册的 gRPC service
 // 的 ServiceName（proto 全限定名，不含方法段）。新增注册时同步追加。
 //
-// 来源：cmd/bald-admin/main.go 的 registerGRPC 闭包（Wave 1.7 后 11 个）。
+// 来源：cmd/bald-admin/main.go 的 registerGRPC 闭包（后 11 个）。
 var registeredGRPCServices = []string{
 	"/go.bald.admin.v1.SecretService",
 	"/go.bald.admin.tenant.v1.TenantService",
@@ -35,7 +35,7 @@ var registeredGRPCServices = []string{
 	"/go.bald.admin.dict.v1.DictEntryService",
 	"/go.bald.admin.file.v1.FileService",
 	"/go.bald.admin.audit.v1.AuditService",
-	// Wave 1.7 新增：
+	// 新增：
 	"/go.bald.admin.identity.v1.OrgUnitService",
 	"/go.bald.admin.identity.v1.PositionService",
 }

@@ -1,6 +1,6 @@
 package e2e
 
-// t_w2_3_task_e2e_test.go —— Wave 2.3：任务调度域（源 task.proto 11 rpc）。
+// t_w2_3_task_e2e_test.go —— ：任务调度域（源 task.proto 11 rpc）。
 //
 // 核心验证点：
 //   - 任务定义 CRUD（PERIODIC 需 cronSpec，DELAY/WAIT_RESULT 不需要）；

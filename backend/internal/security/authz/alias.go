@@ -1,4 +1,4 @@
-// alias.go 授权 object 别名装饰器（Wave 1.7 gRPC 补实现配套修复）。
+// alias.go 授权 object 别名装饰器（gRPC 补实现配套修复）。
 //
 // 解决的问题（本会话实测复现）：
 //

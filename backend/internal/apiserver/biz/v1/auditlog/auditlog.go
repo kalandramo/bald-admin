@@ -1,6 +1,6 @@
 package auditlog
 
-// Package auditlog 审计日志查询业务层（T6）。只读：数据由写路径（拦截器链/
+// Package auditlog 审计日志查询业务层。只读：数据由写路径（拦截器链/
 // 登录动作）经 StoreAuditor 自动落库，本层仅提供过滤+分页检索。
 //
 // **租户隔离（2026-09-22 变更）**：本域原为「跨租户全量查询」（Where 不注入
@@ -9,7 +9,7 @@ package auditlog
 // 框架无跳过机制。故现为「仅本租户可见」，admin 不再能查到其他租户的审计。
 // 用户决策：接受隔离（多租户下「全量跨租户」是潜在信息泄露面）。
 //
-// store 经构造期注入（Wave 3：替代请求期读包级变量 bootstrap.AuditStore）。
+// store 经构造期注入（替代请求期读包级变量 bootstrap.AuditStore）。
 
 import (
 	"context"
@@ -47,11 +47,11 @@ type ListResult struct {
 
 // Biz 审计查询业务。
 type Biz struct {
-	// auditStore 是审计日志仓储（Wave 3：构造期注入，替代请求期读包级变量）。
+	// auditStore 是审计日志仓储（构造期注入，替代请求期读包级变量）。
 	auditStore *store.Store[authmodel.AuditRecord]
 }
 
-// New 构造审计查询 biz。st 是审计日志仓储（Wave 3 构造期注入——InitializeBiz
+// New 构造审计查询 biz。st 是审计日志仓储（构造期注入——InitializeBiz
 // 现于 InitBridges 之后执行，store 已就绪）。
 func New(st *store.Store[authmodel.AuditRecord]) *Biz { return &Biz{auditStore: st} }
 

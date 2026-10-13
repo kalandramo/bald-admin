@@ -1,4 +1,4 @@
-// Package gin 提供 MFA 的 HTTP handler 装配（Wave 1.5，协议层）。
+// Package gin 提供 MFA 的 HTTP handler 装配（，协议层）。
 package gin
 
 import (

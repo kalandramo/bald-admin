@@ -1,11 +1,11 @@
 package audit
 
-// record_mapper.go —— Wave 5.1：审计事件 → authmodel.AuditRecord 的业务映射。
+// record_mapper.go —— ：审计事件 → authmodel.AuditRecord 的业务映射。
 //
 // ## 为何需要自定义映射
 //
 // 框架 `contrib/audit-gorm` 的默认映射（`defaultRecord`）只填 12 个基础列。
-// Wave 5.1 为承载源 go-wind-admin 的**五类审计**（operation/login/api/
+// 为承载源 go-wind-admin 的**五类审计**（operation/login/api/
 // data_access/permission）在 `authmodel.AuditRecord` 上扩了 15 个 nullable 列
 // （见 model/audit.go）。本映射把 `AuditEvent.Meta` 里的分类专属字段提取到
 // 对应列——**零框架改动**（`auditgorm.WithRecordMapper` 是框架提供的扩展点）。

@@ -1,6 +1,6 @@
 // Package apiserver 是 bald-admin 的 HTTP 服务装配根（server 层）。
 //
-// 只负责把 handler 挂到 *gin.Engine；认证/授权依赖由 bootstrap 包注入（M1）。
+// 只负责把 handler 挂到 *gin.Engine；认证/授权依赖由 bootstrap 包注入。
 // 不在此写业务，也不在此直接依赖 bald-authn-jwt（保持 server 层与桥接解耦）。
 package apiserver
 
@@ -16,7 +16,7 @@ import (
 )
 
 // RegisterRoutes 把本应用所有路由挂到 e。认证/授权依赖由装配层注入
-// （Wave 4.2：真实实例直传，不再经 lazy 请求期适配器——装配已移到运行期，
+// （真实实例直传，不再经 lazy 请求期适配器——装配已移到运行期，
 // InitBridges 之后，故 Authenticator/Authorizer/TokenStore 均就绪）；业务对象经
 // BizSet 聚合传入（wire 装配，见 bizset.go）。
 //
@@ -31,7 +31,7 @@ func RegisterRoutes(e *gingonic.Engine, authenticator authn.Authenticator,
 // 自定义认证器/授权器）。
 func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticator,
 	authorizer authz.Authorizer, biz *BizSet) {
-	// Wave 5.1：api 类审计中间件（源 ApiAuditLog）——记录协议层信息
+	// api 类审计中间件（源 ApiAuditLog）——记录协议层信息
 	// （method/path/status/latency），与框架 operation 类审计正交。
 	// 挂在此处（而非 main.go 的 router）保证**生产与 e2e 共用同一装配路径**。
 	e.Use(apiaudit.Middleware())
@@ -84,7 +84,7 @@ func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticato
 // ComponentFactory 是管理面组件工厂的包级别名（re-export，供 cmd 层构造工厂目录）。
 type ComponentFactory = hgin.ComponentFactory
 
-// RegisterAdmin 挂载管理面路由（M10.2，re-export）。
+// RegisterAdmin 挂载管理面路由（re-export）。
 func RegisterAdmin(e *gingonic.Engine, appFn func() *appkit.AppKit,
 	authenticator authn.Authenticator, authorizer authz.Authorizer,
 	factories map[string]ComponentFactory) {

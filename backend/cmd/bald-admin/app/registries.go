@@ -55,7 +55,7 @@ func metricsRegistry() *appkit.MetricsRegistry {
 
 func configRegistry() *baldbootstrap.Registry {
 	reg := baldbootstrap.NewRegistry()
-	// Wave 1a：注册 file / env 两个**离线可用**的配置源。
+	// 注册 file / env 两个**离线可用**的配置源。
 	//
 	// 此前只注册 nacos / kubernetes（两者都需网络）——导致本地开发与 CI
 	// 无法用「config 段 + 本地文件」驱动配置（Build 要求至少一个源可构造，
@@ -96,7 +96,7 @@ const configFileDefault = "configs/" + configNamespace + ".yaml"
 
 // preloadBootstrap 预装载本地配置文件（--config flag 优先，解析行为与 appkit
 // loadConfig 同源：pflag + 未知 flag 白名单）填契约 config 段，并返回配置源
-// 注册表（U1：层的 Build 与释放改由 FromBootstrap 经 WithConfigRegistry 内化，
+// 注册表（层的 Build 与释放改由 FromBootstrap 经 WithConfigRegistry 内化，
 // 原返回 layers+cleanup 的半段删）。两阶段装载的第一阶段——引导信息（远程源
 // 地址/凭据/dataId）必须本地可得；层内容（dataId 下的配置文档）在 Run 期
 // loadConfig 参与合并。
@@ -139,7 +139,7 @@ func registrarRegistry() *baldbootstrap.RegistrarRegistry {
 	return rr
 }
 
-// U1：数据/缓存/存储透传 provider 的注册表（段名即注册 key——database.sql /
+// 数据/缓存/存储透传 provider 的注册表（段名即注册 key——database.sql /
 // cache.redis / storage.minio）。与 contrib contract 官方 provider 的差异：
 // 本业务桥接直接消费 *gorm.DB / *rediscache.Cache / *miniooss.Storage
 // （stores/审计/文件模块的既有类型），构造语义（env 优先级、Redis/MinIO 降级）
@@ -157,7 +157,7 @@ func cacheRegistry() *baldbootstrap.CacheRegistry {
 	return cr
 }
 
-// serverRegistry 构造 server 协议域的契约装配注册表（Wave 4）。
+// serverRegistry 构造 server 协议域的契约装配注册表。
 //
 // 注册三个后端子模块提供的 provider（框架不内置，见 bald bootstrap/server.go
 // 的 serverSections——asynq/cron/gateway 均为 implemented=false）：
@@ -190,7 +190,7 @@ func serverRegistry(
 			if err := registerAsynqHandlers(ctx, s); err != nil {
 				return err
 			}
-			// biz 接线：把 asynq server 适配为 task.Scheduler 注入 biz（Wave 2.3）。
+			// biz 接线：把 asynq server 适配为 task.Scheduler 注入 biz。
 			if bs := bizGetter(); bs != nil && bs.Task != nil {
 				bs.Task.SetScheduler(newAsynqScheduler(s))
 			}
@@ -214,7 +214,7 @@ func serverRegistry(
 	return sr
 }
 
-// buildLoginLimiter 从业务自持配置段构造登录限流器（Wave 1a）。
+// buildLoginLimiter 从业务自持配置段构造登录限流器。
 //
 // 配置键（与 file.bucket 同模式，框架契约无对应段）：
 //
@@ -230,7 +230,7 @@ func serverRegistry(
 func storageRegistry() *baldbootstrap.StorageRegistry {
 	sr := baldbootstrap.NewStorageRegistry()
 	sr.MustRegister("minio", bootstrappkg.StorageProvider)
-	// Wave 5.4：注册 s3 后端（契约 storage.s3 段 → bald/oss/s3）。
+	// 注册 s3 后端（契约 storage.s3 段 → bald/oss/s3）。
 	// 官方 provider 签名与 bootstrappkg.StorageProvider 结构化兼容，直接注册。
 	sr.MustRegister(s3contract.Type, s3contract.Provider)
 	return sr

@@ -64,10 +64,10 @@ func registerAsynqCodecs() {
 	asynqCodecRegistered = true
 }
 
-// registerAsynqHandlers 注册任务处理器（Wave 2.3 task 域消费）。
+// registerAsynqHandlers 注册任务处理器（task 域消费）。
 //
 // 目前注册一个**可观测的探针任务**（`bald:probe`），用于验证装配闭环；
-// 真实业务任务（task 域的调度执行）在 Wave 2.3 补。
+// 真实业务任务（task 域的调度执行）在 补。
 func registerAsynqHandlers(ctx context.Context, srv transport.Server) error {
 	as, ok := srv.(*asynq.Server)
 	if !ok {

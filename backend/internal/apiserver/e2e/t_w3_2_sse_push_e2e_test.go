@@ -1,6 +1,6 @@
 package e2e
 
-// t_w3_2_sse_push_e2e_test.go —— Wave 3.2：message 域 → SSE 实时推送接线。
+// t_w3_2_sse_push_e2e_test.go —— ：message 域 → SSE 实时推送接线。
 //
 // ## 对齐源的三处对接
 //

@@ -1,6 +1,6 @@
 package e2e
 
-// t_w4_2_plan_e2e_test.go —— Wave 4.2：套餐三件套（源 14 rpc）。
+// t_w4_2_plan_e2e_test.go —— ：套餐三件套（源 14 rpc）。
 //
 // 源：`i_plan.proto`(5) + `i_plan_module.proto`(5) + `i_plan_quota.proto`(4)。
 //

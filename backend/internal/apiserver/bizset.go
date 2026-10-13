@@ -39,26 +39,26 @@ type BizSet struct {
 	Dict       *dictbiz.Biz
 	File       *filebiz.Biz
 	AuditLog   *auditlogbiz.Biz
-	// MFA 多因素认证（Wave 1.5）。
+	// MFA 多因素认证。
 	MFA *mfabiz.Biz
-	// Identity identity 扩展域（Wave 1.6：credential + login_policy）。
+	// Identity identity 扩展域（credential + login_policy）。
 	Identity *identitybiz.Biz
-	// Org 组织架构（Wave 1.7：org_unit 树 + position）。
+	// Org 组织架构（org_unit 树 + position）。
 	Org *orgbiz.Biz
-	// Task 任务调度（Wave 2.3）。
+	// Task 任务调度。
 	Task *taskbiz.Biz
-	// Message 站内消息（Wave 2.5）。
+	// Message 站内消息。
 	Message *msgbiz.Biz
-	// Dashboard 首页分析（Wave 3.4）。
+	// Dashboard 首页分析。
 	Dashboard *dashbiz.Biz
-	// PermGroup 权限组 + 策略评估日志（Wave 4.1）。
+	// PermGroup 权限组 + 策略评估日志。
 	PermGroup *pgbiz.Biz
-	// Plan 套餐三件套（Wave 4.2）。
+	// Plan 套餐三件套。
 	Plan *planbiz.Biz
-	// Language 语言管理（Wave 5.3；平台级数据）。
+	// Language 语言管理（；平台级数据）。
 	Language *langbiz.Biz
-	// Portal 管理面聚合（Wave 6.2；AdminPortalService 3 rpc）。
+	// Portal 管理面聚合（；AdminPortalService 3 rpc）。
 	Portal *portalbiz.Biz
-	// CacheMonitor Redis 缓存监控（Wave 6.2；1 rpc）。
+	// CacheMonitor Redis 缓存监控（；1 rpc）。
 	CacheMonitor *cmbiz.Biz
 }

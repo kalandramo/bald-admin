@@ -1,6 +1,6 @@
 package sqlaudit
 
-// sqlaudit_test.go —— Wave 5.2 防重入与脱敏的不变量测试。
+// sqlaudit_test.go —— 防重入与脱敏的不变量测试。
 //
 // ## 为何防重入必须单独锁
 //

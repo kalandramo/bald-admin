@@ -1,4 +1,4 @@
-// Package plan 实现套餐三件套域（Wave 4.2，源 14 rpc）。
+// Package plan 实现套餐三件套域（，源 14 rpc）。
 //
 // 源：
 //   - `i_plan.proto`（5 rpc：List/Get/Create/Update/Delete）
@@ -43,13 +43,13 @@ var ErrConflict = store.ErrConflict
 // Biz 是套餐三件套业务。
 type Biz struct {
 	// planStore / moduleStore / quotaStore 是套餐/模块/配额仓储
-	// （Wave 3：构造期注入，替代请求期读包级变量）。
+	// （构造期注入，替代请求期读包级变量）。
 	planStore   *store.Store[authmodel.Plan]
 	moduleStore *store.Store[authmodel.PlanModule]
 	quotaStore  *store.Store[authmodel.PlanQuota]
 }
 
-// New 构造 Biz。ps/ms/qs 是套餐/模块/配额仓储（Wave 3 构造期注入——
+// New 构造 Biz。ps/ms/qs 是套餐/模块/配额仓储（构造期注入——
 // InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
 func New(ps *store.Store[authmodel.Plan], ms *store.Store[authmodel.PlanModule], qs *store.Store[authmodel.PlanQuota]) *Biz {
 	return &Biz{planStore: ps, moduleStore: ms, quotaStore: qs}

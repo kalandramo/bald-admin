@@ -1,4 +1,4 @@
-// Package sqlaudit 提供 data_access 类审计的 gorm 采集插件（Wave 5.2）。
+// Package sqlaudit 提供 data_access 类审计的 gorm 采集插件。
 //
 // ## 源语义与移植差异（关键，必须记录）
 //

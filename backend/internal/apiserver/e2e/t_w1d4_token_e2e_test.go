@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1d4_token_e2e_test.go —— Wave 1d-4：token 管理 4 个 rpc
+// t_w1d4_token_e2e_test.go —— -4：token 管理 4 个 rpc
 //（源 authentication.proto L41/L44/L47/L50）。
 //
 // 验收：
@@ -73,7 +73,7 @@ func startTokenMgmtREST(t *testing.T, ts token.Store) string {
 	return srv.URL
 }
 
-// newTestTokenStoreDB13 用 DB 16（与 Wave 1d-1 的 DB 15 隔离，避免测试间干扰）。
+// newTestTokenStoreDB13 用 DB 16（与 -1 的 DB 15 隔离，避免测试间干扰）。
 func newTestTokenStoreDB13(t *testing.T) *token.RedisStore {
 	t.Helper()
 	rdb := goredis.NewClient(redisTestOptions(13))

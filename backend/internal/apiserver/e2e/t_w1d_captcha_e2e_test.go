@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1d_captcha_e2e_test.go —— Wave 1d-2：GenerateCaptcha / VerifyCaptcha
+// t_w1d_captcha_e2e_test.go —— -2：GenerateCaptcha / VerifyCaptcha
 // （源 authentication.proto L58/L61）。
 //
 // 验收：

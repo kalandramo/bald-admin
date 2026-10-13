@@ -1,6 +1,6 @@
 package e2e
 
-// t3_e2e_test.go 菜单/权限管理 REST e2e（T3 验收）：真实 gin 引擎 + httptest，
+// t3_e2e_test.go 菜单/权限管理 REST e2e（验收）：真实 gin 引擎 + httptest，
 // 完整中间件链（分组 Authn/Authz）+ biz/store/DB + 数据化 casbin 策略。
 //
 // 验收点（移植计划 T3）：
@@ -113,7 +113,7 @@ func TestMenuREST_TreeAndLifecycle(t *testing.T) {
 	if sys == nil || len(sys.GetChildren()) != 8 {
 		t.Fatalf("menu-system should have 8 children, got %+v", sys)
 	}
-	// children 按 order 排序：tenant/user/menu/permission/secret/dict/file/audit（T5 加 file，T6 加 audit）。
+	// children 按 order 排序：tenant/user/menu/permission/secret/dict/file/audit（加 file，T6 加 audit）。
 	wantOrder := []string{"menu-tenant", "menu-user", "menu-menu", "menu-permission", "menu-secret", "menu-dict", "menu-file", "menu-audit"}
 	for i, id := range wantOrder {
 		if sys.GetChildren()[i].GetId() != id {
@@ -232,7 +232,7 @@ func TestPermissionREST_RegistryAndPolicies(t *testing.T) {
 	}
 }
 
-// TestT3Authz_DataDrivenPolicy 数据化策略的授权行为（P9 同源验证）：
+// TestT3Authz_DataDrivenPolicy 数据化策略的授权行为（同源验证）：
 //   - viewer 读 menu/permission 200（p 行 viewer 只读存在）；
 //   - viewer 写 menu/permission 403（写策略行仅授予 admin）；
 //   - admin 写 201（策略数据 → 授权放行全链路）。

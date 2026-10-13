@@ -1,6 +1,6 @@
 package e2e
 
-// t_w3_4_dashboard_e2e_test.go —— Wave 3.4：首页分析域（源 4 rpc）。
+// t_w3_4_dashboard_e2e_test.go —— ：首页分析域（源 4 rpc）。
 //
 // 源：`go-wind-admin/.../dashboard_service.go` + `data/dashboard_repo.go`。
 // 本域是**纯读聚合**，零新增存储——数据源是本项目已有的 `AuditRecord`

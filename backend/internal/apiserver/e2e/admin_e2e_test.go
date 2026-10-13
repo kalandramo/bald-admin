@@ -59,7 +59,7 @@ func (c *stubComp) state() (bool, bool) {
 	return c.started, c.disposed
 }
 
-// setupAdmin 构造带管理面路由的 engine + 真实运行的 AppKit（A1 原语要求 Run 存活期）。
+// setupAdmin 构造带管理面路由的 engine + 真实运行的 AppKit（原语要求 Run 存活期）。
 // 路由注册先于 app 回填（迟到绑定，与 main 装配路径同构）。
 func setupAdmin(t *testing.T) (*gingonic.Engine, *stubComp) {
 	t.Helper()

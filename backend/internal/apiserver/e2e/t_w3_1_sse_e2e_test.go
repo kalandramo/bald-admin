@@ -1,6 +1,6 @@
 package e2e
 
-// t_w3_1_sse_e2e_test.go —— Wave 3.1：SSE 传输轴装配。
+// t_w3_1_sse_e2e_test.go —— ：SSE 传输轴装配。
 //
 // ## 装配路径（与 asynq/cron 同为逃生舱，但原因不同）
 //
@@ -31,11 +31,11 @@ import (
 
 // TestWave3_1_PublishDataRequiresCodec —— SSE PublishData* 的 codec 兜底语义。
 //
-// ## 行为核实（Wave 5.5 后重写，原断言已失效——诊断过程如实记录）
+// ## 行为核实（后重写，原断言已失效——诊断过程如实记录）
 //
 // 原测试断言「codec 未注册 → PublishData* 报错」，**隐含依赖「全局注册表为空」**。
 // 该假设在两种情况下被打破：
-//  1. **全量 `-shuffle=on`**：Wave 5.5 的 `registerAsynqCodecs` 先跑并注册了
+//  1. **全量 `-shuffle=on`**：的 `registerAsynqCodecs` 先跑并注册了
 //     json/msgpack → `NewServer` 的兜底（`sse/server.go:116-117` 取
 //     `GetCodec("json")`）取到 json → 不报错 → 原断言 FAIL（跨测试全局态污染）。
 //  2. **单独跑本测试**：全局表为空 → 兜底 `GetCodec("json")` 返回 **nil**
@@ -175,7 +175,7 @@ func TestWave3_1_PublishToSubscriber(t *testing.T) {
 	// `GetCodec("json")` 返回 nil 且**不报错**——直到 PublishData* 才返回
 	// `sse: codec is nil (nothing registered); register one via
 	// encoding.MustRegister`。本测试**刻意不注册 codec**，以锁住该约束
-	// （与 asynq 同族，见 Wave 2.1）。生产装配已注册（sse.go）。
+	// （与 asynq 同族，见）。生产装配已注册（sse.go）。
 	ok := srv.TryPublish(context.Background(), baldsse.StreamID("push-test"),
 		&baldsse.Event{Data: []byte(`{"msg":"hello-sse"}`), Event: []byte("notification")})
 	if !ok {

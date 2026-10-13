@@ -33,7 +33,7 @@ func buildLoginLimiter(opts *options.ServerOptions) ratelimit.Limiter {
 	return lim
 }
 
-// buildLoginBreaker 从业务自持配置段构造登录 DB 查询熔断器（Wave 1b）。
+// buildLoginBreaker 从业务自持配置段构造登录 DB 查询熔断器。
 //
 // 配置键：
 //
@@ -45,7 +45,7 @@ func buildLoginLimiter(opts *options.ServerOptions) ratelimit.Limiter {
 //
 // 全部字段缺省时返回 nil（禁用态）——熔断是防御性增强，未配置则不介入。
 // 用 sres 之外的 **hystrix**（阈值式）：sres 的概率式语义不符合契约对
-// StateClosed 的定义（详见 Wave 1b 交付报告与 e2e 测试注释）。
+// StateClosed 的定义（详见 交付报告与 e2e 测试注释）。
 
 func buildLoginBreaker(opts *options.ServerOptions) circuitbreaker.CircuitBreaker {
 	if !opts.BreakerEnabled() {
@@ -67,7 +67,7 @@ func buildLoginBreaker(opts *options.ServerOptions) circuitbreaker.CircuitBreake
 	return cb
 }
 
-// buildLoginRetrier 从业务自持配置段构造登录 DB 查询重试器（Wave 1c）。
+// buildLoginRetrier 从业务自持配置段构造登录 DB 查询重试器。
 //
 // 配置键：
 //
@@ -110,7 +110,7 @@ func buildLoginRetrier(opts *options.ServerOptions) *retry.Retrier {
 	return r
 }
 
-// buildTokenStore 构造令牌存储（Wave 1d）。
+// buildTokenStore 构造令牌存储。
 //
 // 复用 bootstrap 已装配的 Redis 客户端（RedisClient，由 BeforeStart 的
 // cache.redis 段构造）。无 Redis 时返回 nil——**禁用态**：

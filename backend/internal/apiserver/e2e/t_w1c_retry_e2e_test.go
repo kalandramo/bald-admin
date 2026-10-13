@@ -1,12 +1,12 @@
 package e2e
 
-// t_w1c_retry_e2e_test.go —— Wave 1c 登录 DB 查询重试 e2e（RED 起点）。
+// t_w1c_retry_e2e_test.go —— 登录 DB 查询重试 e2e（RED 起点）。
 //
-// 验收（计划 1.1 的**场景修正**，见 Wave 1a/1b 提交说明）：
+// 验收（计划 1.1 的**场景修正**，见 /1b 提交说明）：
 // 计划原提「retry 包裹 JWT 验签失败重试」是反模式——bald/retry 的包注释写明
 // 它面向 **transient failures（瞬时故障）**，而 JWT 验签是确定性函数
 //（同 token + 同密钥 → 必然同样失败），重试毫无意义。正确的重试对象是
-// 有瞬时故障的真实 I/O：这里是 Login 的 DB 查询（与 Wave 1b 的熔断同一位置）。
+// 有瞬时故障的真实 I/O：这里是 Login 的 DB 查询（与 的熔断同一位置）。
 //
 // retry 与熔断在此**天然组合**（retry 包注释明说 composable with circuit
 // breakers）：retry 处理「偶发抖动」（重试可恢复），熔断处理「持续故障」

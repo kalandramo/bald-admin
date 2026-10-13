@@ -1,6 +1,6 @@
 package e2e
 
-// t_w5_3_language_e2e_test.go —— Wave 5.3：语言管理域（源 7 rpc）。
+// t_w5_3_language_e2e_test.go —— ：语言管理域（源 7 rpc）。
 //
 // 源 `dict/service/v1/language.proto` 7 rpc：List/Count/Get/Create/
 // BatchCreate/Update/Delete。复刻范围严格对齐源：

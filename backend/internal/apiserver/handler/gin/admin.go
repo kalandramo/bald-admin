@@ -18,7 +18,7 @@ import (
 // 的边界：管理面端点只做转发，组件构造知识留在业务侧。
 type ComponentFactory = func() appkit.Component
 
-// RegisterAdmin 挂载管理面路由（M10.2）：运行期组件观测与热插拔。
+// RegisterAdmin 挂载管理面路由：运行期组件观测与热插拔。
 //   - GET    /admin/components           观测：当前停机序列中的组件名
 //   - POST   /admin/components           挂载：{"name":"<工厂名>"} → 工厂构造 → MountComponent
 //   - DELETE /admin/components/:name     卸载：UnmountComponent（立即 Dispose）

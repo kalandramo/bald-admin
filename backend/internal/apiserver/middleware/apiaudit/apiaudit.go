@@ -1,4 +1,4 @@
-// Package apiaudit 提供 api 类审计的 gin 中间件（Wave 5.1）。
+// Package apiaudit 提供 api 类审计的 gin 中间件。
 //
 // ## 与框架审计中间件的关系
 //

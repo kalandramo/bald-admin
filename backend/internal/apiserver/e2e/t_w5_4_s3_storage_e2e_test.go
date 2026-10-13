@@ -1,8 +1,8 @@
 package e2e
 
-// t_w5_4_s3_storage_e2e_test.go —— Wave 5.4：bald/oss/s3 后端真实验证。
+// t_w5_4_s3_storage_e2e_test.go —— ：bald/oss/s3 后端真实验证。
 //
-// ## 验证目标（计划 §Wave 5.4）
+// ## 验证目标（计划 §）
 //
 // 「`storage` 的 file_transfer / oss 契约段 + `bald/oss/s3` 后端验证（注意
 // `PutObject` 签名与 minio 相反）」→ 验收「e2e：S3 上传/下载；签名差异处理正确」。

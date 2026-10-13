@@ -51,8 +51,8 @@ import (
 // 届时已是已就绪的真实实例。调用点见 `assembly.go` 的 Run 期装配钩子；该时序由
 // `assembly_e2e_test.go` 回归守护（若被挪回构造期，测试会红）。
 //
-// Wave 3：各 biz 的仓储改为**构造期注入**（此前 biz 在请求期读 bootstrap 包级变量）。
-// Wave 5：仓储经参数传入（InitBridges 的返回值 Repositories），bootstrap 不再有包级 store 变量。
+// 各 biz 的仓储改为**构造期注入**（此前 biz 在请求期读 bootstrap 包级变量）。
+// 仓储经参数传入（InitBridges 的返回值 Repositories），bootstrap 不再有包级 store 变量。
 func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 	mainSigner := provideSigner()
 	biz := auth.New(mainSigner, repos.User, repos.Tenant, bootstrap.ReloadPolicies)
@@ -67,7 +67,7 @@ func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 	menuBiz := menu.New(repos.Menu)
 	permissionBiz := permission.New(repos.Permission, repos.RolePolicy)
 	dictBiz := dict.New(repos.DictType, repos.DictEntry, cache)
-	// T5：文件 biz——元数据仓储 Wave 3 起构造期注入（InitBridges 已赋值）。
+	// T5：文件 biz——元数据仓储 起构造期注入（InitBridges 已赋值）。
 	// MinIO 桥接与 file.bucket 兜底桶名仍为运行期：storage.minio/s3 段经契约
 	// provider 在 FromBootstrap 阶段 B 构造，构造期可能为 nil，main.go 在
 	// InitBridges 之后经 SetStorage/SetObjectStorage 补注；未配置时保持 nil，
@@ -75,23 +75,23 @@ func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 	fileBiz := file.New(repos.File, bootstrap.MinioStorage, bootstrap.FileBucket)
 	// T6：审计查询 biz（只读，数据由写路径审计落库）。
 	auditLogBiz := auditlog.New(repos.Audit)
-	// Wave 1.5：MFA biz——因子仓储构造期注入；挑战存储（Redis）仍在 BeforeStart
+	// MFA biz——因子仓储构造期注入；挑战存储（Redis）仍在 BeforeStart
 	// 经 SetChallenges 补注（与 file.SetStorage / auth.SetCaptchaStore 同款时序约定）。
 	mfaBiz := mfabiz.New(repos.MFAFactor, nil)
-	// Wave 1.6：identity 扩展域（credential + login_policy）。
+	// identity 扩展域（credential + login_policy）。
 	identityBiz := identitybiz.New(repos.Credential, repos.LoginPolicy)
-	// Wave 1.7：组织架构（org_unit 树 + position）。
+	// 组织架构（org_unit 树 + position）。
 	orgBiz := orgbiz.New(repos.OrgUnit, repos.Position, repos.User)
-	// Wave 2.3：任务调度（scheduler 在 BeforeStart 后经 SetScheduler 注入）。
+	// 任务调度（scheduler 在 BeforeStart 后经 SetScheduler 注入）。
 	taskBiz := taskbiz.New(repos.Task)
-	// Wave 2.5：站内消息（三表）。
+	// 站内消息（三表）。
 	messageBiz := msgbiz.New(repos.Message, repos.MessageCategory,
 		repos.Recipient, repos.User)
-	// Wave 3.4：首页分析（只读聚合）。
+	// 首页分析（只读聚合）。
 	dashboardBiz := dashbiz.New(repos.Audit, repos.Role, repos.User)
-	// Wave 4.1：权限组 + 策略评估日志。
+	// 权限组 + 策略评估日志。
 	permGroupBiz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
-	// Wave 4.2：套餐三件套。
+	// 套餐三件套。
 	planBiz := planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota)
 	languageBiz := langbiz.New(repos.Language)
 	portalBiz := portalbiz.New(repos.User, repos.Role,
@@ -134,11 +134,11 @@ func provideRedisAddr() redisAddr { return redisAddr(os.Getenv("BALD_ADMIN_REDIS
 
 // provideSigner 从 bootstrap 取 RSA 私钥签发器（auth biz 依赖 Signer 接口）。
 //
-// Wave 4.2：InitializeBiz 已移到 InitBridges **之后**（Wave 4.1），故此处直接取
+// InitializeBiz 已移到 InitBridges **之后**，故此处直接取
 // 包级 Signer 即为已就绪的真实实例——原 LazySigner（请求期解析）已无必要，随之删除。
 func provideSigner() authnjwt.Signer { return bootstrap.Signer }
 
-// newRedisCache 适配 redisAddr→bootstrap.BuildRedisCache（D1：cache/redis 适配器；
+// newRedisCache 适配 redisAddr→bootstrap.BuildRedisCache（cache/redis 适配器；
 // 保留错误，Redis 不可达即启动失败）。addr 为空返回 nil（禁用态）。
 func newRedisCache(addr redisAddr) (cache.Cache, error) {
 	return bootstrap.BuildRedisCache(string(addr), "", 0)

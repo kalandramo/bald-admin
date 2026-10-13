@@ -1,4 +1,4 @@
-// middleware_test.go 锁定 authnMiddleware 的动态审计转发语义（T6 盲区回归）。
+// middleware_test.go 锁定 authnMiddleware 的动态审计转发语义（盲区回归）。
 //
 // 盲区背景：AuthnMiddleware 缺省在构造期快照全局 auditor，而本包各 Register*
 // 在 main 期执行（早于契约轨 BeforeStart 装配与 R1-2 热切），快照必为 nop——

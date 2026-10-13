@@ -1,4 +1,4 @@
-// Package menu 是菜单管理业务（T3，自 go-wind-admin permission 域 sys_menus 精简移植）。
+// Package menu 是菜单管理业务（自 go-wind-admin permission 域 sys_menus 精简移植）。
 //
 // 平台侧管理面：本表（model.Menu）无 TenantID 字段，查询不调 Where.T——
 // P8 隔离对菜单管理面天然不生效，全量读写即平台语义（同 Tenant Biz）。
@@ -16,13 +16,13 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 )
 
-// Biz 菜单管理业务。store 是菜单仓储（Wave 3：构造期注入，替代请求期读包级
+// Biz 菜单管理业务。store 是菜单仓储（构造期注入，替代请求期读包级
 // 变量——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
 type Biz struct {
 	store *store.Store[authmodel.Menu]
 }
 
-// New 构造菜单业务。st 是菜单仓储（Wave 3 构造期注入）。
+// New 构造菜单业务。st 是菜单仓储（构造期注入）。
 func New(st *store.Store[authmodel.Menu]) *Biz { return &Biz{store: st} }
 
 // Get 取菜单节点。不存在返回 error（上层转 404/NotFound）。
