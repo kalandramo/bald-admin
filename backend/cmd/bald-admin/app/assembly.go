@@ -45,7 +45,6 @@ import (
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
-	"github.com/kalandramo/bald/transport"
 )
 
 // serveRunE 是根命令的 RunE——bald-admin 的**启动主流程**，按三阶段推进：
@@ -370,6 +369,7 @@ func newApp(
 		appkit.WithServerRegistry(serverRegistry(
 			func() *apiserver.BizSet { return bizSet },
 			func() string { return svrOpts.Asynq.Codec },
+			func() authn.Authenticator { return authenticator },
 		)),
 
 		// 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB
@@ -588,32 +588,11 @@ func newApp(
 	// serverRegistry）。段未配 redis_address 时经 WithAddressResolver 回退
 	// bootstrap.ResolveRedisAddr（保既有「配 cache.redis 即启用」的兼容）。
 
-	// SSE 传输轴（**运行期构造的逃生舱** WithExtraServerFunc——本仓未提供 sse 的
-	// contract provider，且其授权钩子需注入业务 authenticator 函数，声明式契约段
-	// 表达不了；详见 sse.go 文件头）。
-	// 授权钩子需 authenticator 校验 token（源 HandleAuthorize 同款）。
-	//
-	// SSE 改**运行期构造**（appkit.WithExtraServerFunc）——工厂在
-	// Run 期 server 构造点调用（业务 beforeStart 之后），彼时 InitBridges 已建好
-	// authenticator。biz 接线（wireMessageSSE）**一并移入工厂**：工厂返回服务器后
-	// 立即接线，故可在同一时机拿到 bizSet（而非等下方业务钩子里再补——那里 sseSrv
-	// 还是 nil）。未配置 SSE 时工厂返回 (nil, nil)，框架跳过追加（见 appkit
-	// extraServerFns 钩子的 srv != nil 判据）。
-	//
-	// 注：SSE 保持逃生舱——契约 server.sse 段无 provider，且其授权钩子绑定业务
-	// authenticator（契约段的声明式字段表达不了）。与 asynq/cron/gateway 不同：
-	// 后三者已由本仓 provider 覆盖（见 serverRegistry）。
-	opts = append(opts, appkit.WithExtraServerFunc(func(ctx context.Context) (transport.Server, error) {
-		srv, err := buildSSEServer(ctx, loadSSEConfig(svrOpts), authenticator)
-		if err != nil {
-			return nil, fmt.Errorf("build sse server: %w", err)
-		}
-		if srv == nil || bizSet == nil {
-			return srv, nil
-		}
-		wireMessageSSE(srv, bizSet.Message)
-		return srv, nil
-	}))
+	// SSE 传输轴 —— 已迁到契约装配（server.sse 段 + sse contract）。
+	// 授权钩子与订阅接线经 ssecontract 的 Option 注入（WithServerOptions /
+	// WithAfterBuild）——与 gateway 的 register 回调同款「函数注入」形态。
+	// Provider 与 WithExtraServerFunc 的执行时机等价（同在业务 beforeStart
+	// 之后），故仍能读到运行期构造的 authenticator。
 
 	// cron 定时器 —— 已迁到契约装配（server.cron 段 + cron contract）。
 	// 周期任务注册在 provider 的 WithJobs 回调内完成（见 serverRegistry）。

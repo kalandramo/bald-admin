@@ -39,8 +39,11 @@ import (
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/transport"
 	baldsse "github.com/kalandramo/bald/transport/sse"
+	ssecontract "github.com/kalandramo/bald/transport/sse/contract"
 
-	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
+	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
+
+	"github.com/kalandramo/bald-admin/internal/apiserver"
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
 )
 
@@ -61,33 +64,31 @@ func ensureJSONCodec() {
 	}
 }
 
-// sseConfig 是 SSE 装配配置（逃生舱下自读环境变量）。
-type sseConfig struct {
-	Addr string
-	Path string
+// sseServerProvider 构造 SSE 的契约 provider（注册进 ServerRegistry）。
+func sseServerProvider(
+	authnGetter func() authn.Authenticator,
+	bizGetter func() *apiserver.BizSet,
+) func(context.Context, *bootstrapv1.Server) (transport.Server, func(), error) {
+	return ssecontract.Provider(
+		ssecontract.WithServerOptions(sseServerOptionsDeferred(authnGetter)...),
+		ssecontract.WithAfterBuild(func(_ context.Context, srv *baldsse.Server) error {
+			if bs := bizGetter(); bs != nil && bs.Message != nil {
+				wireMessageSSE(srv, bs.Message)
+			}
+			return nil
+		}),
+	)
 }
 
-// loadSSEConfig 返回 SSE 装配配置（W2 收敛：取自 ServerOptions.SSE，
-// 其默认值来源为 env BALD_ADMIN_SSE_ADDR / BALD_ADMIN_SSE_PATH）。
-func loadSSEConfig(opts *options.ServerOptions) sseConfig {
-	return sseConfig{Addr: opts.SSE.Addr, Path: opts.SSE.Path}
-}
-
-// buildSSEServer 构造 SSE 服务器（Wave 3.1/3.2）。
+// sseServerOptionsDeferred 延迟求值版：授权钩子闭包在**请求期**读 authnGetter，
+// 故即便 provider 构造早于 authenticator 赋值，钩子仍取到最新实例。
 //
-// 返回 (nil, nil) 表示「未配置 SSE」——与 asynq 的「无 Redis 不启用」同款
-// 可选语义（判据不同：asynq 看依赖可达性，SSE 看配置是否显式声明）。
-func buildSSEServer(ctx context.Context, cfg sseConfig, authn authn.Authenticator) (transport.Server, error) {
-	if cfg.Addr == "" {
-		return nil, nil // 未配置 → 不启用
-	}
+// 用延迟而非 provider 构造期取值的理由：WithServerOptions 在构造 provider 时
+// 即求值（sseServerOptions(authn) 会立刻展开），而此处调用点在 newApp 构造期，
+// authenticator 尚为 nil。包一层闭包把取值推迟到请求发生。
+func sseServerOptionsDeferred(authnGetter func() authn.Authenticator) []baldsse.Option {
 	ensureJSONCodec()
-	if cfg.Path == "" {
-		cfg.Path = "/events" // 与契约默认值一致（server.proto:154）
-	}
-
-	opts := []baldsse.Option{
-		baldsse.WithPath(cfg.Path),
+	return []baldsse.Option{
 		// **关键约束（探针实测）**：`autoStream` 默认 false，而 `ServeHTTP`
 		// 在「流不存在 && autoStream=false」时返回 500 "Stream not found!"
 		// （`http.go:79-83`）。开启后首次订阅自动建流。
@@ -96,12 +97,10 @@ func buildSSEServer(ctx context.Context, cfg sseConfig, authn authn.Authenticato
 		baldsse.WithAutoReplay(true),
 		// 授权钩子：校验 token 且**绑定 stream 到 token 所属用户**
 		// （源 `HandleAuthorize` 同款，防跨用户订阅）。
-		baldsse.WithAuthorizeFunc(sseAuthorize(authn)),
+		baldsse.WithAuthorizeFunc(func(r *http.Request, token string) error {
+			return sseAuthorize(authnGetter())(r, token)
+		}),
 	}
-
-	srv := baldsse.NewServer(cfg.Addr, opts...)
-	log.Info(ctx, "sse server built", "addr", cfg.Addr, "path", cfg.Path)
-	return srv, nil
 }
 
 // sseAuthorize 返回 SSE 订阅授权钩子（源 `HandleAuthorize` 的对应物）。

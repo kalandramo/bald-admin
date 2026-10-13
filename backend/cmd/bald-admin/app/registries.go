@@ -15,12 +15,14 @@ import (
 	otlpcontract "github.com/kalandramo/bald/contrib/observability-otlp/contract"
 	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/pkg/authn"
 	nacoscontract "github.com/kalandramo/bald/registry/nacos/contract"
 	"github.com/kalandramo/bald/transport/asynq"
 	asynqcontract "github.com/kalandramo/bald/transport/asynq/contract"
 	"github.com/kalandramo/bald/transport/cron"
 	croncontract "github.com/kalandramo/bald/transport/cron/contract"
 	gatewaycontract "github.com/kalandramo/bald/transport/gateway/contract"
+	ssecontract "github.com/kalandramo/bald/transport/sse/contract"
 )
 
 // tracerRegistry 显式注册 trace 后端契约 provider（appkit.TracerRegistry：
@@ -175,6 +177,7 @@ func cacheRegistry() *baldbootstrap.CacheRegistry {
 func serverRegistry(
 	bizGetter func() *apiserver.BizSet,
 	codecGetter func() string,
+	authnGetter func() authn.Authenticator,
 ) *baldbootstrap.ServerRegistry {
 	sr := baldbootstrap.NewServerRegistry()
 
@@ -201,6 +204,11 @@ func serverRegistry(
 	))
 
 	sr.MustRegister(gatewaycontract.Type, gatewaycontract.Provider(registerGateway))
+
+	// SSE 传输轴：server.sse 段 → transport/sse/contract。授权钩子与 message 域
+	// 推流接线经 Option 注入（sseServerProvider 内组装，见 sse.go）。
+	// 段缺失时 Provider 返回 (nil,nil,nil)，框架跳过——「不启用」= 移除 sse 段。
+	sr.MustRegister(ssecontract.Type, sseServerProvider(authnGetter, bizGetter))
 
 	return sr
 }
