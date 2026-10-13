@@ -47,25 +47,21 @@ func metricsRegistry() *appkit.MetricsRegistry {
 	return mr
 }
 
-// configRegistry 显式注册配置源契约 provider（bootstrap.Registry：契约 config
-// 段 → 配置层，注册序即层优先级，先注册者优先）。bald-admin 消费 nacos 配置
-// 中心与 kubernetes ConfigMap 两种远程源；file/env 源已由 appkit 自身装配链
-// （--config flag / BALD_ADMIN_* env）覆盖，不重复注册。未 import 的后端
-// （etcd/consul/apollo/vault/http）零依赖——其契约段无消费者，静默跳过。
-
+// configRegistry 显式注册配置源契约 provider。bald-admin 消费本地文件与 nacos
+// 配置中心两种源；未 import 的后端（etcd/consul/apollo/vault/http/k8s）零依赖
+// ——其契约段无消费者，静默跳过。
+//
+// file 必留：本注册表是契约层唯一的 layer 来源——Build 要求至少产出一个 layer，
+// 而 config 段只有 file（nacos 在 registry 段下，属服务发现不是配置源）。移除它
+// 会让启动报 `no config source configured`。appkit 的 WithConfigFile 是框架内建的
+// 高位本地文件层，与它读同一路径、内容一致。
+//
+// env / kubernetes 不留：契约段无消费者——env 类配置由 WithConfigNamespace →
+// BALD_ADMIN_* 前缀提供，kubernetes 段从未被任何环境配置。
 func configRegistry() *baldbootstrap.Registry {
 	reg := baldbootstrap.NewRegistry()
-	// 注册 file / env 两个**离线可用**的配置源。
-	//
-	// 此前只注册 nacos / kubernetes（两者都需网络）——导致本地开发与 CI
-	// 无法用「config 段 + 本地文件」驱动配置（Build 要求至少一个源可构造，
-	// 否则报 no config source configured）。补上 file/env 后，无网络环境
-	// 也能以 config.file 段启动（端到端验证与离线开发的前提）。
-	// 注册序即层优先级：file 在前（本地文件优先于环境变量整文档层）。
 	reg.MustRegister("file", baldbootstrap.FileProvider())
-	reg.MustRegister("env", baldbootstrap.EnvProvider())
 	reg.MustRegister("nacos", baldbootstrap.NacosProvider())
-	reg.MustRegister("kubernetes", baldbootstrap.KubernetesProvider())
 	return reg
 }
 
