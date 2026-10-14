@@ -105,7 +105,7 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 func buildApp(
 	bootstrap *bootstrapv1.BootstrapConfig,
 	svrOpts *options.ServerOptions,
-	cfgReg *baldbootstrap.Registry,
+	cfgReg *baldbootstrap.ConfigRegistry,
 ) (*appkit.AppKit, *appRefT, error) {
 	// 1. 构造期只建伺服面骨架（router + 全局中间件）。**业务装配**（biz 构造、
 	//    路由注册、gRPC 服务注册）移至 Run 期装配钩子（见 newApp）——
@@ -250,7 +250,7 @@ func isKnownCommand(root *cobra.Command, name string) bool {
 func newApp(
 	bootstrap *bootstrapv1.BootstrapConfig,
 	router *gin.Engine,
-	cfgReg *baldbootstrap.Registry,
+	cfgReg *baldbootstrap.ConfigRegistry,
 	healthChecker *health.Health,
 	svrOpts *options.ServerOptions,
 	appRef *appRefT,

@@ -25,7 +25,7 @@ import (
 	ssecontract "github.com/kalandramo/bald/transport/sse/contract"
 )
 
-// tracerRegistry 显式注册 trace 后端契约 provider。装配与停机 flush 由 FromBootstrap 内化。
+// tracerRegistry 显式注册 trace 后端契约 provider。
 func tracerRegistry() *appkit.TracerRegistry {
 	tr := appkit.NewTracerRegistry()
 	tr.MustRegister(otlpcontract.TracerType, otlpcontract.NewTracerProvider("bald-admin"))
@@ -47,19 +47,14 @@ func metricsRegistry() *appkit.MetricsRegistry {
 	return mr
 }
 
-// configRegistry 显式注册配置源契约 provider。bald-admin 消费本地文件与 nacos
-// 配置中心两种源；未 import 的后端（etcd/consul/apollo/vault/http/k8s）零依赖
-// ——其契约段无消费者，静默跳过。
+// configRegistry 显式注册配置源契约 provider。bald-admin 消费本地文件与 nacos 配置中心两种源。
 //
 // file 必留：本注册表是契约层唯一的 layer 来源——Build 要求至少产出一个 layer，
 // 而 config 段只有 file（nacos 在 registry 段下，属服务发现不是配置源）。移除它
 // 会让启动报 `no config source configured`。appkit 的 WithConfigFile 是框架内建的
 // 高位本地文件层，与它读同一路径、内容一致。
-//
-// env / kubernetes 不留：契约段无消费者——env 类配置由 WithConfigNamespace →
-// BALD_ADMIN_* 前缀提供，kubernetes 段从未被任何环境配置。
-func configRegistry() *baldbootstrap.Registry {
-	reg := baldbootstrap.NewRegistry()
+func configRegistry() *baldbootstrap.ConfigRegistry {
+	reg := baldbootstrap.NewConfigRegistry()
 	reg.MustRegister("file", baldbootstrap.FileProvider())
 	reg.MustRegister("nacos", baldbootstrap.NacosProvider())
 	return reg
@@ -101,7 +96,7 @@ const configFileDefault = "configs/" + configNamespace + ".yaml"
 // 段引导信息；完整契约装载仍由框架 BeforeStart 的 Unmarshal 负责（appkit store
 // 合并结果覆盖同一契约指针），两阶段无冲突。
 
-func preloadBootstrap(dst *bootstrapv1.BootstrapConfig) (*baldbootstrap.Registry, error) {
+func preloadBootstrap(dst *bootstrapv1.BootstrapConfig) (*baldbootstrap.ConfigRegistry, error) {
 	// 与 appkit 同款解析 --config（appkit 在 Run 期 loadConfig 内解析，预装载
 	// 发生在其前，须自行扫描 os.Args）。
 	cfgFile := configFileDefault
