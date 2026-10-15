@@ -57,15 +57,22 @@ server:
         allow_credentials: true
         max_age: 1800
   grpc:  { addr: "` + grpcPort + `" }
-log: { level: "error", format: "json" }
+logger:
+  backends:
+    - type: "slog"
+      slog:
+        level: "error"
+        format: "json"
 audit:
   backends: "store"
-  fallback_tenant: "t-default"
 database:
   sql:
     driver: "sqlite"
     source: "probe-mw.db"
     migrate: true
+biz:
+  audit:
+    fallback_tenant: "t-default"
 `
 }
 
@@ -217,7 +224,12 @@ server:
     middleware:
       timeout:
         default_timeout_ms: 0
-log: { level: "error", format: "json" }
+logger:
+  backends:
+    - type: "slog"
+      slog:
+        level: "error"
+        format: "json"
 `
 	_, err := setupAssemblyWithConfig(t, badCfg)
 	require.Error(t, err, "非法 timeout 段应使装配 fail-fast")

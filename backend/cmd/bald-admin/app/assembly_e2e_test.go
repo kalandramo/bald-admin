@@ -52,15 +52,22 @@ func sqliteTestConfigFor(httpPort, grpcPort string) string {
 server:
   http: { addr: "` + httpPort + `" }
   grpc:  { addr: "` + grpcPort + `" }
-log: { level: "error", format: "json" }
+logger:
+  backends:
+    - type: "slog"
+      slog:
+        level: "error"
+        format: "json"
 audit:
   backends: "store"
-  fallback_tenant: "t-default"
 database:
   sql:
     driver: "sqlite"
     source: "probe.db"
     migrate: true
+biz:
+  audit:
+    fallback_tenant: "t-default"
 `
 }
 

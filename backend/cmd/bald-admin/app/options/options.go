@@ -11,9 +11,13 @@
 // `login.rate_limit.rate` 误写为 `login.ratelimit.rate`，限流静默禁用且无任何
 // 报错。强类型结构体使拼错在编译期/启动期暴露。
 //
-// 命名约束（框架语义）：环境变量按下划线切段映射点路径，故业务键**避免下划线**，
-// 用点路径或 yaml/flag 覆盖（见 bootstrap/config/merge.go:environMap 注释）。
-// 本包字段的 mapstructure tag 均为点路径的最后一段，前缀由嵌套结构体表达。
+// 命名约束（框架语义）：本包字段的 mapstructure tag 均为点路径的最后一段，前缀由
+// 嵌套结构体表达；业务段统一挂在 BusinessSection（biz）之下，与框架契约段在命名
+// 空间上分离。
+//
+// 下划线字段（fallback_tenant / access_ttl_minutes 等）可正常经 env 表达——env 名
+// 的下划线被切段后，由 bconf.lookupField 的折叠匹配折回契约字段名
+// （见 bootstrap/config/merge.go:environMap 与 bconf/unmarshal.go:foldPath）。
 package options
 
 import (
@@ -163,6 +167,18 @@ type MetricsOptions struct {
 	OtlpAddr string `mapstructure:"otlp_addr"`
 }
 
+// BusinessSection 是 bald-admin 业务配置的**顶层段名**。
+//
+// 业务配置统一收纳于此后，与框架契约段（server/audit/metrics/…）在命名空间上
+// 彻底分离——这是本包存在的理由：此前业务键寄生在契约段名下（如
+// `audit.fallback_tenant`），框架无法区分「用户笔误」与「业务自持键」，导致契约
+// 段无法做未知键校验（两者在框架视角都是「契约段内的未知键」）。
+//
+// 命名选择：契约永不会声明 biz（框架级契约不含「业务」概念），天然无冲突。
+// 该常量由本包自持——**框架不需要知道它**：框架侧的严格校验白名单由应用经
+// bootstrap/config.Options.AllowBusinessSections 传入，框架零业务概念。
+const BusinessSection = "biz"
+
 // DecodeInto 把配置快照（框架装载合并后的嵌套 map）解码进本配置对象。
 //
 // 语义（对齐 miniblog docs/08 的 viper.Unmarshal 步骤）：**用配置内容覆盖默认值**
@@ -170,22 +186,37 @@ type MetricsOptions struct {
 // 指针段（Breaker/Retry）只在配置中**存在该段**时建立，故「段缺省即禁用」的
 // 契约语义得以保持（AddFlags 不 materialize 指针，见 flagShadow 注释）。
 //
+// **只解 biz 子树**（见 BusinessSection）：业务键全部位于 biz 之下，故不再需要
+// 与契约段共享命名空间，ErrorUnused 可安全开启——业务键的笔误（如
+// `falback_tenant`）从此**启动期报错**而非静默落默认值。这是本包头部注释所述
+// 「拼错静默取零值」缺陷在业务侧的收口（框架侧同类能力见 bconf.FindUnknownKeys）。
+//
 // 调用时机：必须在使用配置之前（运行期装配钩子内），且仅一次。
 func (o *ServerOptions) DecodeInto(settings map[string]any) error {
 	if settings == nil {
 		return nil
 	}
+	// biz 段缺失（未配置任何业务项）是合法的——全字段保持默认值。
+	var biz map[string]any
+	if raw, ok := settings[BusinessSection]; ok && raw != nil {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("server options: %q must be a map, got %T", BusinessSection, raw)
+		}
+		biz = m
+	}
 	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Result:           o,
 		TagName:          "mapstructure",
-		WeaklyTypedInput: true,  // yaml/flag 值多为 string/int，宽松转换到目标类型
-		ErrorUnused:      false, // 框架契约键（server/log/...）不属于本结构体，忽略
+		WeaklyTypedInput: true, // yaml/flag 值多为 string/int，宽松转换到目标类型
+		// 只解 biz 子树后，本层已无框架契约键混入——未知键即业务键笔误，报错。
+		ErrorUnused: true,
 	})
 	if err != nil {
 		return fmt.Errorf("server options: build decoder: %w", err)
 	}
-	if err := dec.Decode(settings); err != nil {
-		return fmt.Errorf("server options: decode: %w", err)
+	if err := dec.Decode(biz); err != nil {
+		return fmt.Errorf("server options: decode %s section: %w", BusinessSection, err)
 	}
 	return nil
 }
@@ -271,9 +302,9 @@ func (o *ServerOptions) RetryEnabled() bool   { return o.Login.Retry != nil }
 //
 // 键名用点路径（与配置文件键、mapstructure tag 三者对齐）。
 func (o *ServerOptions) AddFlags(fs *pflag.FlagSet) {
-	fs.Float64Var(&o.Login.RateLimit.Rate, "login.rate_limit.rate", o.Login.RateLimit.Rate,
+	fs.Float64Var(&o.Login.RateLimit.Rate, "biz.login.rate_limit.rate", o.Login.RateLimit.Rate,
 		"Login rate limit: tokens per second (<=0 disables).")
-	fs.Float64Var(&o.Login.RateLimit.Burst, "login.rate_limit.burst", o.Login.RateLimit.Burst,
+	fs.Float64Var(&o.Login.RateLimit.Burst, "biz.login.rate_limit.burst", o.Login.RateLimit.Burst,
 		"Login rate limit: burst capacity (<=0 disables).")
 
 	// 熔断 / 重试：绑到影子字段（**不** materialize Login.Breaker/Retry 指针）。
@@ -284,34 +315,34 @@ func (o *ServerOptions) AddFlags(fs *pflag.FlagSet) {
 	// 无关），故影子字段不影响 flag 的优先级链；解码时若配置含该段，指针自然建立。
 	br := breakerDefaults()
 	rt := retryDefaults()
-	fs.Float64Var(&o.flagShadow.breakerErrorThreshold, "login.breaker.error_threshold", br.ErrorThreshold,
+	fs.Float64Var(&o.flagShadow.breakerErrorThreshold, "biz.login.breaker.error_threshold", br.ErrorThreshold,
 		"Login breaker: error ratio threshold [0,1].")
-	fs.IntVar(&o.flagShadow.breakerRequestVolume, "login.breaker.request_volume", br.RequestVolume,
+	fs.IntVar(&o.flagShadow.breakerRequestVolume, "biz.login.breaker.request_volume", br.RequestVolume,
 		"Login breaker: minimum request volume before evaluating.")
-	fs.IntVar(&o.flagShadow.breakerSleepWindowSeconds, "login.breaker.sleep_window_seconds", br.SleepWindowSeconds,
+	fs.IntVar(&o.flagShadow.breakerSleepWindowSeconds, "biz.login.breaker.sleep_window_seconds", br.SleepWindowSeconds,
 		"Login breaker: seconds to stay open before half-open.")
-	fs.IntVar(&o.flagShadow.retryMaxAttempts, "login.retry.max_attempts", rt.MaxAttempts,
+	fs.IntVar(&o.flagShadow.retryMaxAttempts, "biz.login.retry.max_attempts", rt.MaxAttempts,
 		"Login DB retry: max attempts (including first).")
-	fs.IntVar(&o.flagShadow.retryInitialBackoffMs, "login.retry.initial_backoff_ms", rt.InitialBackoffMs,
+	fs.IntVar(&o.flagShadow.retryInitialBackoffMs, "biz.login.retry.initial_backoff_ms", rt.InitialBackoffMs,
 		"Login DB retry: initial backoff in milliseconds.")
-	fs.IntVar(&o.flagShadow.retryMaxBackoffMs, "login.retry.max_backoff_ms", rt.MaxBackoffMs,
+	fs.IntVar(&o.flagShadow.retryMaxBackoffMs, "biz.login.retry.max_backoff_ms", rt.MaxBackoffMs,
 		"Login DB retry: max backoff in milliseconds.")
 
-	fs.StringVar(&o.File.Bucket, "file.bucket", o.File.Bucket,
+	fs.StringVar(&o.File.Bucket, "biz.file.bucket", o.File.Bucket,
 		"Object storage bucket used by the file module.")
-	fs.StringVar(&o.Audit.FallbackTenant, "audit.fallback_tenant", o.Audit.FallbackTenant,
+	fs.StringVar(&o.Audit.FallbackTenant, "biz.audit.fallback_tenant", o.Audit.FallbackTenant,
 		"Tenant assigned to audit events that carry no tenant.")
-	fs.IntVar(&o.Auth.AccessTTLMinutes, "auth.access_ttl_minutes", o.Auth.AccessTTLMinutes,
+	fs.IntVar(&o.Auth.AccessTTLMinutes, "biz.auth.access_ttl_minutes", o.Auth.AccessTTLMinutes,
 		"Access token TTL in minutes.")
-	fs.IntVar(&o.Auth.RefreshTTLHours, "auth.refresh_ttl_hours", o.Auth.RefreshTTLHours,
+	fs.IntVar(&o.Auth.RefreshTTLHours, "biz.auth.refresh_ttl_hours", o.Auth.RefreshTTLHours,
 		"Refresh token TTL in hours.")
-	fs.StringVar(&o.Asynq.Codec, "asynq.codec", o.Asynq.Codec,
+	fs.StringVar(&o.Asynq.Codec, "biz.asynq.codec", o.Asynq.Codec,
 		"Asynq task payload codec.")
-	fs.StringVar(&o.Redis.Addr, "redis.addr", o.Redis.Addr,
+	fs.StringVar(&o.Redis.Addr, "biz.redis.addr", o.Redis.Addr,
 		"Redis address shared by task queue and cache.")
-	fs.StringVar(&o.SSE.Addr, "sse.addr", o.SSE.Addr,
+	fs.StringVar(&o.SSE.Addr, "biz.sse.addr", o.SSE.Addr,
 		"SSE transport listen address (empty disables).")
-	fs.StringVar(&o.SSE.Path, "sse.path", o.SSE.Path,
+	fs.StringVar(&o.SSE.Path, "biz.sse.path", o.SSE.Path,
 		"SSE transport route path.")
 }
 

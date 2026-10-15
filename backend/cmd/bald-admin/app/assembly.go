@@ -336,7 +336,11 @@ func newApp(
 		// --- 配置驱动参数 ---
 		appkit.WithConfigFile(configFileDefault),
 		appkit.WithWatchConfig(true),
-		// 业务配置 flag 通道（--login.rate_limit.rate=9 / --gateway.addr=… 等）。
+		// 严格契约校验：业务段（biz）整棵放行，其余顶层段内的未知键 fail-fast。
+		// 白名单由本应用给出（options.BusinessSection）——框架不认识 biz，
+		// 故此处无需框架改动即可让 `server.htpp` 这类笔误在启动期暴露。
+		appkit.WithStrictContract(options.BusinessSection),
+		// 业务配置 flag 通道（--biz.login.rate_limit.rate=9 等）。
 		// 缺此注册时业务 flag 进不了装载 FlagSet，「flag > env > 文件」对业务
 		// 配置项整条失效（用户显式传参被静默忽略）。
 		appkit.WithBind("", svrOpts),
