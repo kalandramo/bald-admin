@@ -523,6 +523,8 @@ github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfV
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/kalandramo/bald v0.23.0 h1:j6LC9uiWWVHHHQRjaQ2EjGNMxS7oIAohFncDKBo4lgY=
 github.com/kalandramo/bald v0.23.0/go.mod h1:Sj7mTByi6PyYoLQJ9PVbxX64/U940OrT/Jgr1zy4kuo=
+github.com/kalandramo/bald v0.24.0 h1:VJT85nwO8Tb7eWdYmU1hkh4/sFZWvFiMqDBsjkoKvmY=
+github.com/kalandramo/bald v0.24.0/go.mod h1:Sj7mTByi6PyYoLQJ9PVbxX64/U940OrT/Jgr1zy4kuo=
 github.com/kalandramo/bald-crud/viewer v0.3.0 h1:qzFgCqZxxYks6qmtpTnTNYZ0+yM+AvQsnMVdZB+j55g=
 github.com/kalandramo/bald-crud/viewer v0.3.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
 github.com/kalandramo/bald/bconf v0.10.0 h1:MZh5yjpZkQD0kZVTN7nZDKbjHzzPY+GZhiP/Az4Of90=
