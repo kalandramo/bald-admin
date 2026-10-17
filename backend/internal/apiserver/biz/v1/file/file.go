@@ -53,7 +53,7 @@ type Biz struct {
 // 为 file.bucket 配置，空 = 沿用源默认 "files"。
 //
 // 注意（对象存储仍为运行期接线）：storage.minio / storage.s3 段经契约 provider 在
-// FromBootstrap 阶段 B 构造，故构造期值拷贝 mc 可能为 nil——此处构造后仍须在
+// Serve 装配的阶段 B 构造，故构造期值拷贝 mc 可能为 nil——此处构造后仍须在
 // BeforeStart（InitBridges 之后）调用 SetStorage / SetObjectStorage 补注
 // （对齐 appkit.SetRegistrar 的「构造期 nil + 运行期接线」模式）。**仓储**已不再
 // 有此问题（起构造期注入），仅对象存储实例保留该约定。

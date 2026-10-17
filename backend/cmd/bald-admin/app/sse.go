@@ -36,12 +36,12 @@ import (
 	"github.com/kalandramo/bald/encoding"
 	baldjson "github.com/kalandramo/bald/encoding/json"
 	"github.com/kalandramo/bald/log"
+	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/transport"
 	baldsse "github.com/kalandramo/bald/transport/sse"
 	ssecontract "github.com/kalandramo/bald/transport/sse/contract"
 
-	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
@@ -64,12 +64,14 @@ func ensureJSONCodec() {
 	}
 }
 
-// sseServerProvider 构造 SSE 的契约 provider（注册进 ServerRegistry）。
+// sseServerProvider 构造 SSE 的段驱动 Provider（server.sse 段；批 2 起经
+// ssecontract.AppProvider 声明进 MustServe 的 Provider 清单，原 ServerRegistry
+// 注册表形态删除）。段缺失即被引擎跳过——「不启用」= 移除 sse 段。
 func sseServerProvider(
 	authnGetter func() authn.Authenticator,
 	bizGetter func() *apiserver.BizSet,
-) func(context.Context, *bootstrapv1.Server) (transport.Server, func(), error) {
-	return ssecontract.Provider(
+) appkit.Provider {
+	return ssecontract.AppProvider(
 		ssecontract.WithServerOptions(sseServerOptionsDeferred(authnGetter)...),
 		ssecontract.WithAfterBuild(func(_ context.Context, srv *baldsse.Server) error {
 			if bs := bizGetter(); bs != nil && bs.Message != nil {

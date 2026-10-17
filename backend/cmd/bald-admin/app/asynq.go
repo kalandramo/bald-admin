@@ -5,7 +5,7 @@
 // **当前装配路径已是契约驱动**：
 //
 //	registries.go → sr.MustRegister(asynqcontract.Type, asynqcontract.Provider(...))
-//	assembly.go   → appkit.WithServerRegistry(serverRegistry(...))
+//	assembly.go   → asynqcontract.AppProvider(...)（段驱动 Provider）
 //
 // 取代原因（框架侧两轮变更）：
 //  1. `bald/transport/asynq/contract` 子包**已建立**（契约→Option 映射 + Provider）；
@@ -24,11 +24,11 @@
 // 所记缺陷 **D8**（契约 Asynq 段字段面 << 实现 Option 面）已随字段扩展闭合。
 //
 // 逃生舱本身仍是框架**明确提供**的合法扩展点
-// （`appkit.WithExtraServers` / `WithExtraServerFunc`，见 pkg/appkit/bootstrap.go），
+// （`appkit.WithExtraServerFunc`，见 pkg/appkit/bootstrap.go），
 // 只是 asynq 不再需要它。
 //
 // 本文件保留的实装：codec 注册（`registerAsynqCodecs`）与 handler 注册
-// （`registerAsynqHandlers`）——两者的**调用点**已移入 registries.go 的 provider 回调。
+// （`registerAsynqHandlers`）——两者的**调用点**已移入 assembly.go 的 asynq AppProvider 回调。
 package app
 
 import (

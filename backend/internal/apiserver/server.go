@@ -85,7 +85,7 @@ func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticato
 type ComponentFactory = hgin.ComponentFactory
 
 // RegisterAdmin 挂载管理面路由（re-export）。
-func RegisterAdmin(e *gingonic.Engine, appFn func() *appkit.AppKit,
+func RegisterAdmin(e *gingonic.Engine, appFn func() *appkit.App,
 	authenticator authn.Authenticator, authorizer authz.Authorizer,
 	factories map[string]ComponentFactory) {
 	hgin.RegisterAdmin(e, appFn, authenticator, authorizer, factories)

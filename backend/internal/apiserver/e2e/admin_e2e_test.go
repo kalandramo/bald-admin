@@ -25,7 +25,7 @@ import (
 	"github.com/kalandramo/bald/pkg/appkit"
 )
 
-// tinyServer 是 e2e 用最小 Server（让 AppKit.Run 走完整生命周期，使 running=true
+// tinyServer 是 e2e 用最小 Server（让 App.Run 走完整生命周期，使 running=true
 // 从而 MountComponent 可用）；Endpoint 返回确定地址以通过 waitForEndpoints。
 type tinyServer struct{}
 
@@ -59,7 +59,7 @@ func (c *stubComp) state() (bool, bool) {
 	return c.started, c.disposed
 }
 
-// setupAdmin 构造带管理面路由的 engine + 真实运行的 AppKit（原语要求 Run 存活期）。
+// setupAdmin 构造带管理面路由的 engine + 真实运行的 App（原语要求 Run 存活期）。
 // 路由注册先于 app 回填（迟到绑定，与 main 装配路径同构）。
 func setupAdmin(t *testing.T) (*gingonic.Engine, *stubComp) {
 	t.Helper()
@@ -69,7 +69,7 @@ func setupAdmin(t *testing.T) (*gingonic.Engine, *stubComp) {
 	}
 	repos = bootstrappkg.LastRepositories()
 
-	var app *appkit.AppKit
+	var app *appkit.App
 	comp := &stubComp{name: "e2e.comp"}
 
 	e := gingonic.New()
@@ -78,11 +78,11 @@ func setupAdmin(t *testing.T) (*gingonic.Engine, *stubComp) {
 		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
 		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
 	})
-	apiserver.RegisterAdmin(e, func() *appkit.AppKit { return app }, bootstrappkg.Authenticator, bootstrappkg.Authorizer, map[string]apiserver.ComponentFactory{
+	apiserver.RegisterAdmin(e, func() *appkit.App { return app }, bootstrappkg.Authenticator, bootstrappkg.Authorizer, map[string]apiserver.ComponentFactory{
 		"e2e.comp": func() appkit.Component { return comp },
 	})
 
-	app = appkit.New(appkit.Name("admin-e2e"), appkit.Servers(tinyServer{}))
+	app = appkit.NewApp(appkit.Name("admin-e2e"), appkit.Servers(tinyServer{}))
 
 	// Cleanup 顺序关键：必须先 cancel 触发 Run 停机，再等 Done——分开注册会因
 	// t.Cleanup 的 LIFO 语义变成「先等 Done、后 cancel」互等死锁（曾卡满 timeout）。

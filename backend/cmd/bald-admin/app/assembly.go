@@ -33,88 +33,73 @@ import (
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
-	bconf "github.com/kalandramo/bald/bconf"
-	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
-	baldbootstrap "github.com/kalandramo/bald/bootstrap"
+	baldconfig "github.com/kalandramo/bald/bootstrap/config"
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
+	storegorm "github.com/kalandramo/bald/contrib/store-gorm"
 	"github.com/kalandramo/bald/health"
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/log/bslog"
+	miniocontract "github.com/kalandramo/bald/oss/minio/contract"
 	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/pkg/appkit/mech"
+	"github.com/kalandramo/bald/pkg/appkit/std"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
+	nacoscontract "github.com/kalandramo/bald/registry/nacos/contract"
+	"github.com/kalandramo/bald/transport/asynq"
+	asynqcontract "github.com/kalandramo/bald/transport/asynq/contract"
+	"github.com/kalandramo/bald/transport/cron"
+	croncontract "github.com/kalandramo/bald/transport/cron/contract"
+	gatewaycontract "github.com/kalandramo/bald/transport/gateway/contract"
+	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 )
 
-// serveRunE 是根命令的 RunE——bald-admin 的**启动主流程**，按三阶段推进：
+// serveRunE 是根命令的 RunE——bald-admin 的**启动主流程**。
 //
-//	0  框架级准备：构造契约（bconf.NewBootstrap）与业务配置聚合对象
-//	   （options.NewServerOptions），后者充当各钩子的缺省值通道；
-//	1  配置源预装载：preloadBootstrap 填契约 config 段的引导信息
-//	   （远程源地址/凭据/dataId 必须本地可得）；
-//	2  装配：buildApp 走生产装配路径（构造期骨架 + newApp 的运行期钩子），
-//	   返回**未启动**的 AppKit；
-//	3  运行：app.Run 阻塞至收到信号或被取消；退出错误经 baldlog 记录后返回。
-//
-// 参数被忽略（`_ *cobra.Command, _ []string`）——本命令不接受位置参数：全部
-// 配置经 flag 层（appkit 注册）与配置文件/env 进入契约，而非命令行参数。
-// 这也与 NewCommand 放行未知 flag 的分工一致（cobra 不参与 flag 定义）。
+// 批 2 单一装配入口：契约装载、--config 解析（默认路径经 appkit.ConfigFile 声明，
+// 原 preloadBootstrap 手写扫描已内化）、约定装配（Bind×3、装载/校验/日志两阶段、
+// 热更新、段驱动 Provider、信号处理与 Run）全部在 Serve 内部；业务只经
+// appOptions 声明配置表达不了的能力。失败记日志后以非零码退出（MustServe）。
 func serveRunE(_ *cobra.Command, _ []string) error {
-	// 0. 框架级配置
-	bootstrap := bconf.NewBootstrap()
-
-	// 业务配置聚合对象**最先创建**——构造期的若干步骤（gateway/asynq/SSE
-	// 的缺省值与 flag 通道）需要其承载；实际配置值在各钩子内解码覆盖。
-	svrOpts := options.NewServerOptions()
-
-	// 1. 配置源预装载（两阶段装载的第一阶段）：契约 config 段（nacos/kubernetes
-	//    的地址/凭据/dataId）是引导信息，必须本地可得——先装载本地配置文件填
-	//    契约 config 段。配置层的 Build 由 FromBootstrap 构造期执行
-	//    （WithConfigRegistry），层在 Run 期 loadConfig 参与合并（优先级低于
-	//    本地文件/env/flag：远程只补本地未定义的键）并支持热更新，层 reader 释放挂框架停机 Effect。
-	cfgReg, err := preloadBootstrap(bootstrap)
-	if err != nil {
-		return fmt.Errorf("bootstrap config sources: %w", err)
-	}
-
-	// 2. 约定装配：Bind×3 / 配置装载+校验 / 日志两阶段 / 热更新 / registrar /
-	//    可观测性 / 停机 Effect 全部由 FromBootstrap 内化（详见 newApp）。
-	//    biz 构造 + 路由注册 + gRPC 服务注册在 newApp 内的 Run 期
-	//    装配钩子里完成（依赖 InitBridges 建立的 store / Redis）。
-	//    装配编排抽到 buildApp，使端到端装配测试复用**同一条**生产路径。
-	app, _, err := buildApp(bootstrap, svrOpts, cfgReg)
-	if err != nil {
-		return err
-	}
-
-	// 3. 运行。
-	if err := app.Run(context.Background()); err != nil {
-		baldlog.Error(context.Background(), "bald-admin exited", "error", err)
-		return err
-	}
+	appkit.MustServe(context.Background(), appOptions(options.NewServerOptions())...)
 	return nil
 }
 
-// buildApp 执行**生产装配路径**（构造期骨架 + newApp 内的运行期钩子装配），
-// 返回未启动的 AppKit（与 appRef）。
+// appOptions 声明业务能力（Serve 的约定装配消费这些 Option）。
 //
-// 抽出理由：端到端装配测试需要驱动**真实**的装配路径——历史上认证静默失效、
-// 吊销检查失效等真 bug 之所以未被拦截，正是因 e2e 自行拼装、绕过了 main。
-// 把编排抽成函数后，测试与生产共用同一实现，装配缺陷不再有藏身处。
-func buildApp(
-	bootstrap *bootstrapv1.BootstrapConfig,
-	svrOpts *options.ServerOptions,
-	cfgReg *baldbootstrap.ConfigRegistry,
-) (*appkit.AppKit, *appRefT, error) {
-	// 1. 构造期只建伺服面骨架（router + 全局中间件）。**业务装配**（biz 构造、
-	//    路由注册、gRPC 服务注册）移至 Run 期装配钩子（见 newApp）——
-	//    消除「构造期消费运行期资源（store / Redis）」的时序倒置。
+// 抽成函数是为了让 e2e 测试能复用**同一份**声明（appkit.Serve 驱动），
+// 而不是在测试里另抄一份——复制出来的应用与真实运行的不一致，测试就失去
+// 回归价值（历史教训见 assembly_e2e_test.go 头注）。
+//
+// Serve 内化的约定（原本要手写的样板）：
+//   - 契约装载：bconf.NewBootstrap 骨架 + --config（默认 configs/bald-admin.yaml，
+//     来自 ConfigFile）的文件/env 基线预装载；
+//   - Bind server.http/server.grpc/--log.* 三组框架 flag + 业务 Bind 声明；
+//   - BeforeStart：Settings→Unmarshal→Validate→按契约 logger 段重建 Logger；
+//   - OnConfigChange：热更新副本试装载+校验后原子落盘，并重建 Logger；
+//   - app 元数据（name/version/env/stop_timeout）取自契约 app 段；
+//   - 停机恢复启动前 Logger、释放配置层资源（Effect 效应账本）。
+//
+// 业务保留的声明（配置驱动不了）：路由、gRPC service、拦截器链序、
+// 探针依赖、日志脱敏、审计协调、各段业务语义 Provider——见下方各 Option。
+func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
+	// biz 在 BeforeStart 内构造——InitializeBiz 依赖 InitBridges 建立的
+	// store / Redis，构造期构造会固化 nil（时序倒置）。框架保证业务 BeforeStart
+	// 先于 server 构造钩子执行（注册序=执行序），故 registerGRPC 被调用时
+	// bizSet 已就绪。
 	//
-	//    健康检查聚合器：HTTP /healthz /readyz 与 gRPC 标准健康服务状态同源，由
-	//    appkit.WithHealth 默认装配（探针路由归装配层，协议实现不注册任何路由）。
-	//    本范例尚无依赖项要检查，空聚合器=恒就绪（等价于迁移前的 ready 桩）。
-	healthChecker := health.New()
+	// err 与 bizSet 都在**函数作用域**声明：闭包内须用 `=` 赋值（用 `:=` 会在
+	// 闭包块内新建同名变量，外层 bizSet 仍为 nil——registerGRPC 读到的即 nil）。
+	var (
+		bizSet *apiserver.BizSet
+		// authenticator/authorizer 提升到函数作用域——它们在 BeforeStart 内构造
+		//（依赖 InitBridges 建立的 store/Redis），再供两个**运行期**消费者读取：
+		// appkit.WithGRPCOptions 的选项工厂与 sseServerProvider 的授权钩子。
+		authenticator authn.Authenticator
+		authorizer    authz.Authorizer
+	)
 
 	// 管理面：运行期组件观测与热插拔（工厂目录由业务定义——核心只管挂载原语）。
 	// demo.heartbeat 演示带 goroutine 的组件生命周期（Start 起心跳、Dispose 收），与
@@ -124,152 +109,28 @@ func buildApp(
 		"demo.heartbeat": func() appkit.Component { return newHeartbeatComponent(appRef.get) },
 	}
 
-	// 横切关注点切 bundle 门面。
-	//   - gin 全局层：Recovery→RequestID→Tracing→Logging→CORS→Secure→Authn→Audit
-	//     （链序由 bundle 固化）。Authn/Authz 不进全局 bundle——范例用「路由级
-	//     分组保护」语义（/v1/login 必须公开），分组链见
-	//     internal/apiserver/handler/gin/auth.go；bundle 的全局链模式与分组保护
-	//     模式是两种合法模式，范例各保其一（gRPC 侧为全 bundle 链）。
-	//   - 增强点：切 bundle 后 /v1/login 也进入审计（此前散装手挂仅审计受保护路由）——
-	//     登录失败同样应留审计痕迹。
-	//   - 审计层经 bundle.Audit 注入动态转发器（securityaudit.Global，
-	//     每次 Record 读全局），而非在构造期快照。若改为构造期快照，会拿到
-	//     当时还是 nop 的全局实例（契约轨装配与热切均晚于此处构造），
-	//     导致请求审计**静默失效**；收敛进 bundle 后由单层同时承担审计与指标。
-	//
-	// 契约中间件段（server.http.middleware.*）：由 bundle.FromMiddleware 翻译为
-	// Option 后与上述业务 Option 合并。此前该段**七个子段全部零消费者**——配置
-	// 写了不生效（最坏形态：看起来生效了）。现在：
-	//   - recovery/request_id/logging 段缺失 → 保留 bundle 既有默认（链中仍在）；
-	//   - cors/tracing/rate_limit/timeout 段缺失 → 不挂（缺省不装配）；
-	//   - 段显式声明但非法（如 timeout.default_timeout_ms<=0）→ 构造期 fail-fast。
-	// 注：各段是否声明、以及缺省语义的逐条说明，见 configs/bald-admin.yaml.example
-	// 的 server.http.middleware 段。本仓 configs/bald-admin.yaml 已声明该段
-	// （cors + request_id），故此处非空——迁移前「仅有 bundle 默认链」的状态
-	// 已随该段的声明而改变。
-	mwOpts, mwClose, err := bundle.FromMiddleware(
-		bootstrap.GetServer().GetHttp().GetMiddleware(),
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("bundle: build http middleware from config: %w", err)
-	}
+	// 健康检查聚合器：HTTP /healthz /readyz 与 gRPC 标准健康服务状态同源，由
+	// appkit.WithHealth 默认装配（探针路由归装配层，协议实现不注册任何路由）。
+	// 本范例尚无依赖项要检查，空聚合器=恒就绪（等价于迁移前的 ready 桩）。
+	healthChecker := health.New()
 
-	ginBundle := bundle.New(append([]bundle.Option{
-		bundle.Audit(securityaudit.Global()), // 动态转发：装配/热切对已挂中间件即时生效
-		bundle.Metrics(obmetrics.Recorder("bald/example")),
-		bundle.Normalized(), // 归一化：审计 object/action 与 gRPC 同源
-	}, mwOpts...)...)
+	// gin 引擎：构造期只建伺服面骨架（无中间件）。全局链在 BeforeStart 挂载——
+	// 批 2 起 Serve 内部持有契约，声明期读不到契约中间件段；Run 期挂载还使
+	// 中间件配置吃到完整四源终值（flag/env/文件/远程；此前只有预装载基线）。
+	// gin 的 Use 只影响其后注册的路由，故 BeforeStart 内先挂链再 RegisterRoutes。
 	router := gin.New()
-	router.Use(ginBundle.Gin()...)
 
-	app, err := newApp(bootstrap, router, cfgReg, healthChecker, svrOpts, appRef, componentFactories, mwClose)
-	if err != nil {
-		return nil, nil, err
-	}
-	appRef.set(app) // 管理面 handler 经 appRef 请求期取 AppKit（规避装配时序）
-	return app, appRef, nil
-}
+	// 装载后的契约快照（BeforeStart 解码自 app.Settings()；AfterStart 读地址
+	// 打日志用——与原预装载契约同源同值）。
+	var loadedContract bootstrapv1.BootstrapConfig
 
-// NewCommand 构造 bald-admin 根命令。
-//
-// **flag 的注册不在 cobra 层**——root 不注册任何 flag（无 Flags()/PersistentFlags()
-// 调用）。全部 flag 由 appkit.loadConfig 自建 pflag.FlagSet 注册，两类来源合流：
-//   - 框架：FromBootstrap 硬编码绑定 `--server.http.*` / `--server.grpc.*`
-//     与 `--log.*` 壳（appkit/bootstrap.go）；
-//   - 业务：本包的 appkit.WithBind("", svrOpts) → ServerOptions.AddFlags，
-//     注册 `--login.rate_limit.rate` / `--gateway.addr` 等业务项。
-//
-// 二者经同一个 bindFlags 进入装载 FlagSet，共享「flag > env > 文件 > 远程」优先级。
-//
-// 故 cobra 只需放行未知 flag（FParseErrWhitelist.UnknownFlags）——否则它解析
-// os.Args 时会因不认识 `--config` / `--server.http.addr` / `--login.*` 而提前
-// 报错退出。cobra 在这里只负责「识别子命令 + 放行参数」，不参与 flag 定义。
-func NewCommand() *cobra.Command {
-	root := &cobra.Command{
-		Use:   "bald-admin",
-		Short: "bald-admin 服务（bald 重构范例）",
-		RunE:  serveRunE,
-	}
-	root.FParseErrWhitelist.UnknownFlags = true
-	return root
-}
+	// 契约中间件段的资源释放（当前仅 rate_limit 的限流器需要 Close）。挂停机
+	// Effect：注册在框架 Effect 之后，逆序回放时**先于**框架底座执行（业务资源
+	// 先收，与 mech.Effect 的顺序约定一致）。实际 close 在 BeforeStart 内赋值，
+	// 无中间件资源时保持 no-op。
+	mwClose := func() error { return nil }
 
-// Execute 构建并执行根命令，返回错误交由调用方（main 包）决定退出码。
-//
-// kubectl 风格插件发现：首参非已知子命令（且非 flag）时转发到 PATH 中的
-// bald-admin-<name>；PATH 中无匹配插件则回落到根命令，由其打印错误并用帮助。
-func Execute() error {
-	root := NewCommand()
-	if len(os.Args) > 1 {
-		sub := os.Args[1]
-		if !strings.HasPrefix(sub, "-") && !isKnownCommand(root, sub) {
-			plugin := "bald-admin-" + sub
-			path, err := exec.LookPath(plugin)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "unknown command %q (and no plugin %q found in PATH)\n", sub, plugin)
-				return root.Execute()
-			}
-			cmd := exec.Command(path, os.Args[2:]...)
-			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-			return cmd.Run()
-		}
-	}
-	return root.Execute()
-}
-
-func isKnownCommand(root *cobra.Command, name string) bool {
-	for _, c := range root.Commands() {
-		if c.Name() == name {
-			return true
-		}
-	}
-	return false
-}
-
-// newApp 用 appkit.FromBootstrap 做约定装配（替代手写 New 装配）。
-//
-// 框架内化（原手写样板，语义与 New 路径等价）：
-//   - Bind×3（server.http / server.grpc / --log.* flag 壳）；
-//   - BeforeStart：Settings→Unmarshal→Validate→按契约 logger 段重建 Logger
-//     （两阶段日志，脱敏装饰经 WithLogDecorators 两阶段统一生效）；
-//   - OnConfigChange：热更新副本试装载+校验后整契约原子落盘并重建 Logger
-//     （比原手写版多了 Validate 拦截——坏配置降级保留旧契约，不落半成品）；
-//   - app 元数据（name/version/stop_timeout）取自契约 app 段；
-//   - registrar：契约 registry 段经 RegistrarRegistry Build，cleanup 挂
-//     停机 Effect（原 regRegistry.Build + SetRegistrar + regCleanup 样板）；
-//   - 可观测性：tracer/metrics 段经双 Registry 装配，trace shutdown 与
-//     metrics 暴露端/flush 挂 Effect 逆序回放最后执行（原
-//     setupObservability + observabilityWiring + traceComp 样板）；
-//   - 配置层 Build 与释放（原 buildConfigLayers 的 Build 半段 + cleanup defer）。
-//
-// 业务保留（配置表达不了）：路由、gRPC service、拦截器链序、能力声明、
-// 业务桥接（WithBeforeStart——装载链之后契约终值可读）、审计期望态协调、
-// gateway 第三服务器（独立 :8081，**已迁契约装配** `server.gateway` 段——见下方
-// 说明；此前走 WithExtraServers，因契约 `server.http.driver` 的「同端口二选一」
-// 表达不了「gin 主面 + 独立转码面并存」）。
-func newApp(
-	bootstrap *bootstrapv1.BootstrapConfig,
-	router *gin.Engine,
-	cfgReg *baldbootstrap.ConfigRegistry,
-	healthChecker *health.Health,
-	svrOpts *options.ServerOptions,
-	appRef *appRefT,
-	componentFactories map[string]apiserver.ComponentFactory,
-	mwClose func() error,
-) (*appkit.AppKit, error) {
-	// biz 在 Run 期装配钩子内构造——InitializeBiz 依赖 InitBridges
-	// 建立的 store / Redis，构造期构造会固化 nil（时序倒置）。
-	// 框架保证业务 beforeStart 钩子先于 server 构造钩子执行（注册序=执行序，
-	// 见 bald pkg/appkit/bootstrap.go），故 registerGRPC 被调用时 bizSet 已就绪。
-	//
-	// err 与 bizSet 都在**函数作用域**声明：闭包内须用 `=` 赋值（用 `:=` 会在
-	// 闭包块内新建同名变量，外层 bizSet 仍为 nil——registerGRPC 读到的即 nil）。
-	var (
-		bizSet *apiserver.BizSet
-		err    error
-	)
-
-	// gRPC service 注册回调捕获 Run 期装配的 biz（全部 service 需 biz 注入）。
+	// gRPC service 注册回调捕获 BeforeStart 装配的 biz（全部 service 需 biz 注入）。
 	// secret 的 DeleteSecret 同经 biz 真实删除（gRPC 直连与 gateway 转码共用）。
 	registerGRPC := func(s *grpc.Server) {
 		adminv1.RegisterSecretServiceServer(s, secretgrpc.NewServer(bizSet.Secret))
@@ -287,35 +148,90 @@ func newApp(
 		identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(bizSet.Org))
 	}
 
-	// app 先声明再进闭包：WithBeforeStart 在 Run 期才执行，届时已赋值
-	//（FromBootstrap 同款模式）。
-	//
-	// authenticator/authorizer 提升到函数作用域——它们在 Run 期
-	// 装配钩子内构造（依赖 InitBridges 建立的 store/Redis），再供两个**运行期**
-	// 消费者读取：
-	//   - appkit.WithGRPCOptions 的选项工厂（gRPC 拦截器链，Run 期 server 构造点求值）；
-	//   - appkit.WithExtraServerFunc 的 SSE 工厂。
-	// 二者都在业务 beforeStart 之后执行，届时读到真实实例——不再需要「请求期
-	// 解析」的 lateAuthn/lateAuthz 适配层。
-	//
-	// asynq：**已移入 WithExtraServerFunc 工厂**——运行期构造使其能读
-	// 契约段 cache.redis；biz 接线（SetScheduler）也在工厂内完成，故不再需要
-	// 跨作用域变量（原 asynqSrv 已删）。
-	var (
-		authenticator authn.Authenticator
-		authorizer    authz.Authorizer
-	)
-	var app *appkit.AppKit
-	opts := []appkit.BootstrapOption{
-		// --- 能力声明（代码提供） ---
+	opts := []appkit.Option{
+		// --- 框架自有后端 + 第三方 Provider（批 2 目标形态，评估 §4.1/§4.2）---
+		// std.Standard()：框架自有后端的段驱动 Provider 集合（http/grpc 服务器
+		// 构造、audit.log 默认——对账表见 pkg/appkit/std 包文档）。
+		std.Standard(),
+		// App 实例绑定：管理面 handler 与 BeforeStart 经 appRef 迟到取 App。
+		// app 段被契约预填恒存在，本 Provider 无条件触发（见 providers.go）。
+		appBindingProvider{bindApp: appRef.set},
+		// storegorm.AppProvider()：契约 database.sql 段 → *gorm.DB，产物经
+		// app.Resource("database.sql") 取用，停机自动释放连接池。
+		storegorm.AppProvider(),
+		// 配置源（config 段：nacos 远程层）与注册中心（registry.nacos 段）。
+		configSourceProvider{},
+		nacoscontract.AppProvider(),
+		// cache.redis 段：业务桥接 Provider（env/降级/RedisClient 语义，见
+		// providers.go 的取舍说明）。cache 段未配置时引擎跳过（合法）。
+		cacheRedisProvider{},
+		// 对象存储两后端（storage.minio / storage.s3 段，互斥择一）。
+		miniocontract.AppProvider(),
+		s3contract.AppProvider(),
+		// 可观测性：tracer/metrics 段经 observability-otlp 函数契约缝分派
+		// （原 Tracer/MetricsRegistry 注册表形态删除，type 分派收敛到 Provider）。
+		tracerProvider{},
+		metricsProvider{},
+		// 审计段：业务 Provider 接管 std 默认（末者胜），装配 log/store/stream
+		// 三后端——见 audit_wiring.go。
+		auditProvider{},
+
+		// --- server 协议域第三方面（契约段驱动；段缺失即跳过）---
+		// asynq：server.asynq 段。任务 handler 注册与 SetScheduler 接线在回调内
+		// 完成（需 bizSet，故经 getter 传入）；段未配 redis_address / codec 时经
+		// resolver 回退（保「配 cache.redis 即启用 asynq」与 env
+		// BALD_ADMIN_ASYNQ_CODEC 的既有兼容）。
+		asynqcontract.AppProvider(
+			asynqcontract.WithCodecRegistration(registerAsynqCodecs),
+			asynqcontract.WithAddressResolver(bootstrappkg.ResolveRedisAddr),
+			asynqcontract.WithCodecResolver(func() string { return svrOpts.Asynq.Codec }),
+			asynqcontract.WithHandlers(func(ctx context.Context, s *asynq.Server) error {
+				if err := registerAsynqHandlers(ctx, s); err != nil {
+					return err
+				}
+				// biz 接线：把 asynq server 适配为 task.Scheduler 注入 biz。
+				if bizSet != nil && bizSet.Task != nil {
+					bizSet.Task.SetScheduler(newAsynqScheduler(s))
+				}
+				return nil
+			}),
+		),
+		// cron：server.cron 段。周期任务注册在回调内完成。
+		croncontract.AppProvider(croncontract.WithJobs(func(s *cron.Server) error {
+			return registerCronJobs(context.Background(), s)
+		})),
+		// gateway：server.gateway 段。转码注册回调复用本包的 registerGateway
+		//（与 HTTP 面同源）。
+		gatewaycontract.AppProvider(registerGateway),
+		// SSE：server.sse 段。授权钩子与 message 域推流接线经 Option 注入
+		//（见 sse.go）；段缺失即跳过——「不启用」= 移除 sse 段。
+		sseServerProvider(func() authn.Authenticator { return authenticator }, func() *apiserver.BizSet { return bizSet }),
+
+		// --- 配置命名空间与本地文件 ---
+		// env 前缀（BALD_ADMIN_*）与多环境文件名（bald-admin-prod.yaml）的来源。
+		// 必须是代码层常量——Serve 路径下若取自契约 app.name 会构成自指。
+		appkit.ConfigNamespace(configNamespace),
+		// 本地配置文件 + fsnotify 热更新。显式路径缺失 → fail-fast（配置携带
+		// DB/Redis 凭据，宁可启动即失败也不要半配置运行）。--config flag 可覆盖，
+		// 由 Serve 内部 parseConfigFlag 解析（原 preloadBootstrap 手写扫描已内化）。
+		appkit.ConfigFile(configFileDefault),
+		appkit.WatchConfigFile(true),
+		// 严格契约校验：业务段（biz）整棵放行，其余顶层段内的未知键 fail-fast。
+		// 白名单由本应用给出（options.BusinessSection）——框架不认识 biz。
+		appkit.StrictContract(options.BusinessSection),
+		// 业务配置 flag 通道（--biz.login.rate_limit.rate=9 等）。缺此注册时业务
+		// flag 进不了装载 FlagSet，「flag > env > 文件」对业务配置项整条失效。
+		appkit.Bind("", svrOpts),
+
+		// --- 能力声明（代码提供）---
 		appkit.WithHTTP(router),
-		// 拦截器链改**运行期求值**——工厂在 Run 期 server 构造点
-		// 调用（业务 beforeStart 之后），可读上方运行期赋值的 authenticator/authorizer。
+		// 拦截器链改**运行期求值**——工厂在 Run 期 server 构造点调用（业务
+		// BeforeStart 之后），可读上方运行期赋值的 authenticator/authorizer。
 		appkit.WithGRPC(registerGRPC),
 		appkit.WithGRPCOptions(func() []grpc.ServerOption {
 			return newGRPCServerOptions(authenticator, authorizer)
 		}),
-		// 健康检查默认装配：HTTP 双探针 + gRPC health 状态联动（新版归位后的唯一入口）。
+		// 健康检查默认装配：HTTP 双探针 + gRPC health 状态联动。
 		appkit.WithHealth(healthChecker),
 
 		// 日志装饰：脱敏 + 固定结构化属性。
@@ -333,102 +249,87 @@ func newApp(
 			bslog.WithAttrs(slog.String("service.name", "bald-admin")),
 		),
 
-		// --- 配置驱动参数 ---
-		appkit.WithConfigFile(configFileDefault),
-		appkit.WithWatchConfig(true),
-		// 严格契约校验：业务段（biz）整棵放行，其余顶层段内的未知键 fail-fast。
-		// 白名单由本应用给出（options.BusinessSection）——框架不认识 biz，
-		// 故此处无需框架改动即可让 `server.htpp` 这类笔误在启动期暴露。
-		appkit.WithStrictContract(options.BusinessSection),
-		// 业务配置 flag 通道（--biz.login.rate_limit.rate=9 等）。
-		// 缺此注册时业务 flag 进不了装载 FlagSet，「flag > env > 文件」对业务
-		// 配置项整条失效（用户显式传参被静默忽略）。
-		appkit.WithBind("", svrOpts),
-		// 契约 config 段 → 配置层（注册序=层优先级；Build/释放由框架管）。
-		appkit.WithConfigRegistry(cfgReg),
-
-		// 注册中心契约装配（显式注册表声明可用后端，未 import 的后端零依赖；
-		// 热更新支持矩阵见 configs/bald-admin.yaml.example 的 tracer 段）。
-		appkit.WithRegistrarRegistry(registrarRegistry()),
-
-		// 数据/缓存/存储契约段经透传 provider 消费（构造语义保留业务桥接的
-		// env 优先级与降级语义，连接生命周期上挂框架停机 Effect；实例经
-		// app.Database/Cache/Storage 取回注入桥接变量，见 WithBeforeStart）。
-		appkit.WithDatabaseRegistry(databaseRegistry()),
-		appkit.WithCacheRegistry(cacheRegistry()),
-		appkit.WithStorageRegistry(storageRegistry()),
-
-		// 可观测性契约装配（tracer/metrics 段；热更新支持矩阵见
-		// configs/bald-admin.yaml.example 的 tracer 段）。
-		appkit.WithTracerRegistry(tracerRegistry()),
-		appkit.WithMetricsRegistry(metricsRegistry()),
-
-		// server 协议域契约装配——asynq / cron / gateway 从逃生舱
-		// （WithExtraServers / WithExtraServerFunc）迁到契约驱动。
-		//
-		// provider 在本函数内构造（而非抽到 registries.go 的裸注册）：它们的回调
-		// 需读取**函数作用域**的 bizSet —— asynq 的 SetScheduler 与 handler 注册
-		// 都在 bizSet 就绪后执行（Run 期 server 构造点，业务 beforeStart 之后）。
-		// 传 getter（而非值）保证读到 Run 期赋值后的最新引用。
-		appkit.WithServerRegistry(serverRegistry(
-			func() *apiserver.BizSet { return bizSet },
-			func() string { return svrOpts.Asynq.Codec },
-			func() authn.Authenticator { return authenticator },
-		)),
-
+		// --- 机制层（原 appkit.WithX 声明，批 2 下沉 mech 子包）---
 		// 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB
-		// 连接，审计落库（StoreAuditor）依赖它。DSN 来源与缺省见
-		// configs/bald-admin.yaml.example 的 database 段（env 优先于契约段）。
-		appkit.WithProvides("db"),
-		appkit.WithRequires("audit.store", "db"),
+		// 连接，审计落库（StoreAuditor）依赖它。
+		mech.Provides("db"),
+		mech.Requires("audit.store", "db"),
 
 		// 增量协调（key 级订阅）：仅当 http.addr 实际变化才触发（同值刷新、
-		// 其他 key 变更均不波及），与全量 reload 互补——全量做 Unmarshal 重建，
-		// key 级做定点观测/定点重载。
-		appkit.WithOnKeyChange("server.http.addr", func(old, new string) {
+		// 其他 key 变更均不波及），与全量 reload 互补。
+		mech.OnKeyChange("server.http.addr", func(old, new string) {
 			baldlog.Info(context.Background(), "server.http.addr changed",
 				"old", old, "new", new)
 		}),
 
 		// 契约中间件段的资源释放（当前仅 rate_limit 的限流器需要 Close）。
-		// 挂停机 Effect：注册在框架 Effect 之后，逆序回放时**先于**框架底座执行
-		// （业务资源先收，与 WithEffect 的顺序约定一致）。mwClose 由
-		// bundle.FromMiddleware 返回，总非 nil（无资源时为 no-op）。
-		appkit.WithEffect("http-middleware", func(context.Context) error {
+		mech.Effect("http-middleware", func(context.Context) error {
 			return mwClose()
 		}),
 
-		// 业务桥接（装载链之后执行——契约终值可读、数据/缓存/存储实例已由
-		// 阶段 B 构建）：
-		appkit.WithBeforeStart(func(ctx context.Context) error {
+		// --- 业务 BeforeStart（装载链之后执行——契约终值可读、阶段 B Provider
+		// 产物已入资源面）---
+		appkit.BeforeStart(func(ctx context.Context) error {
+			// App 实例由自定义 Provider 在阶段 B 绑定（见 providers.go bindApp）——
+			// 此刻必已就绪；nil 属装配缺陷，显式失败不静默。
+			app := appRef.get()
+			if app == nil {
+				return fmt.Errorf("app not bound by segment providers (audit/tracer/metrics/cache all absent?)")
+			}
+
 			// 装载后的业务配置快照解码进 ServerOptions（覆盖默认值）并校验。
-			// 时机：必须在本钩子内（装载链之后，快照才非 nil）；校验 fail-fast，
-			// 非法配置在启动期报错而非静默取零值。
 			if err := svrOpts.DecodeInto(app.Settings()); err != nil {
 				return err
 			}
 			if err := svrOpts.Validate(); err != nil {
 				return err
 			}
-			// 契约装配实例注入桥接变量（DatabaseProvider 等透传 provider 的
-			// 产物；nil 实例 = 降级态，Wire* 对 nil 为 no-op，InitBridges 走自建/降级）。
-			if v, ok := app.Database("sql"); ok {
+
+			// 合并终值快照 → 契约（AfterStart 地址日志、bootstrappkg.Configure 的
+			// 依赖段来源）。原实现读预装载契约——批 2 起契约归 Serve 内部，业务侧
+			// 经 Settings() 解码等价重建（含 flag/env/远程全源终值，较此前只读
+			// 预装载基线更完整）。
+			if err := baldconfig.Unmarshal(app.Settings(), &loadedContract); err != nil {
+				return fmt.Errorf("decode merged settings into bootstrap contract: %w", err)
+			}
+
+			// 契约中间件段（server.http.middleware.*）→ bundle 全局链。先挂链再注册
+			// 路由（gin 的 Use 只影响其后注册的路由）。非法段值在此 fail-fast（先于
+			// 监听，与原构造期校验同为启动期错误，且现在吃到四源终值）。
+			mwOpts, close, err := bundle.FromMiddleware(
+				loadedContract.GetServer().GetHttp().GetMiddleware(),
+			)
+			if err != nil {
+				return fmt.Errorf("bundle: build http middleware from config: %w", err)
+			}
+			mwClose = close
+			ginBundle := bundle.New(append([]bundle.Option{
+				bundle.Audit(securityaudit.Global()), // 动态转发：装配/热切对已挂中间件即时生效
+				bundle.Metrics(obmetrics.Recorder("bald/example")),
+				bundle.Normalized(), // 归一化：审计 object/action 与 gRPC 同源
+			}, mwOpts...)...)
+			router.Use(ginBundle.Gin()...)
+
+			// 契约装配实例注入桥接变量（Provider 产物；nil 实例 = 降级态，Wire* 对
+			// nil 为 no-op，InitBridges 走自建/降级）。资源按契约段路径取用
+			// （App.Resource(segment)，any+断言——类型安全在消费侧）。
+			if v, ok := app.Resource("database.sql"); ok {
 				bootstrappkg.WireDatabase(v)
 			}
-			if v, ok := app.Cache("redis"); ok {
+			if v, ok := app.Resource("cache.redis"); ok {
 				bootstrappkg.WireCache(v)
 			}
-			if v, ok := app.Storage("minio"); ok {
+			if v, ok := app.Resource("storage.minio"); ok {
 				bootstrappkg.WireStorage(v)
 			}
 			// storage.type=s3 时装配 s3 后端（与 minio 互斥择一）。
 			// WireStorage 按实际类型分派，两者共用 ObjectStorageBridge。
-			if v, ok := app.Storage(s3contract.Type); ok {
+			if v, ok := app.Resource("storage.s3"); ok {
 				bootstrappkg.WireStorage(v)
 			}
 			// 注入真实依赖配置（业务自持 file.bucket；database/cache/storage
-			// 段已由透传 provider 消费，此处仅传桥接所需的余下配置）。
-			bootstrappkg.Configure(bootstrap, svrOpts.File.Bucket)
+			// 段已由 Provider 消费，此处仅传桥接所需的余下配置）。
+			bootstrappkg.Configure(&loadedContract, svrOpts.File.Bucket)
 			// 审计兜底租户（可选，缺省 t-default）：login 失败/permission/
 			// data_access 三类事件天然无租户，落库时兜底到此值以保证在租户
 			// 隔离下仍可见（见 internal/security/audit/record_mapper.go）。
@@ -462,26 +363,25 @@ func newApp(
 			// 运行期钩子内完成——此刻 store / Redis / TokenStore 已由 InitBridges
 			// 建立，biz 不再需要「构造期占位 + 请求期解析」。
 			//
-			// 时序保证：本钩子（业务 beforeStart）**先于**框架 server 构造钩子执行
-			// （注册序=执行序）——故 registerGRPC 被调用时 bizSet 已就绪，
+			// 时序保证：本钩子（业务 BeforeStart）**先于**框架 server 构造钩子执行
+			//（注册序=执行序）——故 registerGRPC 被调用时 bizSet 已就绪，
 			// WithHTTP(router) 的 handler 也已挂好全部路由。
-			bizSet, err = InitializeBiz(repos)
+			biz, err := InitializeBiz(repos)
 			if err != nil {
 				return fmt.Errorf("initialize biz (wire): %w", err)
 			}
+			bizSet = biz
 			// gin 路由注册。认证器/授权器为**真实实例**（上方已构造），
 			// 中间件直接持有——无请求期解析层。
 			apiserver.RegisterRoutes(router, authenticator, authorizer, bizSet)
-			// 管理面：运行期组件观测与热插拔（appRef 在 app.Run 前 set）。
+			// 管理面：运行期组件观测与热插拔（appRef 在 provider Build 期绑定）。
 			registerAdminRoutes(router, appRef, authenticator, authorizer, componentFactories)
-			// asynq → task.Scheduler 的接线已移入 WithExtraServerFunc
-			// 的 asynq 工厂——那里构造后立即 SetScheduler。
 			// 文件存储运行期接线。
 			//
 			// 此处已非必需：InitializeBiz 现于 InitBridges **之后**执行
-			// （上方），wire 构造 file biz 时 bootstrap.MinioStorage 已就绪，
+			//（上方），wire 构造 file biz 时 bootstrap.MinioStorage 已就绪，
 			// 「构造期值拷贝拿到 nil」的前提消失。保留为**幂等补注**——降级路径
-			// （storage 段未配置 → ObjectStorageBridge/MinioStorage 均 nil）下
+			//（storage 段未配置 → ObjectStorageBridge/MinioStorage 均 nil）下
 			// 两个分支都不写入，biz 内判 nil 返回明确错误，语义不变。
 			// 注 ObjectStorageBridge（按 storage.type 已包成 minio/s3
 			// 适配器）——minio 与 s3 走同一条接线，签名差异由适配层吸收。
@@ -492,31 +392,25 @@ func newApp(
 			}
 			// 同款时序：secret/dict 的 Cache-Aside 接入配置驱动的 RedisCache——
 			// cache.redis 段（含 password/db）只流向 bootstrap.RedisCache；wire 的
-			// env 通道只带地址、拿不到完整参数（详见 configs/bald-admin.yaml.example
-			// 的 cache 段）；不接线则配置驱动运行下缓存静默失效。未配置段时
-			// RedisCache 为 nil，SetCache 不覆盖，保留 wire env 通道（CI 覆盖手段）。
-			// SetCache 接收通用 KV 适配器（cache.Cache），biz 内部包装为
-			// loadable 读穿透缓存（loader 构造期绑定，从 key 反解业务参数）。
+			// env 通道只带地址、拿不到完整参数；不接线则配置驱动运行下缓存静默失效。
+			// 未配置段时 RedisCache 为 nil，SetCache 不覆盖，保留 wire env 通道
+			//（CI 覆盖手段）。SetCache 接收通用 KV 适配器（cache.Cache），biz 内部
+			// 包装为 loadable 读穿透缓存（loader 构造期绑定，从 key 反解业务参数）。
 			if bootstrappkg.RedisCache != nil {
 				bizSet.Secret.SetCache(bootstrappkg.RedisCache)
 				bizSet.Dict.SetCache(bootstrappkg.RedisCache)
 			}
-			// 登录限流接线（业务自持配置段 login.rate_limit.*——
-			// 与 file.bucket 同模式）。框架契约的 server.http.rate_limit 段是
-			// **中间件级**限流且当前零实现（无消费者），故业务级登录限流走自持段。
-			// 未配置时保持 nil = 禁用态（不阻断登录，fail-open）。
+			// 登录限流接线（业务自持配置段 login.rate_limit.*）。框架契约的
+			// server.http.rate_limit 段是**中间件级**限流且当前零消费者，故业务级
+			// 登录限流走自持段。未配置时保持 nil = 禁用态（不阻断登录，fail-open）。
 			if lim := buildLoginLimiter(svrOpts); lim != nil {
 				bizSet.Auth.SetLoginLimiter(lim)
 			}
 			// 登录 DB 查询熔断接线（业务自持配置段 login.breaker.*）。
-			// 熔断的意义：DB 故障时快速失败（503），避免所有登录请求都卡在超时上。
-			// 用 hystrix（阈值式）而非 sres——sres 是 SRE 概率式，即使全成功也会
-			// 概率拒绝且 State 永不返回 Closed（与契约语义不符）。
 			if cb := buildLoginBreaker(svrOpts); cb != nil {
 				bizSet.Auth.SetLoginBreaker(cb)
 			}
 			// 登录 DB 查询重试接线（业务自持配置段 login.retry.*）。
-			// 与熔断组合：retry 处理偶发抖动，熔断处理持续故障。
 			if r := buildLoginRetrier(svrOpts); r != nil {
 				bizSet.Auth.SetLoginRetrier(r)
 			}
@@ -565,59 +459,80 @@ func newApp(
 		// 自动重建 MultiAuditor 收敛（幂等）。首次收敛在 AfterStart 前（runReconcilers
 		// 于基线 loadConfig 后、BeforeStart 链之后触发）；后续 OnConfigChange 携带新
 		// 快照再次触发，实现运行期热切换而无需重启。
-		appkit.WithReconcile("audit.backends", reconcileAudit),
+		mech.Reconcile("audit.backends", reconcileAudit),
 
-		appkit.WithAfterStart(func(ctx context.Context) error {
-			// 地址为契约最终值（装载后写回；:0 动态端口场景见注册中心聚合结果）。
+		appkit.AfterStart(func(ctx context.Context) error {
+			// 地址为契约终值（BeforeStart 解码自合并快照；:0 动态端口场景见注册
+			// 中心聚合结果）。
 			ctx = baldlog.ContextWithAttrs(ctx,
 				slog.String("stage", "started"),
-				slog.String("grpc", bootstrap.GetServer().GetGrpc().GetAddr()))
+				slog.String("grpc", loadedContract.GetServer().GetGrpc().GetAddr()))
 			baldlog.Info(ctx, "bald-admin started",
-				"http", bootstrap.GetServer().GetHttp().GetAddr())
+				"http", loadedContract.GetServer().GetHttp().GetAddr())
 			return nil
 		}),
-		appkit.WithBeforeStop(func(ctx context.Context) error {
+		appkit.BeforeStop(func(ctx context.Context) error {
 			baldlog.Info(ctx, "bald-admin stopping")
 			return nil
 		}),
 	}
 
-	// gateway 转码面 —— 已迁到契约装配（server.gateway 段，见 WithServerRegistry）。
-	// 契约 server.http.driver 的「同端口二选一」表达不了「gin 主面 + 独立转码面并存」，
-	// 故用 server.gateway 段（独立 addr + backend_grpc_addr 回退 server.grpc.addr）。
+	return opts
+}
 
-	// asynq 任务队列 —— 已迁到契约装配（server.asynq 段 + asynq contract）。
-	// 契约 provider 在 Run 期 server 构造点执行，可读 Run 期资源（cache.redis 段、
-	// bizSet）；handler 注册与 SetScheduler 接线都在 provider 回调内完成（见
-	// serverRegistry）。段未配 redis_address 时经 WithAddressResolver 回退
-	// bootstrap.ResolveRedisAddr（保既有「配 cache.redis 即启用」的兼容）。
-
-	// SSE 传输轴 —— 已迁到契约装配（server.sse 段 + sse contract）。
-	// 授权钩子与订阅接线经 ssecontract 的 Option 注入（WithServerOptions /
-	// WithAfterBuild）——与 gateway 的 register 回调同款「函数注入」形态。
-	// Provider 与 WithExtraServerFunc 的执行时机等价（同在业务 beforeStart
-	// 之后），故仍能读到运行期构造的 authenticator。
-
-	// cron 定时器 —— 已迁到契约装配（server.cron 段 + cron contract）。
-	// 周期任务注册在 provider 的 WithJobs 回调内完成（见 serverRegistry）。
-
-	// 审计后端 provider 注册（store 后端）。**必须在 FromBootstrap 之前**——
-	// registry 是 BootstrapOption；但 provider 本身在阶段 B 才被调用，届时
-	// res 已含装配完成的 database 客户端（框架保证 buildAudit 排在
-	// buildDatabases 之后），故构造期即取真实 DB——不再有惰性包装。
-	opts = append(opts, appkit.WithAuditRegistry(auditRegistry()))
-
-	// 配置命名空间：env 前缀（BALD_ADMIN_*）与多环境文件名（bald-admin-prod.yaml）
-	// 的来源。必须是代码层常量——FromBootstrap 路径下若取自契约 app.name
-	// 会构成自指（配置文件写 app.name 会让全部 BALD_ADMIN_* 覆盖静默失效）。
-	// 取值与 registries.go 的 configFileDefault 派生基准同源（同一常量）。
-	opts = append(opts, appkit.WithConfigNamespace(configNamespace))
-
-	app, err = appkit.FromBootstrap(bootstrap, opts...)
-	if err != nil {
-		// 契约与能力声明不一致（如声明了 WithHTTP 但契约删了 server.http 段）
-		// 属启动期错误，fail-fast 暴露，不静默降级。
-		return nil, fmt.Errorf("from bootstrap: %w", err)
+// NewCommand 构造 bald-admin 根命令。
+//
+// **flag 的注册不在 cobra 层**——root 不注册任何 flag（无 Flags()/PersistentFlags()
+// 调用）。全部 flag 由 Serve 路径的 loadConfig 自建 pflag.FlagSet 注册，两类来源
+// 合流：
+//   - 框架：Serve 硬编码绑定 `--server.http.*` / `--server.grpc.*` 与 `--log.*`
+//     壳（appkit 装配），外加 --config（parseConfigFlag）；
+//   - 业务：本包的 appkit.Bind("", svrOpts) → ServerOptions.AddFlags，
+//     注册 `--biz.login.rate_limit.rate` 等业务项。
+//
+// 二者经同一个装载 FlagSet 合流，共享「flag > env > 文件 > 远程」优先级。
+//
+// 故 cobra 只需放行未知 flag（FParseErrWhitelist.UnknownFlags）——否则它解析
+// os.Args 时会因不认识 `--config` / `--server.http.addr` / `--biz.*` 而提前
+// 报错退出。cobra 在这里只负责「识别子命令 + 放行参数」，不参与 flag 定义。
+func NewCommand() *cobra.Command {
+	root := &cobra.Command{
+		Use:   "bald-admin",
+		Short: "bald-admin 服务（bald 重构范例）",
+		RunE:  serveRunE,
 	}
-	return app, nil
+	root.FParseErrWhitelist.UnknownFlags = true
+	return root
+}
+
+// Execute 构建并执行根命令，返回错误交由调用方（main 包）决定退出码。
+//
+// kubectl 风格插件发现：首参非已知子命令（且非 flag）时转发到 PATH 中的
+// bald-admin-<name>；PATH 中无匹配插件则回落到根命令，由其打印错误并用帮助。
+func Execute() error {
+	root := NewCommand()
+	if len(os.Args) > 1 {
+		sub := os.Args[1]
+		if !strings.HasPrefix(sub, "-") && !isKnownCommand(root, sub) {
+			plugin := "bald-admin-" + sub
+			path, err := exec.LookPath(plugin)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "unknown command %q (and no plugin %q found in PATH)\n", sub, plugin)
+				return root.Execute()
+			}
+			cmd := exec.Command(path, os.Args[2:]...)
+			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+			return cmd.Run()
+		}
+	}
+	return root.Execute()
+}
+
+func isKnownCommand(root *cobra.Command, name string) bool {
+	for _, c := range root.Commands() {
+		if c.Name() == name {
+			return true
+		}
+	}
+	return false
 }

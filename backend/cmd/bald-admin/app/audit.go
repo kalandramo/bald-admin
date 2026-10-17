@@ -14,6 +14,7 @@ import (
 	auditstream "github.com/kalandramo/bald/contrib/audit-stream"
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/pkg/appkit/mech"
 	"github.com/kalandramo/bald/pkg/audit"
 )
 
@@ -135,7 +136,7 @@ func reconcileAudit(ctx context.Context, rctx *appkit.ReconcileCtx) error {
 	have := rctx.Mounted() // 实际态：本协调器名下已挂载的后端（Mount/Unmount 维护）
 
 	// diff-apply：期望==实际时直接返回（幂等，不抖动、不发多余审计）。
-	add, remove := appkit.DiffStrings(want, have)
+	add, remove := mech.DiffStrings(want, have)
 	if len(add) == 0 && len(remove) == 0 {
 		return nil
 	}

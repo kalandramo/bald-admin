@@ -313,3 +313,46 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+// 批 2 联调临时 replace：待 bald v0.25.x 系 tag 发布后移除并升版本。
+replace (
+	github.com/kalandramo/bald => ../../bald
+	github.com/kalandramo/bald/bconf => ../../bald/bconf
+	github.com/kalandramo/bald/bconfig => ../../bald/bconfig
+	github.com/kalandramo/bald/berrors => ../../bald/berrors
+	github.com/kalandramo/bald/bootstrap => ../../bald/bootstrap
+	github.com/kalandramo/bald/broker => ../../bald/broker
+	github.com/kalandramo/bald/broker/redis => ../../bald/broker/redis
+	github.com/kalandramo/bald/cache => ../../bald/cache
+	github.com/kalandramo/bald/cache/loadable => ../../bald/cache/loadable
+	github.com/kalandramo/bald/cache/redis => ../../bald/cache/redis
+	github.com/kalandramo/bald/circuitbreaker => ../../bald/circuitbreaker
+	github.com/kalandramo/bald/circuitbreaker/hystrix => ../../bald/circuitbreaker/hystrix
+	github.com/kalandramo/bald/contrib/audit-gorm => ../../bald/contrib/audit-gorm
+	github.com/kalandramo/bald/contrib/audit-stream => ../../bald/contrib/audit-stream
+	github.com/kalandramo/bald/contrib/authn-jwt => ../../bald/contrib/authn-jwt
+	github.com/kalandramo/bald/contrib/authz-casbin => ../../bald/contrib/authz-casbin
+	github.com/kalandramo/bald/contrib/observability-otlp => ../../bald/contrib/observability-otlp
+	github.com/kalandramo/bald/contrib/store-gorm => ../../bald/contrib/store-gorm
+	github.com/kalandramo/bald/encoding => ../../bald/encoding
+	github.com/kalandramo/bald/encoding/json => ../../bald/encoding/json
+	github.com/kalandramo/bald/encoding/msgpack => ../../bald/encoding/msgpack
+	github.com/kalandramo/bald/health => ../../bald/health
+	github.com/kalandramo/bald/log => ../../bald/log
+	github.com/kalandramo/bald/oss/minio => ../../bald/oss/minio
+	github.com/kalandramo/bald/oss/s3 => ../../bald/oss/s3
+	github.com/kalandramo/bald/ratelimit => ../../bald/ratelimit
+	github.com/kalandramo/bald/ratelimit/tokenbucket => ../../bald/ratelimit/tokenbucket
+	github.com/kalandramo/bald/registry => ../../bald/registry
+	github.com/kalandramo/bald/registry/etcd => ../../bald/registry/etcd
+	github.com/kalandramo/bald/registry/nacos => ../../bald/registry/nacos
+	github.com/kalandramo/bald/retry => ../../bald/retry
+	github.com/kalandramo/bald/transport => ../../bald/transport
+	github.com/kalandramo/bald/transport/asynq => ../../bald/transport/asynq
+	github.com/kalandramo/bald/transport/cron => ../../bald/transport/cron
+	github.com/kalandramo/bald/transport/gateway => ../../bald/transport/gateway
+	github.com/kalandramo/bald/transport/grpc => ../../bald/transport/grpc
+	github.com/kalandramo/bald/transport/http => ../../bald/transport/http
+	github.com/kalandramo/bald/transport/sse => ../../bald/transport/sse
+	github.com/kalandramo/bald/transport/web => ../../bald/transport/web
+)

@@ -31,7 +31,7 @@ type ComponentFactory = func() appkit.Component
 // （AuditEvent{Object:"component", Action:"mount"/"unmount", Subject:请求身份}）。
 func RegisterAdmin(
 	e *gingonic.Engine,
-	appFn func() *appkit.AppKit,
+	appFn func() *appkit.App,
 	authenticator authn.Authenticator,
 	authorizer authz.Authorizer,
 	factories map[string]ComponentFactory,

@@ -12,7 +12,7 @@ package e2e
 // ## 现在（框架根治后）
 //
 // 框架把 buildAudit 移到数据客户端之后，并给 AuditProvider 增 res 参数
-// （*appkit.AppKit）——后端构造期即可取已装配的 DB。故惰性包装已删除，
+// （*appkit.App）——后端构造期即可取已装配的 DB。故惰性包装已删除，
 // 生产 provider（`cmd/bald-admin/app/audit_wiring.go`）直持真实 *gorm.DB。
 //
 // 本测试覆盖**新语义**：

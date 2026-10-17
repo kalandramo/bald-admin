@@ -285,7 +285,7 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 
 	// 2) Store（bald-store-gorm，M4 起 DSN 可配置）。
 	// DB/Redis/MinIO 优先消费注入实例（WireDatabase/WireCache/WireStorage，
-	// FromBootstrap 阶段 B 经透传 provider 构造）；未注入才自建（既有测试与
+	// Serve 装配的阶段 B 经段驱动 Provider 构造）；未注入才自建（既有测试与
 	// 独立调用路径零改动）。默认 SQLite 内存库，生产经 env
 	// BALD_ADMIN_DB_DSN 切换到外部 PostgreSQL/MySQL。
 	db := DB

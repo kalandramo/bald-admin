@@ -4,9 +4,9 @@
 // 原决策＝「与 asynq 同款，走 WithExtraServers 逃生舱」。
 // **当前装配路径已是契约驱动**：
 //
-//	registries.go → sr.MustRegister(croncontract.Type, croncontract.Provider(
+//	assembly.go → croncontract.AppProvider(
 //	                    croncontract.WithJobs(registerCronJobs)))
-//	assembly.go   → appkit.WithServerRegistry(serverRegistry(...))
+//	（段驱动 Provider，WithJobs 挂周期任务）
 //
 // 取代原因：契约 Cron 段字段已由 1 个扩到 **3 个**
 // （seconds、gracefully_shutdown、location），且

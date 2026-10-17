@@ -1,17 +1,24 @@
 package app
 
 // assembly_middleware_test.go —— 契约中间件段（server.http.middleware.*）
-// 经 bundle.FromMiddleware 接入生产装配路径的端到端验证。
+// 经生产装配路径接入的端到端验证。
 //
 // ## 为什么写在这里
 //
-// 与 assembly_e2e_test.go 同一动机：驱动**真实**的 buildApp 装配路径，而非
-// 自建 bundle。若有人把 FromMiddleware 从 buildApp 里摘掉、或链序回退，这里会红。
+// 与 assembly_e2e_test.go 同一动机：驱动**真实的** Serve + appOptions 装配路径，
+// 而非自建 bundle。若有人把 FromMiddleware 从 BeforeStart 里摘掉、或链序回退，
+// 这里会红。
 //
 // ## 验证什么
 //
 // 契约段 → FromMiddleware → bundle → gin 链。断言装配后的真实服务在 HTTP 请求上
 // 体现契约配置的行为（响应头），而非「函数被调用过」。
+//
+// ## 批 2 时序变化（断言不变）
+//
+// 中间件段原在构造期读预装载契约装配；批 2 起 Serve 内部持有契约，装配移到
+// BeforeStart（装载链后、server 构造前）——仍先于监听，非法值依旧启动期报错
+//（TestAssemblyPath_InvalidMiddlewareFailsFast 钉住），且现在吃到四源终值。
 
 import (
 	"context"
@@ -25,13 +32,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	bconf "github.com/kalandramo/bald/bconf"
 	"github.com/kalandramo/bald/pkg/appkit"
 
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 )
 
-// middlewareTestConfigFor 与原 e2e 配置同构，**唯一差异是加了 server.http.middleware 段**
+// middlewareTestConfigFor 与 e2e 配置同构，**唯一差异是加了 server.http.middleware 段**
 // ——故任何行为差异都可归因于该段。
 //
 // 端口由调用方传入动态空闲端口（见 testaddr_test.go 的根因说明）。
@@ -76,27 +82,43 @@ biz:
 `
 }
 
-// setupAssemblyWithConfig 把配置写入临时工作目录并切到该目录（与既有 e2e 同款：
-// buildApp 内 WithConfigFile(configFileDefault) 与 preloadBootstrap 均以 cwd
-// 解析相对路径）。返回已构造但未启动的 AppKit。
-func setupAssemblyWithConfig(t *testing.T, cfgYAML string) (*appkit.AppKit, error) {
+// setupAssemblyWithConfig 把配置写入临时工作目录并切到该目录（与 e2e 同款：
+// Serve 以 ConfigFile 声明的相对路径装载配置）。返回驱动装配的 Option 清单——
+// 由调用方经 appkit.Serve 启动（生产路径：声明与运行同源）。
+func setupAssemblyWithConfig(t *testing.T, cfgYAML string) []appkit.Option {
 	t.Helper()
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "configs"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "configs", "bald-admin.yaml"),
 		[]byte(cfgYAML), 0o644))
 	t.Chdir(dir)
+	return appOptions(options.NewServerOptions())
+}
 
-	bootstrapCfg := bconf.NewBootstrap()
-	bootstrapCfg.GetApp().Name = "bald-admin-mw-e2e"
-	bootstrapCfg.GetApp().Version = "v0.1.0"
-	svrOpts := options.NewServerOptions()
-
-	cfgReg, err := preloadBootstrap(bootstrapCfg)
-	require.NoError(t, err, "配置源预装载")
-
-	app, _, err := buildApp(bootstrapCfg, svrOpts, cfgReg)
-	return app, err
+// serveUntilReady 启动 Serve 并等待端口可连；返回停机函数与错误通道。
+func serveUntilReady(t *testing.T, opts []appkit.Option, httpAddr string) (func(), <-chan error) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	runErr := make(chan error, 1)
+	go func() { runErr <- appkit.Serve(ctx, opts...) }()
+	require.Eventually(t, func() bool {
+		c, derr := net.DialTimeout("tcp", httpAddr, 200*time.Millisecond)
+		if derr != nil {
+			return false
+		}
+		_ = c.Close()
+		return true
+	}, 30*time.Second, 200*time.Millisecond, "服务未在超时内监听（装配链可能失败）")
+	stop := func() {
+		cancel()
+		select {
+		case err := <-runErr:
+			assert.NoError(t, err, "Serve 应正常停机")
+		case <-time.After(30 * time.Second):
+			t.Fatal("app 未在停机超时内退出")
+		}
+	}
+	return stop, runErr
 }
 
 // TestAssemblyPath_MiddlewareFromConfig 契约 middleware 段经生产装配路径生效。
@@ -106,23 +128,10 @@ func setupAssemblyWithConfig(t *testing.T, cfgYAML string) (*appkit.AppKit, erro
 //   - cors 各字段 → 响应带对应 Access-Control-* 头（含 exposed_headers/max_age）。
 func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
 	httpAddr := mustPort(t, freeTCPAddr(t))
-	app, err := setupAssemblyWithConfig(t,
+	opts := setupAssemblyWithConfig(t,
 		middlewareTestConfigFor(httpAddr, mustPort(t, freeTCPAddr(t))))
-	require.NoError(t, err, "buildApp 装配")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	runErr := make(chan error, 1)
-	go func() { runErr <- app.Run(ctx) }()
-
-	require.Eventually(t, func() bool {
-		c, derr := net.DialTimeout("tcp", httpAddr, 200*time.Millisecond)
-		if derr != nil {
-			return false
-		}
-		_ = c.Close()
-		return true
-	}, 30*time.Second, 200*time.Millisecond, "服务未在超时内监听")
+	stop, _ := serveUntilReady(t, opts, httpAddr)
 
 	// 请求**必须由 gin 处理**才能观察到全局中间件：
 	//   - /healthz 由 appkit 的探针 ServeMux 在 gin 之外直接响应（withProbes），
@@ -154,13 +163,7 @@ func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
 	assert.Equal(t, "1800", resp.Header.Get("Access-Control-Max-Age"),
 		"middleware.cors.max_age 未生效")
 
-	cancel()
-	select {
-	case err := <-runErr:
-		assert.NoError(t, err, "Run 应正常停机（含 http-middleware 停机 Effect）")
-	case <-time.After(30 * time.Second):
-		t.Fatal("app 未在停机超时内退出")
-	}
+	stop()
 }
 
 // TestAssemblyPath_MiddlewareOnBusinessRoute 配置的 cors 段必须在**真实业务
@@ -171,22 +174,10 @@ func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
 // 移除组内 CORS、统一走全局链的目的。
 func TestAssemblyPath_MiddlewareOnBusinessRoute(t *testing.T) {
 	httpAddr := mustPort(t, freeTCPAddr(t))
-	app, err := setupAssemblyWithConfig(t,
+	opts := setupAssemblyWithConfig(t,
 		middlewareTestConfigFor(httpAddr, mustPort(t, freeTCPAddr(t))))
-	require.NoError(t, err, "buildApp 装配")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	runErr := make(chan error, 1)
-	go func() { runErr <- app.Run(ctx) }()
-	require.Eventually(t, func() bool {
-		c, derr := net.DialTimeout("tcp", httpAddr, 200*time.Millisecond)
-		if derr != nil {
-			return false
-		}
-		_ = c.Close()
-		return true
-	}, 30*time.Second, 200*time.Millisecond, "服务未在超时内监听")
+	stop, _ := serveUntilReady(t, opts, httpAddr)
 
 	// /v1/ping 是真实业务路由（此前该组自带 CORS，是覆盖点）。
 	req, rerr := http.NewRequest(http.MethodGet, "http://localhost"+httpAddr+"/v1/ping", nil)
@@ -201,17 +192,11 @@ func TestAssemblyPath_MiddlewareOnBusinessRoute(t *testing.T) {
 	assert.Equal(t, "X-Total-Count", resp.Header.Get("Access-Control-Expose-Headers"),
 		"业务路由上配置的 cors.exposed_headers 未生效")
 
-	cancel()
-	select {
-	case err := <-runErr:
-		assert.NoError(t, err, "Run 应正常停机")
-	case <-time.After(30 * time.Second):
-		t.Fatal("app 未在停机超时内退出")
-	}
+	stop()
 }
 
-// TestAssemblyPath_InvalidMiddlewareFailsFast 显式声明非法中间件值 → 装配期报错
-// （而非静默忽略配置）。
+// TestAssemblyPath_InvalidMiddlewareFailsFast 显式声明非法中间件值 → 启动期报错
+//（BeforeStart 内 fail-fast，先于监听——而非静默忽略配置）。
 func TestAssemblyPath_InvalidMiddlewareFailsFast(t *testing.T) {
 	const badCfg = `config:
   file:
@@ -231,7 +216,10 @@ logger:
         level: "error"
         format: "json"
 `
-	_, err := setupAssemblyWithConfig(t, badCfg)
-	require.Error(t, err, "非法 timeout 段应使装配 fail-fast")
+	_opts := setupAssemblyWithConfig(t, badCfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err := appkit.Serve(ctx, _opts...)
+	require.Error(t, err, "非法 timeout 段应使启动 fail-fast（BeforeStart，先于监听）")
 	assert.Contains(t, err.Error(), "timeout", "错误信息应指明 timeout 段")
 }

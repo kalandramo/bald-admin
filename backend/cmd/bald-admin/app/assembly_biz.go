@@ -69,7 +69,7 @@ func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 	dictBiz := dict.New(repos.DictType, repos.DictEntry, cache)
 	// T5：文件 biz——元数据仓储 起构造期注入（InitBridges 已赋值）。
 	// MinIO 桥接与 file.bucket 兜底桶名仍为运行期：storage.minio/s3 段经契约
-	// provider 在 FromBootstrap 阶段 B 构造，构造期可能为 nil，main.go 在
+	// provider 在 Serve 装配的阶段 B 构造，构造期可能为 nil，BeforeStart 在
 	// InitBridges 之后经 SetStorage/SetObjectStorage 补注；未配置时保持 nil，
 	// biz 内判 nil 返回明确错误。
 	fileBiz := file.New(repos.File, bootstrap.MinioStorage, bootstrap.FileBucket)

@@ -15,20 +15,20 @@ import (
 	"github.com/kalandramo/bald/pkg/authz"
 )
 
-// appRefT 是 AppKit 的线程安全迟到绑定句柄：管理面路由在 appkit.New 之前注册
+// appRefT 是 App 的线程安全迟到绑定句柄：管理面路由在 appkit.NewApp 之前注册
 // （gin 装配先于 app 构造），handler 闭包捕获 appRef、请求期读取最新 App 实例。
 type appRefT struct {
 	mu  sync.RWMutex
-	app *appkit.AppKit
+	app *appkit.App
 }
 
-func (r *appRefT) set(a *appkit.AppKit) {
+func (r *appRefT) set(a *appkit.App) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.app = a
 }
 
-func (r *appRefT) get() *appkit.AppKit {
+func (r *appRefT) get() *appkit.App {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.app
@@ -42,10 +42,10 @@ type heartbeatComp struct {
 	name  string
 	stop  chan struct{}
 	done  chan struct{}
-	appFn func() *appkit.AppKit
+	appFn func() *appkit.App
 }
 
-func newHeartbeatComponent(appFn func() *appkit.AppKit) appkit.Component {
+func newHeartbeatComponent(appFn func() *appkit.App) appkit.Component {
 	return &heartbeatComp{
 		name:  "demo.heartbeat",
 		stop:  make(chan struct{}),

@@ -13,10 +13,10 @@ func newAuditSettings(backends string) map[string]any {
 	return map[string]any{"audit": map[string]any{"backends": backends}}
 }
 
-// newReconcileApp 造一个最小 AppKit 测试装置并标记运行态（免去启动 server）。
-// reconcileAudit 走 ReconcileCtx.Mount/Unmount → AppKit.MountComponent，后者要求
+// newReconcileApp 造一个最小 App 测试装置并标记运行态（免去启动 server）。
+// reconcileAudit 走 ReconcileCtx.Mount/Unmount → App.MountComponent，后者要求
 // running==true；跨 module 测试用框架提供的 NewHarness 装置直接进入运行态。
-func newReconcileApp() *appkit.AppKit {
+func newReconcileApp() *appkit.App {
 	return appkit.NewHarness()
 }
 

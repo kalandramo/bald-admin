@@ -1,6 +1,6 @@
 package app
 
-// assembly_e2e_test.go —— ：**端到端装配路径**测试。
+// assembly_e2e_test.go —— **端到端装配路径**测试。
 //
 // ## 为什么必须有它
 //
@@ -8,11 +8,11 @@ package app
 // BizSet / 手动赋包级变量，**绕过了 main 的装配路径**。
 //   - M10.1：构造期把 nil 认证器传给 RegisterRoutes，gin 认证对 nil 退化为
 //     空操作 → HTTP 认证在**生产路径**一直未生效；
-//   - ：同理导致登出吊销检查在生产路径静默失效。
+//   - 同理导致登出吊销检查在生产路径静默失效。
 //
-// 本测试驱动 `buildApp`（生产装配入口），断言「服务真实监听后，认证器/授权器/
-// 仓储均已就绪且非 nil」——若装配顺序回退（如又把 biz 构造挪回构造期、或路由
-// 注册早于 TokenStore 构造），这里会红。
+// 本测试驱动 appkit.Serve + appOptions（生产装配声明），断言「服务真实监听后，
+// 认证器/授权器/仓储均已就绪且非 nil」——若装配顺序回退（如又把 biz 构造挪回
+// 构造期、或路由注册早于 TokenStore 构造），这里会红。
 //
 // ## 就绪判据为什么用「端口可连」
 //
@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	bconf "github.com/kalandramo/bald/bconf"
+	"github.com/kalandramo/bald/pkg/appkit"
 
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 	"github.com/kalandramo/bald-admin/internal/bootstrap"
@@ -39,7 +39,7 @@ import (
 
 // sqliteTestConfigFor 生成「不依赖任何远程服务」的装配测试配置（剥离 nacos/otlp/minio，
 // 数据库走 SQLite 文件）。config.file.path 指向自身——契约 config 段是引导信息，
-// 与 appkit 的 --config 两阶段装载同源。
+// 与 Serve 内部 --config 两阶段装载同源。
 //
 // httpPort/grpcPort 由调用方传入**动态空闲端口**（见 testaddr_test.go 的根因说明：
 // 硬编码端口会被残留进程冒名顶替，导致就绪判据失真）。
@@ -71,8 +71,8 @@ biz:
 `
 }
 
-// TestAssemblyPath_ReadyAfterStart 驱动真实装配路径，断言服务监听后
-// 认证器/授权器/仓储均已构造（非 nil）。
+// TestAssemblyPath_ReadyAfterStart 驱动真实装配路径（Serve + appOptions），
+// 断言服务监听后认证器/授权器/仓储均已构造（非 nil）。
 //
 // RED 场景（本测试要防的回退）：若 InitializeBiz 又被挪回构造期（早于
 // InitBridges），或 biz 恢复「请求期读包级变量」，则装配出的是 nil 快照——
@@ -86,26 +86,16 @@ func TestAssemblyPath_ReadyAfterStart(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "configs"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "configs", "bald-admin.yaml"),
 		[]byte(sqliteTestConfigFor(mustPort(t, httpAddr), mustPort(t, grpcAddr))), 0o644))
-	// buildApp → newApp 内 WithConfigFile(configFileDefault) 用相对路径，preloadBootstrap
-	// 同样以 configFileDefault 解析 os.Args——切到临时目录使二者都命中。
+	// Serve 内部以 ConfigFile 声明的相对路径装载配置——切到临时目录使命中。
 	t.Chdir(dir)
 
-	// 装配前置：构造 bootstrap 契约（与 serveRunE 同款最小化）。
-	bootstrapCfg := bconf.NewBootstrap()
-	bootstrapCfg.GetApp().Name = "bald-admin-assembly-e2e"
-	bootstrapCfg.GetApp().Version = "v0.1.0"
 	svrOpts := options.NewServerOptions()
 
-	cfgReg, err := preloadBootstrap(bootstrapCfg)
-	require.NoError(t, err, "配置源预装载")
-
-	app, _, err := buildApp(bootstrapCfg, svrOpts, cfgReg)
-	require.NoError(t, err, "buildApp 装配")
-
-	// 启动：Run 执行 beforeStart 链（InitBridges → 业务装配 → 路由/服务注册 → 监听）。
+	// 启动：Serve = --config 解析 + 契约预装载 + 段驱动装配 + Run
+	//（beforeStart 链：InitBridges → 业务装配 → 路由/服务注册 → 监听）。
 	ctx, cancel := context.WithCancel(context.Background())
 	runErr := make(chan error, 1)
-	go func() { runErr <- app.Run(ctx) }()
+	go func() { runErr <- appkit.Serve(ctx, appOptions(svrOpts)...) }()
 
 	// 就绪判据：端口可连（监听发生在整条装配链之后）。
 	// 端口为本次运行专属的空闲端口——不会被残留进程冒名顶替（见 testaddr_test.go）。
@@ -124,7 +114,7 @@ func TestAssemblyPath_ReadyAfterStart(t *testing.T) {
 	assert.NotNil(t, bootstrap.Signer, "签发器应已构造")
 	// 仓储经 InitBridges 返回值建立——本测试走生产装配路径（拿不到返回值），
 	// 故经 LastRepositories() 观察。先断言聚合本身非 nil，再解引用其字段
-	// （否则聚合为 nil 时断言会 panic 而非给出可读失败信息）。
+	//（否则聚合为 nil 时断言会 panic 而非给出可读失败信息）。
 	br := bootstrap.LastRepositories()
 	require.NotNil(t, br, "仓储聚合应已构造（InitBridges 在装配链内执行）")
 	assert.NotNil(t, br.User, "用户仓储应已构造")
@@ -134,7 +124,7 @@ func TestAssemblyPath_ReadyAfterStart(t *testing.T) {
 	cancel()
 	select {
 	case err := <-runErr:
-		assert.NoError(t, err, "Run 应以正常停机退出，而非装配错误")
+		assert.NoError(t, err, "Serve 应以正常停机退出，而非装配错误")
 	case <-time.After(30 * time.Second):
 		t.Fatal("app 未在停机超时内退出")
 	}
