@@ -39,8 +39,17 @@ func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticato
 	hgin.RegisterServiceInfo(e)
 	hgin.RegisterOpenAPI(e)
 	hgin.RegisterAuth(e, authenticator, authorizer, biz.Auth, biz.Secret)
-	hgin.RegisterTenant(e, authenticator, authorizer, biz.Tenant)
-	hgin.RegisterUser(e, authenticator, authorizer, biz.User)
+	// 批 4 域形态迁移（混合态）：tenant/user 路由改由各自域声明的 Routes 注册
+	//（internal/apiserver/domains/{tenantd,userd}；生产装配不再向 BizSet 填充
+	// 这两域）。nil 守卫后的本路径仅剩 handler 级 e2e 使用（e2e 以字面量直构
+	// BizSet）——生产路径两字段为 nil，跳过即无双注册；若装配面误填字段与域
+	// Routes 并存，gin 对重复路由 panic，当场暴露。
+	if biz.Tenant != nil {
+		hgin.RegisterTenant(e, authenticator, authorizer, biz.Tenant)
+	}
+	if biz.User != nil {
+		hgin.RegisterUser(e, authenticator, authorizer, biz.User)
+	}
 	hgin.RegisterMenu(e, authenticator, authorizer, biz.Menu)
 	hgin.RegisterPermission(e, authenticator, authorizer, biz.Permission)
 	hgin.RegisterDict(e, authenticator, authorizer, biz.Dict)

@@ -38,8 +38,6 @@ import (
 	portalbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/portal"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 	"github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/cache"
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
@@ -53,6 +51,12 @@ import (
 //
 // 各 biz 的仓储改为**构造期注入**（此前 biz 在请求期读 bootstrap 包级变量）。
 // 仓储经参数传入（InitBridges 的返回值 Repositories），bootstrap 不再有包级 store 变量。
+//
+// 批 4 域形态迁移（混合态）：tenant/user 两域改由各自域声明包的 Wire 构造
+//（internal/apiserver/domains/{tenantd,userd}，经 Deps getter 取 repos），
+// 本函数不再构造它们；BizSet 的 Tenant/User 字段保留——仅作 handler 级 e2e
+// 直构的接线位（22 个 e2e 以字面量填充），生产装配面不再填充。其余 19 域
+// 迁移时照此办理：删两行构造 + 摘掉字面量字段，域 Wire 接管。
 func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 	mainSigner := provideSigner()
 	biz := auth.New(mainSigner, repos.User, repos.Tenant, bootstrap.ReloadPolicies)
@@ -62,8 +66,6 @@ func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 		return nil, err
 	}
 	secretBiz := secret.New(repos.Secret, cache)
-	tenantBiz := tenant.New(repos.Tenant)
-	userBiz := user.New(repos.User)
 	menuBiz := menu.New(repos.Menu)
 	permissionBiz := permission.New(repos.Permission, repos.RolePolicy)
 	dictBiz := dict.New(repos.DictType, repos.DictEntry, cache)
@@ -102,8 +104,6 @@ func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 	bizSet := &apiserver.BizSet{
 		Auth:         biz,
 		Secret:       secretBiz,
-		Tenant:       tenantBiz,
-		User:         userBiz,
 		Menu:         menuBiz,
 		Permission:   permissionBiz,
 		Dict:         dictBiz,

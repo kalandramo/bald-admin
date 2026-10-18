@@ -20,9 +20,9 @@ import (
 	menuv1 "github.com/kalandramo/bald-admin/api/gen/go/menu/v1"
 	permissionv1 "github.com/kalandramo/bald-admin/api/gen/go/permission/v1"
 	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/secret/v1"
-	tenantv1 "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1"
-	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
+	tenantd "github.com/kalandramo/bald-admin/internal/apiserver/domains/tenantd"
+	userd "github.com/kalandramo/bald-admin/internal/apiserver/domains/userd"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
@@ -47,6 +47,7 @@ import (
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/middleware/bundle"
+	"github.com/kalandramo/bald/pkg/store"
 	nacoscontract "github.com/kalandramo/bald/registry/nacos/contract"
 	"github.com/kalandramo/bald/transport/asynq"
 	asynqcontract "github.com/kalandramo/bald/transport/asynq/contract"
@@ -99,6 +100,10 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// appkit.WithGRPCOptions 的选项工厂与 sseServerProvider 的授权钩子。
 		authenticator authn.Authenticator
 		authorizer    authz.Authorizer
+		// repos 同样提升到函数作用域：InitBridges 返回值原为 BeforeStart 闭包局部，
+		// 批 4 起域清单的 Deps getter（下方 opts 内）也要读它。闭包内赋值用 `=`
+		//（`:=` 会新建同名变量，外层仍为 nil——同 bizSet 的纪律）。
+		repos *bootstrappkg.Repositories
 	)
 
 	// 管理面：运行期组件观测与热插拔（工厂目录由业务定义——核心只管挂载原语）。
@@ -134,8 +139,6 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// secret 的 DeleteSecret 同经 biz 真实删除（gRPC 直连与 gateway 转码共用）。
 	registerGRPC := func(s *grpc.Server) {
 		adminv1.RegisterSecretServiceServer(s, secretgrpc.NewServer(bizSet.Secret))
-		tenantv1.RegisterTenantServiceServer(s, secretgrpc.NewTenantServer(bizSet.Tenant))
-		userv1.RegisterUserServiceServer(s, secretgrpc.NewUserServer(bizSet.User))
 		menuv1.RegisterMenuServiceServer(s, secretgrpc.NewMenuServer(bizSet.Menu))
 		permissionv1.RegisterPermissionServiceServer(s, secretgrpc.NewPermissionServer(bizSet.Permission))
 		dictv1.RegisterDictTypeServiceServer(s, secretgrpc.NewDictTypeServer(bizSet.Dict))
@@ -206,6 +209,24 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// SSE：server.sse 段。授权钩子与 message 域推流接线经 Option 注入
 		//（见 sse.go）；段缺失即跳过——「不启用」= 移除 sse 段。
 		sseServerProvider(func() authn.Authenticator { return authenticator }, func() *apiserver.BizSet { return bizSet }),
+
+		// --- 业务域声明（域形态，批 4 起：tenant/user 先行，其余 19 域随批跟进）---
+		// 手写域清单（bald-admin 无 domains.gen.go，W3 生成物落地前的清单承载
+		// 形态——与上方 Provider 清单并列；Domain 实现 Option，变参直传 MustServe）。
+		// 基础设施取用约定：store/authn/authz 住装配层（InitBridges 与 BeforeStart
+		// 构造），域经 Deps getter 迟到取用——getter 读本函数作用域变量（闭包内
+		// `=` 赋值纪律同 bizSet）；域 Wire 晚于业务 BeforeStart 执行（bald/pkg/
+		// appkit/domain.go 时序窗口），getter 届时返回已就绪实例。
+		tenantd.Domain(tenantd.Deps{
+			Store: func() *store.Store[authmodel.Tenant] { return repos.Tenant },
+			Authn: func() authn.Authenticator { return authenticator },
+			Authz: func() authz.Authorizer { return authorizer },
+		}),
+		userd.Domain(userd.Deps{
+			Store: func() *store.Store[authmodel.User] { return repos.User },
+			Authn: func() authn.Authenticator { return authenticator },
+			Authz: func() authz.Authorizer { return authorizer },
+		}),
 
 		// --- 配置命名空间与本地文件 ---
 		// env 前缀（BALD_ADMIN_*）由契约 app.name 派生（B6 两遍合并）——
@@ -336,7 +357,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			// 在 bootstrap 包内装配 bald 桥接（注入 Authenticator / Authorizer /
 			// store.RegisterTenant / store.RegisterDataScope）。
 			// 仓储经返回值显式取出（不再写包级变量）。
-			repos, err := bootstrappkg.InitBridges(ctx)
+			repos, err = bootstrappkg.InitBridges(ctx)
 			if err != nil {
 				return fmt.Errorf("init bridges: %w", err)
 			}

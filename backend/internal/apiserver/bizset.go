@@ -29,9 +29,17 @@ import (
 // 与 §0「外部依赖禁止 fake/mock/stub」契约一致（无 mockgen 场景即无需接口抽象）。
 // 新增域只改两处：本结构扩一个字段 + RegisterRoutes 挂一行 handler
 // （此前 wire.go / wire_gen.go / server.go 三处签名联动）。
+//
+// 批 4 域形态迁移进行中（混合态）：已迁域（tenant/user，其余 19 域随批跟进）
+// 的生产构造移交域声明包（internal/apiserver/domains/<d> 的 Wire），本结构
+// 对应字段退化为 handler 级 e2e 的直构接线位——生产装配不填充（nil），
+// RegisterRoutes 的 nil 守卫跳过、域 Routes 承担注册。全部迁完后本结构与
+// RegisterRoutes 的逐域行一并溶解。
 type BizSet struct {
 	Auth       *authbiz.Biz
 	Secret     *secretbiz.SecretBiz
+	// Tenant/User（批 4 混合态）：生产构造已迁往 domains/tenantd、domains/userd
+	// 的域 Wire；字段保留仅为 handler 级 e2e 直构接线，生产装配不填充（nil）。
 	Tenant     *tenantbiz.Biz
 	User       *userbiz.Biz
 	Menu       *menubiz.Biz
