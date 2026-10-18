@@ -38,23 +38,38 @@ func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticato
 
 	hgin.RegisterServiceInfo(e)
 	hgin.RegisterOpenAPI(e)
-	hgin.RegisterAuth(e, authenticator, authorizer, biz.Auth, biz.Secret)
-	// 批 4 域形态迁移（混合态）：tenant/user 路由改由各自域声明的 Routes 注册
-	//（internal/apiserver/domains/{tenantd,userd}；生产装配不再向 BizSet 填充
-	// 这两域）。nil 守卫后的本路径仅剩 handler 级 e2e 使用（e2e 以字面量直构
-	// BizSet）——生产路径两字段为 nil，跳过即无双注册；若装配面误填字段与域
-	// Routes 并存，gin 对重复路由 panic，当场暴露。
+	hgin.RegisterAuth(e, authenticator, authorizer, biz.Auth)
+	// 批 4 域形态迁移（混合态）：10 域（第一波 tenant/user；第二波 secret/menu/
+	// permission/dict/file/auditlog/org/language）路由改由各自域声明的 Routes
+	// 注册（internal/apiserver/domains/<d>d；生产装配不再向 BizSet 填充这些域）。
+	// nil 守卫后的本路径仅剩 handler 级 e2e 使用（e2e 以字面量直构 BizSet）——
+	// 生产路径对应字段为 nil，跳过即无双注册；若装配面误填字段与域 Routes
+	// 并存，gin 对重复路由 panic，当场暴露。secret 的 HTTP 面迁移前住 RegisterAuth
+	// 尾部，本波拆出为同目录 RegisterSecret，此处经同款守卫注册（e2e 通道不变）。
 	if biz.Tenant != nil {
 		hgin.RegisterTenant(e, authenticator, authorizer, biz.Tenant)
 	}
 	if biz.User != nil {
 		hgin.RegisterUser(e, authenticator, authorizer, biz.User)
 	}
-	hgin.RegisterMenu(e, authenticator, authorizer, biz.Menu)
-	hgin.RegisterPermission(e, authenticator, authorizer, biz.Permission)
-	hgin.RegisterDict(e, authenticator, authorizer, biz.Dict)
-	hgin.RegisterFile(e, authenticator, authorizer, biz.File)
-	hgin.RegisterAudit(e, authenticator, authorizer, biz.AuditLog)
+	if biz.Secret != nil {
+		hgin.RegisterSecret(e, authenticator, authorizer, biz.Secret)
+	}
+	if biz.Menu != nil {
+		hgin.RegisterMenu(e, authenticator, authorizer, biz.Menu)
+	}
+	if biz.Permission != nil {
+		hgin.RegisterPermission(e, authenticator, authorizer, biz.Permission)
+	}
+	if biz.Dict != nil {
+		hgin.RegisterDict(e, authenticator, authorizer, biz.Dict)
+	}
+	if biz.File != nil {
+		hgin.RegisterFile(e, authenticator, authorizer, biz.File)
+	}
+	if biz.AuditLog != nil {
+		hgin.RegisterAudit(e, authenticator, authorizer, biz.AuditLog)
+	}
 	if biz.MFA != nil {
 		hgin.RegisterMFA(e, authenticator, authorizer, biz.MFA)
 	}

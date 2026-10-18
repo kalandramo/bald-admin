@@ -20,23 +20,15 @@ import (
 	"os"
 
 	"github.com/kalandramo/bald-admin/internal/apiserver"
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	cmbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/cachemonitor"
 	dashbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dashboard"
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
 	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
-	langbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/language"
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
 	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
-	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
 	pgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
 	planbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/plan"
 	portalbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/portal"
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 	"github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/cache"
@@ -52,38 +44,21 @@ import (
 // 各 biz 的仓储改为**构造期注入**（此前 biz 在请求期读 bootstrap 包级变量）。
 // 仓储经参数传入（InitBridges 的返回值 Repositories），bootstrap 不再有包级 store 变量。
 //
-// 批 4 域形态迁移（混合态）：tenant/user 两域改由各自域声明包的 Wire 构造
-//（internal/apiserver/domains/{tenantd,userd}，经 Deps getter 取 repos），
-// 本函数不再构造它们；BizSet 的 Tenant/User 字段保留——仅作 handler 级 e2e
-// 直构的接线位（22 个 e2e 以字面量填充），生产装配面不再填充。其余 19 域
-// 迁移时照此办理：删两行构造 + 摘掉字面量字段，域 Wire 接管。
+// 批 4 域形态迁移（混合态）：10 域已改由各自域声明包的 Wire 构造
+// （internal/apiserver/domains/<d>d，经 Deps getter 取 repos 等），本函数不再
+// 构造它们——第一波 tenant/user，第二波 secret/menu/permission/dict/file/
+// auditlog/org/language（连同 file 的存储补注与 secret/dict 的 Cache-Aside
+// 接线：抉择逻辑住装配层，域经 Deps getter 迟到取用）；BizSet 对应字段保留
+// ——仅作 handler 级 e2e 直构的接线位（e2e 以字面量填充），生产装配面不再
+// 填充。其余域迁移时照此办理：删构造行 + 摘掉字面量字段，域 Wire 接管。
 func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 	mainSigner := provideSigner()
 	biz := auth.New(mainSigner, repos.User, repos.Tenant, bootstrap.ReloadPolicies)
-	mainRedisAddr := provideRedisAddr()
-	cache, err := newRedisCache(mainRedisAddr)
-	if err != nil {
-		return nil, err
-	}
-	secretBiz := secret.New(repos.Secret, cache)
-	menuBiz := menu.New(repos.Menu)
-	permissionBiz := permission.New(repos.Permission, repos.RolePolicy)
-	dictBiz := dict.New(repos.DictType, repos.DictEntry, cache)
-	// T5：文件 biz——元数据仓储 起构造期注入（InitBridges 已赋值）。
-	// MinIO 桥接与 file.bucket 兜底桶名仍为运行期：storage.minio/s3 段经契约
-	// provider 在 Serve 装配的阶段 B 构造，构造期可能为 nil，BeforeStart 在
-	// InitBridges 之后经 SetStorage/SetObjectStorage 补注；未配置时保持 nil，
-	// biz 内判 nil 返回明确错误。
-	fileBiz := file.New(repos.File, bootstrap.MinioStorage, bootstrap.FileBucket)
-	// T6：审计查询 biz（只读，数据由写路径审计落库）。
-	auditLogBiz := auditlog.New(repos.Audit)
 	// MFA biz——因子仓储构造期注入；挑战存储（Redis）仍在 BeforeStart
-	// 经 SetChallenges 补注（与 file.SetStorage / auth.SetCaptchaStore 同款时序约定）。
+	// 经 SetChallenges 补注（与 auth.SetCaptchaStore 同款时序约定）。
 	mfaBiz := mfabiz.New(repos.MFAFactor, nil)
 	// identity 扩展域（credential + login_policy）。
 	identityBiz := identitybiz.New(repos.Credential, repos.LoginPolicy)
-	// 组织架构（org_unit 树 + position）。
-	orgBiz := orgbiz.New(repos.OrgUnit, repos.Position, repos.User)
 	// 任务调度（scheduler 在 BeforeStart 后经 SetScheduler 注入）。
 	taskBiz := taskbiz.New(repos.Task)
 	// 站内消息（三表）。
@@ -95,29 +70,19 @@ func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
 	permGroupBiz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
 	// 套餐三件套。
 	planBiz := planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota)
-	languageBiz := langbiz.New(repos.Language)
 	portalBiz := portalbiz.New(repos.User, repos.Role,
 		repos.Permission, repos.Menu)
 	cacheMonitorBiz := cmbiz.New(bootstrap.RedisClient)
-	// T10：BizSet 收敛到 apiserver 包（bizset.go）；cache 留在装配局部
-	// （仅 secret/dict 消费，server 层不知缓存实现）。
+	// T10：BizSet 收敛到 apiserver 包（bizset.go）。
 	bizSet := &apiserver.BizSet{
 		Auth:         biz,
-		Secret:       secretBiz,
-		Menu:         menuBiz,
-		Permission:   permissionBiz,
-		Dict:         dictBiz,
-		File:         fileBiz,
-		AuditLog:     auditLogBiz,
 		MFA:          mfaBiz,
 		Identity:     identityBiz,
-		Org:          orgBiz,
 		Task:         taskBiz,
 		Message:      messageBiz,
 		Dashboard:    dashboardBiz,
 		PermGroup:    permGroupBiz,
 		Plan:         planBiz,
-		Language:     languageBiz,
 		Portal:       portalBiz,
 		CacheMonitor: cacheMonitorBiz,
 	}

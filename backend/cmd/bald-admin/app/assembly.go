@@ -13,17 +13,18 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
-	auditv1 "github.com/kalandramo/bald-admin/api/gen/go/audit/v1"
-	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
-	filev1 "github.com/kalandramo/bald-admin/api/gen/go/file/v1"
-	identityv1 "github.com/kalandramo/bald-admin/api/gen/go/identity/v1"
-	menuv1 "github.com/kalandramo/bald-admin/api/gen/go/menu/v1"
-	permissionv1 "github.com/kalandramo/bald-admin/api/gen/go/permission/v1"
-	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/secret/v1"
 	"github.com/kalandramo/bald-admin/internal/apiserver"
+	filestore "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
+	auditlogd "github.com/kalandramo/bald-admin/internal/apiserver/domains/auditlogd"
+	dictd "github.com/kalandramo/bald-admin/internal/apiserver/domains/dictd"
+	filed "github.com/kalandramo/bald-admin/internal/apiserver/domains/filed"
+	languaged "github.com/kalandramo/bald-admin/internal/apiserver/domains/languaged"
+	menud "github.com/kalandramo/bald-admin/internal/apiserver/domains/menud"
+	orgd "github.com/kalandramo/bald-admin/internal/apiserver/domains/orgd"
+	permissiond "github.com/kalandramo/bald-admin/internal/apiserver/domains/permissiond"
+	secretd "github.com/kalandramo/bald-admin/internal/apiserver/domains/secretd"
 	tenantd "github.com/kalandramo/bald-admin/internal/apiserver/domains/tenantd"
 	userd "github.com/kalandramo/bald-admin/internal/apiserver/domains/userd"
-	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
@@ -33,12 +34,15 @@ import (
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
+	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	baldconfig "github.com/kalandramo/bald/bootstrap/config"
+	"github.com/kalandramo/bald/cache"
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
 	storegorm "github.com/kalandramo/bald/contrib/store-gorm"
 	"github.com/kalandramo/bald/health"
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/log/bslog"
+	miniooss "github.com/kalandramo/bald/oss/minio"
 	miniocontract "github.com/kalandramo/bald/oss/minio/contract"
 	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -54,7 +58,6 @@ import (
 	"github.com/kalandramo/bald/transport/cron"
 	croncontract "github.com/kalandramo/bald/transport/cron/contract"
 	gatewaycontract "github.com/kalandramo/bald/transport/gateway/contract"
-	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 )
 
 // serveRunE 是根命令的 RunE——bald-admin 的**启动主流程**。
@@ -104,6 +107,10 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 批 4 起域清单的 Deps getter（下方 opts 内）也要读它。闭包内赋值用 `=`
 		//（`:=` 会新建同名变量，外层仍为 nil——同 bizSet 的纪律）。
 		repos *bootstrappkg.Repositories
+		// bizCache 供 secret/dict 两域的 Deps.Cache getter 读取：BeforeStart 内
+		// 解析「配置驱动 RedisCache 优先、env 兼容通道兜底」（赋值点见 BeforeStart，
+		// 域 Wire 晚于其执行，getter 届时读到已抉择的实例）。
+		bizCache cache.Cache
 	)
 
 	// 管理面：运行期组件观测与热插拔（工厂目录由业务定义——核心只管挂载原语）。
@@ -135,21 +142,13 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// 无中间件资源时保持 no-op。
 	mwClose := func() error { return nil }
 
-	// gRPC service 注册回调捕获 BeforeStart 装配的 biz（全部 service 需 biz 注入）。
-	// secret 的 DeleteSecret 同经 biz 真实删除（gRPC 直连与 gateway 转码共用）。
-	registerGRPC := func(s *grpc.Server) {
-		adminv1.RegisterSecretServiceServer(s, secretgrpc.NewServer(bizSet.Secret))
-		menuv1.RegisterMenuServiceServer(s, secretgrpc.NewMenuServer(bizSet.Menu))
-		permissionv1.RegisterPermissionServiceServer(s, secretgrpc.NewPermissionServer(bizSet.Permission))
-		dictv1.RegisterDictTypeServiceServer(s, secretgrpc.NewDictTypeServer(bizSet.Dict))
-		dictv1.RegisterDictEntryServiceServer(s, secretgrpc.NewDictEntryServer(bizSet.Dict))
-		filev1.RegisterFileServiceServer(s, secretgrpc.NewFileServer(bizSet.File))
-		auditv1.RegisterAuditServiceServer(s, secretgrpc.NewAuditServer(bizSet.AuditLog))
-		// 组织架构（org_unit 7 rpc + position 7 rpc）。
-		// 授权 object 经别名层落到策略 "org-units"/"positions"（见 bootstrap.grpcObjectAliases）。
-		identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(bizSet.Org))
-		identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(bizSet.Org))
-	}
+	// gRPC service 注册回调。批 4 第二波后**暂留空**：原 9 行登记
+	//（secret/menu/permission/dict×2/file/auditlog/org×2——secret 的 DeleteSecret
+	// 亦经 biz 真实删除，gRPC 直连与 gateway 转码共用）已随各域声明迁往
+	// domains/<d>d 的 Services（同一 *grpc.Server 实例，框架逐域回调；漏迁会因
+	// gen api 包 import 残留/缺失被编译器当场指出）。混合态收尾（全部域迁完）
+	// 时随 WithGRPC 一并评估去留。
+	registerGRPC := func(s *grpc.Server) {}
 
 	opts := []appkit.Option{
 		// --- 框架自有后端 + 第三方 Provider（批 2 目标形态，评估 §4.1/§4.2）---
@@ -224,6 +223,60 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		}),
 		userd.Domain(userd.Deps{
 			Store: func() *store.Store[authmodel.User] { return repos.User },
+			Authn: func() authn.Authenticator { return authenticator },
+			Authz: func() authz.Authorizer { return authorizer },
+		}),
+		// --- 第二波 8 域（批 4 机械域：secret/menu/permission/dict/file/
+		// auditlog/org/language）---getter 形态同上：store 读 repos（InitBridges
+		// 产物），authn/authz 读 BeforeStart 构造的函数作用域变量；secret/dict
+		// 另读 bizCache（下方 BeforeStart 抉择），file 另读 bootstrap 的存储
+		// 桥接三件（WireStorage/Configure 产物）。
+		secretd.Domain(secretd.Deps{
+			Store: func() *store.Store[authmodel.Secret] { return repos.Secret },
+			Cache: func() cache.Cache { return bizCache },
+			Authn: func() authn.Authenticator { return authenticator },
+			Authz: func() authz.Authorizer { return authorizer },
+		}),
+		menud.Domain(menud.Deps{
+			Store: func() *store.Store[authmodel.Menu] { return repos.Menu },
+			Authn: func() authn.Authenticator { return authenticator },
+			Authz: func() authz.Authorizer { return authorizer },
+		}),
+		permissiond.Domain(permissiond.Deps{
+			Store:       func() *store.Store[authmodel.Permission] { return repos.Permission },
+			PolicyStore: func() *store.Store[authmodel.RolePolicy] { return repos.RolePolicy },
+			Authn:       func() authn.Authenticator { return authenticator },
+			Authz:       func() authz.Authorizer { return authorizer },
+		}),
+		dictd.Domain(dictd.Deps{
+			TypeStore:  func() *store.Store[authmodel.DictType] { return repos.DictType },
+			EntryStore: func() *store.Store[authmodel.DictEntry] { return repos.DictEntry },
+			Cache:      func() cache.Cache { return bizCache },
+			Authn:      func() authn.Authenticator { return authenticator },
+			Authz:      func() authz.Authorizer { return authorizer },
+		}),
+		filed.Domain(filed.Deps{
+			Store:         func() *store.Store[authmodel.File] { return repos.File },
+			ObjectStorage: func() filestore.ObjectStorage { return bootstrappkg.ObjectStorageBridge },
+			Minio:         func() *miniooss.Storage { return bootstrappkg.MinioStorage },
+			Bucket:        func() string { return bootstrappkg.FileBucket },
+			Authn:         func() authn.Authenticator { return authenticator },
+			Authz:         func() authz.Authorizer { return authorizer },
+		}),
+		auditlogd.Domain(auditlogd.Deps{
+			Store: func() *store.Store[authmodel.AuditRecord] { return repos.Audit },
+			Authn: func() authn.Authenticator { return authenticator },
+			Authz: func() authz.Authorizer { return authorizer },
+		}),
+		orgd.Domain(orgd.Deps{
+			OrgUnitStore:  func() *store.Store[authmodel.OrgUnit] { return repos.OrgUnit },
+			PositionStore: func() *store.Store[authmodel.Position] { return repos.Position },
+			UserStore:     func() *store.Store[authmodel.User] { return repos.User },
+			Authn:         func() authn.Authenticator { return authenticator },
+			Authz:         func() authz.Authorizer { return authorizer },
+		}),
+		languaged.Domain(languaged.Deps{
+			Store: func() *store.Store[authmodel.Language] { return repos.Language },
 			Authn: func() authn.Authenticator { return authenticator },
 			Authz: func() authz.Authorizer { return authorizer },
 		}),
@@ -395,29 +448,23 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			apiserver.RegisterRoutes(router, authenticator, authorizer, bizSet)
 			// 管理面：运行期组件观测与热插拔（appRef 在 provider Build 期绑定）。
 			registerAdminRoutes(router, appRef, authenticator, authorizer, componentFactories)
-			// 文件存储运行期接线。
-			//
-			// 此处已非必需：InitializeBiz 现于 InitBridges **之后**执行
-			//（上方），wire 构造 file biz 时 bootstrap.MinioStorage 已就绪，
-			// 「构造期值拷贝拿到 nil」的前提消失。保留为**幂等补注**——降级路径
-			//（storage 段未配置 → ObjectStorageBridge/MinioStorage 均 nil）下
-			// 两个分支都不写入，biz 内判 nil 返回明确错误，语义不变。
-			// 注 ObjectStorageBridge（按 storage.type 已包成 minio/s3
-			// 适配器）——minio 与 s3 走同一条接线，签名差异由适配层吸收。
-			if bootstrappkg.ObjectStorageBridge != nil {
-				bizSet.File.SetObjectStorage(bootstrappkg.ObjectStorageBridge, bootstrappkg.FileBucket)
-			} else {
-				bizSet.File.SetStorage(bootstrappkg.MinioStorage, bootstrappkg.FileBucket)
+			// secret/dict 两域的 Cache-Aside 后端解析（域 Wire 经 Deps.Cache getter
+			// 迟到读取；file 的存储补注同理已迁往 filed 的域 Wire——SetObjectStorage
+			// 对 nil 不覆盖，桥接未就绪保留构造期 minio 直连，语义与迁移前一致）：
+			// 配置驱动 RedisCache（cache.redis 段，含 password/db）优先；未配置段
+			// 回退 wire 的 env 兼容通道（BALD_ADMIN_REDIS_ADDR，仅地址——CI 覆盖
+			// 手段；addr 为空即禁用态 nil，biz 内判 nil 直连 store）。env 通道构造
+			// 保持**无条件**（Redis 不可达仍启动失败，与迁移前 InitializeBiz 的
+			// 错误路径逐点一致）。终态等价：迁移前=「env 构造注入 + 配置 SetCache
+			// 覆盖」，迁移后=「Wire 期一次抉择」，生效后端单一且同序（配置优先）。
+			envCache, err := newRedisCache(provideRedisAddr())
+			if err != nil {
+				return fmt.Errorf("build biz cache: %w", err)
 			}
-			// 同款时序：secret/dict 的 Cache-Aside 接入配置驱动的 RedisCache——
-			// cache.redis 段（含 password/db）只流向 bootstrap.RedisCache；wire 的
-			// env 通道只带地址、拿不到完整参数；不接线则配置驱动运行下缓存静默失效。
-			// 未配置段时 RedisCache 为 nil，SetCache 不覆盖，保留 wire env 通道
-			//（CI 覆盖手段）。SetCache 接收通用 KV 适配器（cache.Cache），biz 内部
-			// 包装为 loadable 读穿透缓存（loader 构造期绑定，从 key 反解业务参数）。
 			if bootstrappkg.RedisCache != nil {
-				bizSet.Secret.SetCache(bootstrappkg.RedisCache)
-				bizSet.Dict.SetCache(bootstrappkg.RedisCache)
+				bizCache = bootstrappkg.RedisCache
+			} else {
+				bizCache = envCache
 			}
 			// 登录限流接线（业务自持配置段 login.rate_limit.*）。框架契约的
 			// server.http.rate_limit 段是**中间件级**限流且当前零消费者，故业务级

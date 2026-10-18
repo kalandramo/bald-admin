@@ -18,20 +18,20 @@ import (
 	web "github.com/kalandramo/bald/transport/web"
 
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
-	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 )
 
-// RegisterAuth 挂载认证与受限资源路由。
+// RegisterAuth 挂载认证路由。
 //   - POST /v1/login            公开
 //   - GET  /v1/auth/whoami      需认证（任意已登录用户）→ 权限点 "auth:get"
-//   - GET  /v1/secret/:id       需认证 + "secret:get"（viewer/admin）
-//   - DEL  /v1/secret/:id       需认证 + "secret:delete"（仅 admin）
+//
+// 受限资源（secret）两路由原在本函数尾部——批 4 域形态迁移拆往同目录 secret.go
+// 的 RegisterSecret（secret 域的 Routes 独立委托；auth 域路由仍住 server.go，
+// 两域路由面必须可分别注册）。拆分保持路径/方法/中间件链逐行不变。
 func RegisterAuth(
 	e *gingonic.Engine,
 	authenticator authn.Authenticator,
 	authorizer authz.Authorizer,
 	biz *authbiz.Biz,
-	secretBiz *secretbiz.SecretBiz,
 ) {
 	e.POST("/v1/login", func(c *gingonic.Context) {
 		var cred authbiz.Credential
@@ -297,31 +297,6 @@ func RegisterAuth(
 			return
 		}
 		c.JSON(http.StatusOK, info)
-	})
-
-	authed.GET("/secret/:id", authzMW, func(c *gingonic.Context) {
-		// M6.3：经真实 DAL 读取，自动受 ctx 租户隔离约束；越权跨租户检索被 store 拦为 404。
-		item, err := secretBiz.Get(c.Request.Context(), c.Param("id"))
-		if err != nil {
-			writeBizErr(c, err) // NotFound→404（含跨租户）、缓存/内部→500
-			return
-		}
-		c.JSON(http.StatusOK, item)
-	})
-
-	authed.DELETE("/secret/:id", authzMW, func(c *gingonic.Context) {
-		// M6 CR 修复：真实删除，经 biz 落 store，自动受 ctx 租户隔离约束；
-		// 跨租户/不存在返回 404（与 Get 一致）。
-		ok, err := secretBiz.Delete(c.Request.Context(), c.Param("id"))
-		if err != nil {
-			writeBizErr(c, err) // NotFound→404、内部→500
-			return
-		}
-		if !ok {
-			web.ErrorResponse(c, berrors.NotFound("secret/not_found").WithMessage("secret not found"))
-			return
-		}
-		c.JSON(http.StatusOK, gingonic.H{"deleted": c.Param("id")})
 	})
 }
 
