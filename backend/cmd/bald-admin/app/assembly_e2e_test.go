@@ -76,8 +76,8 @@ biz:
 // TestAssemblyPath_ReadyAfterStart 驱动真实装配路径（Serve + appOptions），
 // 断言服务监听后认证器/授权器/仓储均已构造（非 nil）。
 //
-// RED 场景（本测试要防的回退）：若 InitializeBiz 又被挪回构造期（早于
-// InitBridges），或 biz 恢复「请求期读包级变量」，则装配出的是 nil 快照——
+// RED 场景（本测试要防的回退）：若 biz 构造又被挪回 InitBridges 之前（如已删
+// 的 InitializeBiz 形态），或 biz 恢复「请求期读包级变量」，则装配出的是 nil 快照——
 // 本测试将在服务起来后观察到 nil 而失败。
 func TestAssemblyPath_ReadyAfterStart(t *testing.T) {
 	// 动态端口（见 testaddr_test.go：固定端口会被残留进程冒名顶替）。

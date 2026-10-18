@@ -29,8 +29,7 @@ type Biz struct {
 	store *store.Store[authmodel.User]
 }
 
-// New 构造用户业务。st 是用户仓储（构造期注入——InitializeBiz 现于
-// InitBridges 之后执行，store 已就绪）。
+// New 构造用户业务。st 是用户仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(st *store.Store[authmodel.User]) *Biz { return &Biz{store: st} }
 
 // Get 取用户（租户内）。跨租户/不存在均 ErrNotFound（隔离由 Where.T 完成）。

@@ -31,8 +31,7 @@ type Biz struct {
 	challenges  mfa.ChallengeStore
 }
 
-// New 构造 MFA Biz。st 是 MFA 因子仓储（构造期注入——InitializeBiz 现于
-// InitBridges 之后执行，MFAFactorStore 已就绪）；challenges 为挑战存储，nil =
+// New 构造 MFA Biz。st 是 MFA 因子仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，MFAFactorStore 已就绪）；challenges 为挑战存储，nil =
 // 运行期经 SetChallenges 补注。
 func New(st *store.Store[authmodel.UserMFAFactor], challenges mfa.ChallengeStore) *Biz {
 	return &Biz{factorStore: st, challenges: challenges}

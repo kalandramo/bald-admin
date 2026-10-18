@@ -31,7 +31,7 @@ type Biz struct {
 }
 
 // New 构造权限业务。ps 是权限点仓储，rps 是角色策略仓储（构造期注入
-// ——InitializeBiz 现于 InitBridges 之后执行，两个 store 均已就绪）。
+// ——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，两个 store 均已就绪）。
 func New(ps *store.Store[authmodel.Permission], rps *store.Store[authmodel.RolePolicy]) *Biz {
 	return &Biz{permStore: ps, policyStore: rps}
 }

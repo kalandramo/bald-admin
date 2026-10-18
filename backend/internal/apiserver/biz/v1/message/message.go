@@ -83,7 +83,7 @@ type Biz struct {
 }
 
 // New 构造 Biz（无 SSE 推送能力）。ms/cs/rs/us 是消息本体/分类/收件记录/用户仓储
-// （构造期注入——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+// （构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(ms *store.Store[authmodel.InternalMessage], cs *store.Store[authmodel.InternalMessageCategory], rs *store.Store[authmodel.InternalMessageRecipient], us *store.Store[authmodel.User]) *Biz {
 	return &Biz{messageStore: ms, categoryStore: cs, recipientStore: rs, userStore: us}
 }

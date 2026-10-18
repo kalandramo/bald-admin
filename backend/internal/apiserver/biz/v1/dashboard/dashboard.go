@@ -44,7 +44,7 @@ type Biz struct {
 }
 
 // New 构造 Biz。as/rs/us 是审计/角色/用户仓储（构造期注入——
-// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+// 域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(as *store.Store[authmodel.AuditRecord], rs *store.Store[authmodel.Role], us *store.Store[authmodel.User]) *Biz {
 	return &Biz{auditStore: as, roleStore: rs, userStore: us}
 }

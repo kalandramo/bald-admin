@@ -44,7 +44,7 @@ type Biz struct {
 }
 
 // New 构造 Biz。cs/lps 是凭证/登录策略仓储（构造期注入——
-// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+// 域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(cs *store.Store[authmodel.UserCredential], lps *store.Store[authmodel.LoginPolicy]) *Biz {
 	return &Biz{credentialStore: cs, loginPolicyStore: lps}
 }

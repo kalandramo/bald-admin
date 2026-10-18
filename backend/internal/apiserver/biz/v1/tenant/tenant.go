@@ -16,7 +16,7 @@ import (
 )
 
 // Biz 租户管理业务。store 是租户仓储（构造期注入，替代请求期读包级
-// 变量——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+// 变量——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 type Biz struct {
 	store *store.Store[authmodel.Tenant]
 }

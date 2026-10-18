@@ -35,8 +35,7 @@ type Biz struct {
 	rdb goredis.UniversalClient
 }
 
-// New 构造缓存监控业务。rdb 是 Redis 客户端（构造期注入——InitializeBiz
-// 现于 InitBridges 之后执行，RedisClient 已就绪）。nil 表示 Redis 未装配。
+// New 构造缓存监控业务。rdb 是 Redis 客户端（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，RedisClient 已就绪）。nil 表示 Redis 未装配。
 func New(rdb goredis.UniversalClient) *Biz { return &Biz{rdb: rdb} }
 
 // InfoSection INFO 输出的单个 section。

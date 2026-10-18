@@ -31,8 +31,7 @@ type SecretBiz struct {
 	cache *loadable.Cache
 }
 
-// New 构造 SecretBiz。st 是 Secret 仓储（构造期注入——InitializeBiz 现
-// 在 InitBridges 之后执行，store 已就绪，不再需要「请求期读包级变量」绕行）。
+// New 构造 SecretBiz。st 是 Secret 仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪，不再需要「请求期读包级变量」绕行）。
 // backend 是通用 KV 缓存（cache.Cache）；非 nil 时包装为 loadable 读穿透缓存
 // （loader 构造期绑定，从 key 反解 id/tenant）。nil = 禁用。
 func New(st *store.Store[authmodel.Secret], backend cache.Cache) *SecretBiz {

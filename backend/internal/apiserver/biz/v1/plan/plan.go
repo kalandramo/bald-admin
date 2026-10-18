@@ -50,7 +50,7 @@ type Biz struct {
 }
 
 // New 构造 Biz。ps/ms/qs 是套餐/模块/配额仓储（构造期注入——
-// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+// 域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(ps *store.Store[authmodel.Plan], ms *store.Store[authmodel.PlanModule], qs *store.Store[authmodel.PlanQuota]) *Biz {
 	return &Biz{planStore: ps, moduleStore: ms, quotaStore: qs}
 }

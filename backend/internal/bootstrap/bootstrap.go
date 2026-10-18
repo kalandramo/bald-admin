@@ -240,8 +240,8 @@ var lastRepos *Repositories
 //
 // 供**走生产装配路径的测试**读取仓储：这类测试（如 cmd/bald-admin 的
 // assembly_e2e_test）不直接调 InitBridges，拿不到返回值，只能经此访问器观察
-// 「装配链是否真把仓储建起来了」。生产代码不应调用——业务依赖一律经
-// InitializeBiz(repos) 构造期注入。
+// 「装配链是否真把仓储建起来了」。生产代码不应调用——业务依赖一律经域声明包的
+// Wire 构造期注入（Deps getter，见 internal/apiserver/domains/*/domain.go）。
 func LastRepositories() *Repositories { return lastRepos }
 
 // bridgesMu 串行化 InitBridges 的 check-then-act（UT8 修复：并发首调时

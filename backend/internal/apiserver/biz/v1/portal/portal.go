@@ -50,7 +50,7 @@ type Biz struct {
 }
 
 // New 构造 portal 业务。us/rs/ps/ms 是用户/角色/权限/菜单仓储（
-// 构造期注入——InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+// 构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(us *store.Store[authmodel.User], rs *store.Store[authmodel.Role], ps *store.Store[authmodel.Permission], ms *store.Store[authmodel.Menu]) *Biz {
 	return &Biz{userStore: us, roleStore: rs, permStore: ps, menuStore: ms}
 }

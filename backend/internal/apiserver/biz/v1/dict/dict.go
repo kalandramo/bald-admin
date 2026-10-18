@@ -37,8 +37,7 @@ type Biz struct {
 	cache *loadable.Cache
 }
 
-// New 构造字典业务。ts/es 是字典类型/条目仓储（构造期注入——InitializeBiz
-// 现于 InitBridges 之后执行，store 已就绪）。backend 是通用 KV 缓存（cache.Cache）；
+// New 构造字典业务。ts/es 是字典类型/条目仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。backend 是通用 KV 缓存（cache.Cache）；
 // 非 nil 时包装为 loadable 读穿透缓存（loader 构造期绑定，从 key 反解 typeCode）。
 // nil = 禁用。
 func New(ts *store.Store[authmodel.DictType], es *store.Store[authmodel.DictEntry], backend cache.Cache) *Biz {

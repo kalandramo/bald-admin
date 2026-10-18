@@ -167,7 +167,7 @@ func RetryOnTransientDBError(err error) bool {
 // New 构造认证 Biz。signer 来自 bootstrap（bald-authn-jwt 签发实例）。
 //
 // us/ts 为认证所需仓储、reload 为策略重载回调（均构造期注入——
-// InitializeBiz 现于 InitBridges 之后执行，store 与 ReloadPolicies 均已就绪）。
+// 域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 与 ReloadPolicies 均已就绪）。
 // reload 可为 nil（跳过策略热重载）。
 func New(signer authnjwt.Signer, us *store.Store[authmodel.User],
 	ts *store.Store[authmodel.Tenant], reload func() error) *Biz {

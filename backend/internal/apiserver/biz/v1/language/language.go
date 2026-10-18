@@ -42,8 +42,7 @@ type Biz struct {
 	langStore *store.Store[authmodel.Language]
 }
 
-// New 构造语言业务。st 是语言仓储（构造期注入——InitializeBiz 现于
-// InitBridges 之后执行，store 已就绪）。
+// New 构造语言业务。st 是语言仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(st *store.Store[authmodel.Language]) *Biz { return &Biz{langStore: st} }
 
 // List 列出语言（sort_order 升序，值小在前）。enabledOnly 为真时只返回启用的。

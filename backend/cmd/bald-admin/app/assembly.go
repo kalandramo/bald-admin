@@ -143,7 +143,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// gin 引擎：构造期只建伺服面骨架（无中间件）。全局链在 BeforeStart 挂载——
 	// 批 2 起 Serve 内部持有契约，声明期读不到契约中间件段；Run 期挂载还使
 	// 中间件配置吃到完整四源终值（flag/env/文件/远程；此前只有预装载基线）。
-	// gin 的 Use 只影响其后注册的路由，故 BeforeStart 内先挂链再 RegisterRoutes。
+	// gin 的 Use 只影响其后注册的路由，故 BeforeStart 内先挂链再注册路由（域 Routes，注册序=执行序）。
 	router := gin.New()
 
 	// 装载后的契约快照（BeforeStart 解码自 app.Settings()；AfterStart 读地址
@@ -159,7 +159,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// gRPC service 注册：**WithGRPC 已随域化收官删除**（裁决记录）。全部
 	// service 登记住 11 个带 proto 面的域声明包（tenant/user/secret/menu/
 	// permission/dict×2/file/auditlog/org×2）的 Services 槽位；业务零直接登记，
-	// 空 registerGRPC 回调无消费点——appkit.composeDomainServices 对「无业务回调
+	// 业务侧不传 gRPC 注册回调——appkit.composeDomainServices 对「无业务回调
 	// 而域有 Services」合成纯域回调，std server Provider 据此照常构建 gRPC 面，
 	// 拦截器链经 WithGRPCOptions（下方，业务声明保留）照常生效。gateway 转码
 	//（registerGateway）是独立声明，不受影响。
@@ -533,7 +533,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			// 认证/授权依赖在**路由注册之前**构造完毕——装配已在运行期，
 			// 故此处可直接传真实实例（不再需要请求期解析的 lazy 适配器族）。
 			//
-			// **次序至关重要**：RegisterRoutes 需要带吊销检查的认证器，而吊销检查
+			// **次序至关重要**：路由注册需要带吊销检查的认证器，而吊销检查
 			// 依赖 TokenStore（Redis）。若先注册路由再构造 TokenStore，
 			// token.NewRevocationChecker 会因 store==nil 退化为纯验签——**吊销静默
 			// 失效**（安全回归，正是 lazy 当初要修的 bug）。故 TokenStore 必须在此

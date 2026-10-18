@@ -51,7 +51,7 @@ type Biz struct {
 }
 
 // New 构造 Biz。gs/els 是权限组/策略评估日志仓储（构造期注入——
-// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+// 域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(gs *store.Store[authmodel.PermissionGroup], els *store.Store[authmodel.PolicyEvaluationLog]) *Biz {
 	return &Biz{groupStore: gs, evalLogStore: els}
 }

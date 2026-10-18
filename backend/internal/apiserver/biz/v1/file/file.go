@@ -48,8 +48,7 @@ type Biz struct {
 	defaultBucket string // file.bucket 配置：files 类内容的兜底桶名
 }
 
-// New 构造 File biz。st 是文件元数据仓储（构造期注入——InitializeBiz 现于
-// InitBridges 之后执行，FileStore 已就绪）；mc 由 bootstrap 桥接装配；defaultBucket
+// New 构造 File biz。st 是文件元数据仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，FileStore 已就绪）；mc 由 bootstrap 桥接装配；defaultBucket
 // 为 file.bucket 配置，空 = 沿用源默认 "files"。
 //
 // 注意（对象存储仍为运行期接线）：storage.minio / storage.s3 段经契约 provider 在

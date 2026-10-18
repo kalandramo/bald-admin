@@ -51,8 +51,7 @@ type Biz struct {
 	auditStore *store.Store[authmodel.AuditRecord]
 }
 
-// New 构造审计查询 biz。st 是审计日志仓储（构造期注入——InitializeBiz
-// 现于 InitBridges 之后执行，store 已就绪）。
+// New 构造审计查询 biz。st 是审计日志仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(st *store.Store[authmodel.AuditRecord]) *Biz { return &Biz{auditStore: st} }
 
 // List 分页查询审计日志（框架标准分页，2026-09-22 统一）。

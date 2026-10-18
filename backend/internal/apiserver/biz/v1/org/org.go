@@ -64,7 +64,7 @@ type Biz struct {
 }
 
 // New 构造 Biz。ous/ps/us 是组织单元/职位/用户仓储（构造期注入——
-// InitializeBiz 现于 InitBridges 之后执行，store 已就绪）。
+// 域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(ous *store.Store[authmodel.OrgUnit], ps *store.Store[authmodel.Position], us *store.Store[authmodel.User]) *Biz {
 	return &Biz{orgUnitStore: ous, positionStore: ps, userStore: us}
 }
