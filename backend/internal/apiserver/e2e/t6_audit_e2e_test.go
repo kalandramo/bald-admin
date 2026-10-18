@@ -57,9 +57,14 @@ func startAuditREST(t *testing.T) string {
 
 	e := gingonic.New()
 	// 与 main.go 对称：审计中间件在路由注册前全局挂载（wrap 型旁路）。
+	// Auditor 显式注入 securityaudit.Global() 动态转发器——ginmw.AuditMiddleware
+	// 构造期快照 auditor、缺省 Nop（bald pkg/middleware/gin/audit.go「显式注入是
+	// 唯一通道」），不注入则 operation 类审计静默丢失（本文件 169 行 total=0，
+	// HEAD 对照运行即复现：批 3 W1 审计总线显式化时本挂载点漏改，与批 4 无关）。
 	e.Use(ginmw.AuditMiddleware(
 		ginmw.AuditWithObjectResolver(authz.DefaultHTTPObject),
 		ginmw.AuditWithActionResolver(authz.DefaultHTTPAction),
+		ginmw.AuditWithAuditor(securityaudit.Global()),
 	))
 	apiserver.RegisterRoutes(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
 		Auth: authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies), Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
