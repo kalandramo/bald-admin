@@ -25,16 +25,7 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald-admin/internal/apiserver"
-	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
-	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
-	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
-	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
-	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
-	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
-	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
-	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/pkg/store"
 	"github.com/kalandramo/bald/retry"
@@ -52,11 +43,9 @@ func startLoginRESTWithRetrier(t *testing.T, r *retry.Retrier) string {
 		authBiz.SetLoginRetrier(r)
 	}
 	e := gingonic.New()
-	apiserver.RegisterRoutes(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
-		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
-		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
-	})
+	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// biz 仍由本测试当场直构（隔离价值不变）。
+	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
 	return srv.URL

@@ -23,18 +23,10 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald-admin/internal/apiserver"
-	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
-	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
-	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
-	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
-	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
-	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
-	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
-	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
+	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
@@ -48,12 +40,11 @@ func startMessageREST(t *testing.T) string {
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
-	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
-		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
-		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
-		Task: taskbiz.New(repos.Task), Message: msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User),
-	})
+	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// biz 仍由本测试当场直构（隔离价值不变）。
+	registerCoreFaces(t, e, nil, authBiz, nil, nil)
+	hgin.RegisterTask(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, taskbiz.New(repos.Task))
+	hgin.RegisterMessage(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User))
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
 	return srv.URL

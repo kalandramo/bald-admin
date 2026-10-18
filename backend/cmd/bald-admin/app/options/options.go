@@ -8,7 +8,7 @@
 //
 // 为什么需要（替换前的缺陷）：业务配置以字符串点路径散读（configFloat /
 // GetString / os.Getenv 共 13 处），配置键拼错时**静默取零值**——例如
-// `login.rate_limit.rate` 误写为 `login.ratelimit.rate`，限流静默禁用且无任何
+// 限流键误写（rate_limit 误为 ratelimit）时限流静默禁用且无任何
 // 报错。强类型结构体使拼错在编译期/启动期暴露。
 //
 // 命名约束（框架语义）：本包字段的 mapstructure tag 均为点路径的最后一段，前缀由
@@ -34,10 +34,9 @@ import (
 //
 // 嵌套结构与配置文件同构，故 mapstructure 可递归解码：
 //
-//	login:
-//	  rate_limit: {rate: 1, burst: 5}
-//	  breaker:    {error_threshold: 0.5}
-//	  retry:      {max_attempts: 3}
+//	login 段（登录防护三件套）已随批 4 域化迁往 auth 域声明包
+//	（internal/apiserver/domains/authd 的 config.go）——键名/默认值/校验/构造
+//	均归域自持，本结构不再出现业务阈值；flag 通道经 authd.FlagOptions 声明。
 //	file:    {bucket: go-bald-admin}
 //	audit:   {fallback_tenant: t-default}
 //	auth:    {access_ttl_minutes: 120}
@@ -46,7 +45,6 @@ import (
 //	sse:     {addr: ":8090", path: "/events"}
 //	gateway: {addr: ":8081"}
 type ServerOptions struct {
-	Login   LoginOptions   `mapstructure:"login"`
 	File    FileOptions    `mapstructure:"file"`
 	Audit   AuditOptions   `mapstructure:"audit"`
 	Auth    AuthOptions    `mapstructure:"auth"`
@@ -60,53 +58,7 @@ type ServerOptions struct {
 	// 为什么不直接绑到 Login.Breaker / Login.Retry：那两段用指针表达「段是否
 	// 存在」，而 pflag 绑定会立刻 materialize 指针——「未配置」于是变成「启用」，
 	// 静默打开熔断/重试（实测复现：AddFlags 后 BreakerEnabled=true）。
-	// 绑定到影子字段后，指针仅在**配置快照解码**（Decode）时按段存在性建立；
-	// flag 值仍经 flattenFlags（读 Value.String()，与绑定地址无关）进入配置合并。
-	flagShadow flagShadow
-}
-
-// flagShadow 承载 AddFlags 的绑定地址（不参与 mapstructure 解码——无 tag）。
-type flagShadow struct {
-	breakerErrorThreshold     float64
-	breakerRequestVolume      int
-	breakerSleepWindowSeconds int
-	retryMaxAttempts          int
-	retryInitialBackoffMs     int
-	retryMaxBackoffMs         int
-}
-
-// LoginOptions 登录防护（限流 / 熔断 / 重试三件套）。
-//
-// Breaker / Retry 用**指针**表达「整段配置是否存在」：契约语义是「段存在即启用、
-// 缺省即禁用」（防御性增强，未配置不介入）。指针在 mapstructure 解码时对缺失的
-// 段保持 nil（实测确认），故能精确保留该语义；值结构体会被默认值填充，
-// 导致「未配置也启用」的行为回退。
-type LoginOptions struct {
-	RateLimit RateLimitOptions `mapstructure:"rate_limit"`
-	// Breaker 非 nil = 启用登录 DB 查询熔断（段存在即启用）。
-	Breaker *BreakerOptions `mapstructure:"breaker"`
-	// Retry 非 nil = 启用登录 DB 查询重试（段存在即启用）。
-	Retry *RetryOptions `mapstructure:"retry"`
-}
-
-// RateLimitOptions 登录限流（令牌桶）。零值=禁用（fail-open，不阻断登录）。
-type RateLimitOptions struct {
-	Rate  float64 `mapstructure:"rate"`
-	Burst float64 `mapstructure:"burst"`
-}
-
-// BreakerOptions 登录 DB 查询熔断（阈值式 hystrix）。
-type BreakerOptions struct {
-	ErrorThreshold     float64 `mapstructure:"error_threshold"`
-	RequestVolume      int     `mapstructure:"request_volume"`
-	SleepWindowSeconds int     `mapstructure:"sleep_window_seconds"`
-}
-
-// RetryOptions 登录 DB 查询重试（瞬时故障）。
-type RetryOptions struct {
-	MaxAttempts      int `mapstructure:"max_attempts"`
-	InitialBackoffMs int `mapstructure:"initial_backoff_ms"`
-	MaxBackoffMs     int `mapstructure:"max_backoff_ms"`
+	// login 段的 flag 绑定（含影子字段纪律）随批 4 域化迁往 authd.FlagOptions。
 }
 
 // FileOptions 文件模块（对象存储桶；bconf storage 段无 bucket 字段）。
@@ -192,7 +144,11 @@ const BusinessSection = "biz"
 // 「拼错静默取零值」缺陷在业务侧的收口（框架侧同类能力见 bconf.FindUnknownKeys）。
 //
 // 调用时机：必须在使用配置之前（运行期装配钩子内），且仅一次。
-func (o *ServerOptions) DecodeInto(settings map[string]any) error {
+//
+// ownedSections 列出**域自持段**（如 authd.ConfigSection）：这些子树不经本
+// 解码（其键不映射到本结构任何字段，ErrorUnused 会误报），由拥有它的域包自行
+// 严格解码与校验（authd.decodeLogin）。本结构只解自己消费的段。
+func (o *ServerOptions) DecodeInto(settings map[string]any, ownedSections ...string) error {
 	if settings == nil {
 		return nil
 	}
@@ -202,6 +158,19 @@ func (o *ServerOptions) DecodeInto(settings map[string]any) error {
 		m, ok := raw.(map[string]any)
 		if !ok {
 			return fmt.Errorf("server options: %q must be a map, got %T", BusinessSection, raw)
+		}
+		if len(ownedSections) > 0 {
+			owned := make(map[string]bool, len(ownedSections))
+			for _, s := range ownedSections {
+				owned[s] = true
+			}
+			filtered := make(map[string]any, len(m))
+			for k, v := range m {
+				if !owned[k] {
+					filtered[k] = v
+				}
+			}
+			m = filtered
 		}
 		biz = m
 	}
@@ -228,14 +197,6 @@ func (o *ServerOptions) DecodeInto(settings map[string]any) error {
 // 禁用），与替换前的「cfg.Get(段) 不存在即返回 nil」语义逐字一致（行为不回退）。
 func NewServerOptions() *ServerOptions {
 	return &ServerOptions{
-		Login: LoginOptions{
-			// RateLimit 零值 = 禁用（rate<=0 即不介入，见 buildLoginLimiter）。
-			RateLimit: RateLimitOptions{Rate: 0, Burst: 0},
-			// Breaker / Retry 保持 nil = 禁用。启用时由配置段提供值，
-			// 各字段的缺省由 breakerDefaults/retryDefaults 兜底。
-			Breaker: nil,
-			Retry:   nil,
-		},
 		File:  FileOptions{Bucket: ""}, // 空 = 未配置对象存储（file 模块降级）
 		Audit: AuditOptions{FallbackTenant: "t-default"},
 		Auth:  AuthOptions{AccessTTLMinutes: 120, RefreshTTLHours: 168},
@@ -264,70 +225,15 @@ func envDefault(key, def string) string {
 	return def
 }
 
-// breakerDefaults / retryDefaults 返回启用态下的字段缺省值（段存在但字段未写时）。
-// 与替换前 buildLoginBreaker/buildLoginRetrier 的「>0 才覆盖」语义一致。
-func breakerDefaults() BreakerOptions {
-	return BreakerOptions{ErrorThreshold: 0.5, RequestVolume: 20, SleepWindowSeconds: 5}
-}
-
-func retryDefaults() RetryOptions {
-	return RetryOptions{MaxAttempts: 3, InitialBackoffMs: 200, MaxBackoffMs: 10000}
-}
-
-// BreakerOrDefault 返回熔断配置：未配置（nil）时返回缺省值。
-// 调用方需先判 Enabled（nil 检查）决定是否构造熔断器。
-func (o *ServerOptions) BreakerOrDefault() BreakerOptions {
-	if o.Login.Breaker == nil {
-		return breakerDefaults()
-	}
-	return *o.Login.Breaker
-}
-
-// RetryOrDefault 返回重试配置：未配置（nil）时返回缺省值。
-func (o *ServerOptions) RetryOrDefault() RetryOptions {
-	if o.Login.Retry == nil {
-		return retryDefaults()
-	}
-	return *o.Login.Retry
-}
-
-// BreakerEnabled / RetryEnabled 报告该能力是否被配置启用（段是否存在）。
-func (o *ServerOptions) BreakerEnabled() bool { return o.Login.Breaker != nil }
-func (o *ServerOptions) RetryEnabled() bool   { return o.Login.Retry != nil }
-
 // AddFlags 把配置项绑定到命令行选项（pflag）。
 //
 // 收益（文档 08「通过命令行选项设置配置项」）：`bald-admin -h` 即可见全部业务
 // 配置键、说明与默认值；小配置场景无需维护配置文件。
 //
 // 键名用点路径（与配置文件键、mapstructure tag 三者对齐）。
+// （login 段的 --biz.login.* 八个旗标随批 4 域化迁往 authd.FlagOptions——
+// 键名/默认值/影子字段纪律归域自持，装配层仅 Bind 声明。）
 func (o *ServerOptions) AddFlags(fs *pflag.FlagSet) {
-	fs.Float64Var(&o.Login.RateLimit.Rate, "biz.login.rate_limit.rate", o.Login.RateLimit.Rate,
-		"Login rate limit: tokens per second (<=0 disables).")
-	fs.Float64Var(&o.Login.RateLimit.Burst, "biz.login.rate_limit.burst", o.Login.RateLimit.Burst,
-		"Login rate limit: burst capacity (<=0 disables).")
-
-	// 熔断 / 重试：绑到影子字段（**不** materialize Login.Breaker/Retry 指针）。
-	//
-	// 必要性（实测复现的缺陷）：直接绑 &o.Login.Breaker.X 会立即建立指针 →
-	// 「段缺省」变成「段存在」→ 静默启用熔断/重试，与「未配置不介入」契约冲突。
-	// flag 值本身经 flattenFlags 读 Value.String() 进入配置合并（与绑定地址
-	// 无关），故影子字段不影响 flag 的优先级链；解码时若配置含该段，指针自然建立。
-	br := breakerDefaults()
-	rt := retryDefaults()
-	fs.Float64Var(&o.flagShadow.breakerErrorThreshold, "biz.login.breaker.error_threshold", br.ErrorThreshold,
-		"Login breaker: error ratio threshold [0,1].")
-	fs.IntVar(&o.flagShadow.breakerRequestVolume, "biz.login.breaker.request_volume", br.RequestVolume,
-		"Login breaker: minimum request volume before evaluating.")
-	fs.IntVar(&o.flagShadow.breakerSleepWindowSeconds, "biz.login.breaker.sleep_window_seconds", br.SleepWindowSeconds,
-		"Login breaker: seconds to stay open before half-open.")
-	fs.IntVar(&o.flagShadow.retryMaxAttempts, "biz.login.retry.max_attempts", rt.MaxAttempts,
-		"Login DB retry: max attempts (including first).")
-	fs.IntVar(&o.flagShadow.retryInitialBackoffMs, "biz.login.retry.initial_backoff_ms", rt.InitialBackoffMs,
-		"Login DB retry: initial backoff in milliseconds.")
-	fs.IntVar(&o.flagShadow.retryMaxBackoffMs, "biz.login.retry.max_backoff_ms", rt.MaxBackoffMs,
-		"Login DB retry: max backoff in milliseconds.")
-
 	fs.StringVar(&o.File.Bucket, "biz.file.bucket", o.File.Bucket,
 		"Object storage bucket used by the file module.")
 	fs.StringVar(&o.Audit.FallbackTenant, "biz.audit.fallback_tenant", o.Audit.FallbackTenant,
@@ -353,31 +259,9 @@ func (o *ServerOptions) AddFlags(fs *pflag.FlagSet) {
 func (o *ServerOptions) Validate() error {
 	var errs []string
 
-	// 限流：0=禁用合法；负值非法（无意义且掩盖配置笔误）。
-	if o.Login.RateLimit.Rate < 0 {
-		errs = append(errs, fmt.Sprintf("login.rate_limit.rate must be >= 0 (got %v)", o.Login.RateLimit.Rate))
-	}
-	if o.Login.RateLimit.Burst < 0 {
-		errs = append(errs, fmt.Sprintf("login.rate_limit.burst must be >= 0 (got %v)", o.Login.RateLimit.Burst))
-	}
-	// 熔断：仅在启用（段存在）时校验；未配置即禁用，不产生错误。
-	// 用 OrDefault 取值——nil 时回退缺省值，故禁用态天然合法。
-	if br := o.BreakerOrDefault(); br.ErrorThreshold < 0 || br.ErrorThreshold > 1 {
-		errs = append(errs, fmt.Sprintf("login.breaker.error_threshold must be within [0,1] (got %v)", br.ErrorThreshold))
-	} else if o.BreakerEnabled() {
-		if br.RequestVolume <= 0 {
-			errs = append(errs, fmt.Sprintf("login.breaker.request_volume must be > 0 (got %d)", br.RequestVolume))
-		}
-		if br.SleepWindowSeconds <= 0 {
-			errs = append(errs, fmt.Sprintf("login.breaker.sleep_window_seconds must be > 0 (got %d)", br.SleepWindowSeconds))
-		}
-	}
-	// 重试：次数至少 1（含首次）；仅在启用时校验。
-	if o.RetryEnabled() {
-		if rt := o.RetryOrDefault(); rt.MaxAttempts < 1 {
-			errs = append(errs, fmt.Sprintf("login.retry.max_attempts must be >= 1 (got %d)", rt.MaxAttempts))
-		}
-	}
+	// （login 段的校验随批 4 域化迁往 authd（LoginConfig.Validate）——聚合错误
+	// 风格不变，域 Wire 解码时 fail-fast。）
+
 	// 令牌 TTL：必须为正（零值会让签发的 token 立即过期）。
 	if o.Auth.AccessTTLMinutes <= 0 {
 		errs = append(errs, fmt.Sprintf("auth.access_ttl_minutes must be > 0 (got %d)", o.Auth.AccessTTLMinutes))

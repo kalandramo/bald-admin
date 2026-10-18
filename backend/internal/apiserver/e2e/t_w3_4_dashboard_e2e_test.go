@@ -28,18 +28,10 @@ import (
 
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 
-	"github.com/kalandramo/bald-admin/internal/apiserver"
-	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	dashbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dashboard"
-	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
-	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
-	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
-	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
-	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
-	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
-	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
+	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
@@ -63,12 +55,10 @@ func startDashboardREST(t *testing.T) string {
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
-	apiserver.RegisterRoutesWithAuth(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: authBiz, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
-		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
-		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
-		Dashboard: dashbiz.New(repos.Audit, repos.Role, repos.User),
-	})
+	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// biz 仍由本测试当场直构（隔离价值不变）。
+	registerCoreFaces(t, e, nil, authBiz, nil, nil)
+	hgin.RegisterDashboard(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, dashbiz.New(repos.Audit, repos.Role, repos.User))
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
 	return srv.URL

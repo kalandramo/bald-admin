@@ -1,7 +1,10 @@
 // Package apiserver 是 bald-admin 的 HTTP 服务装配根（server 层）。
 //
-// 只负责把 handler 挂到 *gin.Engine；认证/授权依赖由 bootstrap 包注入。
-// 不在此写业务，也不在此直接依赖 bald-authn-jwt（保持 server 层与桥接解耦）。
+// 批 4 域形态迁移收官后本层只剩**非域共面**的挂载（RegisterBaseFaces）与
+// 管理面 re-export：21 域的路由/gRPC 服务全部由各自域声明包
+// （internal/apiserver/domains/<d>d）的 Routes/Services 注册——appkit 在业务
+// BeforeStart 之后逐域调用（声明序=执行序），域路由随 WithHTTP 声明的
+// *gin.Engine 挂载。认证/授权依赖由装配层注入，不在此写业务。
 package apiserver
 
 import (
@@ -15,94 +18,21 @@ import (
 	"github.com/kalandramo/bald-admin/internal/apiserver/middleware/apiaudit"
 )
 
-// RegisterRoutes 把本应用所有路由挂到 e。认证/授权依赖由装配层注入
-// （真实实例直传，不再经 lazy 请求期适配器——装配已移到运行期，
-// InitBridges 之后，故 Authenticator/Authorizer/TokenStore 均就绪）；业务对象经
-// BizSet 聚合传入（wire 装配，见 bizset.go）。
+// RegisterBaseFaces 挂载**非域共面**：api 类审计中间件（源 ApiAuditLog）+
+// service info + openapi。生产 BeforeStart 与 handler 级 e2e 共用同一装配路径
+// ——中间件在此（而非 main.go 的 router）挂载保证两者行为一致。
 //
-// authenticator 应带**吊销检查**（token.NewRevocationChecker）——登出拉黑的 token
-// 在中间件层即被拒绝，与 ValidateToken 语义同源。
-func RegisterRoutes(e *gingonic.Engine, authenticator authn.Authenticator,
-	authorizer authz.Authorizer, biz *BizSet) {
-	RegisterRoutesWithAuth(e, authenticator, authorizer, biz)
-}
-
-// RegisterRoutesWithAuth 与 RegisterRoutes 相同（保留为显式注入入口，供 e2e 传
-// 自定义认证器/授权器）。
-func RegisterRoutesWithAuth(e *gingonic.Engine, authenticator authn.Authenticator,
-	authorizer authz.Authorizer, biz *BizSet) {
-	// api 类审计中间件（源 ApiAuditLog）——记录协议层信息
-	// （method/path/status/latency），与框架 operation 类审计正交。
-	// 挂在此处（而非 main.go 的 router）保证**生产与 e2e 共用同一装配路径**。
+// 时序契约：gin 的 Use 只影响其后注册的路由——本函数必须在域路由注册**之前**
+// 调用。生产路径上它住业务 BeforeStart，而域 Routes 由 appkit 在业务 BeforeStart
+// 之后的域装配钩子里逐域调用（bald/pkg/appkit/domain.go 时序窗口），故共面
+// 中间件覆盖全部域路由；e2e 侧先 RegisterBaseFaces 再调 hgin.Register* 即同序。
+//
+// authenticator 相关约束随域化移交各域声明包：域路由所需的带吊销检查认证器
+// 由装配层构造并经 Deps getter 注入（tenantd/authd 的域头注）。
+func RegisterBaseFaces(e *gingonic.Engine) {
 	e.Use(apiaudit.Middleware())
-
 	hgin.RegisterServiceInfo(e)
 	hgin.RegisterOpenAPI(e)
-	hgin.RegisterAuth(e, authenticator, authorizer, biz.Auth)
-	// 批 4 域形态迁移（混合态）：10 域（第一波 tenant/user；第二波 secret/menu/
-	// permission/dict/file/auditlog/org/language）路由改由各自域声明的 Routes
-	// 注册（internal/apiserver/domains/<d>d；生产装配不再向 BizSet 填充这些域）。
-	// nil 守卫后的本路径仅剩 handler 级 e2e 使用（e2e 以字面量直构 BizSet）——
-	// 生产路径对应字段为 nil，跳过即无双注册；若装配面误填字段与域 Routes
-	// 并存，gin 对重复路由 panic，当场暴露。secret 的 HTTP 面迁移前住 RegisterAuth
-	// 尾部，本波拆出为同目录 RegisterSecret，此处经同款守卫注册（e2e 通道不变）。
-	if biz.Tenant != nil {
-		hgin.RegisterTenant(e, authenticator, authorizer, biz.Tenant)
-	}
-	if biz.User != nil {
-		hgin.RegisterUser(e, authenticator, authorizer, biz.User)
-	}
-	if biz.Secret != nil {
-		hgin.RegisterSecret(e, authenticator, authorizer, biz.Secret)
-	}
-	if biz.Menu != nil {
-		hgin.RegisterMenu(e, authenticator, authorizer, biz.Menu)
-	}
-	if biz.Permission != nil {
-		hgin.RegisterPermission(e, authenticator, authorizer, biz.Permission)
-	}
-	if biz.Dict != nil {
-		hgin.RegisterDict(e, authenticator, authorizer, biz.Dict)
-	}
-	if biz.File != nil {
-		hgin.RegisterFile(e, authenticator, authorizer, biz.File)
-	}
-	if biz.AuditLog != nil {
-		hgin.RegisterAudit(e, authenticator, authorizer, biz.AuditLog)
-	}
-	if biz.MFA != nil {
-		hgin.RegisterMFA(e, authenticator, authorizer, biz.MFA)
-	}
-	if biz.Identity != nil {
-		hgin.RegisterIdentity(e, authenticator, authorizer, biz.Identity)
-	}
-	if biz.Org != nil {
-		hgin.RegisterOrg(e, authenticator, authorizer, biz.Org)
-	}
-	if biz.Task != nil {
-		hgin.RegisterTask(e, authenticator, authorizer, biz.Task)
-	}
-	if biz.Message != nil {
-		hgin.RegisterMessage(e, authenticator, authorizer, biz.Message)
-	}
-	if biz.Dashboard != nil {
-		hgin.RegisterDashboard(e, authenticator, authorizer, biz.Dashboard)
-	}
-	if biz.PermGroup != nil {
-		hgin.RegisterPermGroup(e, authenticator, authorizer, biz.PermGroup)
-	}
-	if biz.Plan != nil {
-		hgin.RegisterPlan(e, authenticator, authorizer, biz.Plan)
-	}
-	if biz.Language != nil {
-		hgin.RegisterLanguage(e, authenticator, authorizer, biz.Language)
-	}
-	if biz.Portal != nil {
-		hgin.RegisterAdminPortal(e, authenticator, authorizer, biz.Portal)
-	}
-	if biz.CacheMonitor != nil {
-		hgin.RegisterRedisCacheMonitor(e, authenticator, authorizer, biz.CacheMonitor)
-	}
 }
 
 // ComponentFactory 是管理面组件工厂的包级别名（re-export，供 cmd 层构造工厂目录）。

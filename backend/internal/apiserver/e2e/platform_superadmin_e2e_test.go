@@ -26,16 +26,7 @@ import (
 	"testing"
 
 	gingonic "github.com/gin-gonic/gin"
-	apiserver "github.com/kalandramo/bald-admin/internal/apiserver"
-	auditlogbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
-	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
-	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
-	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
-	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
-	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
-	tenantbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/tenant"
-	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
@@ -68,11 +59,9 @@ func startPlatformREST(t *testing.T) string {
 	auth := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	// ← 与 cmd/bald-admin/main.go 的注入**逐字一致**（生产判据）
 	auth.SetPlatformResolver(authmodel.IsPlatformUser)
-	apiserver.RegisterRoutes(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, &apiserver.BizSet{
-		Auth: auth, Secret: secretbiz.New(repos.Secret, nil), Tenant: tenantbiz.New(repos.Tenant),
-		User: userbiz.New(repos.User), Menu: menubiz.New(repos.Menu), Permission: permissionbiz.New(repos.Permission, repos.RolePolicy),
-		Dict: dictbiz.New(repos.DictType, repos.DictEntry, nil), File: filebiz.New(repos.File, nil, ""), AuditLog: auditlogbiz.New(repos.Audit),
-	})
+	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// biz 仍由本测试当场直构（隔离价值不变；平台判据装饰的 auth biz 照传）。
+	registerCoreFaces(t, e, nil, auth, nil, nil)
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
 	return srv.URL
@@ -175,39 +164,50 @@ func TestPlatform_PlatformFlagIsTheDecidingFactor(t *testing.T) {
 // 防的是「判据写好了但装配层忘了调 SetPlatformResolver」——那样
 // superadmin 角色形同虚设，而上面两条测试若各自手工注入则测不出来。
 //
-// 实现方式：递归扫描 cmd/bald-admin 下全部 .go 源码，断言注入语句存在。
-// 这比「跑 main」轻量得多（起完整进程需要 Redis/DB），且**能抓住**删除
-// 注入行的回归。
+// 实现方式：递归扫描 cmd/bald-admin 与 auth 域声明包下全部 .go 源码，断言
+// 注入链路的**两端**都在：装配层 getter 返回生产判据（authmodel.IsPlatformUser）、
+// authd 域 Wire 把 getter 产物注入 biz。这比「跑 main」轻量得多（起完整进程
+// 需要 Redis/DB），且**能抓住**删除注入链路的回归。
 //
 // 扫描整个目录而非单一文件：装配逻辑在 cmd/bald-admin/app/ 子包内按职责
 // 分文件，写死某个文件名会让本用例因文件搬迁/拆分而假红（2026-09-27
 // main.go 拆 app 子包时实测触发过一次）。目录级扫描只锁「注入语句存在」，
 // 与本就在演进的文件布局解耦。
+//
+// 批 4 域化迁移：注入语句原在 assembly.go（bizSet.Auth.SetPlatformResolver），
+// 随 BizSet 溶解拆成「装配层 getter（cmd/）+ 域 Wire 调用（authd/）」两半——
+// 两半分别断言，任一半被删测试即红（保护强度不变）。
 func TestPlatform_ResolverIsInjectedInProduction(t *testing.T) {
-	const dir = "../../../cmd/bald-admin"
+	dirs := []string{"../../../cmd/bald-admin", "../../../internal/apiserver/domains/authd"}
 	var src strings.Builder
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+	for _, dir := range dirs {
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+			b, rerr := os.ReadFile(path)
+			if rerr != nil {
+				return rerr
+			}
+			src.Write(b)
+			src.WriteString("\n")
 			return nil
+		})
+		if err != nil {
+			t.Fatalf("扫描 %s: %v", dir, err)
 		}
-		b, rerr := os.ReadFile(path)
-		if rerr != nil {
-			return rerr
-		}
-		src.Write(b)
-		src.WriteString("\n")
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("扫描 %s: %v", dir, err)
 	}
-	want := "bizSet.Auth.SetPlatformResolver(authmodel.IsPlatformUser)"
-	if !strings.Contains(src.String(), want) {
-		t.Fatalf("cmd/bald-admin 源码缺少生产判据注入：期望含 %q\n"+
-			"（删掉它会让 superadmin 角色失效——令牌不再带 Platform=true）", want)
+	for _, want := range []string{
+		"return authmodel.IsPlatformUser",              // 装配层 getter（cmd/）返回生产判据
+		"biz.SetPlatformResolver(d.PlatformResolver())", // authd 域 Wire 注入产物
+	} {
+		if !strings.Contains(src.String(), want) {
+			t.Fatalf("生产判据注入链路断裂：源码缺少 %q\n"+
+				"（删掉任一半都会让 superadmin 角色失效——令牌不再带 Platform=true）", want)
+		}
 	}
 }
 

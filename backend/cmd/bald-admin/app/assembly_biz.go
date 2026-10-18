@@ -1,93 +1,21 @@
-// assembly_biz.go —— 业务对象装配（**手写**，非生成物）。
+// assembly_biz.go —— 装配层 Redis 适配余件（原业务对象装配文件）。
 //
-// 为什么手写而非用 DI 框架（wire/dig 等）：
-//   - **本范例的定位是验证 bald 框架能力**。bald 的立场是「核心不内置 DI 框架，业务层自选」
-//     （见 bald 核心原则 P1）——范例就该用**普通 Go 函数显式装配**，把「bald 的装配原语够用」
-//     这件事演示出来，而不是引入一个框架再把依赖图藏进生成物里。
-//   - **编译期保护已等价具备**：下面每个 `xxx.New(...)` 都是普通 Go 调用，biz 的 `New` 签名一变
-//     此处立即编译失败——DI 框架宣称的「编译期依赖图校验」在此已被编译器本身提供。
-//   - **依赖注入语义与 wire 不匹配**：仓储（33 个 `*store.Store[T]`，T 各不相同）经
-//     `InitBridges` 的返回值 `Repositories` **参数传入**；`Signer`/`MinioStorage`/`FileBucket`/
-//     `RedisClient` 是**运行期赋值**的包级变量。wire 按类型匹配，前者需 33 个命名类型包装、
-//     后者只能退化成「provider 读全局」——与「仓储显式传入、不读包级」的方向相悖。
-//
-// 维护约定：**本文件与 `internal/apiserver/biz/v1/*` 的 `New` 签名保持同步**。
-// 新增业务域时，在 `InitializeBiz` 内加一行 `xxxBiz := xxx.New(...)` 并补进 `BizSet` 字面量；
-// 签名不匹配会由编译器指出，无需额外工具。
+// 文件原名 InitializeBiz / BizSet 的承载者：批 4 域形态迁移收官后 21 域的 biz
+// 全部改由各自域声明包的 Wire 构造（internal/apiserver/domains/<d>d，经 Deps
+// getter 迟到取用装配层抉择的运行期产物），本文件的 InitializeBiz 与 BizSet
+// 字面量随之溶解（bizset.go 已删）。余下三件是装配层自持的 Redis env 兼容
+// 通道（secret/dict 域 Cache-Aside 兜底），仍是「普通 Go 函数显式装配」形态：
+//   - provideRedisAddr：BALD_ADMIN_REDIS_ADDR env 通道（CI 覆盖手段）；
+//   - newRedisCache：适配 bootstrap.BuildRedisCache（cache/redis 适配器；
+//     保留错误，Redis 不可达即启动失败），addr 为空返回 nil（禁用态）。
 package app
 
 import (
 	"os"
 
-	"github.com/kalandramo/bald-admin/internal/apiserver"
-	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
-	cmbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/cachemonitor"
-	dashbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dashboard"
-	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
-	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
-	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
-	pgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
-	planbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/plan"
-	portalbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/portal"
-	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 	"github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/cache"
-	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 )
-
-// InitializeBiz 显式拼装 cache 与全部业务对象，产出 BizSet。
-//
-// 调用时机（关键约束）：必须在 `InitBridges` **之后**执行——仓储经其返回值 `repos` 传入，
-// 届时已是已就绪的真实实例。调用点见 `assembly.go` 的 Run 期装配钩子；该时序由
-// `assembly_e2e_test.go` 回归守护（若被挪回构造期，测试会红）。
-//
-// 各 biz 的仓储改为**构造期注入**（此前 biz 在请求期读 bootstrap 包级变量）。
-// 仓储经参数传入（InitBridges 的返回值 Repositories），bootstrap 不再有包级 store 变量。
-//
-// 批 4 域形态迁移（混合态）：10 域已改由各自域声明包的 Wire 构造
-// （internal/apiserver/domains/<d>d，经 Deps getter 取 repos 等），本函数不再
-// 构造它们——第一波 tenant/user，第二波 secret/menu/permission/dict/file/
-// auditlog/org/language（连同 file 的存储补注与 secret/dict 的 Cache-Aside
-// 接线：抉择逻辑住装配层，域经 Deps getter 迟到取用）；BizSet 对应字段保留
-// ——仅作 handler 级 e2e 直构的接线位（e2e 以字面量填充），生产装配面不再
-// 填充。其余域迁移时照此办理：删构造行 + 摘掉字面量字段，域 Wire 接管。
-func InitializeBiz(repos *bootstrap.Repositories) (*apiserver.BizSet, error) {
-	mainSigner := provideSigner()
-	biz := auth.New(mainSigner, repos.User, repos.Tenant, bootstrap.ReloadPolicies)
-	// MFA biz——因子仓储构造期注入；挑战存储（Redis）仍在 BeforeStart
-	// 经 SetChallenges 补注（与 auth.SetCaptchaStore 同款时序约定）。
-	mfaBiz := mfabiz.New(repos.MFAFactor, nil)
-	// identity 扩展域（credential + login_policy）。
-	identityBiz := identitybiz.New(repos.Credential, repos.LoginPolicy)
-	// 任务调度（scheduler 在 BeforeStart 后经 SetScheduler 注入）。
-	taskBiz := taskbiz.New(repos.Task)
-	// 站内消息（三表）。
-	messageBiz := msgbiz.New(repos.Message, repos.MessageCategory,
-		repos.Recipient, repos.User)
-	// 首页分析（只读聚合）。
-	dashboardBiz := dashbiz.New(repos.Audit, repos.Role, repos.User)
-	// 权限组 + 策略评估日志。
-	permGroupBiz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
-	// 套餐三件套。
-	planBiz := planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota)
-	portalBiz := portalbiz.New(repos.User, repos.Role,
-		repos.Permission, repos.Menu)
-	cacheMonitorBiz := cmbiz.New(bootstrap.RedisClient)
-	// T10：BizSet 收敛到 apiserver 包（bizset.go）。
-	bizSet := &apiserver.BizSet{
-		Auth:         biz,
-		MFA:          mfaBiz,
-		Identity:     identityBiz,
-		Task:         taskBiz,
-		Message:      messageBiz,
-		Dashboard:    dashboardBiz,
-		PermGroup:    permGroupBiz,
-		Plan:         planBiz,
-		Portal:       portalBiz,
-		CacheMonitor: cacheMonitorBiz,
-	}
-	return bizSet, nil
-}
 
 // redisAddr 是命名类型别名，区分 string 依赖（避免同名同型参数传错）。
 type redisAddr string
@@ -96,12 +24,6 @@ type redisAddr string
 // T0 起完整 Redis 参数（addr/password/db）经 bootstrap.Configure 由配置段注入，
 // 此处仅保留 secret 缓存的 env 兼容通道。
 func provideRedisAddr() redisAddr { return redisAddr(os.Getenv("BALD_ADMIN_REDIS_ADDR")) }
-
-// provideSigner 从 bootstrap 取 RSA 私钥签发器（auth biz 依赖 Signer 接口）。
-//
-// InitializeBiz 已移到 InitBridges **之后**，故此处直接取
-// 包级 Signer 即为已就绪的真实实例——原 LazySigner（请求期解析）已无必要，随之删除。
-func provideSigner() authnjwt.Signer { return bootstrap.Signer }
 
 // newRedisCache 适配 redisAddr→bootstrap.BuildRedisCache（cache/redis 适配器；
 // 保留错误，Redis 不可达即启动失败）。addr 为空返回 nil（禁用态）。

@@ -11,18 +11,29 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
+	goredis "github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 
 	"github.com/kalandramo/bald-admin/internal/apiserver"
 	filestore "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
 	auditlogd "github.com/kalandramo/bald-admin/internal/apiserver/domains/auditlogd"
+	authd "github.com/kalandramo/bald-admin/internal/apiserver/domains/authd"
+	cachemonitord "github.com/kalandramo/bald-admin/internal/apiserver/domains/cachemonitord"
+	dashboardd "github.com/kalandramo/bald-admin/internal/apiserver/domains/dashboardd"
 	dictd "github.com/kalandramo/bald-admin/internal/apiserver/domains/dictd"
+	identityd "github.com/kalandramo/bald-admin/internal/apiserver/domains/identityd"
 	filed "github.com/kalandramo/bald-admin/internal/apiserver/domains/filed"
 	languaged "github.com/kalandramo/bald-admin/internal/apiserver/domains/languaged"
 	menud "github.com/kalandramo/bald-admin/internal/apiserver/domains/menud"
+	messaged "github.com/kalandramo/bald-admin/internal/apiserver/domains/messaged"
+	mfad "github.com/kalandramo/bald-admin/internal/apiserver/domains/mfad"
 	orgd "github.com/kalandramo/bald-admin/internal/apiserver/domains/orgd"
 	permissiond "github.com/kalandramo/bald-admin/internal/apiserver/domains/permissiond"
+	permgroupd "github.com/kalandramo/bald-admin/internal/apiserver/domains/permgroupd"
+	pland "github.com/kalandramo/bald-admin/internal/apiserver/domains/pland"
+	portald "github.com/kalandramo/bald-admin/internal/apiserver/domains/portald"
 	secretd "github.com/kalandramo/bald-admin/internal/apiserver/domains/secretd"
+	taskd "github.com/kalandramo/bald-admin/internal/apiserver/domains/taskd"
 	tenantd "github.com/kalandramo/bald-admin/internal/apiserver/domains/tenantd"
 	userd "github.com/kalandramo/bald-admin/internal/apiserver/domains/userd"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -37,6 +48,7 @@ import (
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	baldconfig "github.com/kalandramo/bald/bootstrap/config"
 	"github.com/kalandramo/bald/cache"
+	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
 	storegorm "github.com/kalandramo/bald/contrib/store-gorm"
 	"github.com/kalandramo/bald/health"
@@ -89,15 +101,11 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 // 业务保留的声明（配置驱动不了）：路由、gRPC service、拦截器链序、
 // 探针依赖、日志脱敏、审计协调、各段业务语义 Provider——见下方各 Option。
 func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
-	// biz 在 BeforeStart 内构造——InitializeBiz 依赖 InitBridges 建立的
-	// store / Redis，构造期构造会固化 nil（时序倒置）。框架保证业务 BeforeStart
-	// 先于 server 构造钩子执行（注册序=执行序），故 registerGRPC 被调用时
-	// bizSet 已就绪。
-	//
-	// err 与 bizSet 都在**函数作用域**声明：闭包内须用 `=` 赋值（用 `:=` 会在
-	// 闭包块内新建同名变量，外层 bizSet 仍为 nil——registerGRPC 读到的即 nil）。
+	// 21 域已全量域化（批 4 收官）：业务对象构造归各域声明包的 Wire，本函数
+	// 不再聚合 BizSet——域依赖的运行期产物经下方函数作用域变量 + Deps getter
+	// 迟到取用。闭包内赋值用 `=`（`:=` 会新建同名变量，外层仍为 nil——getter
+	// 闭包读不到的旧坑，纪律保留）。
 	var (
-		bizSet *apiserver.BizSet
 		// authenticator/authorizer 提升到函数作用域——它们在 BeforeStart 内构造
 		//（依赖 InitBridges 建立的 store/Redis），再供两个**运行期**消费者读取：
 		// appkit.WithGRPCOptions 的选项工厂与 sseServerProvider 的授权钩子。
@@ -105,12 +113,18 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		authorizer    authz.Authorizer
 		// repos 同样提升到函数作用域：InitBridges 返回值原为 BeforeStart 闭包局部，
 		// 批 4 起域清单的 Deps getter（下方 opts 内）也要读它。闭包内赋值用 `=`
-		//（`:=` 会新建同名变量，外层仍为 nil——同 bizSet 的纪律）。
+		//（`:=` 会新建同名变量，外层仍为 nil——同上纪律）。
 		repos *bootstrappkg.Repositories
 		// bizCache 供 secret/dict 两域的 Deps.Cache getter 读取：BeforeStart 内
 		// 解析「配置驱动 RedisCache 优先、env 兼容通道兜底」（赋值点见 BeforeStart，
 		// 域 Wire 晚于其执行，getter 届时读到已抉择的实例）。
 		bizCache cache.Cache
+		// tokenStore/captchaStore/mfaChallenges 供 authd/mfad 域的 Deps getter
+		// 读取：BeforeStart 内随 InitBridges 的 Redis 抉择（复用同一 Redis 实例；
+		// 无 Redis 时保持 nil——authd/mfad 域的 setter 对 nil 不覆盖 = 禁用态）。
+		tokenStore    token.Store
+		captchaStore  captcha.Store
+		mfaChallenges mfa.ChallengeStore
 	)
 
 	// 管理面：运行期组件观测与热插拔（工厂目录由业务定义——核心只管挂载原语）。
@@ -142,14 +156,13 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// 无中间件资源时保持 no-op。
 	mwClose := func() error { return nil }
 
-	// gRPC service 注册回调。批 4 第二波后**暂留空**：原 9 行登记
-	//（secret/menu/permission/dict×2/file/auditlog/org×2——secret 的 DeleteSecret
-	// 亦经 biz 真实删除，gRPC 直连与 gateway 转码共用）已随各域声明迁往
-	// domains/<d>d 的 Services（同一 *grpc.Server 实例，框架逐域回调；漏迁会因
-	// gen api 包 import 残留/缺失被编译器当场指出）。混合态收尾（全部域迁完）
-	// 时随 WithGRPC 一并评估去留。
-	registerGRPC := func(s *grpc.Server) {}
-
+	// gRPC service 注册：**WithGRPC 已随域化收官删除**（裁决记录）。全部
+	// service 登记住 11 个带 proto 面的域声明包（tenant/user/secret/menu/
+	// permission/dict×2/file/auditlog/org×2）的 Services 槽位；业务零直接登记，
+	// 空 registerGRPC 回调无消费点——appkit.composeDomainServices 对「无业务回调
+	// 而域有 Services」合成纯域回调，std server Provider 据此照常构建 gRPC 面，
+	// 拦截器链经 WithGRPCOptions（下方，业务声明保留）照常生效。gateway 转码
+	//（registerGateway）是独立声明，不受影响。
 	opts := []appkit.Option{
 		// --- 框架自有后端 + 第三方 Provider（批 2 目标形态，评估 §4.1/§4.2）---
 		// std.Standard()：框架自有后端的段驱动 Provider 集合（http/grpc 服务器
@@ -180,7 +193,8 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 
 		// --- server 协议域第三方面（契约段驱动；段缺失即跳过）---
 		// asynq：server.asynq 段。任务 handler 注册与 SetScheduler 接线在回调内
-		// 完成（需 bizSet，故经 getter 传入）；段未配 redis_address / codec 时经
+		// 完成（task 域 biz 经 taskd.Biz() 访问器迟到读取——回调时点（迟后阶段
+		// server 构建）晚于域 Wire）；段未配 redis_address / codec 时经
 		// resolver 回退（保「配 cache.redis 即启用 asynq」与 env
 		// BALD_ADMIN_ASYNQ_CODEC 的既有兼容）。
 		asynqcontract.AppProvider(
@@ -191,9 +205,10 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 				if err := registerAsynqHandlers(ctx, s); err != nil {
 					return err
 				}
-				// biz 接线：把 asynq server 适配为 task.Scheduler 注入 biz。
-				if bizSet != nil && bizSet.Task != nil {
-					bizSet.Task.SetScheduler(newAsynqScheduler(s))
+				// biz 接线：把 asynq server 适配为 task.Scheduler 注入 task 域 biz
+				//（同一实例，无双构造；nil=域未声明，防御性跳过）。
+				if b := taskd.Biz(); b != nil {
+					b.SetScheduler(newAsynqScheduler(s))
 				}
 				return nil
 			}),
@@ -205,16 +220,17 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// gateway：server.gateway 段。转码注册回调复用本包的 registerGateway
 		//（与 HTTP 面同源）。
 		gatewaycontract.AppProvider(registerGateway),
-		// SSE：server.sse 段。授权钩子与 message 域推流接线经 Option 注入
-		//（见 sse.go）；段缺失即跳过——「不启用」= 移除 sse 段。
-		sseServerProvider(func() authn.Authenticator { return authenticator }, func() *apiserver.BizSet { return bizSet }),
+		// SSE：server.sse 段。授权钩子经 Option 注入；message 域推流接线在
+		// 回调内经 messaged.Biz() 迟到读取（见 sse.go）；段缺失即跳过——
+		// 「不启用」= 移除 sse 段。
+		sseServerProvider(func() authn.Authenticator { return authenticator }),
 
-		// --- 业务域声明（域形态，批 4 起：tenant/user 先行，其余 19 域随批跟进）---
+		// --- 业务域声明（域形态；批 4 收官：21 域全量在册）---
 		// 手写域清单（bald-admin 无 domains.gen.go，W3 生成物落地前的清单承载
 		// 形态——与上方 Provider 清单并列；Domain 实现 Option，变参直传 MustServe）。
 		// 基础设施取用约定：store/authn/authz 住装配层（InitBridges 与 BeforeStart
 		// 构造），域经 Deps getter 迟到取用——getter 读本函数作用域变量（闭包内
-		// `=` 赋值纪律同 bizSet）；域 Wire 晚于业务 BeforeStart 执行（bald/pkg/
+		// `=` 赋值纪律）；域 Wire 晚于业务 BeforeStart 执行（bald/pkg/
 		// appkit/domain.go 时序窗口），getter 届时返回已就绪实例。
 		tenantd.Domain(tenantd.Deps{
 			Store: func() *store.Store[authmodel.Tenant] { return repos.Tenant },
@@ -281,6 +297,102 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			Authz: func() authz.Authorizer { return authorizer },
 		}),
 
+		// --- 第三波重域（批 4）：auth ---
+		// 登录防护三件（限流/熔断/重试）构造器自 builders.go 迁入域（评估 §3.3
+		// 收口）：域 Wire 自读 Settings 快照的 biz.login.* 段并自行构造，装配层
+		// 不再出现业务阈值；flag 通道经 authd.FlagOptions 声明（下方 Bind）。其余
+		// 独有依赖（TokenStore/验证码/平台判据/TTL）按基础设施纪律住装配层——
+		// BeforeStart 抉择，域经 Deps getter 迟到取用（本函数作用域变量）。
+		authd.Domain(authd.Deps{
+			Signer:         func() authnjwt.Signer { return bootstrappkg.Signer },
+			UserStore:      func() *store.Store[authmodel.User] { return repos.User },
+			TenantStore:    func() *store.Store[authmodel.Tenant] { return repos.Tenant },
+			ReloadPolicies: func() func() error { return bootstrappkg.ReloadPolicies },
+			Authn:          func() authn.Authenticator { return authenticator },
+			TokenStore:     func() token.Store { return tokenStore },
+			CaptchaStore:   func() captcha.Store { return captchaStore },
+			PlatformResolver: func() func(*authmodel.User) bool {
+				return authmodel.IsPlatformUser
+			},
+			TokenTTL: func() (time.Duration, time.Duration) {
+				if svrOpts.Auth.AccessTTLMinutes <= 0 {
+					return 0, 0 // 禁用 TTL 抉择：SetTokenTTL 对零值忽略 = 默认 TTL
+				}
+				var refresh time.Duration
+				if svrOpts.Auth.RefreshTTLHours > 0 {
+					refresh = time.Duration(svrOpts.Auth.RefreshTTLHours) * time.Hour
+				}
+				return time.Duration(svrOpts.Auth.AccessTTLMinutes) * time.Minute, refresh
+			},
+			Authz: func() authz.Authorizer { return authorizer },
+		}),
+
+		// --- 第三波机械域（批 4）：mfa/identity/task/message/dashboard/
+		// permgroup/plan/portal/cachemonitor——biz 构造自 InitializeBiz 迁入各域
+		// Wire（无 proto 纯 gin 面，Services 不声明合法；cachemonitor 无仓储，
+		// Redis 客户端经 getter 透传，nil=监控降级合法）。getter 形态同上：
+		// store 读 repos，authn/authz 读 BeforeStart 构造的函数作用域变量。
+		mfad.Domain(mfad.Deps{
+			FactorStore: func() *store.Store[authmodel.UserMFAFactor] { return repos.MFAFactor },
+			Challenges:  func() mfa.ChallengeStore { return mfaChallenges },
+			Authn:       func() authn.Authenticator { return authenticator },
+			Authz:       func() authz.Authorizer { return authorizer },
+		}),
+		identityd.Domain(identityd.Deps{
+			CredentialStore:  func() *store.Store[authmodel.UserCredential] { return repos.Credential },
+			LoginPolicyStore: func() *store.Store[authmodel.LoginPolicy] { return repos.LoginPolicy },
+			Authn:            func() authn.Authenticator { return authenticator },
+			Authz:            func() authz.Authorizer { return authorizer },
+		}),
+		taskd.Domain(taskd.Deps{
+			TaskStore: func() *store.Store[authmodel.Task] { return repos.Task },
+			Authn:     func() authn.Authenticator { return authenticator },
+			Authz:     func() authz.Authorizer { return authorizer },
+		}),
+		messaged.Domain(messaged.Deps{
+			MessageStore:  func() *store.Store[authmodel.InternalMessage] { return repos.Message },
+			CategoryStore: func() *store.Store[authmodel.InternalMessageCategory] { return repos.MessageCategory },
+			RecipientStore: func() *store.Store[authmodel.InternalMessageRecipient] {
+				return repos.Recipient
+			},
+			UserStore: func() *store.Store[authmodel.User] { return repos.User },
+			Authn:     func() authn.Authenticator { return authenticator },
+			Authz:     func() authz.Authorizer { return authorizer },
+		}),
+		dashboardd.Domain(dashboardd.Deps{
+			AuditStore: func() *store.Store[authmodel.AuditRecord] { return repos.Audit },
+			RoleStore:  func() *store.Store[authmodel.Role] { return repos.Role },
+			UserStore:  func() *store.Store[authmodel.User] { return repos.User },
+			Authn:      func() authn.Authenticator { return authenticator },
+			Authz:      func() authz.Authorizer { return authorizer },
+		}),
+		permgroupd.Domain(permgroupd.Deps{
+			GroupStore:  func() *store.Store[authmodel.PermissionGroup] { return repos.PermGroup },
+			EvalLogStore: func() *store.Store[authmodel.PolicyEvaluationLog] { return repos.PolicyEvalLog },
+			Authn:       func() authn.Authenticator { return authenticator },
+			Authz:       func() authz.Authorizer { return authorizer },
+		}),
+		pland.Domain(pland.Deps{
+			PlanStore:   func() *store.Store[authmodel.Plan] { return repos.Plan },
+			ModuleStore: func() *store.Store[authmodel.PlanModule] { return repos.PlanModule },
+			QuotaStore:  func() *store.Store[authmodel.PlanQuota] { return repos.PlanQuota },
+			Authn:       func() authn.Authenticator { return authenticator },
+			Authz:       func() authz.Authorizer { return authorizer },
+		}),
+		portald.Domain(portald.Deps{
+			UserStore:       func() *store.Store[authmodel.User] { return repos.User },
+			RoleStore:       func() *store.Store[authmodel.Role] { return repos.Role },
+			PermissionStore: func() *store.Store[authmodel.Permission] { return repos.Permission },
+			MenuStore:       func() *store.Store[authmodel.Menu] { return repos.Menu },
+			Authn:           func() authn.Authenticator { return authenticator },
+			Authz:           func() authz.Authorizer { return authorizer },
+		}),
+		cachemonitord.Domain(cachemonitord.Deps{
+			RDB:   func() goredis.UniversalClient { return bootstrappkg.RedisClient },
+			Authn: func() authn.Authenticator { return authenticator },
+			Authz: func() authz.Authorizer { return authorizer },
+		}),
+
 		// --- 配置命名空间与本地文件 ---
 		// env 前缀（BALD_ADMIN_*）由契约 app.name 派生（B6 两遍合并）——
 		// configs/bald-admin.yaml 的 app.name 即其来源（缺失启动 fail-fast）。
@@ -292,15 +404,19 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 严格契约校验：业务段（biz）整棵放行，其余顶层段内的未知键 fail-fast。
 		// 白名单由本应用给出（options.BusinessSection）——框架不认识 biz。
 		appkit.StrictContract(options.BusinessSection),
-		// 业务配置 flag 通道（--biz.login.rate_limit.rate=9 等）。缺此注册时业务
-		// flag 进不了装载 FlagSet，「flag > env > 文件」对业务配置项整条失效。
+		// 业务配置 flag 通道。缺此注册时业务 flag 进不了装载 FlagSet，
+		// 「flag > env > 文件」对业务配置项整条失效。
 		appkit.Bind("", svrOpts),
+		// 登录防护三件的 flag 通道（--biz.login.*）：键名/默认值归 authd 域
+		// （业务阈值不出域），装配层仅声明绑定（PlainBinder 形态）。
+		appkit.Bind("", &authd.FlagOptions{}),
 
 		// --- 能力声明（代码提供）---
 		appkit.WithHTTP(router),
 		// 拦截器链改**运行期求值**——工厂在 Run 期 server 构造点调用（业务
 		// BeforeStart 之后），可读上方运行期赋值的 authenticator/authorizer。
-		appkit.WithGRPC(registerGRPC),
+		// （WithGRPC 业务登记回调已删——见上方「gRPC service 注册」裁决注释；
+		// gRPC 面的存在性与 service 登记均由域声明包的 Services 承载。）
 		appkit.WithGRPCOptions(func() []grpc.ServerOption {
 			return newGRPCServerOptions(authenticator, authorizer)
 		}),
@@ -422,30 +538,30 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			// token.NewRevocationChecker 会因 store==nil 退化为纯验签——**吊销静默
 			// 失效**（安全回归，正是 lazy 当初要修的 bug）。故 TokenStore 必须在此
 			// （路由注册前）就绪。
-			tokenStore := buildTokenStore()
+			// 赋给**函数作用域**变量（非 `:=` 新建）——authd 域的 Deps.TokenStore
+			// getter 读同一实例。
+			tokenStore = buildTokenStore()
 			if tokenStore != nil {
 				bootstrappkg.TokenStore = tokenStore
+				// 验证码 / MFA 挑战存储（复用同一 Redis）：随 TokenStore 同点抉择，
+				// 域 Wire 经 Deps getter 迟到取用。无 Redis（tokenStore nil）时保持
+				// nil——authd 的验证码与 mfad 的挑战存储各自禁用态（MFA fail-closed、
+				// 验证码 503，与迁移前逐点一致）。
+				captchaStore = captcha.NewRedisStore(bootstrappkg.RedisClient)
+				mfaChallenges = mfa.NewRedisChallengeStore(bootstrappkg.RedisClient)
 			}
 			// 认证器：有 Redis 时带吊销检查（登出即时生效）；无 Redis 退化为纯验签。
 			// 赋给**函数作用域**变量（非 `:=` 新建）——运行期 gRPC 选项工厂
 			// 与 SSE 工厂读取同一实例。
 			authenticator = token.NewRevocationChecker(bootstrappkg.Authenticator, tokenStore)
 			authorizer = bootstrappkg.Authorizer
-			// 业务装配（wire 构造 biz + 路由注册 + gRPC 服务注册）在此
-			// 运行期钩子内完成——此刻 store / Redis / TokenStore 已由 InitBridges
-			// 建立，biz 不再需要「构造期占位 + 请求期解析」。
-			//
-			// 时序保证：本钩子（业务 BeforeStart）**先于**框架 server 构造钩子执行
-			//（注册序=执行序）——故 registerGRPC 被调用时 bizSet 已就绪，
-			// WithHTTP(router) 的 handler 也已挂好全部路由。
-			biz, err := InitializeBiz(repos)
-			if err != nil {
-				return fmt.Errorf("initialize biz (wire): %w", err)
-			}
-			bizSet = biz
-			// gin 路由注册。认证器/授权器为**真实实例**（上方已构造），
-			// 中间件直接持有——无请求期解析层。
-			apiserver.RegisterRoutes(router, authenticator, authorizer, bizSet)
+			// 共面挂载（api 审计中间件 + service info + openapi）。21 域的路由
+			// 由各域声明包的 Routes 注册——本钩子（业务 BeforeStart）先于域装配
+			// 钩子执行（注册序=执行序），gin 的 Use 只影响其后注册的路由，故
+			// apiaudit 中间件覆盖全部域路由；共面/管理面在域路由之前挂载。
+			// （原 RegisterRoutes + BizSet 已随域化收官溶解——bizset.go 删除，
+			// 见 apiserver.RegisterBaseFaces 与各域 domain.go。）
+			apiserver.RegisterBaseFaces(router)
 			// 管理面：运行期组件观测与热插拔（appRef 在 provider Build 期绑定）。
 			registerAdminRoutes(router, appRef, authenticator, authorizer, componentFactories)
 			// secret/dict 两域的 Cache-Aside 后端解析（域 Wire 经 Deps.Cache getter
@@ -466,58 +582,9 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			} else {
 				bizCache = envCache
 			}
-			// 登录限流接线（业务自持配置段 login.rate_limit.*）。框架契约的
-			// server.http.rate_limit 段是**中间件级**限流且当前零消费者，故业务级
-			// 登录限流走自持段。未配置时保持 nil = 禁用态（不阻断登录，fail-open）。
-			if lim := buildLoginLimiter(svrOpts); lim != nil {
-				bizSet.Auth.SetLoginLimiter(lim)
-			}
-			// 登录 DB 查询熔断接线（业务自持配置段 login.breaker.*）。
-			if cb := buildLoginBreaker(svrOpts); cb != nil {
-				bizSet.Auth.SetLoginBreaker(cb)
-			}
-			// 登录 DB 查询重试接线（业务自持配置段 login.retry.*）。
-			if r := buildLoginRetrier(svrOpts); r != nil {
-				bizSet.Auth.SetLoginRetrier(r)
-			}
-			// 平台级身份判据（跨租户视图）：持有 superadmin 角色的用户签发
-			// Platform=true 的令牌，bald pkg/store 据此跳过租户隔离。
-			//
-			// 判据放在 authmodel.IsPlatformUser（而非此处内联）：测试要复用
-			// 同一判据断言，且 bootstrap 播种角色时也引用同一常量。
-			//
-			// **无条件注入**（不像上面几个 setter 有 nil 分支）——判据是纯函数，
-			// 无外部依赖、无时序要求，不存在「未就绪」状态。
-			bizSet.Auth.SetPlatformResolver(authmodel.IsPlatformUser)
-			// 令牌校验器接线（Logout 吊销 / RefreshToken 刷新 /
-			// ValidateToken 校验）。
-			//
-			// TokenStore 与带吊销检查的认证器已在**路由注册前**构造
-			//（见上），此处只把同一实例注入 biz（ValidateToken 与中间件同源，故
-			// 「登出后 ValidateToken 报 invalid」与「登出后中间件拒绝」语义一致）。
-			if tokenStore != nil {
-				bizSet.Auth.SetTokenStore(tokenStore)
-				bizSet.Auth.SetAuthenticator(authenticator)
-				// 验证码存储（复用同一 Redis）。
-				bizSet.Auth.SetCaptchaStore(captcha.NewRedisStore(bootstrappkg.RedisClient))
-				// MFA 挑战存储（复用同一 Redis）。
-				// Redis 故障时 MFA 走 fail-closed（biz 层判 nil 返回错误）——
-				// MFA 是安全边界，不能像限流那样 fail-open。
-				if bizSet.MFA != nil {
-					bizSet.MFA.SetChallenges(mfa.NewRedisChallengeStore(bootstrappkg.RedisClient))
-				}
-			} else {
-				// 无 Redis：ValidateToken 仍可用（退化为纯验签，无吊销检查）；
-				// 验证码不可用（生成/校验返回 503，fail-closed 不放行）。
-				bizSet.Auth.SetAuthenticator(bootstrappkg.Authenticator)
-			}
-			if svrOpts.Auth.AccessTTLMinutes > 0 {
-				refresh := time.Duration(0)
-				if svrOpts.Auth.RefreshTTLHours > 0 {
-					refresh = time.Duration(svrOpts.Auth.RefreshTTLHours) * time.Hour
-				}
-				bizSet.Auth.SetTokenTTL(time.Duration(svrOpts.Auth.AccessTTLMinutes)*time.Minute, refresh)
-			}
+			// （auth/MFA 的 biz 接线——登录防护三件、平台判据、TokenStore/验证码/
+			// 挑战存储、令牌 TTL——已随批 4 域化迁往 authd/mfad 域的 Wire：域自读
+			// 自持配置段，基础设施经 Deps getter 迟到取用上面抉择好的实例。）
 			return nil
 		}),
 
@@ -554,7 +621,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 //   - 框架：Serve 硬编码绑定 `--server.http.*` / `--server.grpc.*` 与 `--log.*`
 //     壳（appkit 装配），外加 --config（parseConfigFlag）；
 //   - 业务：本包的 appkit.Bind("", svrOpts) → ServerOptions.AddFlags，
-//     注册 `--biz.login.rate_limit.rate` 等业务项。
+//     注册 `--biz.*` 系业务项（login 段键名归 authd.FlagOptions）。
 //
 // 二者经同一个装载 FlagSet 合流，共享「flag > env > 文件 > 远程」优先级。
 //

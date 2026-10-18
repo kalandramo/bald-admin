@@ -43,8 +43,8 @@ import (
 	ssecontract "github.com/kalandramo/bald/transport/sse/contract"
 
 
-	"github.com/kalandramo/bald-admin/internal/apiserver"
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
+	messaged "github.com/kalandramo/bald-admin/internal/apiserver/domains/messaged"
 )
 
 // ensureJSONCodec 确保 json codec 已注册（SSE 的 PublishData* 依赖它）。
@@ -67,15 +67,16 @@ func ensureJSONCodec() {
 // sseServerProvider 构造 SSE 的段驱动 Provider（server.sse 段；批 2 起经
 // ssecontract.AppProvider 声明进 MustServe 的 Provider 清单，原 ServerRegistry
 // 注册表形态删除）。段缺失即被引擎跳过——「不启用」= 移除 sse 段。
-func sseServerProvider(
-	authnGetter func() authn.Authenticator,
-	bizGetter func() *apiserver.BizSet,
-) appkit.Provider {
+//
+// 批 4 域化：message biz 不再经 BizSet 聚合传入——AfterBuild 回调（SSE server
+// 构建时点，迟后阶段）经 messaged.Biz() 迟到读取域 Wire 产物；nil（未 Wire）
+// 即跳过接线（SSE 无订阅推送不影响落库收件，降级语义不变）。
+func sseServerProvider(authnGetter func() authn.Authenticator) appkit.Provider {
 	return ssecontract.AppProvider(
 		ssecontract.WithServerOptions(sseServerOptionsDeferred(authnGetter)...),
 		ssecontract.WithAfterBuild(func(_ context.Context, srv *baldsse.Server) error {
-			if bs := bizGetter(); bs != nil && bs.Message != nil {
-				wireMessageSSE(srv, bs.Message)
+			if b := messaged.Biz(); b != nil {
+				wireMessageSSE(srv, b)
 			}
 			return nil
 		}),
