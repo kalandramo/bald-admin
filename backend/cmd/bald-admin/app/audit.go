@@ -19,7 +19,7 @@ import (
 )
 
 // reconAuditors 是 R1-2 协调的「实际态」载体：协调器逐后端 Mount/Unmount，
-// 每个后端组件在 Start 时把自己塞入此表、Dispose 时移除，并刷新全局 MultiAuditor。
+// 每个后端组件在 Start 时把自己塞入此表、Dispose 时移除，并刷新当前生效 MultiAuditor。
 // 由 ReconcileCtx.Mount/Unmount（底层 A1 组件生命周期 + reconItems 归属表）串行化，
 // 自身无需额外加锁——协调器单次执行是串行的，且框架对多协调器按注册序串行。
 var reconAuditors = struct {
@@ -27,8 +27,9 @@ var reconAuditors = struct {
 	set map[string]audit.Auditor
 }{set: make(map[string]audit.Auditor)}
 
-// applyAuditors 根据当前后端表重建全局 MultiAuditor（按后端名排序，顺序确定、
-// 便于测试与排查；空则退化为 Nop，绝不阻断审计旁路）。
+// applyAuditors 根据当前后端表重建当前生效 MultiAuditor（按后端名排序，顺序
+// 确定、便于测试与排查；空则退化为 Nop，绝不阻断审计旁路。B8：框架全局
+// audit.SetAuditor 已删除，生效集由本应用经 securityaudit.SetCurrent 自持）。
 
 func applyAuditors() {
 	reconAuditors.mu.Lock()
@@ -43,10 +44,10 @@ func applyAuditors() {
 	}
 	reconAuditors.mu.Unlock()
 	if len(list) == 0 {
-		audit.SetAuditor(audit.NopAuditor())
+		securityaudit.SetCurrent(audit.NopAuditor())
 		return
 	}
-	audit.SetAuditor(securityaudit.NewMulti(list...))
+	securityaudit.SetCurrent(securityaudit.NewMulti(list...))
 }
 
 // auditBackendComponent 是一个后端审计器组件：Mount 即把自身审计器注册进全局

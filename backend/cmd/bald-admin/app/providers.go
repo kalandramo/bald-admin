@@ -23,27 +23,25 @@ package app
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	baldbootstrap "github.com/kalandramo/bald/bootstrap"
 	baldconfig "github.com/kalandramo/bald/bootstrap/config"
 	otlpcontract "github.com/kalandramo/bald/contrib/observability-otlp/contract"
 	"github.com/kalandramo/bald/log"
+	"github.com/kalandramo/bald/log/bslog"
 	"github.com/kalandramo/bald/pkg/appkit"
 
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
-// configNamespace 是本进程的**配置命名空间**——唯一事实来源。它同时决定两件事：
+// configNamespace 是本进程的配置命名空间常量——决定 `--config` 缺省路径
+// `configs/{configNamespace}.yaml`（经 appkit.ConfigFile 声明，Serve 内部的
+// parseConfigFlag 以它为默认值）。
 //
-//  1. `--config` 缺省路径：`configs/{namespace}.yaml`（经 appkit.ConfigFile 声明，
-//     Serve 内部的 parseConfigFlag 以它为默认值——原 preloadBootstrap 手写扫描
-//     已随批 2 内化删除，默认路径语义等价）；
-//  2. env 前缀（`BALD_ADMIN_*`）与多环境文件名（`bald-admin-{env}.yaml`）
-//     ——经 appkit.ConfigNamespace 声明（见 assembly.go）。
-//
-// 为什么必须是代码层常量：Serve 路径下若取自契约 app.name 会构成自指（配置
-// 文件写 app.name 会让全部 BALD_ADMIN_* env 覆盖静默失效）。
+// B6 起 env 前缀（`BALD_ADMIN_*`）与多环境文件名由**契约 app.name 派生**
+// （两遍合并：文件层先解析 app.name，再按它挂 env 层）——configs/bald-admin.yaml
+// 的 app.name: bald-admin 即其来源，契约无 app.name 时启动 fail-fast 且报错
+// 可行动。
 const configNamespace = "bald-admin"
 
 // configFileDefault 本地配置文件缺省路径，由 configNamespace 派生而非独立字面量。
@@ -174,10 +172,10 @@ func (tracerProvider) Build(ctx context.Context, s appkit.BuildScope) (any, appk
 //   - "otlp"：本地抓取 + OTLP 周期推送（两个 reader 挂**同一 MeterProvider**，
 //     同源双出口——OTLP 推送不依赖 :9091 端点是否监听）。
 //
-// 抓取端 http.Server 由本 Provider 自持起停（appkit.StartMetricsServer +
-// cleanup 里 Shutdown；原 buildObservability 的暴露端装配随注册表删除迁入）。
-// 停机序沿用原语义：先停暴露端、再 flush 直推通道（收集尾批指标），由引擎
-// "appkit:metrics-server" Effect 逆序回放最后执行。
+// B7：暴露端监听面归能力包——contract Provider 经 observability/metricshttp
+// 自持起停，返回可关闭的暴露端（appkit.MetricsExposure）；本 Provider 只做
+// type 分派转发。停机序由引擎合成：先停暴露端、再 flush 直推通道（收集尾批
+// 指标），经 "appkit:metrics-server" Effect 逆序回放最后执行。
 type metricsProvider struct{}
 
 func (metricsProvider) Segments() []string { return []string{"metrics"} }
@@ -190,38 +188,80 @@ func (metricsProvider) Build(ctx context.Context, s appkit.BuildScope) (any, app
 		return nil, nil, nil // 段缺省：不装配
 	}
 	var (
-		handler http.Handler
-		flush   func(context.Context) error
+		exp   appkit.MetricsExposure
+		flush func(context.Context) error
 	)
 	switch mc.GetType() {
 	case otlpcontract.TypePrometheus:
-		h, f, err := otlpcontract.NewPrometheusProvider(configNamespace)(ctx, mc)
+		e, f, err := otlpcontract.NewPrometheusProvider(configNamespace)(ctx, mc)
 		if err != nil {
 			return nil, nil, fmt.Errorf("metrics: build prometheus backend: %w", err)
 		}
-		handler, flush = h, f
+		exp, flush = e, f
 	case otlpcontract.TypeOTLP:
-		h, f, err := otlpcontract.NewOTLPProvider(configNamespace)(ctx, mc)
+		e, f, err := otlpcontract.NewOTLPProvider(configNamespace)(ctx, mc)
 		if err != nil {
 			return nil, nil, fmt.Errorf("metrics: build otlp backend: %w", err)
 		}
-		handler, flush = h, f
+		exp, flush = e, f
 	default:
 		return nil, nil, fmt.Errorf("metrics: unknown metrics.type %q (registered: %q, %q)",
 			mc.GetType(), otlpcontract.TypePrometheus, otlpcontract.TypeOTLP)
 	}
-	srv := appkit.StartMetricsServer(mc.GetPrometheus().GetAddr(), mc.GetPrometheus().GetPath(), handler)
-	return nil, func(ctx context.Context) error {
-		if srv != nil {
-			if err := srv.Shutdown(ctx); err != nil {
-				log.Error(ctx, "appkit metrics server shutdown failed", "error", err.Error())
-			}
-		}
+	return exp, func(ctx context.Context) error {
 		if flush != nil {
 			return flush(ctx)
 		}
 		return nil
 	}, nil
+}
+
+// ---------------------------------------------------------------------------
+// logger 段：装饰自持的日志 Provider（B7：WithLogDecorators 取消导出）
+// ---------------------------------------------------------------------------
+
+// loggerProvider 消费 logger 段（覆盖 std 默认的 StandardLoggerProvider，段
+// 路径末者胜）。B7 后装饰归 provider 自持：本 Provider 沿用内置 slog 分派
+// 语义（阶段 A 引导 bslog；阶段 B/热更按 backends 逐项直构 + 多项合并 +
+// filter_keys 外包），并把 Attr 层脱敏（bslog.WithFilter——契约 filter_keys
+// 漏掉的 slog.Attr 形态由此覆盖，二者互补缺一不可）与固定结构化属性带进
+// 阶段 A/B 两个构造点。
+type loggerProvider struct{ deco []bslog.Option }
+
+func (p loggerProvider) Segments() []string { return []string{"logger"} }
+
+func (p loggerProvider) Apply(d *appkit.Decl) { d.Providers = append(d.Providers, p) }
+
+func (p loggerProvider) Build(_ context.Context, s appkit.BuildScope) (any, appkit.Cleanup, error) {
+	l := s.Config.GetLogger()
+	if l == nil {
+		// 阶段 A（契约装载前）：引导 bslog——启动期日志仍带脱敏。
+		return bslog.New(baldbootstrap.LogOptions(nil), p.deco...), nil, nil
+	}
+	bs := l.GetBackends()
+	if len(bs) == 0 {
+		return nil, nil, fmt.Errorf("logger: logger.backends is empty (declare at least one backend, e.g. type \"slog\")")
+	}
+	loggers := make([]log.Logger, 0, len(bs))
+	var cleanups []func()
+	for i, b := range bs {
+		if b.GetType() != "slog" {
+			return nil, nil, fmt.Errorf("logger: logger.backends[%d] type %q: builtin path supports only \"slog\"; remote/custom backends need a logger provider", i, b.GetType())
+		}
+		lg, c := bslog.NewWithCleanup(baldbootstrap.LogOptions(b), p.deco...)
+		loggers = append(loggers, lg)
+		cleanups = append(cleanups, c)
+	}
+	var out log.Logger = loggers[0]
+	if len(loggers) > 1 {
+		out = log.NewMultiLogger(loggers...)
+	}
+	merged := func() {
+		for _, c := range cleanups {
+			c()
+		}
+	}
+	return log.NewFilterLogger(out, l.GetFilterKeys()...), appkit.Cleanup(func(context.Context) error { merged(); return nil }), nil
 }
 
 // ---------------------------------------------------------------------------

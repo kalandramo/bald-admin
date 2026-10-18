@@ -52,10 +52,10 @@ func seedAuditForTenant(t *testing.T, tenantID, subject string) {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	audit.SetAuditor(securityaudit.NewStore(bootstrappkg.DB))
-	t.Cleanup(func() { audit.SetAuditor(audit.NopAuditor()) })
+	securityaudit.SetCurrent(securityaudit.NewStore(bootstrappkg.DB))
+	t.Cleanup(func() { securityaudit.SetCurrent(audit.NopAuditor()) })
 
-	audit.GetAuditor().Record(context.Background(), audit.AuditEvent{
+	securityaudit.Current().Record(context.Background(), audit.AuditEvent{
 		Subject:  subject,
 		TenantID: tenantID,
 		Object:   "platform-view-probe",

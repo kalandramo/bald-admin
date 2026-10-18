@@ -6,6 +6,8 @@ import (
 
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/audit"
+
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 )
 
 // newAuditSettings 构造只含 audit.backends 的最小期望态快照（无需真实 DB/Redis）。
@@ -53,9 +55,9 @@ func TestReconcileAudit_ParseBackends(t *testing.T) {
 	}
 }
 
-// TestReconcileAudit_MountLog 期望态 log：收敛出 log 组件，全局审计器生效（非 nop）。
+// TestReconcileAudit_MountLog 期望态 log：收敛出 log 组件，当前生效审计器非 nop。
 func TestReconcileAudit_MountLog(t *testing.T) {
-	audit.SetAuditor(audit.NopAuditor())
+	securityaudit.SetCurrent(audit.NopAuditor())
 	app := newReconcileApp()
 	rctx := appkit.NewReconcileCtx(app, "audit.backends", newAuditSettings("log"))
 
@@ -65,7 +67,7 @@ func TestReconcileAudit_MountLog(t *testing.T) {
 	if !contains(app.ListComponents(), "log") {
 		t.Fatalf("expected log mounted, got %v", app.ListComponents())
 	}
-	cap := &capturedAuditor{Auditor: audit.GetAuditor()}
+	cap := &capturedAuditor{Auditor: securityaudit.Current()}
 	cap.Record(context.Background(), audit.AuditEvent{Object: "test", Action: "get"})
 	if cap.got == 0 {
 		t.Fatal("expected active auditor after reconcile, but no event recorded (still nop?)")
@@ -74,7 +76,7 @@ func TestReconcileAudit_MountLog(t *testing.T) {
 
 // TestReconcileAudit_Idempotent 二次收敛同期望态：diff 为空，不重复挂载、不抖动。
 func TestReconcileAudit_Idempotent(t *testing.T) {
-	audit.SetAuditor(audit.NopAuditor())
+	securityaudit.SetCurrent(audit.NopAuditor())
 	app := newReconcileApp()
 	rctx := appkit.NewReconcileCtx(app, "audit.backends", newAuditSettings("log"))
 
@@ -89,9 +91,9 @@ func TestReconcileAudit_Idempotent(t *testing.T) {
 	}
 }
 
-// TestReconcileAudit_RemoveOnEmpty 期望态置空：移除已挂载后端，全局审计器退化为 nop。
+// TestReconcileAudit_RemoveOnEmpty 期望态置空：移除已挂载后端，生效审计器退化为 nop。
 func TestReconcileAudit_RemoveOnEmpty(t *testing.T) {
-	audit.SetAuditor(audit.NopAuditor())
+	securityaudit.SetCurrent(audit.NopAuditor())
 	app := newReconcileApp()
 	rctx := appkit.NewReconcileCtx(app, "audit.backends", newAuditSettings("log"))
 	if err := reconcileAudit(context.Background(), rctx); err != nil {

@@ -57,8 +57,8 @@ func startPlatformREST(t *testing.T) string {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	audit.SetAuditor(securityaudit.NewStore(bootstrappkg.DB))
-	t.Cleanup(func() { audit.SetAuditor(audit.NopAuditor()) })
+	securityaudit.SetCurrent(securityaudit.NewStore(bootstrappkg.DB))
+	t.Cleanup(func() { securityaudit.SetCurrent(audit.NopAuditor()) })
 
 	e := gingonic.New()
 	e.Use(ginmw.AuditMiddleware(
@@ -81,7 +81,7 @@ func startPlatformREST(t *testing.T) string {
 // seedAuditForTenantP 落一条审计记录到指定租户（唯一 subject 便于精确定位）。
 func seedAuditForTenantP(t *testing.T, tenantID, subject string) {
 	t.Helper()
-	audit.GetAuditor().Record(context.Background(), audit.AuditEvent{
+	securityaudit.Current().Record(context.Background(), audit.AuditEvent{
 		Subject:  subject,
 		TenantID: tenantID,
 		Object:   "superadmin-probe",

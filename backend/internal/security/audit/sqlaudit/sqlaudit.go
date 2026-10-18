@@ -34,6 +34,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/kalandramo/bald/pkg/audit"
+
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 )
 
 // nowFn 取当前时间（可在测试中替换）。
@@ -123,7 +125,7 @@ func collect(tx *gorm.DB, op string, isWrite bool) {
 // panic 仅忽略。
 func recordSafely(ctx context.Context, ev audit.AuditEvent) {
 	defer func() { _ = recover() }()
-	audit.GetAuditor().Record(WithSinking(ctx), ev)
+	securityaudit.Current().Record(WithSinking(ctx), ev)
 }
 
 // MaskSQL 对 SQL 文本做字面量脱敏（单引号字符串 → 单个 ?），避免把敏感

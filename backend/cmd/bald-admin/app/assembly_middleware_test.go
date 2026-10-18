@@ -42,7 +42,9 @@ import (
 //
 // 端口由调用方传入动态空闲端口（见 testaddr_test.go 的根因说明）。
 func middlewareTestConfigFor(httpPort, grpcPort string) string {
-	return `config:
+	return `app:
+  name: "bald-admin"
+config:
   file:
     path: "configs/bald-admin.yaml"
     format: "yaml"
@@ -198,7 +200,9 @@ func TestAssemblyPath_MiddlewareOnBusinessRoute(t *testing.T) {
 // TestAssemblyPath_InvalidMiddlewareFailsFast 显式声明非法中间件值 → 启动期报错
 //（BeforeStart 内 fail-fast，先于监听——而非静默忽略配置）。
 func TestAssemblyPath_InvalidMiddlewareFailsFast(t *testing.T) {
-	const badCfg = `config:
+	const badCfg = `app:
+  name: "bald-admin"
+config:
   file:
     path: "configs/bald-admin.yaml"
     format: "yaml"

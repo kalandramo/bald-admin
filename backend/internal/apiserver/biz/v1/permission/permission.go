@@ -15,6 +15,7 @@ import (
 
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/audit"
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -190,7 +191,7 @@ func auditPermission(ctx context.Context, action, targetType, targetID, oldValue
 // middleware/gin 的 recordSafely 同纪律）。
 func recordSafely(ctx context.Context, ev audit.AuditEvent) {
 	defer func() { _ = recover() }()
-	audit.GetAuditor().Record(ctx, ev)
+	securityaudit.Current().Record(ctx, ev)
 }
 
 // joinCSV 序列化 MenuIDs（与 model.splitCSV 逆操作）。

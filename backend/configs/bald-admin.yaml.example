@@ -26,7 +26,7 @@
 # stop_timeout=30s），故**建议显式声明**以免服务身份与预期不符。
 #
 # 注意 app.name 是**服务身份**（日志 attrs / 注册中心实例名），
-# 不决定 env 前缀——配置命名空间由代码层 appkit.WithConfigNamespace 声明。
+# 决定 env 前缀（BALD_ADMIN_*）——B6 起 env 前缀由本字段派生（两遍合并，缺失启动 fail-fast）。
 app:
   name: "bald-admin"
   version: "v0.1.0"

@@ -208,9 +208,8 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		sseServerProvider(func() authn.Authenticator { return authenticator }, func() *apiserver.BizSet { return bizSet }),
 
 		// --- 配置命名空间与本地文件 ---
-		// env 前缀（BALD_ADMIN_*）与多环境文件名（bald-admin-prod.yaml）的来源。
-		// 必须是代码层常量——Serve 路径下若取自契约 app.name 会构成自指。
-		appkit.ConfigNamespace(configNamespace),
+		// env 前缀（BALD_ADMIN_*）由契约 app.name 派生（B6 两遍合并）——
+		// configs/bald-admin.yaml 的 app.name 即其来源（缺失启动 fail-fast）。
 		// 本地配置文件 + fsnotify 热更新。显式路径缺失 → fail-fast（配置携带
 		// DB/Redis 凭据，宁可启动即失败也不要半配置运行）。--config flag 可覆盖，
 		// 由 Serve 内部 parseConfigFlag 解析（原 preloadBootstrap 手写扫描已内化）。
@@ -234,20 +233,19 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 健康检查默认装配：HTTP 双探针 + gRPC health 状态联动。
 		appkit.WithHealth(healthChecker),
 
-		// 日志装饰：脱敏 + 固定结构化属性。
-		//
-		// 两套脱敏机制**互补，不是重复**（实测验证）：
-		//   - 契约 `logger.filter_keys`（见 configs/bald-admin.yaml.example）包在
-		//     MultiLogger 外层，覆盖**位置参数对**（"password", v）与 **ctx 属性流**；
-		//   - 下面 bslog.WithFilter 是 slog handler 层装饰器，覆盖 **slog.Attr**
-		//     形式（slog.String("password", v)）。契约版不处理 Attr——其 filterArgs
-		//     按「偶数下标为 key」匹配，Attr 不是字符串对，会被漏过。
+		// 日志装饰（B7：WithLogDecorators 取消导出，装饰归 provider 自持）：
+		// 经本应用的 loggerProvider（覆盖 std 默认）注入。两套脱敏机制
+		// **互补，不是重复**（实测验证）：
+		//   - 契约 `logger.filter_keys` 包在 MultiLogger 外层，覆盖**位置参数对**
+		//     （"password", v）与 **ctx 属性流**；
+		//   - bslog.WithFilter 是 slog handler 层装饰器，覆盖 **slog.Attr** 形式
+		//     （slog.String("password", v)）。契约版不处理 Attr——会被漏过。
 		// 二者缺一即有来源未被掩码，故并存。
-		appkit.WithLogDecorators(
+		loggerProvider{deco: []bslog.Option{
 			bslog.WithFilter(bslog.FilterKey("password")),
 			bslog.WithFilter(bslog.FilterKey("token")),
 			bslog.WithAttrs(slog.String("service.name", "bald-admin")),
-		),
+		}},
 
 		// --- 机制层（原 appkit.WithX 声明，批 2 下沉 mech 子包）---
 		// 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB

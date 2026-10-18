@@ -57,8 +57,8 @@ func startDashboardREST(t *testing.T) string {
 	// 这是一个**既有测试盲区**：所有依赖审计落库的行为在 e2e 中此前
 	// 都验证不到。本测试显式装配，使「登录→审计落库→dashboard 聚合」
 	// 全链路可验证。
-	audit.SetAuditor(securityaudit.NewStore(bootstrappkg.DB))
-	t.Cleanup(func() { audit.SetAuditor(audit.NopAuditor()) })
+	securityaudit.SetCurrent(securityaudit.NewStore(bootstrappkg.DB))
+	t.Cleanup(func() { securityaudit.SetCurrent(audit.NopAuditor()) })
 	authBiz := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 

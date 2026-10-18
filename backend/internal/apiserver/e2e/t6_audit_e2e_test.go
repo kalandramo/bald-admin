@@ -52,8 +52,8 @@ func startAuditREST(t *testing.T) string {
 	}
 	repos = bootstrappkg.LastRepositories()
 	// T6：审计后端 = StoreAuditor（真实落库），登录/业务审计共用该入口。
-	audit.SetAuditor(securityaudit.NewStore(bootstrappkg.DB))
-	t.Cleanup(func() { audit.SetAuditor(audit.NopAuditor()) })
+	securityaudit.SetCurrent(securityaudit.NewStore(bootstrappkg.DB))
+	t.Cleanup(func() { securityaudit.SetCurrent(audit.NopAuditor()) })
 
 	e := gingonic.New()
 	// 与 main.go 对称：审计中间件在路由注册前全局挂载（wrap 型旁路）。

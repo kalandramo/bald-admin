@@ -44,7 +44,9 @@ import (
 // httpPort/grpcPort 由调用方传入**动态空闲端口**（见 testaddr_test.go 的根因说明：
 // 硬编码端口会被残留进程冒名顶替，导致就绪判据失真）。
 func sqliteTestConfigFor(httpPort, grpcPort string) string {
-	return `config:
+	return `app:
+  name: "bald-admin"
+config:
   file:
     path: "configs/bald-admin.yaml"
     format: "yaml"

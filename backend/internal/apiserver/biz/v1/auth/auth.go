@@ -19,6 +19,7 @@ import (
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/audit"
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/store"
 	"github.com/kalandramo/bald/ratelimit"
@@ -576,7 +577,7 @@ var ErrTokenInvalid = errors.New("auth: invalid token")
 // Login 校验凭据（查 store）并签发 JWT。
 // T6 登录审计：成功/失败/内部错误均记一条 category=login 审计事件（源
 // login_audit_log 语义精简：IP/UA/结果/失败原因；风险评分/MFA/设备指纹后续迭代）。
-// 经全局 audit.GetAuditor()（bootstrap audit.backends 热切换同一入口），旁路不阻断。
+// 经当前生效审计器（securityaudit.Current，bootstrap audit.backends 热切换同一入口），旁路不阻断。
 func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 	// 限流在凭据校验之前——先拦流量再做昂贵的 bcrypt 比较，
 	// 否则限流形同虚设（攻击者仍能消耗 CPU）。限流器为 nil 时直接放行
@@ -962,7 +963,7 @@ func recordSafely(ctx context.Context, ev audit.AuditEvent) {
 			log.Warn(ctx, "login audit panic recovered", "panic", r)
 		}
 	}()
-	audit.GetAuditor().Record(ctx, ev)
+	securityaudit.Current().Record(ctx, ev)
 }
 
 // WhoAmI 从已认证上下文解析当前用户（subject 由 authn 中间件注入）。

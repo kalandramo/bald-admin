@@ -25,6 +25,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/kalandramo/bald/pkg/audit"
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/contextx"
 )
@@ -93,5 +94,5 @@ func result(c *gin.Context) audit.Result {
 // recordSafely 旁路记录：auditor panic 仅忽略，绝不向上游抛错。
 func recordSafely(ctx context.Context, ev audit.AuditEvent) {
 	defer func() { _ = recover() }()
-	audit.GetAuditor().Record(ctx, ev)
+	securityaudit.Current().Record(ctx, ev)
 }

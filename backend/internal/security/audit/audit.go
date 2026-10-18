@@ -8,15 +8,45 @@ package audit
 
 import (
 	"context"
+	"sync"
 
 	"github.com/kalandramo/bald/pkg/audit"
 )
 
+// ---- 当前生效审计器（B8 适配：框架全局 audit.SetAuditor/GetAuditor 已删除） ----
+//
+// 原「契约轨 SetAuditor + R1-2 协调轨热切 + 中间件动态转发」的进程级全局由
+// 本应用自持（API 形状与原全局一致：Set/Current）。GlobalAuditor 每次转发
+// Current()，「中间件构造时刻」与「后端装配时刻」的解耦语义不变。
+
+var (
+	currentMu   sync.RWMutex
+	currentAud  audit.Auditor = audit.NopAuditor()
+)
+
+// SetCurrent 注入当前生效审计器（传 nil 回退 nop）。
+func SetCurrent(a audit.Auditor) {
+	currentMu.Lock()
+	defer currentMu.Unlock()
+	if a == nil {
+		currentAud = audit.NopAuditor()
+		return
+	}
+	currentAud = a
+}
+
+// Current 返回当前生效审计器（动态转发语义的读取点）。
+func Current() audit.Auditor {
+	currentMu.RLock()
+	defer currentMu.RUnlock()
+	return currentAud
+}
+
 // New 返回日志审计后端实例（转发框架核心 LoggerAuditor）。
 func New() audit.Auditor { return audit.NewLoggerAuditor() }
 
-// GlobalAuditor 是全局审计器的动态转发器：每次 Record 时读
-// audit.GetAuditor()，把「中间件构造时刻」与「后端装配时刻」解耦。
+// GlobalAuditor 是当前生效审计器的动态转发器：每次 Record 时读 Current()，
+// 把「中间件构造时刻」与「后端装配时刻」解耦。
 //
 // 为什么需要它：bald 的审计/认证中间件在构造时刻绑定 auditor（显式注入
 // 优先，否则快照构造时的全局，见 bald pkg/middleware/gin/audit.go 与
@@ -31,7 +61,7 @@ type GlobalAuditor struct{}
 // / AuditWithAuditor 的注入值）。
 func Global() audit.Auditor { return GlobalAuditor{} }
 
-// Record 实现 audit.Auditor：转发当前全局审计器（指针语义切换，无撕裂）。
+// Record 实现 audit.Auditor：转发当前生效审计器（指针语义切换，无撕裂）。
 func (GlobalAuditor) Record(ctx context.Context, ev audit.AuditEvent) {
-	audit.GetAuditor().Record(ctx, ev)
+	Current().Record(ctx, ev)
 }

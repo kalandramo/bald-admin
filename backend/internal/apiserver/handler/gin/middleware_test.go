@@ -17,13 +17,14 @@ import (
 	gingonic "github.com/gin-gonic/gin"
 
 	"github.com/kalandramo/bald/pkg/audit"
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 )
 
 func TestAuthnMiddleware_AuditFollowsLateGlobalSwap(t *testing.T) {
 	// 1. 构造期全局 = nop（生产盲区时序：路由注册在 main 期，装配在其后）。
-	audit.SetAuditor(audit.NopAuditor())
-	t.Cleanup(func() { audit.SetAuditor(audit.NopAuditor()) })
+	securityaudit.SetCurrent(audit.NopAuditor())
+	t.Cleanup(func() { securityaudit.SetCurrent(audit.NopAuditor()) })
 
 	gingonic.SetMode(gingonic.TestMode)
 	e := gingonic.New()
@@ -32,7 +33,7 @@ func TestAuthnMiddleware_AuditFollowsLateGlobalSwap(t *testing.T) {
 
 	// 2. 构造之后才装配后端（模拟契约轨 BeforeStart SetAuditor / 协调器热切）。
 	mem := &memAuditor{}
-	audit.SetAuditor(mem)
+	securityaudit.SetCurrent(mem)
 
 	// 3. 无 token 请求 → 401 abort → 认证失败审计必须流向当前全局后端。
 	w := httptest.NewRecorder()
