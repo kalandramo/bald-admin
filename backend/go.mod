@@ -35,42 +35,42 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald v0.24.0
-	github.com/kalandramo/bald/bconf v0.10.0
+	github.com/kalandramo/bald v0.25.0
+	github.com/kalandramo/bald/bconf v0.11.0
 	github.com/kalandramo/bald/berrors v0.1.1
-	github.com/kalandramo/bald/bootstrap v0.12.0
-	github.com/kalandramo/bald/broker v0.1.0
-	github.com/kalandramo/bald/broker/redis v0.1.3
-	github.com/kalandramo/bald/cache v0.1.1
+	github.com/kalandramo/bald/bootstrap v0.13.0
+	github.com/kalandramo/bald/broker v0.2.0
+	github.com/kalandramo/bald/broker/redis v0.2.0
+	github.com/kalandramo/bald/cache v0.2.0
 	github.com/kalandramo/bald/cache/loadable v0.2.0
-	github.com/kalandramo/bald/cache/redis v0.1.0
+	github.com/kalandramo/bald/cache/redis v0.2.0
 	github.com/kalandramo/bald/circuitbreaker v0.1.0
 	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0
-	github.com/kalandramo/bald/contrib/audit-gorm v0.2.0
-	github.com/kalandramo/bald/contrib/audit-stream v0.3.0
+	github.com/kalandramo/bald/contrib/audit-gorm v0.2.1
+	github.com/kalandramo/bald/contrib/audit-stream v0.4.0
 	github.com/kalandramo/bald/contrib/authn-jwt v0.1.4
-	github.com/kalandramo/bald/contrib/authz-casbin v0.1.0
-	github.com/kalandramo/bald/contrib/observability-otlp v0.2.0
-	github.com/kalandramo/bald/contrib/store-gorm v0.1.4
+	github.com/kalandramo/bald/contrib/authz-casbin v0.2.0
+	github.com/kalandramo/bald/contrib/observability-otlp v0.3.1
+	github.com/kalandramo/bald/contrib/store-gorm v0.2.0
 	github.com/kalandramo/bald/encoding v0.1.0
 	github.com/kalandramo/bald/encoding/json v0.1.1
 	github.com/kalandramo/bald/encoding/msgpack v0.1.0
 	github.com/kalandramo/bald/health v0.1.1
-	github.com/kalandramo/bald/log v0.5.2
-	github.com/kalandramo/bald/oss/minio v0.1.0
-	github.com/kalandramo/bald/oss/s3 v0.1.0
-	github.com/kalandramo/bald/ratelimit v0.1.0
+	github.com/kalandramo/bald/log v0.5.3
+	github.com/kalandramo/bald/oss/minio v0.2.0
+	github.com/kalandramo/bald/oss/s3 v0.2.0
+	github.com/kalandramo/bald/ratelimit v0.2.0
 	github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0
-	github.com/kalandramo/bald/registry v0.1.1
-	github.com/kalandramo/bald/registry/etcd v0.1.1
-	github.com/kalandramo/bald/registry/nacos v0.1.0
-	github.com/kalandramo/bald/retry v0.1.0
-	github.com/kalandramo/bald/transport v0.2.1
-	github.com/kalandramo/bald/transport/asynq v0.2.0
-	github.com/kalandramo/bald/transport/cron v0.3.0
-	github.com/kalandramo/bald/transport/gateway v0.2.0
+	github.com/kalandramo/bald/registry v0.2.0
+	github.com/kalandramo/bald/registry/etcd v0.2.0
+	github.com/kalandramo/bald/registry/nacos v0.2.0
+	github.com/kalandramo/bald/retry v0.2.0
+	github.com/kalandramo/bald/transport v0.3.0
+	github.com/kalandramo/bald/transport/asynq v0.3.0
+	github.com/kalandramo/bald/transport/cron v0.4.0
+	github.com/kalandramo/bald/transport/gateway v0.3.0
 	github.com/kalandramo/bald/transport/grpc v0.1.1
-	github.com/kalandramo/bald/transport/sse v0.2.0
+	github.com/kalandramo/bald/transport/sse v0.3.0
 	github.com/kalandramo/bald/transport/web v0.1.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/mojocn/base64Captcha v1.3.8
@@ -215,7 +215,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.3.0 // indirect
-	github.com/kalandramo/bald/bconfig v0.1.0 // indirect
+	github.com/kalandramo/bald/bconfig v0.2.0 // indirect
 	github.com/kalandramo/bald/transport/http v0.1.1 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
@@ -312,47 +312,4 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
-)
-
-// 批 2 联调临时 replace：待 bald v0.25.x 系 tag 发布后移除并升版本。
-replace (
-	github.com/kalandramo/bald => ../../bald
-	github.com/kalandramo/bald/bconf => ../../bald/bconf
-	github.com/kalandramo/bald/bconfig => ../../bald/bconfig
-	github.com/kalandramo/bald/berrors => ../../bald/berrors
-	github.com/kalandramo/bald/bootstrap => ../../bald/bootstrap
-	github.com/kalandramo/bald/broker => ../../bald/broker
-	github.com/kalandramo/bald/broker/redis => ../../bald/broker/redis
-	github.com/kalandramo/bald/cache => ../../bald/cache
-	github.com/kalandramo/bald/cache/loadable => ../../bald/cache/loadable
-	github.com/kalandramo/bald/cache/redis => ../../bald/cache/redis
-	github.com/kalandramo/bald/circuitbreaker => ../../bald/circuitbreaker
-	github.com/kalandramo/bald/circuitbreaker/hystrix => ../../bald/circuitbreaker/hystrix
-	github.com/kalandramo/bald/contrib/audit-gorm => ../../bald/contrib/audit-gorm
-	github.com/kalandramo/bald/contrib/audit-stream => ../../bald/contrib/audit-stream
-	github.com/kalandramo/bald/contrib/authn-jwt => ../../bald/contrib/authn-jwt
-	github.com/kalandramo/bald/contrib/authz-casbin => ../../bald/contrib/authz-casbin
-	github.com/kalandramo/bald/contrib/observability-otlp => ../../bald/contrib/observability-otlp
-	github.com/kalandramo/bald/contrib/store-gorm => ../../bald/contrib/store-gorm
-	github.com/kalandramo/bald/encoding => ../../bald/encoding
-	github.com/kalandramo/bald/encoding/json => ../../bald/encoding/json
-	github.com/kalandramo/bald/encoding/msgpack => ../../bald/encoding/msgpack
-	github.com/kalandramo/bald/health => ../../bald/health
-	github.com/kalandramo/bald/log => ../../bald/log
-	github.com/kalandramo/bald/oss/minio => ../../bald/oss/minio
-	github.com/kalandramo/bald/oss/s3 => ../../bald/oss/s3
-	github.com/kalandramo/bald/ratelimit => ../../bald/ratelimit
-	github.com/kalandramo/bald/ratelimit/tokenbucket => ../../bald/ratelimit/tokenbucket
-	github.com/kalandramo/bald/registry => ../../bald/registry
-	github.com/kalandramo/bald/registry/etcd => ../../bald/registry/etcd
-	github.com/kalandramo/bald/registry/nacos => ../../bald/registry/nacos
-	github.com/kalandramo/bald/retry => ../../bald/retry
-	github.com/kalandramo/bald/transport => ../../bald/transport
-	github.com/kalandramo/bald/transport/asynq => ../../bald/transport/asynq
-	github.com/kalandramo/bald/transport/cron => ../../bald/transport/cron
-	github.com/kalandramo/bald/transport/gateway => ../../bald/transport/gateway
-	github.com/kalandramo/bald/transport/grpc => ../../bald/transport/grpc
-	github.com/kalandramo/bald/transport/http => ../../bald/transport/http
-	github.com/kalandramo/bald/transport/sse => ../../bald/transport/sse
-	github.com/kalandramo/bald/transport/web => ../../bald/transport/web
 )
