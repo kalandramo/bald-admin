@@ -35,8 +35,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald v0.25.2
-	github.com/kalandramo/bald/bconf v0.11.2
+	github.com/kalandramo/bald v0.25.3
+	github.com/kalandramo/bald/bconf v0.11.3
 	github.com/kalandramo/bald/berrors v0.1.1
 	github.com/kalandramo/bald/bootstrap v0.13.1
 	github.com/kalandramo/bald/broker v0.2.0
@@ -49,7 +49,7 @@ require (
 	github.com/kalandramo/bald/contrib/audit-gorm v0.2.1
 	github.com/kalandramo/bald/contrib/audit-stream v0.4.0
 	github.com/kalandramo/bald/contrib/authn-jwt v0.1.4
-	github.com/kalandramo/bald/contrib/authz-casbin v0.2.1
+	github.com/kalandramo/bald/contrib/authz-casbin v0.2.2
 	github.com/kalandramo/bald/contrib/observability-otlp v0.3.1
 	github.com/kalandramo/bald/contrib/store-gorm v0.2.0
 	github.com/kalandramo/bald/encoding v0.1.0
