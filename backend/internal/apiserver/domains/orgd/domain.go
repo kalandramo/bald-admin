@@ -1,10 +1,10 @@
-// Package orgd 是 org 域的装配声明包（批 4 第二波，机械域）。包定位、
-// 依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package orgd 是 org 域的装配声明包。包定位、
+// 依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
 // 差异两处：① biz 构造收**三仓储**（org_unit 树 + position + user——user 仓储
-// 与 userd 共享 InitBridges 同一实例，是装配层注入而非域间依赖，符合裁决一）；
+// 与 userd 共享 InitBridges 同一实例，是装配层注入而非域间依赖）；
 // ② gRPC 面是**双 service**（OrgUnit + Position 共用同一 org biz）——Services
-// 一次回调登记两条，与迁移前 registerGRPC 的两行逐行等价。
+// 一次回调登记两条。
 package orgd
 
 import (
@@ -41,7 +41,7 @@ type Deps struct {
 }
 
 // Domain 返回 org 域的装配声明值（Routes 委托 hgin.RegisterOrg、Services 委托
-// secretgrpc.NewOrgServer/NewPositionServer——传输适配不搬家，机械迁移）。
+// secretgrpc.NewOrgServer/NewPositionServer——传输适配不搬家）。
 func Domain(d Deps) appkit.Domain {
 	var biz *orgbiz.Biz
 	return appkit.Domain{

@@ -32,7 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// LanguageService 语言管理（Wave 5.3，自 go-wind-admin dict 域 language 精简移植）。
+// LanguageService 语言管理（自 go-wind-admin dict 域 language 精简移植）。
 //
 // 源语言域 7 rpc（List/Count/Get/Create/BatchCreate/Update/Delete）。本实现
 // **对齐项目既有惯例**（与同目录 DictType/DictEntry 一致），与源有两处显式偏差：
@@ -152,7 +152,7 @@ func (c *languageServiceClient) CountLanguages(ctx context.Context, in *CountLan
 // All implementations must embed UnimplementedLanguageServiceServer
 // for forward compatibility.
 //
-// LanguageService 语言管理（Wave 5.3，自 go-wind-admin dict 域 language 精简移植）。
+// LanguageService 语言管理（自 go-wind-admin dict 域 language 精简移植）。
 //
 // 源语言域 7 rpc（List/Count/Get/Create/BatchCreate/Update/Delete）。本实现
 // **对齐项目既有惯例**（与同目录 DictType/DictEntry 一致），与源有两处显式偏差：

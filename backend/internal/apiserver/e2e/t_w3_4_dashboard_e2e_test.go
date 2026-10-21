@@ -55,7 +55,7 @@ func startDashboardREST(t *testing.T) string {
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	hgin.RegisterDashboard(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, dashbiz.New(repos.Audit, repos.Role, repos.User))
@@ -124,7 +124,7 @@ func TestWave3_4_Overview(t *testing.T) {
 		ov.UserCount, ov.RoleCount, ov.TodayLoginCount, ov.TodayOperationCount)
 }
 
-// TestWave3_4_LoginTrendPadsMissingDays —— **本波最重要的验证点**。
+// TestWave3_4_LoginTrendPadsMissingDays —— **核心验证点**。
 //
 // 源注释原话：「按日期升序、**缺日补零**」。
 // 没有任何登录的日子也必须出现（count=0），否则前端趋势图断线。

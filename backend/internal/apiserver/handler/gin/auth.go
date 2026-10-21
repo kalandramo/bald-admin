@@ -24,9 +24,8 @@ import (
 //   - POST /v1/login            公开
 //   - GET  /v1/auth/whoami      需认证（任意已登录用户）→ 权限点 "auth:get"
 //
-// 受限资源（secret）两路由原在本函数尾部——批 4 域形态迁移拆往同目录 secret.go
-// 的 RegisterSecret（secret 域的 Routes 独立委托；auth 域路由仍住 server.go，
-// 两域路由面必须可分别注册）。拆分保持路径/方法/中间件链逐行不变。
+// 受限资源（secret）两路由住同目录 secret.go 的 RegisterSecret（secret 域的
+// Routes 独立委托；auth 域路由仍住 server.go，两域路由面必须可分别注册）。
 func RegisterAuth(
 	e *gingonic.Engine,
 	authenticator authn.Authenticator,
@@ -39,7 +38,7 @@ func RegisterAuth(
 			bindErr(c, err)
 			return
 		}
-		// T6 登录审计：客户端信息 handler 层提取（biz 保持协议无关）。
+		// 登录审计：客户端信息 handler 层提取（biz 保持协议无关）。
 		cred.ClientIP = c.ClientIP()
 		cred.UserAgent = c.Request.UserAgent()
 		pair, err := biz.Login(c.Request.Context(), cred)

@@ -123,29 +123,22 @@ func BuildAuthorizer(ctx context.Context, repos *Repositories) (authz.Authorizer
 	return casbinauthz.New(csv)
 }
 
-// 注：原 lazyAuthnWithRevocation / LazyAuthenticatorWithRevocation 于 删除。
-// 它同样是把「验签 + 吊销检查」延后到请求期解析的适配器——理由是 RegisterRoutes
-// 曾在装配期执行而 TokenStore 在 BeforeStart 才就绪。已把 TokenStore 的
-// 构造**移到路由注册之前**（assembly.go），装配层直接传
-// token.NewRevocationChecker(Authenticator, TokenStore) 真实实例即可，
-// 吊销检查语义不因删除适配器而丢失（已由 e2e 吊销用例与端到端验证覆盖）。
-
-// DB 是应用主库（起为 SQLite 内存库，T0 起默认经配置 database.sql 切外部 PostgreSQL）。
+// DB 是应用主库（起为 SQLite 内存库，默认经配置 database.sql 切外部 PostgreSQL）。
 var DB *gorm.DB
 
 // RedisClient 是底层 go-redis 客户端（可空：nil 表示无 Redis 环境）。
-// 供审计流等「需要原生 Redis 命令」的消费方复用同一真实连接——D1 迁移后
+// 供审计流等「需要原生 Redis 命令」的消费方复用同一真实连接：
 // cache/redis 适配器不暴露底层 client（其 Close 亦不关闭 client），故由
 // bootstrap 自行持有并管理生命周期。
 var RedisClient goredis.UniversalClient
 
-// RedisCache 是可选 Redis 缓存后端（Cache-Aside；D1 由
-// contrib/cache-redis 迁移到 cache/redis 适配器）。nil 表示无 Redis 环境，
+// RedisCache 是可选 Redis 缓存后端（Cache-Aside，cache/redis 适配器）。
+// nil 表示无 Redis 环境，
 // 调用方（缓存直连 store / 审计流降级）应降级。
 var RedisCache cache.Cache
 
-// MinioStorage 是可选 MinIO 对象存储后端（起由 storage.minio 配置段构造，
-// T5 文件模块消费）。SDK() 为 nil 表示未配置或构造失败，调用方应降级。
+// MinioStorage 是可选 MinIO 对象存储后端（由 storage.minio 配置段构造，
+// 文件模块消费）。SDK() 为 nil 表示未配置或构造失败，调用方应降级。
 var MinioStorage *miniooss.Storage
 
 // S3Storage 是可选 S3 兼容对象存储后端（，storage.s3 配置段）。
@@ -160,7 +153,7 @@ var S3Storage *s3oss.Storage
 var ObjectStorageBridge filestore.ObjectStorage
 
 // FileBucket 是文件模块使用的对象存储桶（业务自持配置段 file.bucket；
-// bconf storage.minio 契约无 bucket 字段，见移植计划 §5）。
+// bconf storage.minio 契约无 bucket 字段）。
 var FileBucket string
 
 // depsBootstrap 是 Configure 注入的框架契约配置（真实依赖段）。
@@ -190,14 +183,14 @@ type Repositories struct {
 	Role       *store.Store[authmodel.Role]
 	Secret     *store.Store[authmodel.Secret]
 	Tenant     *store.Store[authmodel.Tenant]
-	Menu       *store.Store[authmodel.Menu]       // 菜单树（T3）
-	Permission *store.Store[authmodel.Permission] // 权限点注册表（T3）
-	RolePolicy *store.Store[authmodel.RolePolicy] // casbin p 行数据化（D3 策略装载真源）
+	Menu       *store.Store[authmodel.Menu]       // 菜单树
+	Permission *store.Store[authmodel.Permission] // 权限点注册表
+	RolePolicy *store.Store[authmodel.RolePolicy] // casbin p 行数据化（策略装载真源）
 	DictType   *store.Store[authmodel.DictType]
 	DictEntry  *store.Store[authmodel.DictEntry]
 	// 语言仓储（；平台级数据，无租户维度）。
 	Language *store.Store[authmodel.Language]
-	// 文件元数据仓储（T5；MinIO 对象经 MinioStorage 桥接，元数据落本库）。
+	// 文件元数据仓储（MinIO 对象经 MinioStorage 桥接，元数据落本库）。
 	File *store.Store[authmodel.File]
 	// 审计日志仓储（查询面；写路径经 security/audit.StoreAuditor 落库，
 	// 同表双通道：写走审计后端、读走本仓储）。
@@ -229,11 +222,11 @@ type Repositories struct {
 
 // lastRepos 保存首次 InitBridges 建立的仓储聚合，供**幂等重入**返回同一实例。
 //
-// 为什么保留这一个包级引用（方案 A'，见计划「风险与回退」）：InitBridges 由 e2e
+// 为什么保留这一个包级引用：InitBridges 由 e2e
 // 的 22 个 helper 与装配根反复调用，幂等 guard 命中时须返回「同一套仓储」——
 // 每次新建 Repositories 会与首轮建立的 store（底层 gorm 连接）脱钩，调用方拿到
-// 的句柄也不一致。故保留一个**只写一次**的引用：它不承载「请求期读取」语义
-// （那正是本 Wave 要消除的），只作幂等返回值缓存。
+// 的句柄也不一致。故保留一个**只写一次**的引用：它不承载「请求期读取」语义，
+// 只作幂等返回值缓存。
 var lastRepos *Repositories
 
 // LastRepositories 返回首次 InitBridges 建立的仓储聚合（未初始化时为 nil）。
@@ -317,10 +310,10 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	sqlaudit.Register(db)
 
 	// 可选 Redis 后端：供缓存/审计流复用同一真实连接。不可达仅 warn（审计流降级），
-	// 不阻断启动（与 SQLite 内存库同构的"真实但可选"简化，符合 §0）。
-	// U1 起：注入态优先（WireCache 已注入则跳过自建），否则 resolveRedis
+	// 不阻断启动（与 SQLite 内存库同构的"真实但可选"简化）。
+	// 注入态优先（WireCache 已注入则跳过自建），否则 resolveRedis
 	// 解析（env BALD_ADMIN_REDIS_ADDR 优先，其次配置段 cache.redis）。
-	// D1：构造走 BuildRedisCache（cache/redis 适配器 + 探活），连接记入 RedisClient。
+	// 构造走 BuildRedisCache（cache/redis 适配器 + 探活），连接记入 RedisClient。
 	if RedisCache == nil {
 		redisAddr, redisPassword, redisDB := resolveRedis()
 		rc, rerr := BuildRedisCache(redisAddr, redisPassword, redisDB)
@@ -331,9 +324,9 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 		}
 	}
 
-	// T0：MinIO 对象存储后端（storage.minio 配置段）。minio.New 仅本地构造不联网，
-	// 失败时 SDK() 为 nil + 日志；真实可达性与建桶由 T5 文件模块 EnsureBucket 兜底，
-	// 此处失败不阻断启动（与 Redis 同构的"真实但可选"）。U1 同款注入优先。
+	// MinIO 对象存储后端（storage.minio 配置段）。minio.New 仅本地构造不联网，
+	// 失败时 SDK() 为 nil + 日志；真实可达性与建桶由文件模块 EnsureBucket 兜底，
+	// 此处失败不阻断启动（与 Redis 同构的"真实但可选"）。同款注入优先。
 	if MinioStorage == nil {
 		if mc := depsBootstrap.GetStorage().GetMinio(); mc != nil && mc.GetEndpoint() != "" {
 			MinioStorage = miniooss.NewStorage(&miniooss.Config{
@@ -365,7 +358,7 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 		DictEntry: store.NewStore[authmodel.DictEntry](baldgorm.NewGormProvider(db, func(e *authmodel.DictEntry) string { return e.ID })),
 		Language:  store.NewStore[authmodel.Language](baldgorm.NewGormProvider(db, func(l *authmodel.Language) string { return l.ID }), store.WithPlatformLevel[authmodel.Language]()),
 		File:      store.NewStore[authmodel.File](baldgorm.NewGormProvider(db, func(f *authmodel.File) string { return f.ID })),
-		// T6：审计查询仓储（自增主键）。2026-09-22 统一分页风格后走
+		// 审计查询仓储（自增主键）。分页走
 		// ListWithPaging，页大小经 WithPageSize/WithMaxPageSize 配置——
 		// 保持原 auditlog 业务常量 50/200（审计记录量大，防大结果集拖垮查询；
 		// 框架默认 10/100 会让每页从 50 掉到 10，是行为回退）。
@@ -420,8 +413,8 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	// 认证后注入 contextx 的 TenantID。
 	store.RegisterTenant("tenant_id", store.DefaultTenantFunc)
 
-	// 3) Authorizer：M6.1 起由 casbin 桥接 authz.Authorizer 实现（起实现晋升 contrib
-	//    bald-authz-casbin，内嵌通用 RBAC 模型）。T3 起策略数据化装载：p 行读
+	// 3) Authorizer：由 casbin 桥接 authz.Authorizer 实现（其实现晋升 contrib
+	//    bald-authz-casbin，内嵌通用 RBAC 模型）。策略数据化装载：p 行读
 	//    RolePolicy 表、g 行读 User.Roles——静态 rbac_policy.csv 已删除，策略单一真源
 	//    收敛到 DB（改库重启即生效；无策略行时 casbin 默认拒绝，fail-closed）。
 	policyCSV, err := loadPolicyCSV(ctx, repos)
@@ -455,7 +448,7 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 
 // seed 写入 MVP 初始用户与角色（生产应走迁移脚本/初始化任务）。
 func seed(ctx context.Context, repos *Repositories) error {
-	// T2 租户种子：platform（平台租户，源 PlatformTenantID=0 等价物）、
+	// 租户种子：platform（平台租户，源 PlatformTenantID=0 等价物）、
 	// t-default/t-other 与存量 users/secrets 的租户维度对齐。
 	tenants := []*authmodel.Tenant{
 		{ID: "platform", Name: "平台租户", Status: "ON", Remark: "平台管理上下文（源 PlatformTenantID=0 等价物）"},
@@ -504,7 +497,7 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// 受限资源：跨租户落 1 条 t-default + 1 条 t-other，验证 M6.3 真实 DAL 与多租户隔离。
+	// 受限资源：跨租户落 1 条 t-default + 1 条 t-other，验证真实 DAL 与多租户隔离。
 	secrets := []*authmodel.Secret{
 		{ID: "s-db-pwd", Name: "数据库口令", Content: "rds-t-default-9f3a2c", TenantID: "t-default"},
 		{ID: "s-api-key", Name: "开放平台密钥", Content: "ak-t-default-77be10", TenantID: "t-default"},
@@ -515,7 +508,7 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// T3 菜单种子（自 go-wind-admin DefaultMenus 形态精简：2 目录 + 6 页面 + 1 按钮，
+	// 菜单种子（自 go-wind-admin DefaultMenus 形态精简：2 目录 + 6 页面 + 1 按钮，
 	// 树形 ParentID 显式编死，Order 控制展示顺序——源 meta.order 语义）。
 	menus := []*authmodel.Menu{
 		{ID: "menu-dashboard", Type: "CATALOG", Name: "Dashboard", Path: "/dashboard", Title: "仪表盘", Icon: "lucide:layout-dashboard", Order: -1},
@@ -536,7 +529,7 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// T3 权限点种子（注册表 + 菜单可见性关联；未注册的权限码仍可被 Role.Perms
+	// 权限点种子（注册表 + 菜单可见性关联；未注册的权限码仍可被 Role.Perms
 	// 引用——本表是元数据，非授权判定依据）。
 	perms := []*authmodel.Permission{
 		{ID: "auth:get", Name: "访问认证接口"},
@@ -556,7 +549,7 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// T4 字典种子（自 go-wind-admin demo 数据形态精简：3 组类型 + 8 条条目）。
+	// 字典种子（自 go-wind-admin demo 数据形态精简：3 组类型 + 8 条条目）。
 	// 字典是租户级业务数据（源 mixin TenantID），种子归属 t-default——租户字段
 	// 由实体显式携带（启动 ctx 无租户 claims，injectWriteTenant 跳过注入，与
 	// Secret 种子同构）。
@@ -602,14 +595,14 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// T3 角色策略种子（casbin p 行数据化，D3）：内容与被删除的静态 rbac_policy.csv
-	// 等价（存量授权行为零回归）+ menu/permission 管理域（仅 admin 写，viewer 只读）。
+	// 角色策略种子（casbin p 行数据化）：各角色授权规则
+	// + menu/permission 管理域（仅 admin 写，viewer 只读）。
 	// RolePolicy 自增主键无业务唯一键，防重复种子用「非空即跳过」。
 	return seedPolicies(ctx, repos)
 }
 
-// seedPolicies 种子化 casbin p 行（角色策略）。等价旧静态 rbac_policy.csv 的
-// 全部授权语义；g 行（subject→角色）不落表，装载时从 User.Roles 生成。
+// seedPolicies 种子化 casbin p 行（角色策略）。
+// g 行（subject→角色）不落表，装载时从 User.Roles 生成。
 // 主键 role:object:action 冲突即重复策略，防重与其他种子同构（ErrConflict 容忍）。
 func seedPolicies(ctx context.Context, repos *Repositories) error {
 	policies := []authmodel.RolePolicy{
@@ -807,7 +800,7 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "admin", Object: "file", Action: "delete"},
 		{Role: "admin", Object: "file", Action: "list"},
 		{Role: "admin", Object: "file", Action: "write"},
-		// viewer：文件只读（T5；上传/删除仅 admin）。
+		// viewer：文件只读（上传/删除仅 admin）。
 		{Role: "viewer", Object: "file", Action: "get"},
 		{Role: "viewer", Object: "file", Action: "list"},
 		// admin：审计查询（审计数据敏感仅 admin；REST /v1/audit 与 gRPC
@@ -841,8 +834,8 @@ func init() {
 //   - 驱动优先级：契约段 driver 字段 > DSN scheme 推断；未注册驱动 fail-fast；
 //   - 契约段连接池参数（max_idle/max_open/lifetime）一并消费。
 //
-// U1 起 sqlCfg 由调用方传入（DatabaseProvider 直收契约段；InitBridges 旧路径
-// 传 depsBootstrap 的段），nil = 无契约段（env/内存库路径）。
+// sqlCfg 由调用方传入（DatabaseProvider 直收契约段，或 InitBridges 传
+// depsBootstrap 的段），nil = 无契约段（env/内存库路径）。
 //
 // 注意：本函数返回的连接用于 AutoMigrate + seed；多连接场景 SQLite 内存库须用
 // cache=shared 且 keep 一个引用，否则其他连接读到空库。
@@ -857,7 +850,7 @@ func openDB(sqlCfg *bootstrapv1.Database_SQL) (*gorm.DB, error) {
 // resolveRedis 解析 Redis 连接参数：env BALD_ADMIN_REDIS_ADDR 优先（覆盖手段），
 // 其次配置段 cache.redis（addr/password/db）；两者皆空返回空 addr（禁用态，
 // BuildRedisCache 返回 nil，调用方降级直连）。
-// D1：返回三元组而非 []rediscache.Option——新 cache/redis 适配器只收已构造的
+// 返回三元组而非 []rediscache.Option——cache/redis 适配器只收已构造的
 // client，连接参数在 BuildRedisCache 内落到 goredis.Options。
 func resolveRedis() (addr, password string, db int) {
 	if a := os.Getenv("BALD_ADMIN_REDIS_ADDR"); a != "" {
@@ -913,4 +906,4 @@ func loadPolicyCSV(ctx context.Context, repos *Repositories) (string, error) {
 }
 
 // loadRBACMaps 已从 bootstrap 移除：RBAC 策略改由 casbin 桥接加载；
-// T3 起进一步数据化——p 行 RolePolicy 表、g 行 User.Roles（见 loadPolicyCSV）。
+// 策略进一步数据化——p 行 RolePolicy 表、g 行 User.Roles（见 loadPolicyCSV）。

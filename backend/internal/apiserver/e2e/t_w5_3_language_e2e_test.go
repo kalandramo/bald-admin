@@ -41,7 +41,7 @@ func startLanguageREST(t *testing.T) string {
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	hgin.RegisterLanguage(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, langbiz.New(repos.Language))

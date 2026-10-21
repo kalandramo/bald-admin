@@ -1,11 +1,11 @@
-// Package cachemonitord 是 cachemonitor 域的装配声明包（批 4 第三波，机械域）。
-// 包定位、依赖取用约定见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package cachemonitord 是 cachemonitor 域的装配声明包。
+// 包定位、依赖取用约定见同目录 tenantd 的 domain.go 头注。
 //
-// 特殊点：无仓储——唯一依赖是底层 Redis 客户端（W1a 的 cache/redis Client()
+// 特殊点：无仓储——唯一依赖是底层 Redis 客户端（cache/redis Client()
 // 访问器产物：装配层 cache.redis 段/ env 兼容通道构造适配器时把同一实例记入
 // bootstrap.RedisClient，装配层 getter 透传，域不复制择一路径）。nil 合法：
 // cache 段未配置即监控端点报不可用（biz 判 nil，禁用态降级），故不做「未就绪」
-// 守卫，直通构造与迁移前逐行等价。proto（api/gen/go/admin 的
+// 守卫，直通构造。proto（api/gen/go/admin 的
 // redis_cache_monitor）仅作 REST 面类型来源，无 gRPC server 实现——Services
 // 不声明（合法）。
 package cachemonitord
@@ -37,8 +37,7 @@ type Deps struct {
 }
 
 // Domain 返回 cachemonitor 域的装配声明值。Routes 委托
-// hgin.RegisterRedisCacheMonitor——传输适配不搬家，路由面/中间件链与迁移前
-// 逐行等价；无 gRPC 面，Services 不声明。
+// hgin.RegisterRedisCacheMonitor——传输适配不搬家；无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *cmbiz.Biz
 	return appkit.Domain{

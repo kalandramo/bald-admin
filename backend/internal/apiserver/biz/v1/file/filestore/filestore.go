@@ -1,6 +1,6 @@
 // Package filestore 定义文件模块的对象存储抽象。
 //
-// ## 为何需要这层抽象（签名差异，计划 5.4 的核心验收点）
+// ## 为何需要这层抽象（签名差异）
 //
 // bald 提供两个对象存储后端，**签名相反**：
 //   - `bald/oss/minio`：`PutObject(ctx, bucket, key, body, contentType)`——

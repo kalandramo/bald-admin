@@ -40,7 +40,7 @@ func startMessageREST(t *testing.T) string {
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	hgin.RegisterTask(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, taskbiz.New(repos.Task))
@@ -120,7 +120,7 @@ func TestWave2_5_CategoryCRUD(t *testing.T) {
 	}
 }
 
-// TestWave2_5_SendIdempotent 投递幂等——**本波最重要的验证点**。
+// TestWave2_5_SendIdempotent 投递幂等——**核心验证点**。
 //
 // 源注释：「重试幂等性由 (message_id, recipient_user_id) 唯一约束 +
 // CreateBulk 的 ON CONFLICT DO NOTHING 保证」。

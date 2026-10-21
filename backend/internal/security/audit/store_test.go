@@ -14,7 +14,7 @@ import (
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 )
 
-// newTestDB 建临时文件 SQLite 并迁移审计表（真实 GORM + DAL，符合 §0；文件库隔离各测试）。
+// newTestDB 建临时文件 SQLite 并迁移审计表（真实 GORM + DAL；文件库隔离各测试）。
 // 测试结束显式 Close：Windows 下打开中的文件无法被 TempDir 清理删除。
 func newTestDB(t *testing.T) *gorm.DB {
 	t.Helper()

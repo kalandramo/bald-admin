@@ -29,7 +29,7 @@ const (
 //
 // SecretService 受限资源服务（M5：经 grpc-gateway 同时暴露 gRPC 与 REST）。
 //
-// T2 起 proto 全部收敛到 api/ 目录（buf 模块根=api/）；本文件的 ListUsers 演示 RPC
+// proto 全部收敛到 api/ 目录（buf 模块根=api/）；本文件的 ListUsers 演示 RPC
 // 已由 UserService.ListUsers（api/user/v1）接管 GET /v1/users（对象列表版本）。
 type SecretServiceClient interface {
 	// GetSecret 取机密。
@@ -74,7 +74,7 @@ func (c *secretServiceClient) DeleteSecret(ctx context.Context, in *DeleteSecret
 //
 // SecretService 受限资源服务（M5：经 grpc-gateway 同时暴露 gRPC 与 REST）。
 //
-// T2 起 proto 全部收敛到 api/ 目录（buf 模块根=api/）；本文件的 ListUsers 演示 RPC
+// proto 全部收敛到 api/ 目录（buf 模块根=api/）；本文件的 ListUsers 演示 RPC
 // 已由 UserService.ListUsers（api/user/v1）接管 GET /v1/users（对象列表版本）。
 type SecretServiceServer interface {
 	// GetSecret 取机密。

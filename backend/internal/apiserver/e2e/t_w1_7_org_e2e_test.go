@@ -1,14 +1,13 @@
 package e2e
 
-// t_w1_7_org_e2e_test.go —— ：组织架构域
+// t_w1_7_org_e2e_test.go —— 组织架构域
 //（org_unit 7 rpc 树形 + position 7 rpc 关联回填）。
 //
-// **Wave P0.5 迁移说明**：本域已从 B 轨（Go DTO + encoding/json）迁移为
-// A 轨（bindPB/writePB + protojson）。响应形状随之变化：
-//   - 列表：`{"items":[...]}` → `{"items":[...],"total":N}`（树根数组 + 全节点数）
-//   - 单对象：裸对象 → `{"org_unit":{...}}` / `{"position":{...}}` 包装
-//   - 变更：`{"message":"updated"}` → 返回更新后的对象
-// 故断言改为 **PB 解码**（decodePB + identityv1 消息），不再手解 JSON struct。
+// 响应为 A 轨标准形态（bindPB/writePB + protojson），形状要点：
+//   - 列表：`{"items":[...],"total":N}`（树根数组 + 全节点数）
+//   - 单对象：`{"org_unit":{...}}` / `{"position":{...}}` 包装
+//   - 变更：返回更新后的对象
+// 故断言用 **PB 解码**（decodePB + identityv1 消息）。
 //
 // 核心验证点（对齐源实现）：
 //   - **树形**：ParentID 建父子关系，List 返回嵌套 children；
@@ -44,7 +43,7 @@ func startOrgREST(t *testing.T) string {
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	hgin.RegisterOrg(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, orgbiz.New(repos.OrgUnit, repos.Position, repos.User))

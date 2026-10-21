@@ -1,6 +1,6 @@
-// Package validation 提供基于 protovalidate 的请求校验（Wave 校验层契约化）。
+// Package validation 提供基于 protovalidate 的请求校验。
 //
-// 设计意图（对齐《架构改进路线图》P6 的分层校验）：
+// 设计意图（分层校验）：
 //   - **声明式字段规则**（非空/长度/格式）写在 proto 的 buf.validate 注解里，
 //     由 protovalidate 运行时读取执行——规则与契约同源，gRPC/HTTP 多面共用一份；
 //   - **命令式复杂逻辑**（查库、权限、跨字段业务不变量）仍归 biz 层——注解表达

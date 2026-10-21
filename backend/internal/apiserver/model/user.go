@@ -9,7 +9,7 @@ type User struct {
 	PasswordHash string // bcrypt 哈希（M3 起，MVP 明文阶段已废弃）
 	TenantID     string `gorm:"index"`
 	Roles        string // 逗号分隔角色名，如 "admin" 或 "viewer"
-	// 时间戳由 GORM 约定自动维护（CreatedAt 插入、UpdatedAt 每次更新）；T2 起对外暴露。
+	// 时间戳由 GORM 约定自动维护（CreatedAt 插入、UpdatedAt 每次更新）；对外暴露。
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

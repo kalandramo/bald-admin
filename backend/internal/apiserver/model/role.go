@@ -20,8 +20,7 @@ type Permission struct {
 	UpdatedAt time.Time
 }
 
-// RolePolicy 角色策略行（casbin p 行的数据化持久层）。替代 M6.1 静态
-// rbac_policy.csv（策略数据化装载）：装载时全表读出拼 csv 注入 contrib
+// RolePolicy 角色策略行（casbin p 行的数据化持久层）：装载时全表读出拼 csv 注入 contrib
 // casbin，行格式 `p, <role>, <object>, <action>`；g 行（subject→角色）由
 // User.Roles 装载，不落本表。主键 = "role:object:action" 业务键（仓库统一
 // string 主键范式，Create 冲突即重复策略天然防重）。源 sys_role_permissions

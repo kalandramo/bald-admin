@@ -1,7 +1,7 @@
-// Package mfad 是 mfa 域的装配声明包（批 4 第三波，机械域）。
-// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package mfad 是 mfa 域的装配声明包。
+// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
-// 特殊点：无 proto 纯 gin 面。挑战存储（Redis）由装配层 BeforeStart 随 TokenStore 同点抉择（无 Redis 保持 nil——MFA 安全边界 fail-closed，与迁移前逐点一致），域经 Deps getter 迟到取用。
+// 特殊点：无 proto 纯 gin 面。挑战存储（Redis）由装配层 BeforeStart 随 TokenStore 同点抉择（无 Redis 保持 nil——MFA 安全边界 fail-closed），域经 Deps getter 迟到取用。
 package mfad
 
 import (
@@ -36,7 +36,7 @@ type Deps struct {
 }
 
 // Domain 返回 mfa 域的装配声明值。Routes 委托 hgin.RegisterMFA——传输适配
-// 不搬家，路由面/中间件链与迁移前逐行等价；无 gRPC 面，Services 不声明。
+// 不搬家；无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *mfabiz.Biz
 	return appkit.Domain{

@@ -32,7 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// PositionService 职位管理（Wave P0.5，自 go-wind-admin identity 域
+// PositionService 职位管理（自 go-wind-admin identity 域
 // position.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
 // 与 OrgUnitService 同域的显式偏差（主键 string 业务键 / 请求体简化 /
@@ -151,7 +151,7 @@ func (c *positionServiceClient) BatchCreatePositions(ctx context.Context, in *Ba
 // All implementations must embed UnimplementedPositionServiceServer
 // for forward compatibility.
 //
-// PositionService 职位管理（Wave P0.5，自 go-wind-admin identity 域
+// PositionService 职位管理（自 go-wind-admin identity 域
 // position.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
 // 与 OrgUnitService 同域的显式偏差（主键 string 业务键 / 请求体简化 /

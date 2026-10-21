@@ -13,7 +13,7 @@ package e2e
 // 契约偏差（显式记录）：
 //   - 源 `user_id` 是 uint32，bald-admin 的 User.ID 是 string → 同 RegisterUser，
 //     字段承载字符串 ID。
-//   - 源以 `jti` 为核心标识，但 bald 的 JWT **不签发 jti**（框架缺陷 D6，
+//   - 源以 `jti` 为核心标识，但 bald 的 JWT **不签发 jti**（
 //     `bald/contrib/authn-jwt/jwt.go:208-221` 的 toJWT 不设 RegisteredClaims.ID）。
 //     本实现以 **token 指纹**（SHA-256）作为 jti 的等价物——GetAccessTokens 返回
 //     的是 token 明文，客户端回传时两种字段（token/jti）都按指纹匹配。
@@ -54,7 +54,7 @@ func startTokenMgmtREST(t *testing.T, ts token.Store) string {
 	authBiz.SetAuthenticator(authenticator)
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, authenticator, authBiz, nil, nil)
 	srv := httptest.NewServer(e)

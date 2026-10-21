@@ -1,10 +1,10 @@
-// Package dictd 是 dict 域的装配声明包（批 4 第二波，机械域）。包定位、
-// 依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package dictd 是 dict 域的装配声明包。包定位、
+// 依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
 // 差异两处：① biz 构造带 Cache-Aside 后端（同 secretd，抉择住装配层，经
 // Deps.Cache getter 迟到取用）；② gRPC 面是**双 service**（DictType + DictEntry
-// 共用同一 dict biz）——Services 一次回调登记两条，与迁移前 registerGRPC 的
-// 两行逐行等价。language 域依附判定：biz/v1/language 与 dict 零 import 关系，
+// 共用同一 dict biz）——Services 一次回调登记两条。
+// language 域依附判定：biz/v1/language 与 dict 零 import 关系，
 // 独立声明包（domains/languaged），不并入本域。
 package dictd
 

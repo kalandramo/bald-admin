@@ -1,7 +1,7 @@
 package e2e
 
 // t5_file_e2e_test.go 文件管理 REST e2e（验收）：真实 gin 引擎 + httptest +
-// 真实 MinIO（§0 硬性：外部依赖禁止 fake/mock/stub）。MinIO 连接经 env 注入：
+// 真实 MinIO（外部依赖禁止 fake/mock/stub）。MinIO 连接经 env 注入：
 //
 //	BALD_ADMIN_TEST_MINIO_ENDPOINT   host:port（必填，缺省则整组 Skip）
 //	BALD_ADMIN_TEST_MINIO_ACCESS_KEY （必填）
@@ -9,7 +9,7 @@ package e2e
 //	BALD_ADMIN_TEST_MINIO_USE_SSL    "true"/"false"（默认 false）
 //	BALD_ADMIN_TEST_MINIO_BUCKET     files 类兜底桶（默认 go-bald-admin-test）
 //
-// 验收点（移植计划 T5）：
+// 验收点：
 //  1. 上传 → 下载内容一致（真实 MinIO 往返；PNG 魔术头嗅探 → images 桶）
 //  2. 非白名单 MIME 拒绝（exe 魔术头）、目录穿越拒绝、超 50MiB 拒绝
 //  3. 对象落桶可查（SDK StatObject）；删除后对象与元数据一并消失
@@ -84,7 +84,7 @@ func startFileREST(t *testing.T) (string, *filebiz.Biz, *miniooss.Storage) {
 
 	fb := filebiz.New(repos.File, mc, bucket)
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, nil, nil, fb)
 	srv := httptest.NewServer(e)

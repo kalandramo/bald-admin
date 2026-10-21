@@ -1,6 +1,6 @@
 package e2e
 
-// platform_superadmin_e2e_test.go —— 平台级身份判据 = superadmin 角色（2026-09-24 定案）。
+// platform_superadmin_e2e_test.go —— 平台级身份判据 = superadmin 角色。
 //
 // 验收目标：**同一登录链路，按角色分流**
 //   - 持 superadmin 角色的用户（种子 u-admin）→ 登录签发的令牌带 Platform=true
@@ -59,7 +59,7 @@ func startPlatformREST(t *testing.T) string {
 	auth := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	// ← 与 cmd/bald-admin/main.go 的注入**逐字一致**（生产判据）
 	auth.SetPlatformResolver(authmodel.IsPlatformUser)
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变；平台判据装饰的 auth biz 照传）。
 	registerCoreFaces(t, e, nil, auth, nil, nil)
 	srv := httptest.NewServer(e)
@@ -170,13 +170,12 @@ func TestPlatform_PlatformFlagIsTheDecidingFactor(t *testing.T) {
 // 需要 Redis/DB），且**能抓住**删除注入链路的回归。
 //
 // 扫描整个目录而非单一文件：装配逻辑在 cmd/bald-admin/app/ 子包内按职责
-// 分文件，写死某个文件名会让本用例因文件搬迁/拆分而假红（2026-09-27
-// main.go 拆 app 子包时实测触发过一次）。目录级扫描只锁「注入语句存在」，
+// 分文件，写死某个文件名会让本用例因文件搬迁/拆分而假红（main.go 拆
+// app 子包时实测触发过一次）。目录级扫描只锁「注入语句存在」，
 // 与本就在演进的文件布局解耦。
 //
-// 批 4 域化迁移：注入语句原在 assembly.go（bizSet.Auth.SetPlatformResolver），
-// 随 BizSet 溶解拆成「装配层 getter（cmd/）+ 域 Wire 调用（authd/）」两半——
-// 两半分别断言，任一半被删测试即红（保护强度不变）。
+// 注入语句拆成「装配层 getter（cmd/）+ 域 Wire 调用（authd/）」两半——
+// 两半分别断言，任一半被删测试即红。
 func TestPlatform_ResolverIsInjectedInProduction(t *testing.T) {
 	dirs := []string{"../../../cmd/bald-admin", "../../../internal/apiserver/domains/authd"}
 	var src strings.Builder
@@ -214,7 +213,7 @@ func TestPlatform_ResolverIsInjectedInProduction(t *testing.T) {
 // TestPlatform_ClaimsCarryPlatformFlag 锁定判据 → 令牌 claims 的映射链路：
 // 注入判据后，登录签发的令牌解析出的 claims.Platform 必须为 true。
 //
-// 这是对 authn-jwt 字段集缺口的**业务层回归**（该缺口曾让 Platform 经 JWT
+// 这是对 authn-jwt 字段集缺口的**业务层回归**（该缺口会让 Platform 经 JWT
 // 静默丢失——token 以 true 签发、解析后变 false）。框架层已有反射比对测试
 // （contrib/authn-jwt 的 TestJWTClaims_FieldSetSync），本用例锁定端到端。
 func TestPlatform_ClaimsCarryPlatformFlag(t *testing.T) {

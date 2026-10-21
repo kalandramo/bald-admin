@@ -1,11 +1,10 @@
 // config.go —— auth 域自持的登录防护配置（biz.login.*）与三件构造器。
 //
-// 本文件自 cmd/bald-admin/app/{options.go,builders.go} 迁入（批 4 第三波，
-// 评估 §3.3「业务阈值住装配层」的域化收口）：
-//   - 配置类型/默认值/校验/严格解码：原 options.go 的 LoginOptions 族；
-//   - 限流/熔断/重试构造器：原 builders.go 的 buildLoginLimiter/Breaker/Retrier，
-//     逐行等价（含「>0 才覆盖」「段存在即启用、缺省即禁用」语义）；
-//   - 命令行 flag 声明：原 options.go AddFlags 的 biz.login.* 段，经 PlainBinder
+// 内容三件：
+//   - 配置类型/默认值/校验/严格解码；
+//   - 限流/熔断/重试构造器：buildLoginLimiter/Breaker/Retrier
+//     （含「>0 才覆盖」「段存在即启用、缺省即禁用」语义）；
+//   - 命令行 flag 声明：AddFlags 的 biz.login.* 段，经 PlainBinder
 //     由装配层 Bind——键名与默认值仍归本包，flag 值经配置合并层进入 Settings
 //     快照，域 Wire 解码时与文件/env 同源同优先级。
 package authd
@@ -188,8 +187,7 @@ type FlagOptions struct {
 	retryMaxBackoffMs         int
 }
 
-// AddFlags 实现 appkit.PlainBinder：注册 --biz.login.* 八个旗标（键名与
-// 默认值与迁移前逐字一致）。
+// AddFlags 实现 appkit.PlainBinder：注册 --biz.login.* 八个旗标。
 func (f *FlagOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.Float64Var(&f.rateLimitRate, "biz.login.rate_limit.rate", f.rateLimitRate,
 		"Login rate limit: tokens per second (<=0 disables).")

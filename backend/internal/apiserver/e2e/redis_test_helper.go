@@ -1,6 +1,6 @@
 package e2e
 
-// redis_test_helper.go —— e2e 的 Redis 连接参数集中解析（2026-09-22）。
+// redis_test_helper.go —— e2e 的 Redis 连接参数集中解析。
 //
 // ## 为什么需要它
 //
@@ -8,7 +8,7 @@ package e2e
 // t_w1_5_mfa / t_w2_6_broker）各自**硬编码** `127.0.0.1:6379`，导致：
 //   - 环境里的 Redis 若不是本地 6379（如集群内的远端实例），这批测试
 //     一律 `t.Skip("redis 不可达")`——**验证能力被环境锁死**；
-//   - 想在真实 Redis 上验证（如 D6 修复后的 refresh token 唯一性）
+//   - 想在真实 Redis 上验证（如 refresh token 唯一性）
 //     只能临时改代码，改完又得改回。
 //
 // 本文件把连接参数收敛为一处，并支持环境变量覆盖——**与仓库既有惯例一致**

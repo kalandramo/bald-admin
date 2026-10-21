@@ -5,8 +5,8 @@
 // 本包构造器接收**业务策略数据**（csv 文本）并注入 contrib。传输中立归一化仍由核心
 // 拦截器完成。
 //
-// T3 起策略数据化：csv 由 bootstrap 从 DB 装载（p 行 = RolePolicy 表，
-// g 行 = User.Roles），静态 rbac_policy.csv 删除——策略单一真源收敛到 DB，
+// 策略数据化：csv 文本由 bootstrap 从 DB 装载（p 行 = RolePolicy 表，
+// g 行 = User.Roles）——策略单一真源在 DB，
 // 改库重启即生效；无策略行时 casbin 默认拒绝（fail-closed）。
 package casbin
 

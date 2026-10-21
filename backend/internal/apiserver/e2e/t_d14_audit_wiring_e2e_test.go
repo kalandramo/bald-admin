@@ -1,15 +1,15 @@
 package e2e
 
-// t_d14_audit_wiring_e2e_test.go —— 审计后端装配回归（→ 2026-09-28 修订）。
+// t_d14_audit_wiring_e2e_test.go —— 审计后端装配回归。
 //
-// ## 历史（与惰性包装）
+// ## 回归背景（惰性包装）
 //
 // 配置声明 `audit: { backends: "store" }` 曾启动失败：
 // `appkit: audit provider "store" not registered`。根因两层：provider 未注册；
 // 且 appkit 的 buildAudit 排在 buildDatabases **之前**——store 后端构造时
 // *gorm.DB 必为 nil。当时用应用层惰性包装（lazyStoreAuditor）绕开。
 //
-// ## 现在（框架根治后）
+// ## 现语义（框架已根治）
 //
 // 框架把 buildAudit 移到数据客户端之后，并给 AuditProvider 增 res 参数
 // （*appkit.App）——后端构造期即可取已装配的 DB。故惰性包装已删除，

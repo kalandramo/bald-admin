@@ -2,7 +2,7 @@ package e2e
 
 // t_w1_ratelimit_e2e_test.go —— 登录限流 e2e（RED 起点）。
 //
-// 验收（计划 1.2，对齐源项目 LoginRateLimiter 的 fail-open 语义）：
+// 验收（对齐源项目 LoginRateLimiter 的 fail-open 语义）：
 //  1. 连续错误凭据触发限流 → 后续请求 429（而非继续 401）
 //  2. 限流是**按客户端维度**的：另一 IP/用户名不受影响
 //  3. 限流器未配置（nil）时不阻断登录（禁用态）
@@ -40,7 +40,7 @@ func startLoginRESTWithLimiter(t *testing.T, limiter *tokenbucket.Limiter) strin
 		authBiz.SetLoginLimiter(limiter)
 	}
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	srv := httptest.NewServer(e)

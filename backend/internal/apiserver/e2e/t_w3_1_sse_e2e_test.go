@@ -7,7 +7,7 @@ package e2e
 // 契约 `server.sse` 段**存在**（`server.proto:151-157`，3 字段），
 // 但 bald **框架不装配它**——`bald/bootstrap/server.go:93` 标注
 // `{"sse", false, ...}`，且 `bald/bootstrap/server_sections_test.go:20-40`
-// 断言「配了 server.sse 必须报错」。属 **D2 族**（契约段声明但实现没接）。
+// 断言「配了 server.sse 必须报错」（契约段声明但框架未接的缺陷族）。
 //
 // ## 本测试覆盖
 //
@@ -112,7 +112,7 @@ func TestWave3_1_SSEProtocolHeaders(t *testing.T) {
 // TestWave3_1_AutoStreamConstraint —— **关键约束**：不开启 autoStream，
 // 订阅不存在的流会失败（http.go:79-83 返回 500 "Stream not found!"）。
 //
-// 这是本波实测发现的未文档化约束——锁住它，防止后人误用。
+// 这是实测发现的未文档化约束——锁住它，防止后人误用。
 func TestWave3_1_AutoStreamConstraint(t *testing.T) {
 	// 刻意**不开启** autoStream。
 	srv := baldsse.NewServer(":0", baldsse.WithPath("/events"))

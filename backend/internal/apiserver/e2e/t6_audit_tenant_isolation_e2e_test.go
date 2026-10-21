@@ -1,7 +1,7 @@
 package e2e
 
-// t6_audit_tenant_isolation_e2e_test.go —— 审计查询的租户隔离（2026-09-22
-// 统一分页风格引入的行为变更）。
+// t6_audit_tenant_isolation_e2e_test.go —— 审计查询的租户隔离
+// （ListWithPaging 强制租户过滤）。
 
 import (
 	"net/http"
@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// TestAuditREST_TenantIsolation 审计查询的租户隔离（2026-09-22 统一分页风格
-// 引入的行为变更）。
+// TestAuditREST_TenantIsolation 审计查询的租户隔离
+// （ListWithPaging 强制租户过滤）。
 //
 // 背景：本域原为「跨租户全量查询」（Where 不注入租户条件）。统一分页后走
 // Store.ListWithPaging → translate → mergeTenant 强制注入 tenant_id 条件，

@@ -31,7 +31,7 @@ import (
 
 // DefaultTenantID 是审计事件缺租户时的**兜底默认值**。
 //
-// 为什么需要兜底（2026-09-22）：审计查询改为租户隔离后（走 ListWithPaging →
+// 为什么需要兜底：审计查询是租户隔离的（走 ListWithPaging →
 // mergeTenant 自动注入 tenant_id 条件），落库时 TenantID 为空的事件**查不到**。
 // 有三类事件天然拿不到租户：
 //   - login 失败（用户不存在/限流/熔断——无从得知用户所属租户）；
@@ -42,7 +42,7 @@ import (
 // 故在**落库汇聚点**统一兜底——RecordMapper 是所有审计事件的必经之路，
 // 一处覆盖全部调用方（优于在各调用点逐个打补丁）。
 //
-// **可配置**（2026-09-22 后续）：本值仅为缺省，生产经配置段
+// **可配置**：本值仅为缺省，生产经配置段
 // `audit.fallback_tenant` 覆盖（见 SetFallbackTenant）；未配置时用本常量。
 // 用户名/动作等线索记在 Subject/Action 等独立字段，不受此兜底影响。
 const DefaultTenantID = "t-default"

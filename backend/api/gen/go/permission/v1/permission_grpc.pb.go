@@ -33,13 +33,13 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// PermissionService 权限管理服务（T3，自 go-wind-admin permission 域精简移植）。
+// PermissionService 权限管理服务（自 go-wind-admin permission 域精简移植）。
 //
 // 两块职责：
 //  1. 权限点注册表（Permission）：权限码 → 名称/菜单可见性关联
 //     （源 sys_permissions + sys_permission_menus 精简——关联内联为 MenuIDs CSV）；
 //  2. 角色策略（RolePolicy）：casbin p 行（role,object,action）的数据化持久层，
-//     替代 M6.1 的静态 rbac_policy.csv（D3 策略数据化装载，重启生效）。
+//     重启生效（策略装载自本表）。
 //
 // 管理面操作仅授予 admin 角色（策略本身也数据化于 RolePolicy 表）。
 type PermissionServiceClient interface {
@@ -162,13 +162,13 @@ func (c *permissionServiceClient) DeleteRolePolicy(ctx context.Context, in *Dele
 // All implementations must embed UnimplementedPermissionServiceServer
 // for forward compatibility.
 //
-// PermissionService 权限管理服务（T3，自 go-wind-admin permission 域精简移植）。
+// PermissionService 权限管理服务（自 go-wind-admin permission 域精简移植）。
 //
 // 两块职责：
 //  1. 权限点注册表（Permission）：权限码 → 名称/菜单可见性关联
 //     （源 sys_permissions + sys_permission_menus 精简——关联内联为 MenuIDs CSV）；
 //  2. 角色策略（RolePolicy）：casbin p 行（role,object,action）的数据化持久层，
-//     替代 M6.1 的静态 rbac_policy.csv（D3 策略数据化装载，重启生效）。
+//     重启生效（策略装载自本表）。
 //
 // 管理面操作仅授予 admin 角色（策略本身也数据化于 RolePolicy 表）。
 type PermissionServiceServer interface {

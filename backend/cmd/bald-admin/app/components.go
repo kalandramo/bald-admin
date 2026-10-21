@@ -34,7 +34,7 @@ func (r *appRefT) get() *appkit.App {
 	return r.app
 }
 
-// heartbeatComp 是 M10.2 的演示组件：Start 起周期心跳 goroutine，Dispose 停止并
+// heartbeatComp 是演示组件：Start 起周期心跳 goroutine，Dispose 停止并
 // 等待退出——与 StreamAuditor 同构的「有 goroutine 要收」组件生命周期范本，
 // 经管理面挂载/卸载可端到端观察 A1 的 Start/Dispose 与重组审计。
 

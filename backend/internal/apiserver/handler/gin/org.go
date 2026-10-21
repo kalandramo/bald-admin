@@ -1,13 +1,12 @@
 // Package gin 提供组织架构域的 HTTP handler。
 //
-// Wave P0.5：本域从 B 轨退化形态（Go DTO + encoding/json）迁移为 A 轨标准形态
-// （bindPB/writePB + protojson）——响应形状由 proto 契约（api/protos/identity/v1）
-// 决定，与 gRPC/gateway 三面同源。
+// 本域为 A 轨标准形态（bindPB/writePB + protojson）——响应形状由 proto 契约
+// （api/protos/identity/v1）决定，与 gRPC/gateway 三面同源。
 //
-// 迁移要点：
+// 要点：
 //   - 请求体：bindPB（protojson，DiscardUnknown 兼容宽松客户端）
 //   - 响应体：writePB（protojson UseProtoNames，snake_case 与前端建模一致）
-//   - 错误出口：writeBizErr（框架统一 ErrorResponse，决策⑧结构）
+//   - 错误出口：writeBizErr（框架统一 ErrorResponse 结构）
 //   - 模型 → PB：toOrgUnitPB / toPositionPB 转换函数
 package gin
 

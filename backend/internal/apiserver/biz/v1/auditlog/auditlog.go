@@ -3,11 +3,9 @@ package auditlog
 // Package auditlog 审计日志查询业务层。只读：数据由写路径（拦截器链/
 // 登录动作）经 StoreAuditor 自动落库，本层仅提供过滤+分页检索。
 //
-// **租户隔离（2026-09-22 变更）**：本域原为「跨租户全量查询」（Where 不注入
-// 租户条件，理由是「审计是跨租户留痕」）。统一分页风格时改用
-// `Store.ListWithPaging`——它经 translate → mergeTenant **强制注入租户隔离**，
-// 框架无跳过机制。故现为「仅本租户可见」，admin 不再能查到其他租户的审计。
-// 用户决策：接受隔离（多租户下「全量跨租户」是潜在信息泄露面）。
+// **租户隔离**：查询走 `Store.ListWithPaging`——它经 translate → mergeTenant
+// **强制注入租户隔离**，框架无跳过机制。故为「仅本租户可见」，admin
+// 查不到其他租户的审计（多租户下「全量跨租户」是潜在信息泄露面）。
 //
 // store 经构造期注入（替代请求期读包级变量 bootstrap.AuditStore）。
 
@@ -22,7 +20,7 @@ import (
 )
 
 // 分页边界：默认页大小与上限由 `AuditStore` 的 WithPageSize/WithMaxPageSize
-// 配置（见 bootstrap.go）——2026-09-22 统一分页风格后，本层不再自持常量。
+// 配置（见 bootstrap.go）——本层不自持常量。
 
 // ListFilter 审计查询过滤条件（全可选；非空即过滤）。
 type ListFilter struct {
@@ -54,7 +52,7 @@ type Biz struct {
 // New 构造审计查询 biz。st 是审计日志仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 已就绪）。
 func New(st *store.Store[authmodel.AuditRecord]) *Biz { return &Biz{auditStore: st} }
 
-// List 分页查询审计日志（框架标准分页，2026-09-22 统一）。
+// List 分页查询审计日志（框架标准分页）。
 //
 // 与旧实现（手工 store.Where + Offset/Limit + 自研 token 编解码）的差异：
 //   - 用 `Store.ListWithPaging` 替代手工分页——获得框架的 token 游标、

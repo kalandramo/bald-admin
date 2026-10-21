@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AuditService 审计日志查询服务（T6，自 go-wind-admin audit 域精简移植）。
+// AuditService 审计日志查询服务（自 go-wind-admin audit 域精简移植）。
 //
 // 只读查询：审计事件由写路径自动落库（gin/gRPC 拦截器链 → category=operation；
 // 登录动作 → category=login），本服务不提供写入（源 Create rpc 是内部补录口，
@@ -36,7 +36,7 @@ const (
 // 数据来自 AuditRecord 单表（源 Operation/LoginAuditLog 双表 + Category 分类
 // 精简合并）；P9 归一化对象 "audit"（REST /v1/audit 与 gRPC AuditService 同源）。
 //
-// **分页与租户隔离（2026-09-22 统一）**：List 用框架标准 `bald.store.v1.PagingRequest`
+// **分页与租户隔离**：List 用框架标准 `bald.store.v1.PagingRequest`
 // （与 identity/org_unit.proto 一致），底层走 `Store.ListWithPaging`。由此带来一处
 // **行为变更**：框架 `mergeTenant` 强制注入租户隔离（无跳过机制），故本域从
 // 「跨租户全量查询」改为「仅本租户可见」——多租户下消除潜在信息泄露面。
@@ -82,7 +82,7 @@ func (c *auditServiceClient) GetAuditRecord(ctx context.Context, in *GetAuditRec
 // All implementations must embed UnimplementedAuditServiceServer
 // for forward compatibility.
 //
-// AuditService 审计日志查询服务（T6，自 go-wind-admin audit 域精简移植）。
+// AuditService 审计日志查询服务（自 go-wind-admin audit 域精简移植）。
 //
 // 只读查询：审计事件由写路径自动落库（gin/gRPC 拦截器链 → category=operation；
 // 登录动作 → category=login），本服务不提供写入（源 Create rpc 是内部补录口，
@@ -91,7 +91,7 @@ func (c *auditServiceClient) GetAuditRecord(ctx context.Context, in *GetAuditRec
 // 数据来自 AuditRecord 单表（源 Operation/LoginAuditLog 双表 + Category 分类
 // 精简合并）；P9 归一化对象 "audit"（REST /v1/audit 与 gRPC AuditService 同源）。
 //
-// **分页与租户隔离（2026-09-22 统一）**：List 用框架标准 `bald.store.v1.PagingRequest`
+// **分页与租户隔离**：List 用框架标准 `bald.store.v1.PagingRequest`
 // （与 identity/org_unit.proto 一致），底层走 `Store.ListWithPaging`。由此带来一处
 // **行为变更**：框架 `mergeTenant` 强制注入租户隔离（无跳过机制），故本域从
 // 「跨租户全量查询」改为「仅本租户可见」——多租户下消除潜在信息泄露面。

@@ -14,7 +14,7 @@ package e2e
 //
 // 即「当前登录用户 → 其角色 → 角色权限码 → 权限点关联的菜单 → 过滤出路由」。
 // 这是**跨域聚合**（user + role + permission + menu 四域），无单一对标 biz
-// ——故是 的真新增（裁定见计划 §）。
+// ——故是真新增服务。
 //
 // ## 测试数据策略（关键）
 //
@@ -50,7 +50,7 @@ func startPortalREST(t *testing.T) string {
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	hgin.RegisterAdminPortal(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, portal.New(repos.User, repos.Role, repos.Permission, repos.Menu))

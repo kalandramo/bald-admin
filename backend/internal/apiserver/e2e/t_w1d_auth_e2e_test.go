@@ -77,7 +77,7 @@ func startAuthRESTFull(t *testing.T, ts token.Store, cs captcha.Store) string {
 	authBiz.SetAuthenticator(authenticator)
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, authenticator, authBiz, nil, nil)
 	srv := httptest.NewServer(e)
@@ -323,7 +323,7 @@ func TestWave1d_ProductionWiring_RevocationActive(t *testing.T) {
 	e := gingonic.New()
 	// 关键：用生产入口 RegisterRoutes，且传**带吊销检查**的认证器
 	//（中间件层拒绝已吊销 token 才是本用例要锁的不变量）。
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, revocationAware, authBiz, nil, nil)
 	srv := httptest.NewServer(e)

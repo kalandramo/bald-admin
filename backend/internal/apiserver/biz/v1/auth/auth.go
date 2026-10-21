@@ -140,9 +140,7 @@ type Biz struct {
 	// 生产判据见 authmodel.IsPlatformUser（按 superadmin 角色），由 main.go
 	// 经 SetPlatformResolver 注入；未注入时本能力不生效（fail-closed）。
 	//
-	// 判据选择沿革：最初种子数据中 admin 属 t-default 租户、角色仅
-	// admin/viewer，**没有现成的平台身份载体**，故留空待定。2026-09-24 定案
-	// 为**新增 superadmin 角色**——角色是可枚举、可管理的显式声明，比「按
+	// 判据为**新增 superadmin 角色**——角色是可枚举、可管理的显式声明，比「按
 	// 用户名」或「按租户值」更符合框架侧「显式声明、绝不隐式推断」的纪律。
 	//
 	// 判据实现放在 authmodel 而非本包：bootstrap 播种角色时也要用它，而
@@ -191,7 +189,7 @@ func (b *Biz) SetPlatformResolver(fn func(*authmodel.User) bool) {
 // SetLoginLimiter 运行期注入登录限流器（main.go 在装配后调用；测试可注入
 // 真实 tokenbucket 实例）。nil 不覆盖——保留禁用态语义。
 //
-// 为什么经 setter 而非构造参数：与 SetCache/SetStorage 同款的 T0 时序约定——
+// 为什么经 setter 而非构造参数：与 SetCache/SetStorage 同款的时序约定——
 // 限流器构造需要配置（rate/burst），而配置在 BeforeStart 才装载完成。
 func (b *Biz) SetLoginLimiter(l ratelimit.Limiter) {
 	if l != nil {
@@ -468,7 +466,7 @@ func (b *Biz) BlockToken(ctx context.Context, userID, token, jti, reason string,
 	// jti 标识的是「签发事件」，不能用于吊销定位（同一 token 可被多次引用）。
 	// 两者都接受以兼容调用方：优先 token，回退 jti（当作 token 值）。
 	//
-	// 注：框架 D6 已修（toJWT 现签发 jti），但本处语义不变——jti 与「吊销
+	// 注：toJWT 现签发 jti，但本处语义不变——jti 与「吊销
 	// 目标」是两回事，不受该修复影响。
 	target := token
 	if target == "" {
@@ -575,7 +573,7 @@ var ErrRefreshInvalid = errors.New("auth: invalid refresh token")
 var ErrTokenInvalid = errors.New("auth: invalid token")
 
 // Login 校验凭据（查 store）并签发 JWT。
-// T6 登录审计：成功/失败/内部错误均记一条 category=login 审计事件（源
+// 登录审计：成功/失败/内部错误均记一条 category=login 审计事件（源
 // login_audit_log 语义精简：IP/UA/结果/失败原因；风险评分/MFA/设备指纹后续迭代）。
 // 经当前生效审计器（securityaudit.Current，bootstrap audit.backends 热切换同一入口），旁路不阻断。
 func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {

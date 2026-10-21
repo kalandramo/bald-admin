@@ -2,8 +2,7 @@ package convert
 
 // model.go 基于 model 实体的域转换（tenant/user/menu/dict/language/permission/audit/file）。
 //
-// 逐字迁自 handler/gin/*.go 与 handler/grpc/*.go（两侧 diff 归一化后同构，
-// 2026-09-27 逐函数实测；例外见各函数注释）。
+// handler/gin 与 handler/grpc 两侧共用本包（原双份实现同构，例外见各函数注释）。
 
 import (
 	"strconv"
@@ -111,7 +110,7 @@ func DictEntryToPB(e *authmodel.DictEntry) *dictv1.DictEntry {
 
 // LanguageToPB 语言 model → proto（零值时间不产出 Timestamp）。
 //
-// 注：**仅 gin 侧曾有该函数**——gRPC 侧未实现 LanguageService（`handler/grpc/`
+// 注：**仅 gin 侧有该函数**——gRPC 侧未实现 LanguageService（`handler/grpc/`
 // 无 language.go，`main.go` 的 registerGRPC 也未注册），故无 grpc 副本可合并。
 func LanguageToPB(m *authmodel.Language) *dictv1.Language {
 	pb := &dictv1.Language{
@@ -133,9 +132,7 @@ func LanguageToPB(m *authmodel.Language) *dictv1.Language {
 
 // PermissionToPB 权限 model → proto（MenuIDs CSV 拆为 repeated）。
 //
-// 迁移说明：gin 侧原调 `splitCSVStrings`、grpc 侧原调 `splitPermissionCSV`——
-// 两函数**同算法不同名**（2026-09-27 diff 实测），此处统一为 splitCSV，
-// 是本次迁移消除的第一处实质重复。
+// gin 侧与 grpc 侧此前各有一份同算法不同名的 CSV 拆分函数，此处统一为 splitCSV。
 func PermissionToPB(p *authmodel.Permission) *permissionv1.Permission {
 	pb := &permissionv1.Permission{
 		Id:        p.ID,

@@ -3,7 +3,7 @@ package e2e
 // t4_e2e_test.go 字典管理 REST e2e（验收）：真实 gin 引擎 + httptest +
 // miniredis 真实 Redis（dict biz 注入 Cache-Aside）。
 //
-// 验收点（移植计划 T4）：
+// 验收点：
 //  1. 类型/条目 CRUD（业务键防重 400、类型删除级联条目）
 //  2. Cache-Aside 命中可观测：读后缓存键真实存在（miniredis）；
 //     写穿透失效：Update/Delete 后键消失、再读重载新值
@@ -11,9 +11,8 @@ package e2e
 //  4. P8 隔离：t-other 用户看不到 t-default 的字典种子（缓存键亦含租户维度）
 //  5. Redis 停机降级直连 loader 由 cache/loadable 单测覆盖（WithDegradeOnError）
 //
-// D1（2026-09-19）：缓存实现由 contrib/cache-redis 迁移到 cache/redis +
-// cache/loadable（原组件已从 bald 删除）；测试断言改用 cache.Cache 接口的
-// Has/Get 与 bootstrap.CacheKey，不再依赖旧 Client() 直取底层连接。
+// 缓存实现走 cache/redis + cache/loadable；测试断言用 cache.Cache 接口的
+// Has/Get 与 bootstrap.CacheKey，不经 Client() 直取底层连接。
 
 import (
 	"context"
@@ -50,7 +49,7 @@ func startDictREST(t *testing.T) (string, cache.Cache) {
 	t.Cleanup(func() { _ = rdb.Close() })
 	cacheInst := bootstrappkg.UseRedisClient(rdb)
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, nil, cacheInst, nil)
 	srv := httptest.NewServer(e)
@@ -165,7 +164,7 @@ func TestDictREST_EntryLifecycleAndCache(t *testing.T) {
 		}
 	}
 	// 缓存键真实存在（Cache-Aside 命中可观测——写穿透/失效断言的基线）。
-	// D1：改用 cache.Cache 接口的 Has（旧实现经 Client() 直取底层连接）。
+	// 用 cache.Cache 接口的 Has（不经 Client() 直取底层连接）。
 	if ok, err := cacheInst.Has(ctx, ck); err != nil || !ok {
 		t.Fatalf("cache key %s must be backfilled, got ok=%v err=%v", ck, ok, err)
 	}

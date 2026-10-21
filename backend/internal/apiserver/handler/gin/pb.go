@@ -58,7 +58,7 @@ func bindErr(c *gingonic.Context, err error) {
 	web.ErrorResponse(c, berrors.BadRequest("").WithMessage("%s", err))
 }
 
-// validatePB 对已绑定的 proto 消息执行 buf.validate 注解校验（Wave 校验层契约化）。
+// validatePB 对已绑定的 proto 消息执行 buf.validate 注解校验。
 //
 // 为什么 gin 面需要显式调用：gRPC 面经 ValidatorInterceptor 统一拦截，而 gin
 // 直连路径不经过 gRPC 拦截器链——两侧必须各自触发同一份注解规则（规则本身
@@ -82,7 +82,7 @@ var pbValidator = validation.MustNew()
 
 // handlePB 封装 gin 面的四步流水线：protojson 绑定 → 注解校验 → 业务处理 → protojson 写出。
 //
-// 为什么需要它：此前每个路由手写同样的样板——
+// 为什么需要它：否则每个路由都要手写同样的流水线——
 //
 //	var req identityv1.CreateOrgUnitRequest
 //	if err := bindPB(c, &req); err != nil { bindErr(c, err); return }

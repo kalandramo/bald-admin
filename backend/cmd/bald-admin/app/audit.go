@@ -109,7 +109,7 @@ func buildAuditBackend(name, streamName string, streamBuf int) audit.Auditor {
 			return securityaudit.NewStore(bootstrappkg.DB)
 		}
 	case "stream":
-		// D1：底层 client 经 bootstrap.RedisClient 复用（cache/redis 适配器
+		// 底层 client 经 bootstrap.RedisClient 复用（cache/redis 适配器
 		// 不暴露 client）；nil 即无 Redis，跳过该后端。
 		if bootstrappkg.RedisClient != nil {
 			// stream/buffer 取自协调器配置快照。空串/0 由实现兜底

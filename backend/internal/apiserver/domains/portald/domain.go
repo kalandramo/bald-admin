@@ -1,5 +1,5 @@
-// Package portald 是 portal 域的装配声明包（批 4 第三波，机械域）。
-// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package portald 是 portal 域的装配声明包。
+// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
 // 特殊点：proto（api/gen/go/admin 的 admin_portal，pb.gw 转码注解）仅作 REST 面类型来源，无 gRPC server 实现、无网关登记——Services 不声明（合法）。仓储与 user/role/permission/menu 域同一实例（无双构造）。
 package portald
@@ -38,7 +38,7 @@ type Deps struct {
 }
 
 // Domain 返回 portal 域的装配声明值。Routes 委托 hgin.RegisterAdminPortal——传输适配
-// 不搬家，路由面/中间件链与迁移前逐行等价；无 gRPC 面，Services 不声明。
+// 不搬家；无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *portalbiz.Biz
 	return appkit.Domain{

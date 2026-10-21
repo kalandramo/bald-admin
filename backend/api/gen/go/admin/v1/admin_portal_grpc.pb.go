@@ -28,10 +28,10 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AdminPortalService 后台前端初始化数据与配置服务（Wave 6.2，自 go-wind-admin
+// AdminPortalService 后台前端初始化数据与配置服务（自 go-wind-admin
 // admin 域 i_admin_portal.proto 精简移植，3 rpc）。
 //
-// ## 为何是真新增（裁定见计划 §Wave 6.1）
+// ## 为何是真新增
 //
 // 本 service **不 import** 其他业务域的消息类型（源仅 import menu.proto 作
 // MenuRouteItem 复用）——三个 rpc 全是**跨域聚合**：把 user/role/permission/menu
@@ -104,10 +104,10 @@ func (c *adminPortalServiceClient) GetInitialContext(ctx context.Context, in *Ge
 // All implementations must embed UnimplementedAdminPortalServiceServer
 // for forward compatibility.
 //
-// AdminPortalService 后台前端初始化数据与配置服务（Wave 6.2，自 go-wind-admin
+// AdminPortalService 后台前端初始化数据与配置服务（自 go-wind-admin
 // admin 域 i_admin_portal.proto 精简移植，3 rpc）。
 //
-// ## 为何是真新增（裁定见计划 §Wave 6.1）
+// ## 为何是真新增
 //
 // 本 service **不 import** 其他业务域的消息类型（源仅 import menu.proto 作
 // MenuRouteItem 复用）——三个 rpc 全是**跨域聚合**：把 user/role/permission/menu

@@ -14,7 +14,7 @@
 //	curl -i http://127.0.0.1:8080/v1/ping
 //	curl -i http://127.0.0.1:8080/v1/info
 //
-// 设计见 docs/设计文档.md；分层参考 osbuilder 脚手架模板。
+// 设计见 docs/设计文档.md。
 package main
 
 import (

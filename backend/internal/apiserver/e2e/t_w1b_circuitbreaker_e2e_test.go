@@ -2,11 +2,11 @@ package e2e
 
 // t_w1b_circuitbreaker_e2e_test.go —— 登录 DB 查询熔断 e2e（RED 起点）。
 //
-// 验收（计划 1.3 的**场景修正**，见 提交说明）：
+// 验收（场景修正）：
 // 计划原提「circuitbreaker 包裹审计落库」收益极低——审计是旁路不阻断语义
 //（recordSafely 有 recover 兜底），给失败无感的旁路加熔断没有意义。真正的
 // 雪崩点在**主链路的 DB 查询**（Login 的 UserStore.Get）：DB 故障会让所有
-// 登录请求卡在超时上。故本波把熔断挂在这里。
+// 登录请求卡在超时上。故熔断挂在这里。
 //
 // 断言策略说明（重要）：本测试用 **hystrix** 而非 sres 作为实现。
 // 原因（实测发现，见 交付报告）：sres 是 SRE 概率式熔断，其
@@ -48,7 +48,7 @@ func startLoginRESTWithBreaker(t *testing.T, cb circuitbreaker.CircuitBreaker) s
 		authBiz.SetLoginBreaker(cb)
 	}
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	srv := httptest.NewServer(e)

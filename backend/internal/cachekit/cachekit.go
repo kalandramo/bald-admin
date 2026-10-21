@@ -4,8 +4,6 @@
 // **纯字符串工具**、无任何状态——留在 bootstrap 会让 biz 层为了拼一个缓存键而
 // 反向依赖装配根（违反 G2「控制面单向依赖数据面」）。迁到本包后，biz 只依赖
 // 纯函数，装配根与 biz 之间不再有这条隐式边。
-//
-// 键格式与 bootstrap 时期的实现逐字节一致（迁移零行为变更）。
 package cachekit
 
 import (
@@ -14,11 +12,11 @@ import (
 	"time"
 )
 
-// DefaultCacheTTL 是 Cache-Aside 回填的默认 TTL（对齐旧 rediscache 的 5 分钟）。
+// DefaultCacheTTL 是 Cache-Aside 回填的默认 TTL。
 const DefaultCacheTTL = 5 * time.Minute
 
 // CacheKey 构造缓存键：各段以 ':' 连接。调用方须把租户维度放入键中，
-// 防止跨租户缓存泄漏（与旧 rediscache.Key 逐字节等价）：
+// 防止跨租户缓存泄漏：
 //
 //	CacheKey("secret", tenant, id) // -> "secret:t-default:s-1"
 func CacheKey(parts ...string) string {

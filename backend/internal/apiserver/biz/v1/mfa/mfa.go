@@ -231,7 +231,7 @@ func (b *Biz) Disable(ctx context.Context, tenantID, userID, credentialID string
 		w.Filters = append(w.Filters, store.Eq("id", credentialID))
 	}
 	// 不传 credentialID 时这是**集合删除**（清空该用户全部该方法因子）。
-	// `Store.Delete` 现为幂等语义（0 行返回 (0, nil)，2026-09-23 决策，D12 修复）：
+	// `Store.Delete` 为幂等语义（0 行返回 (0, nil)）：
 	// 用户禁用**本就未启用**的方法时删 0 行是合法结果，不再需要容忍样板。
 	if _, err := b.factorStore.Delete(ctx, w); err != nil {
 		return fmt.Errorf("mfa: disable factor: %w", err)

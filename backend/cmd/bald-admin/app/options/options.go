@@ -34,7 +34,7 @@ import (
 //
 // 嵌套结构与配置文件同构，故 mapstructure 可递归解码：
 //
-//	login 段（登录防护三件套）已随批 4 域化迁往 auth 域声明包
+//	login 段（登录防护三件套）住 auth 域声明包
 //	（internal/apiserver/domains/authd 的 config.go）——键名/默认值/校验/构造
 //	均归域自持，本结构不再出现业务阈值；flag 通道经 authd.FlagOptions 声明。
 //	file:    {bucket: go-bald-admin}
@@ -58,7 +58,7 @@ type ServerOptions struct {
 	// 为什么不直接绑到 Login.Breaker / Login.Retry：那两段用指针表达「段是否
 	// 存在」，而 pflag 绑定会立刻 materialize 指针——「未配置」于是变成「启用」，
 	// 静默打开熔断/重试（实测复现：AddFlags 后 BreakerEnabled=true）。
-	// login 段的 flag 绑定（含影子字段纪律）随批 4 域化迁往 authd.FlagOptions。
+	// login 段的 flag 绑定（含影子字段纪律）住 authd.FlagOptions。
 }
 
 // FileOptions 文件模块（对象存储桶；bconf storage 段无 bucket 字段）。
@@ -94,27 +94,18 @@ type SSEOptions struct {
 	Path string `mapstructure:"path"`
 }
 
-// MetricsOptions 可观测性暴露端的历史 env 通道（**已退役**）。
+// MetricsOptions 可观测性暴露端的废弃 env 通道（无运行期消费者）。
 //
-// 退役理由：本结构的字段曾由 BALD_ADMIN_METRICS_ADDR /
-// BALD_ADMIN_OTLP_ADDR 填充，在**契约装载之前**注入（当时的缺省合成
-// 函数 `applyObservabilityDefaults` 已整体删除——可观测性/协议段改由
-// 契约 + 配置驱动，不再由应用层合成缺省段）。那两个短名会被框架 env
-// 层截获成 `metrics.addr` / `metrics.otlp`（契约无此键，被
-// DiscardUnknown 丢弃）；第二次完整装载（syncBootstrap）又用配置文件的
-// 值覆盖了注入结果——净效果是「配置里声明了 metrics 段时，env 静默
-// 失效」，且无任何提示。
-//
-// 现统一走框架路径名（`BALD_ADMIN_METRICS_PROMETHEUS_ADDR` /
+// env 通道统一走框架路径名（`BALD_ADMIN_METRICS_PROMETHEUS_ADDR` /
 // `BALD_ADMIN_METRICS_OTLP_ENDPOINT` / `BALD_ADMIN_TRACER_OTLP_ENDPOINT`），
 // 优先级与其余契约字段一致（env 层高于本地文件层）。
 //
 // 字段与类型保留仅为兼容「程序化覆写」的既有结构（无 flag 绑定）；
 // 运行期消费者已删，改端口/端点请用上述路径名或对应配置段。
 type MetricsOptions struct {
-	// Addr 历史字段（无消费者）。改暴露端口请用 `metrics.prometheus.addr`。
+	// Addr 废弃字段（无消费者）。改暴露端口请用 `metrics.prometheus.addr`。
 	Addr string `mapstructure:"addr"`
-	// OtlpAddr 历史字段（无消费者）。改端点请用 `metrics.otlp.endpoint`
+	// OtlpAddr 废弃字段（无消费者）。改端点请用 `metrics.otlp.endpoint`
 	// 与 `tracer.otlp.endpoint`（两者需分别设置）。
 	OtlpAddr string `mapstructure:"otlp_addr"`
 }
@@ -231,7 +222,7 @@ func envDefault(key, def string) string {
 // 配置键、说明与默认值；小配置场景无需维护配置文件。
 //
 // 键名用点路径（与配置文件键、mapstructure tag 三者对齐）。
-// （login 段的 --biz.login.* 八个旗标随批 4 域化迁往 authd.FlagOptions——
+// （login 段的 --biz.login.* 八个旗标住 authd.FlagOptions——
 // 键名/默认值/影子字段纪律归域自持，装配层仅 Bind 声明。）
 func (o *ServerOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.File.Bucket, "biz.file.bucket", o.File.Bucket,
@@ -259,7 +250,7 @@ func (o *ServerOptions) AddFlags(fs *pflag.FlagSet) {
 func (o *ServerOptions) Validate() error {
 	var errs []string
 
-	// （login 段的校验随批 4 域化迁往 authd（LoginConfig.Validate）——聚合错误
+	// （login 段的校验住 authd（LoginConfig.Validate）——聚合错误
 	// 风格不变，域 Wire 解码时 fail-fast。）
 
 	// 令牌 TTL：必须为正（零值会让签发的 token 立即过期）。

@@ -30,7 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// FileService 文件管理服务（T5，自 go-wind-admin storage 域精简移植）。
+// FileService 文件管理服务（自 go-wind-admin storage 域精简移植）。
 //
 // 文件是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离。上传校验
 // 大小上限（50MiB）与 MIME 白名单（源 pkg/oss 语义），对象按内容类型分桶并
@@ -118,7 +118,7 @@ func (c *fileServiceClient) DeleteFile(ctx context.Context, in *DeleteFileReques
 // All implementations must embed UnimplementedFileServiceServer
 // for forward compatibility.
 //
-// FileService 文件管理服务（T5，自 go-wind-admin storage 域精简移植）。
+// FileService 文件管理服务（自 go-wind-admin storage 域精简移植）。
 //
 // 文件是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离。上传校验
 // 大小上限（50MiB）与 MIME 白名单（源 pkg/oss 语义），对象按内容类型分桶并

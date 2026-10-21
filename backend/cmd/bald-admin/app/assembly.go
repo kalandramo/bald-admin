@@ -74,7 +74,7 @@ import (
 
 // serveRunE 是根命令的 RunE——bald-admin 的**启动主流程**。
 //
-// 批 2 单一装配入口：契约装载、--config 解析（默认路径经 appkit.ConfigFile 声明，
+// 单一装配入口：契约装载、--config 解析（默认路径经 appkit.ConfigFile 声明，
 // 原 preloadBootstrap 手写扫描已内化）、约定装配（Bind×3、装载/校验/日志两阶段、
 // 热更新、段驱动 Provider、信号处理与 Run）全部在 Serve 内部；业务只经
 // appOptions 声明配置表达不了的能力。失败记日志后以非零码退出（MustServe）。
@@ -101,8 +101,8 @@ func serveRunE(_ *cobra.Command, _ []string) error {
 // 业务保留的声明（配置驱动不了）：路由、gRPC service、拦截器链序、
 // 探针依赖、日志脱敏、审计协调、各段业务语义 Provider——见下方各 Option。
 func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
-	// 21 域已全量域化（批 4 收官）：业务对象构造归各域声明包的 Wire，本函数
-	// 不再聚合 BizSet——域依赖的运行期产物经下方函数作用域变量 + Deps getter
+	// 业务对象构造归各域声明包的 Wire，本函数
+	// 只声明域清单与依赖——运行期产物经下方函数作用域变量 + Deps getter
 	// 迟到取用。闭包内赋值用 `=`（`:=` 会新建同名变量，外层仍为 nil——getter
 	// 闭包读不到的旧坑，纪律保留）。
 	var (
@@ -111,8 +111,8 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// appkit.WithGRPCOptions 的选项工厂与 sseServerProvider 的授权钩子。
 		authenticator authn.Authenticator
 		authorizer    authz.Authorizer
-		// repos 同样提升到函数作用域：InitBridges 返回值原为 BeforeStart 闭包局部，
-		// 批 4 起域清单的 Deps getter（下方 opts 内）也要读它。闭包内赋值用 `=`
+		// repos 同样提升到函数作用域：InitBridges 在 BeforeStart 闭包内构造，
+		// 域清单的 Deps getter（下方 opts 内）也要读它。闭包内赋值用 `=`
 		//（`:=` 会新建同名变量，外层仍为 nil——同上纪律）。
 		repos *bootstrappkg.Repositories
 		// bizCache 供 secret/dict 两域的 Deps.Cache getter 读取：BeforeStart 内
@@ -137,17 +137,17 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 
 	// 健康检查聚合器：HTTP /healthz /readyz 与 gRPC 标准健康服务状态同源，由
 	// appkit.WithHealth 默认装配（探针路由归装配层，协议实现不注册任何路由）。
-	// 本范例尚无依赖项要检查，空聚合器=恒就绪（等价于迁移前的 ready 桩）。
+	// 本范例尚无依赖项要检查，空聚合器=恒就绪。
 	healthChecker := health.New()
 
 	// gin 引擎：构造期只建伺服面骨架（无中间件）。全局链在 BeforeStart 挂载——
-	// 批 2 起 Serve 内部持有契约，声明期读不到契约中间件段；Run 期挂载还使
-	// 中间件配置吃到完整四源终值（flag/env/文件/远程；此前只有预装载基线）。
+	// Serve 内部持有契约，声明期读不到契约中间件段；Run 期挂载还使
+	// 中间件配置吃到完整四源终值（flag/env/文件/远程）。
 	// gin 的 Use 只影响其后注册的路由，故 BeforeStart 内先挂链再注册路由（域 Routes，注册序=执行序）。
 	router := gin.New()
 
 	// 装载后的契约快照（BeforeStart 解码自 app.Settings()；AfterStart 读地址
-	// 打日志用——与原预装载契约同源同值）。
+	// 打日志用）。
 	var loadedContract bootstrapv1.BootstrapConfig
 
 	// 契约中间件段的资源释放（当前仅 rate_limit 的限流器需要 Close）。挂停机
@@ -156,7 +156,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// 无中间件资源时保持 no-op。
 	mwClose := func() error { return nil }
 
-	// gRPC service 注册：**WithGRPC 已随域化收官删除**（裁决记录）。全部
+	// gRPC service 注册：全部
 	// service 登记住 11 个带 proto 面的域声明包（tenant/user/secret/menu/
 	// permission/dict×2/file/auditlog/org×2）的 Services 槽位；业务零直接登记，
 	// 业务侧不传 gRPC 注册回调——appkit.composeDomainServices 对「无业务回调
@@ -164,7 +164,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// 拦截器链经 WithGRPCOptions（下方，业务声明保留）照常生效。gateway 转码
 	//（registerGateway）是独立声明，不受影响。
 	opts := []appkit.Option{
-		// --- 框架自有后端 + 第三方 Provider（批 2 目标形态，评估 §4.1/§4.2）---
+		// --- 框架自有后端 + 第三方 Provider ---
 		// std.Standard()：框架自有后端的段驱动 Provider 集合（http/grpc 服务器
 		// 构造、audit.log 默认——对账表见 pkg/appkit/std 包文档）。
 		std.Standard(),
@@ -225,9 +225,9 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 「不启用」= 移除 sse 段。
 		sseServerProvider(func() authn.Authenticator { return authenticator }),
 
-		// --- 业务域声明（域形态；批 4 收官：21 域全量在册）---
-		// 手写域清单（bald-admin 无 domains.gen.go，W3 生成物落地前的清单承载
-		// 形态——与上方 Provider 清单并列；Domain 实现 Option，变参直传 MustServe）。
+		// --- 业务域声明（21 域全量在册）---
+		// 手写域清单（bald-admin 无 domains.gen.go，与上方 Provider 清单并列——
+		// Domain 实现 Option，变参直传 MustServe）。
 		// 基础设施取用约定：store/authn/authz 住装配层（InitBridges 与 BeforeStart
 		// 构造），域经 Deps getter 迟到取用——getter 读本函数作用域变量（闭包内
 		// `=` 赋值纪律）；域 Wire 晚于业务 BeforeStart 执行（bald/pkg/
@@ -242,7 +242,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			Authn: func() authn.Authenticator { return authenticator },
 			Authz: func() authz.Authorizer { return authorizer },
 		}),
-		// --- 第二波 8 域（批 4 机械域：secret/menu/permission/dict/file/
+		// --- 机械域：secret/menu/permission/dict/file/
 		// auditlog/org/language）---getter 形态同上：store 读 repos（InitBridges
 		// 产物），authn/authz 读 BeforeStart 构造的函数作用域变量；secret/dict
 		// 另读 bizCache（下方 BeforeStart 抉择），file 另读 bootstrap 的存储
@@ -297,9 +297,9 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			Authz: func() authz.Authorizer { return authorizer },
 		}),
 
-		// --- 第三波重域（批 4）：auth ---
-		// 登录防护三件（限流/熔断/重试）构造器自 builders.go 迁入域（评估 §3.3
-		// 收口）：域 Wire 自读 Settings 快照的 biz.login.* 段并自行构造，装配层
+		// --- 重域：auth ---
+		// 登录防护三件（限流/熔断/重试）构造器住 authd 域（
+		// config.go）：域 Wire 自读 Settings 快照的 biz.login.* 段并自行构造，装配层
 		// 不再出现业务阈值；flag 通道经 authd.FlagOptions 声明（下方 Bind）。其余
 		// 独有依赖（TokenStore/验证码/平台判据/TTL）按基础设施纪律住装配层——
 		// BeforeStart 抉择，域经 Deps getter 迟到取用（本函数作用域变量）。
@@ -327,8 +327,8 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			Authz: func() authz.Authorizer { return authorizer },
 		}),
 
-		// --- 第三波机械域（批 4）：mfa/identity/task/message/dashboard/
-		// permgroup/plan/portal/cachemonitor——biz 构造自 InitializeBiz 迁入各域
+		// --- 机械域：mfa/identity/task/message/dashboard/
+		// permgroup/plan/portal/cachemonitor——biz 构造在各域
 		// Wire（无 proto 纯 gin 面，Services 不声明合法；cachemonitor 无仓储，
 		// Redis 客户端经 getter 透传，nil=监控降级合法）。getter 形态同上：
 		// store 读 repos，authn/authz 读 BeforeStart 构造的函数作用域变量。
@@ -415,7 +415,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		appkit.WithHTTP(router),
 		// 拦截器链改**运行期求值**——工厂在 Run 期 server 构造点调用（业务
 		// BeforeStart 之后），可读上方运行期赋值的 authenticator/authorizer。
-		// （WithGRPC 业务登记回调已删——见上方「gRPC service 注册」裁决注释；
+		// （业务侧不传 gRPC 登记回调——见上方「gRPC service 注册」注释；
 		// gRPC 面的存在性与 service 登记均由域声明包的 Services 承载。）
 		appkit.WithGRPCOptions(func() []grpc.ServerOption {
 			return newGRPCServerOptions(authenticator, authorizer)
@@ -437,7 +437,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			bslog.WithAttrs(slog.String("service.name", "bald-admin")),
 		}},
 
-		// --- 机制层（原 appkit.WithX 声明，批 2 下沉 mech 子包）---
+		// --- 机制层（mech 子包）---
 		// 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB
 		// 连接，审计落库（StoreAuditor）依赖它。
 		mech.Provides("db"),
@@ -474,9 +474,9 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			}
 
 			// 合并终值快照 → 契约（AfterStart 地址日志、bootstrappkg.Configure 的
-			// 依赖段来源）。原实现读预装载契约——批 2 起契约归 Serve 内部，业务侧
-			// 经 Settings() 解码等价重建（含 flag/env/远程全源终值，较此前只读
-			// 预装载基线更完整）。
+			// 依赖段来源）。契约归 Serve 内部，业务侧
+			// 经 Settings() 解码重建（含 flag/env/远程全源终值，
+			// 覆盖文件基线）。
 			if err := baldconfig.Unmarshal(app.Settings(), &loadedContract); err != nil {
 				return fmt.Errorf("decode merged settings into bootstrap contract: %w", err)
 			}
@@ -546,7 +546,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 				// 验证码 / MFA 挑战存储（复用同一 Redis）：随 TokenStore 同点抉择，
 				// 域 Wire 经 Deps getter 迟到取用。无 Redis（tokenStore nil）时保持
 				// nil——authd 的验证码与 mfad 的挑战存储各自禁用态（MFA fail-closed、
-				// 验证码 503，与迁移前逐点一致）。
+				// 验证码 503）。
 				captchaStore = captcha.NewRedisStore(bootstrappkg.RedisClient)
 				mfaChallenges = mfa.NewRedisChallengeStore(bootstrappkg.RedisClient)
 			}
@@ -559,20 +559,20 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			// 由各域声明包的 Routes 注册——本钩子（业务 BeforeStart）先于域装配
 			// 钩子执行（注册序=执行序），gin 的 Use 只影响其后注册的路由，故
 			// apiaudit 中间件覆盖全部域路由；共面/管理面在域路由之前挂载。
-			// （原 RegisterRoutes + BizSet 已随域化收官溶解——bizset.go 删除，
-			// 见 apiserver.RegisterBaseFaces 与各域 domain.go。）
+			// （路由注册入口为 apiserver.RegisterBaseFaces 与各域 domain.go；
+			// 业务 BeforeStart 只挂共面与管理面。）
 			apiserver.RegisterBaseFaces(router)
 			// 管理面：运行期组件观测与热插拔（appRef 在 provider Build 期绑定）。
 			registerAdminRoutes(router, appRef, authenticator, authorizer, componentFactories)
 			// secret/dict 两域的 Cache-Aside 后端解析（域 Wire 经 Deps.Cache getter
-			// 迟到读取；file 的存储补注同理已迁往 filed 的域 Wire——SetObjectStorage
-			// 对 nil 不覆盖，桥接未就绪保留构造期 minio 直连，语义与迁移前一致）：
+			// 迟到读取；file 的存储补注住 filed 的域 Wire——SetObjectStorage
+			// 对 nil 不覆盖，桥接未就绪保留构造期 minio 直连）：
 			// 配置驱动 RedisCache（cache.redis 段，含 password/db）优先；未配置段
 			// 回退 wire 的 env 兼容通道（BALD_ADMIN_REDIS_ADDR，仅地址——CI 覆盖
 			// 手段；addr 为空即禁用态 nil，biz 内判 nil 直连 store）。env 通道构造
-			// 保持**无条件**（Redis 不可达仍启动失败，与迁移前 InitializeBiz 的
-			// 错误路径逐点一致）。终态等价：迁移前=「env 构造注入 + 配置 SetCache
-			// 覆盖」，迁移后=「Wire 期一次抉择」，生效后端单一且同序（配置优先）。
+			// 保持**无条件**（Redis 不可达仍启动失败，
+			// 不静默降级）。生效后端单一：配置驱动 RedisCache 优先于 env 通道——
+			// 即下方赋值的 if 优先序（bootstrappkg.RedisCache 非 nil 即用之）。
 			envCache, err := newRedisCache(provideRedisAddr())
 			if err != nil {
 				return fmt.Errorf("build biz cache: %w", err)
@@ -583,7 +583,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 				bizCache = envCache
 			}
 			// （auth/MFA 的 biz 接线——登录防护三件、平台判据、TokenStore/验证码/
-			// 挑战存储、令牌 TTL——已随批 4 域化迁往 authd/mfad 域的 Wire：域自读
+			// 挑战存储、令牌 TTL——住 authd/mfad 域的 Wire：域自读
 			// 自持配置段，基础设施经 Deps getter 迟到取用上面抉择好的实例。）
 			return nil
 		}),

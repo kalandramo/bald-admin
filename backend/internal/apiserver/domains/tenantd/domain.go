@@ -1,4 +1,4 @@
-// Package tenantd 是 tenant 域的装配声明包（批 4 域形态迁移第 1 域）。
+// Package tenantd 是 tenant 域的装配声明包。
 //
 // 为什么不在 biz/v1/tenant 里放 domain.go：Routes/Services 委托既有传输适配
 // （handler/gin、handler/grpc），而这两个包 import biz/v1/tenant（handler/gin/
@@ -7,7 +7,7 @@
 // domains/<d>），biz 与 handler 的双向引用在此汇合，依赖方向保持单向：
 // 本包 → biz + 传输适配。
 //
-// 依赖取用约定（批 4 裁决，推广到其余 19 域，见本波回报）：
+// 依赖取用约定：
 //   - 基础设施件（仓储/认证器/授权器）住装配层：仓储由业务 BeforeStart 的
 //     InitBridges 建立、认证/授权由 BeforeStart 构造——域经 Deps 的 getter
 //     **迟到取用**。时序依据：域 Wire 晚于业务 BeforeStart（bald/pkg/appkit/
@@ -55,7 +55,7 @@ type Deps struct {
 
 // Domain 返回 tenant 域的装配声明值。Routes 委托 hgin.RegisterTenant、
 // Services 委托 secretgrpc.NewTenantServer——传输适配不搬家，路由面/gRPC 面/
-// 中间件链与迁移前逐行等价（策略归一化 "tenant" 双协议单写亦不变）。
+// 中间件链不变（策略归一化 "tenant" 仍双协议单写）。
 func Domain(d Deps) appkit.Domain {
 	var biz *tenantbiz.Biz
 	return appkit.Domain{

@@ -1,6 +1,6 @@
 package audit
 
-// record_mapper_fallback_test.go —— 审计兜底租户的可配置性（2026-09-22）。
+// record_mapper_fallback_test.go —— 审计兜底租户的可配置性。
 //
 // 背景：三类审计事件天然无租户（login 失败/permission/data_access），落库时
 // 需兜底——否则在租户隔离下查不到。兜底值原为写死常量，现改为可经配置段
@@ -36,7 +36,7 @@ func TestFallbackTenant_Default(t *testing.T) {
 	}
 }
 
-// TestFallbackTenant_Configured 配置后覆盖默认值（本波新增能力）。
+// TestFallbackTenant_Configured 配置后覆盖默认值。
 func TestFallbackTenant_Configured(t *testing.T) {
 	t.Cleanup(func() { SetFallbackTenant("") }) // 还原，避免污染其他测试
 

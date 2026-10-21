@@ -26,7 +26,7 @@ import (
 type Biz struct {
 	// permStore 是权限点仓储（权限码 → 名称/菜单可见性）。
 	permStore *store.Store[authmodel.Permission]
-	// policyStore 是角色策略仓储（casbin p 行的数据化持久层，D3）。
+	// policyStore 是角色策略仓储（casbin p 行的数据化持久层）。
 	policyStore *store.Store[authmodel.RolePolicy]
 }
 

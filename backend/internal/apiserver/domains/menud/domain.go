@@ -1,5 +1,5 @@
-// Package menud 是 menu 域的装配声明包（批 4 第二波，机械域）。包定位、
-// 依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package menud 是 menu 域的装配声明包。包定位、
+// 依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 package menud
 
 import (
@@ -32,7 +32,7 @@ type Deps struct {
 }
 
 // Domain 返回 menu 域的装配声明值（Routes 委托 hgin.RegisterMenu、Services
-// 委托 secretgrpc.NewMenuServer——传输适配不搬家，机械迁移）。
+// 委托 secretgrpc.NewMenuServer——传输适配不搬家）。
 func Domain(d Deps) appkit.Domain {
 	var biz *menubiz.Biz
 	return appkit.Domain{

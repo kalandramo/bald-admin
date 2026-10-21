@@ -1,8 +1,8 @@
 package e2e
 
-// t_w5_5_encoding_axis_test.go —— ：bald/encoding 轴压真实业务。
+// t_w5_5_encoding_axis_test.go —— bald/encoding 轴压真实业务。
 //
-// ## 计划原文（§）
+// ## 目标
 //
 // 「`bald/encoding` 轴压真实业务（asynq 任务载荷编解码用 msgpack/proto 替代
 // json）」→ 验收「编解码往返一致」。

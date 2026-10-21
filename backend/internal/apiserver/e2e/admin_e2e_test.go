@@ -64,7 +64,7 @@ func setupAdmin(t *testing.T) (*gingonic.Engine, *stubComp) {
 	comp := &stubComp{name: "e2e.comp"}
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, nil, nil, nil)
 	apiserver.RegisterAdmin(e, func() *appkit.App { return app }, bootstrappkg.Authenticator, bootstrappkg.Authorizer, map[string]apiserver.ComponentFactory{
@@ -137,7 +137,7 @@ func TestAdmin_Forbidden(t *testing.T) {
 	}
 }
 
-// TestAdmin_Unauthenticated 未认证 → 401（同时验证 M10.1 lazy 修复：main 装配路径
+// TestAdmin_Unauthenticated 未认证 → 401（同时验证 main 装配路径
 // 同款 lazyAuthenticator 传递，认证真实生效而非空操作）。
 func TestAdmin_Unauthenticated(t *testing.T) {
 	e, _ := setupAdmin(t)

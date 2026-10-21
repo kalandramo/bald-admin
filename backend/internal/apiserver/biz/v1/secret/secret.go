@@ -26,7 +26,7 @@ type SecretBiz struct {
 	// nil 容错保留（测试可传 nil 表达「无仓储」），生产路径由装配保证非 nil。
 	store *store.Store[authmodel.Secret]
 	// cache 是读穿透缓存（cache/loadable 组合器）；nil = 禁用，直连 store。
-	// D1 迁移：原 contrib/cache-redis 的请求期 loader 由构造期 loader 承接
+	// 请求期 loader 由构造期 loader 承接
 	// （SetCache 时绑定，loader 从 key 反解 id/tenant）。
 	cache *loadable.Cache
 }
@@ -48,7 +48,7 @@ func (b *SecretBiz) wrapCache(backend cache.Cache) {
 	}
 	b.cache = loadable.New(backend, b.loadSecret,
 		loadable.WithTTL(cachekit.DefaultCacheTTL),
-		loadable.WithDegradeOnError(), // Redis 故障降级直连 store（T4 语义）
+		loadable.WithDegradeOnError(), // Redis 故障降级直连 store
 	)
 }
 
@@ -96,8 +96,8 @@ type Item struct {
 }
 
 // Get 按 ID 取 Secret，自动受调用方 ctx 中的租户隔离约束（M3/M4 多租户）。
-// M6.2 起经 Cache-Aside 读 Redis（命中返缓存，未命中加载并回填）；cache 禁用时直连 store。
-// D1：cache 为 loadable 组合器，未命中经 loadSecret 回填（键由本方法构造）。
+// 经 Cache-Aside 读 Redis（命中返缓存，未命中加载并回填）；cache 禁用时直连 store。
+// cache 为 loadable 组合器，未命中经 loadSecret 回填（键由本方法构造）。
 func (b *SecretBiz) Get(ctx context.Context, id string) (*Item, error) {
 	tenant := contextx.TenantIDFromContext(ctx)
 	key := cachekit.CacheKey("secret", tenant, id)

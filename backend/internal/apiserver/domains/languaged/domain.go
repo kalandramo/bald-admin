@@ -1,9 +1,9 @@
-// Package languaged 是 language 域的装配声明包（批 4 第二波，机械域）。
-// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package languaged 是 language 域的装配声明包。
+// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
-// 独立成包的判定依据：biz/v1/language 与 dict 包零 import 关系（任务手册的
-// 「依附则随 dict」不成立），gin/gRPC 面亦无共享 handler——单独 Name=language。
-// 本域无 gRPC 面（handler/grpc 无对应 server，迁移前 registerGRPC 亦无对应行），
+// 独立成包的判定依据：biz/v1/language 与 dict 包零 import 关系、
+// gin/gRPC 面亦无共享 handler——单独 Name=language。
+// 本域无 gRPC 面（handler/grpc 无对应 server），
 // 故不设 Services。
 package languaged
 
@@ -33,7 +33,7 @@ type Deps struct {
 }
 
 // Domain 返回 language 域的装配声明值（Routes 委托 hgin.RegisterLanguage——
-// 传输适配不搬家，机械迁移；无 gRPC 面故无 Services）。
+// 传输适配不搬家；无 gRPC 面故无 Services）。
 func Domain(d Deps) appkit.Domain {
 	var biz *langbiz.Biz
 	return appkit.Domain{

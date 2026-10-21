@@ -33,7 +33,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// OrgUnitService 组织单元管理（Wave P0.5，自 go-wind-admin identity 域
+// OrgUnitService 组织单元管理（自 go-wind-admin identity 域
 // org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
 // 本实现**对齐项目既有惯例**（与 dict/menu/tenant 一致），与源有多处显式偏差：
@@ -182,7 +182,7 @@ func (c *orgUnitServiceClient) BatchCreateOrgUnits(ctx context.Context, in *Batc
 // All implementations must embed UnimplementedOrgUnitServiceServer
 // for forward compatibility.
 //
-// OrgUnitService 组织单元管理（Wave P0.5，自 go-wind-admin identity 域
+// OrgUnitService 组织单元管理（自 go-wind-admin identity 域
 // org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
 // 本实现**对齐项目既有惯例**（与 dict/menu/tenant 一致），与源有多处显式偏差：

@@ -1,6 +1,6 @@
 // Package apiserver 是 bald-admin 的 HTTP 服务装配根（server 层）。
 //
-// 批 4 域形态迁移收官后本层只剩**非域共面**的挂载（RegisterBaseFaces）与
+// 本层只剩**非域共面**的挂载（RegisterBaseFaces）与
 // 管理面 re-export：21 域的路由/gRPC 服务全部由各自域声明包
 // （internal/apiserver/domains/<d>d）的 Routes/Services 注册——appkit 在业务
 // BeforeStart 之后逐域调用（声明序=执行序），域路由随 WithHTTP 声明的
@@ -27,7 +27,7 @@ import (
 // 之后的域装配钩子里逐域调用（bald/pkg/appkit/domain.go 时序窗口），故共面
 // 中间件覆盖全部域路由；e2e 侧先 RegisterBaseFaces 再调 hgin.Register* 即同序。
 //
-// authenticator 相关约束随域化移交各域声明包：域路由所需的带吊销检查认证器
+// 认证器约束归各域声明包：域路由所需的带吊销检查认证器
 // 由装配层构造并经 Deps getter 注入（tenantd/authd 的域头注）。
 func RegisterBaseFaces(e *gingonic.Engine) {
 	e.Use(apiaudit.Middleware())

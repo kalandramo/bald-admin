@@ -9,7 +9,7 @@ import "google/protobuf/timestamp.proto";
 import "bald/store/v1/store.proto";
 import "buf/validate/validate.proto";
 
-// OrgUnitService 组织单元管理（Wave P0.5，自 go-wind-admin identity 域
+// OrgUnitService 组织单元管理（自 go-wind-admin identity 域
 // org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
 // 本实现**对齐项目既有惯例**（与 dict/menu/tenant 一致），与源有多处显式偏差：
@@ -191,7 +191,7 @@ message GetOrgUnitResponse {
 
 // CreateOrgUnitRequest 创建组织单元入参。
 //
-// **字段校验（Wave 校验层契约化）**：code/name 的必填与长度以 buf.validate
+// **字段校验**：code/name 的必填与长度以 buf.validate
 // 注解表达，运行时由 protovalidate 读取执行（gRPC 面经 ValidatorInterceptor、
 // gin 面经 handler 显式校验，两处共用同一份规则）。业务不变量（parent 存在性、
 // 防环）注解表达不了，仍归 biz——见 biz/v1/org/org.go。

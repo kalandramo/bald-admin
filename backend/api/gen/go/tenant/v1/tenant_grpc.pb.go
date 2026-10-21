@@ -30,9 +30,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// TenantService 租户管理服务（T2，自 go-wind-admin identity/tenant.proto 精简搬运）。
+// TenantService 租户管理服务（自 go-wind-admin identity/tenant.proto 精简搬运）。
 //
-// 双层语义（移植计划 §6 D2）：
+// 双层语义：
 //  1. 业务层——本服务管理租户本身（租户即业务实体，对应源 sys_tenants；
 //     platform 为平台租户，对应源 PlatformTenantID=0）；
 //  2. 框架层——bald P8 pkg/store 对其他业务表（users/secrets/…）自动注入
@@ -121,9 +121,9 @@ func (c *tenantServiceClient) DeleteTenant(ctx context.Context, in *DeleteTenant
 // All implementations must embed UnimplementedTenantServiceServer
 // for forward compatibility.
 //
-// TenantService 租户管理服务（T2，自 go-wind-admin identity/tenant.proto 精简搬运）。
+// TenantService 租户管理服务（自 go-wind-admin identity/tenant.proto 精简搬运）。
 //
-// 双层语义（移植计划 §6 D2）：
+// 双层语义：
 //  1. 业务层——本服务管理租户本身（租户即业务实体，对应源 sys_tenants；
 //     platform 为平台租户，对应源 PlatformTenantID=0）；
 //  2. 框架层——bald P8 pkg/store 对其他业务表（users/secrets/…）自动注入

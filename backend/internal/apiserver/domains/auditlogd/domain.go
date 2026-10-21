@@ -1,5 +1,5 @@
-// Package auditlogd 是 auditlog 域的装配声明包（批 4 第二波，机械域）。
-// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package auditlogd 是 auditlog 域的装配声明包。
+// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
 // 本域 biz 只读（审计查询，数据由写路径审计落库），构造仅单仓储——全 8 域中
 // 形态最简。
@@ -35,7 +35,7 @@ type Deps struct {
 }
 
 // Domain 返回 auditlog 域的装配声明值（Routes 委托 hgin.RegisterAudit、
-// Services 委托 secretgrpc.NewAuditServer——传输适配不搬家，机械迁移）。
+// Services 委托 secretgrpc.NewAuditServer——传输适配不搬家）。
 func Domain(d Deps) appkit.Domain {
 	var biz *auditlogbiz.Biz
 	return appkit.Domain{

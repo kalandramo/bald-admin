@@ -3,7 +3,7 @@ package e2e
 // t3_e2e_test.go 菜单/权限管理 REST e2e（验收）：真实 gin 引擎 + httptest，
 // 完整中间件链（分组 Authn/Authz）+ biz/store/DB + 数据化 casbin 策略。
 //
-// 验收点（移植计划 T3）：
+// 验收点：
 //  1. 菜单树 ListMenus（种子树结构 / Order 排序 / BUTTON 节点）+ CRUD + 级联删除子树
 //  2. 权限点注册表 CRUD（权限码唯一，重复创建 400）
 //  3. 角色策略（casbin p 行数据化）：List 全量、Create 主键防重、Delete
@@ -113,7 +113,7 @@ func TestMenuREST_TreeAndLifecycle(t *testing.T) {
 	if sys == nil || len(sys.GetChildren()) != 8 {
 		t.Fatalf("menu-system should have 8 children, got %+v", sys)
 	}
-	// children 按 order 排序：tenant/user/menu/permission/secret/dict/file/audit（加 file，T6 加 audit）。
+	// children 按 order 排序：tenant/user/menu/permission/secret/dict/file/audit。
 	wantOrder := []string{"menu-tenant", "menu-user", "menu-menu", "menu-permission", "menu-secret", "menu-dict", "menu-file", "menu-audit"}
 	for i, id := range wantOrder {
 		if sys.GetChildren()[i].GetId() != id {

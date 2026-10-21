@@ -1,9 +1,6 @@
 package convert
 
 // org.go org 域（identity）的 DTO → proto 转换。
-//
-// 逐字迁自 handler/gin/org.go:428-496 与 handler/grpc/org.go:299-367
-// （两侧 diff 归一化后仅注释差异，2026-09-27 实测）。
 
 import (
 	"google.golang.org/protobuf/types/known/timestamppb"

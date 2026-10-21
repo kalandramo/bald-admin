@@ -7,7 +7,7 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/user/v1;userv1"
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// UserService 用户管理服务（T2，自 go-wind-admin identity/user.proto + user_profile.proto
+// UserService 用户管理服务（自 go-wind-admin identity/user.proto + user_profile.proto
 // 精简搬运）。列表/读写天然按当前租户过滤（bald P8 pkg/store 自动注入 tenant_id），
 // 跨租户用户不可见（隔离验证点）。
 //

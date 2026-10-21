@@ -1,5 +1,5 @@
-// Package taskd 是 task 域的装配声明包（批 4 第三波，机械域）。
-// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package taskd 是 task 域的装配声明包。
+// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
 // 特殊点：无 proto 纯 gin 面。调度器（asynq 适配）在迟后阶段 server 构建点经装配回调 SetScheduler 注入——域经 Biz() 访问器被装配层迟到读取（见下方 wired 注释）。
 package taskd
@@ -40,7 +40,7 @@ var wired *taskbiz.Biz
 func Biz() *taskbiz.Biz { return wired }
 
 // Domain 返回 task 域的装配声明值。Routes 委托 hgin.RegisterTask——传输适配
-// 不搬家，路由面/中间件链与迁移前逐行等价；无 gRPC 面，Services 不声明。
+// 不搬家；无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *taskbiz.Biz
 	return appkit.Domain{

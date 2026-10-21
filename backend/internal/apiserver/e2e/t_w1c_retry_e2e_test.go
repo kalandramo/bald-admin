@@ -2,7 +2,7 @@ package e2e
 
 // t_w1c_retry_e2e_test.go —— 登录 DB 查询重试 e2e（RED 起点）。
 //
-// 验收（计划 1.1 的**场景修正**，见 /1b 提交说明）：
+// 验收（场景修正）：
 // 计划原提「retry 包裹 JWT 验签失败重试」是反模式——bald/retry 的包注释写明
 // 它面向 **transient failures（瞬时故障）**，而 JWT 验签是确定性函数
 //（同 token + 同密钥 → 必然同样失败），重试毫无意义。正确的重试对象是
@@ -43,7 +43,7 @@ func startLoginRESTWithRetrier(t *testing.T, r *retry.Retrier) string {
 		authBiz.SetLoginRetrier(r)
 	}
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	srv := httptest.NewServer(e)

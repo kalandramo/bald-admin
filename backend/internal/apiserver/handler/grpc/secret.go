@@ -24,7 +24,7 @@ import (
 // missing method mustEmbedUnimplementedSecretServiceServer）。
 type secretService struct {
 	adminv1.UnimplementedSecretServiceServer
-	biz *secretbiz.SecretBiz // 删除经 biz 落 store（§0：禁止占位式桥接）
+	biz *secretbiz.SecretBiz // 删除经 biz 落 store（禁止占位式桥接）
 }
 
 // NewServer 构造 SecretServiceServer 实现（biz 由 wire 装配注入）。
@@ -39,8 +39,8 @@ func (s *secretService) GetSecret(ctx context.Context, req *adminv1.GetSecretReq
 		viewer = claims.Name
 	}
 	// 与 gin 侧 GET /v1/secret/:id 同一 biz 路径（cache-aside + 租户隔离），
-	// 错误同源：NotFound 哨兵经 grpc 拦截器/gateway 转码后与 gin 面同形（决策⑧）。
-	// 此前直连 store 绕过缓存且自构 NotFound("secret")，与 gin 面 reason 分裂。
+	// 错误同源：NotFound 哨兵经 grpc 拦截器/gateway 转码后与 gin 面同形。
+	// 不经 biz 直连 store 会绕过缓存，且错误与 gin 面 reason 分裂。
 	item, err := s.biz.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -50,9 +50,9 @@ func (s *secretService) GetSecret(ctx context.Context, req *adminv1.GetSecretReq
 
 func (s *secretService) DeleteSecret(ctx context.Context, req *adminv1.DeleteSecretRequest) (*adminv1.DeleteSecretResponse, error) {
 	// 真实删除（与 gin 侧 DELETE /v1/secret/:id 同一 biz 语义）：存在性确认 +
-	// store 删除 + Cache-Aside 失效，租户隔离由 Where.T 自动完成。此前此处是
-	// 占位返回（CR 审查 §0 违例）：gateway 转码的 DELETE /v1/secrets/{id} 曾
-	// 全部假成功——数据原封不动却返回 200。
+	// store 删除 + Cache-Aside 失效，租户隔离由 Where.T 自动完成。
+	// gateway 转码的 DELETE /v1/secrets/{id} 不得假成功——
+	// 数据未删即返回错误，不返回 200。
 	ok, err := s.biz.Delete(ctx, req.GetId())
 	if err != nil || !ok {
 		return nil, berrors.NotFound("secret/not_found").WithMessage("secret not found")

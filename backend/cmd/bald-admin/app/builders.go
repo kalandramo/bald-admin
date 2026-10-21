@@ -15,12 +15,10 @@ import (
 //
 // 这三条降级都在各自调用点显式处理，不静默。
 //
-// 批 4 域形态迁移：本文件原有的登录防护三件构造器（buildLoginLimiter/
-// Breaker/Retrier，读业务自持配置段（biz.login 之下的限流/熔断/重试键）已
-// 迁往 auth 域声明包（internal/apiserver/domains/authd/
-// config.go）——域 Wire 自读配置自构造（评估 §3.3「业务阈值住装配层」收口），
-// 测试随迁（authd/config_test.go）。本函数是基础设施抉择（装配层产物），按
-// 域化纪律留在装配层，域经 Deps getter 迟到取用。
+// 登录防护三件构造器（buildLoginLimiter/Breaker/Retrier）住 auth 域声明包
+// （internal/apiserver/domains/authd/config.go）——域 Wire 自读配置自构造，
+// 测试见 authd/config_test.go。本函数是基础设施抉择（装配层产物），
+// 域经 Deps getter 迟到取用。
 
 func buildTokenStore() token.Store {
 	if bootstrappkg.RedisClient == nil {

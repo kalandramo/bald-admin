@@ -1,7 +1,7 @@
-// audit_wiring.go —— 审计段（audit 契约段）的**段驱动 Provider**（批 2 形态；
-// 原 appkit.AuditRegistry 注册表随批 2 删除，store/stream 后端经「用户声明
-// 自己的 audit 段 Provider」接入——段路径末者胜覆盖 std 默认的 log-only
-// Provider，因此本 Provider 须接管全部三种后端 log/store/stream）。
+// audit_wiring.go —— 审计段（audit 契约段）的**段驱动 Provider**：
+// store/stream 后端经「用户声明自己的 audit 段 Provider」接入——段路径末者胜
+// 覆盖 std 默认的 log-only Provider，因此本 Provider 须接管全部三种后端
+// log/store/stream。
 
 // ## 双轨说明（为何两处都有后端构造）
 //
@@ -140,8 +140,8 @@ func resolveAuditRedis() goredis.UniversalClient {
 
 // resolveAuditDB 从已装配资源取审计落库用的 *gorm.DB。
 //
-// 优先契约装配的 sql 客户端（App.Resource("database.sql")，批 2 资源面取代
-// 原 Database("sql") 访问器）；取不到返回 nil（buildStoreAuditor 走 fail-open
+// 优先契约装配的 sql 客户端（App.Resource("database.sql")，
+// 取不到返回 nil（buildStoreAuditor 走 fail-open
 // 分支）。res 可为 nil（直测 Provider 时无 App）。
 func resolveAuditDB(res *appkit.App) *gormpkg.DB {
 	if res != nil {

@@ -1,10 +1,9 @@
-// Package secretd 是 secret 域的装配声明包（批 4 第二波，机械域）。
-// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一
-// 裁决，后续域照抄）。
+// Package secretd 是 secret 域的装配声明包。
+// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
 // 与 tenant 的差异一处：biz 构造带 Cache-Aside 后端（cache.Cache）——「配置驱动
 // RedisCache 优先、env 兼容通道兜底」的抉择在装配层 BeforeStart 完成，域经
-// Deps.Cache getter 迟到取用（裁决二同款：抉择逻辑住装配层，域只消费产物）。
+// Deps.Cache getter 迟到取用（抉择逻辑住装配层，域只消费产物）。
 package secretd
 
 import (
@@ -32,7 +31,7 @@ type Deps struct {
 	// Store secret 仓储（InitBridges 的 repos.Secret 同一实例，无双构造）。
 	Store func() *store.Store[authmodel.Secret]
 	// Cache Cache-Aside 后端（装配层已抉择：RedisCache 优先、env 兜底；
-	// nil=禁用缓存，biz 内判 nil 直连 store——与迁移前 newRedisCache("") 同态）。
+	// nil=禁用缓存，biz 内判 nil 直连 store）。
 	Cache func() cache.Cache
 	// Authn 认证器（带吊销检查；Routes 时点已就绪）。
 	Authn func() authn.Authenticator
@@ -41,8 +40,7 @@ type Deps struct {
 }
 
 // Domain 返回 secret 域的装配声明值。Routes 委托 hgin.RegisterSecret（受限资源
-// 两路由——迁移前住 RegisterAuth 尾部，批 4 拆出供本域独立注册）、Services 委托
-// secretgrpc.NewServer——传输适配不搬家，机械迁移。
+// 两路由）、Services 委托 secretgrpc.NewServer——传输适配不搬家。
 func Domain(d Deps) appkit.Domain {
 	var biz *secretbiz.SecretBiz
 	return appkit.Domain{

@@ -1,13 +1,13 @@
 package e2e
 
-// t_w5_4_s3_storage_e2e_test.go —— ：bald/oss/s3 后端真实验证。
+// t_w5_4_s3_storage_e2e_test.go —— bald/oss/s3 后端真实验证。
 //
-// ## 验证目标（计划 §）
+// ## 验证目标
 //
 // 「`storage` 的 file_transfer / oss 契约段 + `bald/oss/s3` 后端验证（注意
 // `PutObject` 签名与 minio 相反）」→ 验收「e2e：S3 上传/下载；签名差异处理正确」。
 //
-// ## 真实验证（§0 硬性：外部依赖禁止 fake/mock/stub）
+// ## 真实验证（外部依赖禁止 fake/mock/stub）
 //
 // 用 `bald/oss/s3` 客户端连**真实 S3 兼容服务**（本地 MinIO 或远程 MinIO，
 // 经 env 注入），完成 PutObject → GetObject 往返。缺 env 则整组 Skip。
@@ -19,7 +19,7 @@ package e2e
 //	BALD_ADMIN_TEST_S3_USE_SSL    "true"/"false"（默认 false）
 //	BALD_ADMIN_TEST_S3_BUCKET     （必填，须已存在的桶——s3 封装无建桶 API）
 //
-// ## 签名差异（本波核心验收点）
+// ## 签名差异（核心验证点）
 //
 // `bald/oss/s3` 的 bucket **构造期固定**（`Config.Bucket`），其封装版
 // `PutObject(ctx, key, body, contentType)` 不传 bucket；而 `filestore.ObjectStorage`

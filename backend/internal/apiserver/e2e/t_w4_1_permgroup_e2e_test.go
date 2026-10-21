@@ -4,7 +4,7 @@ package e2e
 //
 // 源：`i_permission_group.proto`（5 rpc）+ `i_policy_evaluation_log.proto`（2 rpc）。
 //
-// ## 核心语义（本波重点）
+// ## 核心语义
 //
 // **权限组的物化路径格式**——源 description 原文
 // （`permission_group.proto:53-56`）：「树形路径，格式：/1/10/101/
@@ -40,7 +40,7 @@ func startPermGroupREST(t *testing.T) string {
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	hgin.RegisterPermGroup(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, pgbiz.New(repos.PermGroup, repos.PolicyEvalLog))
@@ -51,7 +51,7 @@ func startPermGroupREST(t *testing.T) string {
 
 func pgSuffix() string { return "pg" + time.Now().Format("150405.000000") }
 
-// TestWave4_1_GroupTreePathFormat —— **本波最重要的验证点**。
+// TestWave4_1_GroupTreePathFormat —— **核心验证点**。
 //
 // 锁住源语义：path 格式 `/父段/自身段/`——**含自身、首尾带 `/`**。
 func TestWave4_1_GroupTreePathFormat(t *testing.T) {

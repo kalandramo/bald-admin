@@ -1,6 +1,6 @@
 package casbin
 
-// casbin_test.go T3 验收点「无策略时拒绝默认生效」（fail-closed）：
+// casbin_test.go 验收点「无策略时拒绝默认生效」（fail-closed）：
 // 空 csv 构造的授权器对任何 subject/object/action 一律拒绝——
 // 授权不因缺数据而放开（DB 策略清空 + 重启 = 全 403）。
 //

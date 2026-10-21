@@ -12,9 +12,8 @@ import (
 // 生命周期收尾用 Close() error（停后台 goroutine + drain 尾批缓冲），
 // 签名适配 appkit.ComponentFunc。
 //
-// D1：入参类型为 redis.UniversalClient（与 cache/redis 适配器、contrib/audit-stream
-// 的 New 一致）——原 *redis.Client 是旧 cache-redis 的 Client() 返回类型，已随该
-// 组件删除而调整。
+// 入参类型为 redis.UniversalClient（与 cache/redis 适配器、contrib/audit-stream
+// 的 New 一致）。
 //
 // opts 透传给 auditstream.New（如 WithStream/WithBuffer）——调用方若需按契约段
 // 定制 stream 名/缓冲，传对应 Option；不传走实现缺省（"audit.events" / 1024）。

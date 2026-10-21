@@ -14,9 +14,9 @@ package app
 // 契约段 → FromMiddleware → bundle → gin 链。断言装配后的真实服务在 HTTP 请求上
 // 体现契约配置的行为（响应头），而非「函数被调用过」。
 //
-// ## 批 2 时序变化（断言不变）
+// ## 装配时序
 //
-// 中间件段原在构造期读预装载契约装配；批 2 起 Serve 内部持有契约，装配移到
+// Serve 内部持有契约，中间件段装配在
 // BeforeStart（装载链后、server 构造前）——仍先于监听，非法值依旧启动期报错
 //（TestAssemblyPath_InvalidMiddlewareFailsFast 钉住），且现在吃到四源终值。
 

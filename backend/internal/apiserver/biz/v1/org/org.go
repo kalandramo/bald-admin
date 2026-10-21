@@ -269,7 +269,7 @@ func (b *Biz) UpdateOrgUnit(ctx context.Context, tenantID, code string, u OrgUni
 	// **空 = 不改**（与其余字段的「非空即更新」语义对齐）。此前用
 	// `u.ParentID != m.ParentID` 比较——两侧语义不同（code vs 完整主键）恒不等，
 	// 导致每次更新都进此分支；若前端未传 parent_id 会**清空父节点**（数据损坏）。
-	// 代价：本波不支持「把节点移为根节点」（需显式清空），记为后续迭代。
+	// 代价：不支持「把节点移为根节点」（需显式清空）。
 	if u.ParentID != "" {
 		newParent := parentKey(tenantID, u.ParentID)
 		if newParent != m.ParentID {

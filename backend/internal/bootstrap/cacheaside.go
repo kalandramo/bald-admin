@@ -1,4 +1,4 @@
-// cache.go 是 D1 迁移（2026-09-19）后的 Redis 缓存装配与键工具。
+// cache.go 是 Redis 缓存装配与键工具。
 //
 // 背景：原 contrib/cache-redis 已从 bald 删除（v0.8.1 起，见 bald 仓 commit
 // 2bf5504「refactor(contrib): 删除 contrib/cache-redis 并同步 5 处现状文档」），
@@ -38,9 +38,7 @@ import (
 // addr 为空返回 (nil, nil) 表示禁用态（调用方降级直连 store）。
 //
 // 连接同时记入 RedisClient，供审计流等需要原生 Redis 命令的消费方复用
-// （cache/redis 适配器不暴露 client）。与旧 rediscache.New 的差异：旧实现在
-// addr 为空时返回「非 nil 的禁用态 Cache」，新实现返回 nil——调用方 nil 判空
-// 即降级，语义等价且更直白。
+// （cache/redis 适配器不暴露 client）。
 func BuildRedisCache(addr, password string, db int) (cache.Cache, error) {
 	if addr == "" {
 		return nil, nil

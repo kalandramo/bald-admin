@@ -9,7 +9,7 @@ import (
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
-// TestSecretBiz_TenantIsolation 锁定 M6.3 真实 DAL + 多租户隔离：
+// TestSecretBiz_TenantIsolation 锁定真实 DAL + 多租户隔离：
 // t-default 用户可读本租户 secret，跨租户 s-other-pwd 被 store 隔离为 not found。
 func TestSecretBiz_TenantIsolation(t *testing.T) {
 	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {

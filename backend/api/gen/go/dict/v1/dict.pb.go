@@ -116,8 +116,8 @@ func (x *DictType) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// DictEntry 字典项。Label 内联源 sys_dict_entry_i18n 的 zh 条目（i18n 表按
-// 移植计划 §2.2 多语言后续迭代不移植）。
+// DictEntry 字典项。Label 内联源 sys_dict_entry_i18n 的 zh 条目（仅 zh，
+// 多语言表不移植）。
 type DictEntry struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                             // 业务键 "<type_code>:<entry_value>"

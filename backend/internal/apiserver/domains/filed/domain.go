@@ -1,11 +1,11 @@
-// Package filed 是 file 域的装配声明包（批 4 第二波，机械域·特殊装配）。
-// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package filed 是 file 域的装配声明包（特殊装配）。
+// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
 // 特殊点：对象存储三件（桥接/minio 直连/兜底桶名）经 Deps getter 迟到取用——
 // 装配层 BeforeStart 的 WireStorage/Configure 已完成「minio 与 s3 互斥择一 +
-// 桶名注入」的抉择，域只消费产物（裁决二同款；不走 App.Resource：资源面只有
+// 桶名注入」的抉择，域只消费产物（不走 App.Resource：资源面只有
 // 原始 Storage 实例，域内还得复制适配器分派与桶名解析，反而把装配策略劈两处）。
-// Wire 的补注语义与迁移前 BeforeStart 逐行等价：SetObjectStorage 对 nil 不覆盖
+// Wire 的补注语义：SetObjectStorage 对 nil 不覆盖
 // （biz 侧约定），桥接未就绪时保留构造期 minio 直连；两者皆 nil（storage 段
 // 未配置）即 biz 判 nil 返回明确错误。
 package filed
@@ -50,7 +50,7 @@ type Deps struct {
 }
 
 // Domain 返回 file 域的装配声明值（Routes 委托 hgin.RegisterFile、Services
-// 委托 secretgrpc.NewFileServer——传输适配不搬家，机械迁移）。
+// 委托 secretgrpc.NewFileServer——传输适配不搬家）。
 func Domain(d Deps) appkit.Domain {
 	var biz *filebiz.Biz
 	return appkit.Domain{
@@ -62,7 +62,7 @@ func Domain(d Deps) appkit.Domain {
 					"(InitBridges must run in business BeforeStart before domain Wire)")
 			}
 			biz = filebiz.New(st, d.Minio(), d.Bucket())
-			// 补注（与迁移前 BeforeStart 同语义）：桥接就绪即覆盖构造期 minio
+			// 补注：桥接就绪即覆盖构造期 minio
 			// 直连（s3 只有桥接形态；minio 桥接与直连等价）；nil 不覆盖。
 			biz.SetObjectStorage(d.ObjectStorage(), d.Bucket())
 			return nil

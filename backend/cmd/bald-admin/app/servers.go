@@ -27,11 +27,11 @@ import (
 )
 
 func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Authorizer) []grpc.ServerOption {
-	// M10.1（验证）：gRPC 无公开方法（全部需认证），整条链切 bundle——
+	// gRPC 无公开方法（全部需认证），整条链切 bundle——
 	// Error→RequestID→Observability→Authn→Audit→Authz 链序由 bundle 固化，
 	// 替代此前手写的 7 段拦截器组装（authnInterceptor/authzInterceptor 闭包删除）。
 	// P9 归一化经 bundle.Normalized() 内置于 Authz 与 Audit 两层。
-	// T6 修复：Audit 层注入动态转发器（同 gin 侧 ginBundle）——此前未注入时
+	// Audit 层注入动态转发器（同 gin 侧 ginBundle）——未注入时
 	// bundle 显式接 Nop，请求审计与认证失败审计（bundle 会把 auditor 注入
 	// AuthnInterceptor）均静默失效。
 	grpcBundle := bundle.New(
@@ -45,7 +45,7 @@ func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Au
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
 		bundle.Normalized(), // P9：FullMethod → 与 HTTP 同源的权限点
 	)
-	// Wave 校验层契约化：把 protovalidate 校验追加到链**尾**（Authz 之后）。
+	// 把 protovalidate 校验追加到链**尾**（Authz 之后）。
 	//
 	// 为什么自行追加而非用 GRPCChain()：bundle 不支持注入 validator（其链序
 	// 固化为 Error→…→Authz，无校验层位置）。GRPCInterceptors() 是导出的，
@@ -61,7 +61,7 @@ func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Au
 
 // registerGateway 把 grpc-gateway 的 HTTP handler 注册到 runtime.ServeMux 并交回
 // http.Handler（transport.NewGatewayServer 依赖倒置，核心不依赖 grpc-gateway）。
-// conn 由 GatewayServer 内部建立（指向本进程 gRPC 服务）。T2 起挂载 tenant/user 网关。
+// conn 由 GatewayServer 内部建立（指向本进程 gRPC 服务）。挂载 tenant/user 网关。
 
 func registerGateway(ctx context.Context, conn *grpc.ClientConn) (http.Handler, error) {
 	mux := runtime.NewServeMux()

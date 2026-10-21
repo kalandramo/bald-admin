@@ -7,9 +7,9 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1;tenan
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// TenantService 租户管理服务（T2，自 go-wind-admin identity/tenant.proto 精简搬运）。
+// TenantService 租户管理服务（自 go-wind-admin identity/tenant.proto 精简搬运）。
 //
-// 双层语义（移植计划 §6 D2）：
+// 双层语义：
 //   1. 业务层——本服务管理租户本身（租户即业务实体，对应源 sys_tenants；
 //      platform 为平台租户，对应源 PlatformTenantID=0）；
 //   2. 框架层——bald P8 pkg/store 对其他业务表（users/secrets/…）自动注入
@@ -89,7 +89,7 @@ message GetTenantResponse {
 }
 
 message ListTenantsRequest {
-  // 预留：源项目 List 走 pagination.PagingRequest（BSR 自有模块），T2 精简为全量列表；
+  // 预留：源项目 List 走 pagination.PagingRequest（BSR 自有模块），本服务精简为全量列表；
   // 租户量级小，分页列入后续迭代。
 }
 

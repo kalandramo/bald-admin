@@ -1,9 +1,9 @@
 package e2e
 
-// t_w4_4_registry_e2e_test.go —— ：registry 后端验证（etcd）。
+// t_w4_4_registry_e2e_test.go —— registry 后端验证（etcd）。
 //
-// 计划原文：「`bald/registry/{etcd,consul}` 作为 nacos 的替代后端验证
-// （当前只用 nacos）」——验收「切换后端后服务注册/发现生效」。
+// 验证目标：`bald/registry/{etcd,consul}` 作为 nacos 的替代后端——
+// 切换后端后服务注册/发现生效。
 //
 // ## 验证策略（真实外部依赖）
 //
@@ -16,8 +16,8 @@ package e2e
 // ## 为何只验 etcd 不验 consul
 //
 // consul 镜像拉取受限（Docker Hub 直连不通，daocloud 源无 library/consul）；
-// etcd 经 `quay.io/coreos/etcd` 直连可用。故本波**真实验证 etcd**，
-// consul 记为「未验证轴」（与 3.3 的 websocket/mcp/graphql 同处理）。
+// etcd 经 `quay.io/coreos/etcd` 直连可用。故**真实验证 etcd**，
+// consul 为未验证轴（与 websocket/mcp/graphql 同处理）。
 
 import (
 	"context"

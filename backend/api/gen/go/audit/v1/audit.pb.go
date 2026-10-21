@@ -28,7 +28,7 @@ const (
 // OperationAuditLog/LoginAuditLog 共有核心字段精简；
 // Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。
 //
-// Wave 5.1：单表 + category 承载源**五类**审计（operation/login/api/
+// 单表 + category 承载源**五类**审计（operation/login/api/
 // data_access/permission）。源是五张独立表、字段差异大，此处取并集为
 // nullable 列（决策记录见 e2e 文件头）——api/data_access/permission
 // 三类专属字段列在下方分组。
@@ -310,7 +310,7 @@ type ListAuditRecordsRequest struct {
 	// `bald` 是 `go.bald` 的首段——protobuf 名解析「首段匹配即停」会把
 	// `bald.store.v1.X` 误判为 `go.bald.store.v1.X`（不存在）。
 	//
-	// 原扁平字段 page_size/page_token 已移除（迁移到 PagingRequest，见本域
+	// 分页用 PagingRequest（无扁平 page_size/page_token 字段，见本域
 	// 分页风格统一：与 identity/org_unit.proto 一致）。
 	Paging        *v1.PagingRequest `protobuf:"bytes,20,opt,name=paging,proto3" json:"paging,omitempty"`
 	unknownFields protoimpl.UnknownFields

@@ -1,8 +1,6 @@
 // asynq.go —— asynq 任务队列装配（业务侧：codec 注册 + handler 注册）。
 //
-// ⚠️ **本节原记的装配决策已被取代**（保留作历史记录）：
-// 原决策＝「main 手工 NewServer + appkit.WithExtraServers，不扩契约段」。
-// **当前装配路径已是契约驱动**：
+// 装配路径为契约驱动：
 //
 //	registries.go → sr.MustRegister(asynqcontract.Type, asynqcontract.Provider(...))
 //	assembly.go   → asynqcontract.AppProvider(...)（段驱动 Provider）
@@ -15,13 +13,6 @@
 //     `asynqcontract.WithServerOptions` 补齐；
 //  3. `bootstrap.validateServerSections` 已支持「段已注册 provider 即放行」
 //     （签名含 registered map）——使 implemented=false 的段也能走契约装配。
-//
-// 历史决策原文（保留）：曾选「不扩契约段、走逃生舱」，理由为
-//
-//	①`bald/transport/asynq` 无 contract 子包；②契约段仅 3 字段 << 实现约 30 个
-//	Option；③计划 §R5 定调「倾向先记录后扩，避免为凑装配而设计契约」。
-//
-// 所记缺陷 **D8**（契约 Asynq 段字段面 << 实现 Option 面）已随字段扩展闭合。
 //
 // 逃生舱本身仍是框架**明确提供**的合法扩展点
 // （`appkit.WithExtraServerFunc`，见 pkg/appkit/bootstrap.go），

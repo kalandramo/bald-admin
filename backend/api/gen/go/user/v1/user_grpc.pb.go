@@ -30,7 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// UserService 用户管理服务（T2，自 go-wind-admin identity/user.proto + user_profile.proto
+// UserService 用户管理服务（自 go-wind-admin identity/user.proto + user_profile.proto
 // 精简搬运）。列表/读写天然按当前租户过滤（bald P8 pkg/store 自动注入 tenant_id），
 // 跨租户用户不可见（隔离验证点）。
 //
@@ -117,7 +117,7 @@ func (c *userServiceClient) DeleteUser(ctx context.Context, in *DeleteUserReques
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
 //
-// UserService 用户管理服务（T2，自 go-wind-admin identity/user.proto + user_profile.proto
+// UserService 用户管理服务（自 go-wind-admin identity/user.proto + user_profile.proto
 // 精简搬运）。列表/读写天然按当前租户过滤（bald P8 pkg/store 自动注入 tenant_id），
 // 跨租户用户不可见（隔离验证点）。
 //

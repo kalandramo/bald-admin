@@ -2,9 +2,7 @@ package authd
 
 // config_test.go —— 登录防护配置与构造器的域内单测。
 //
-// 自 cmd/bald-admin/app/options/options_test.go 迁入（批 4 第三波）：
-// 原 options 包对 login 段的默认值/段存在性/校验/flag 影子字段测试，随配置
-// 所有权一同归本包。语义与迁移前一致，仅载体从 ServerOptions 换为 LoginConfig。
+// 覆盖 login 段的默认值/段存在性/校验/flag 影子字段语义，载体为 LoginConfig。
 
 import (
 	"strings"

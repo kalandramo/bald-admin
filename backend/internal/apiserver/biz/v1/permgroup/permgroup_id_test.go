@@ -2,7 +2,7 @@ package permgroup
 
 // permgroup_id_test.go —— 策略评估日志 ID 唯一性回归（Windows 时钟粒度缺陷）。
 //
-// ## 缺陷背景（2026-09-20，Windows 跨设备接力实测发现）
+// ## 缺陷背景（Windows 实测发现）
 //
 // `RecordEvaluation` 的主键由 `fmt.Sprintf("%s:pel:%d", tenantID, now.UnixNano())`
 // 生成。Windows 上 `time.Now().UnixNano()` 的**实际分辨率远低于纳秒**——

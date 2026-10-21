@@ -30,7 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// DictTypeService 字典类型管理（T4，自 go-wind-admin dict 域 sys_dict_types 精简移植）。
+// DictTypeService 字典类型管理（自 go-wind-admin dict 域 sys_dict_types 精简移植）。
 //
 // 字典是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离，ListEntries 的
 // Cache-Aside 键含租户维度（dict biz）。type_code 即主键（源 immutable），仅
@@ -116,7 +116,7 @@ func (c *dictTypeServiceClient) DeleteDictType(ctx context.Context, in *DeleteDi
 // All implementations must embed UnimplementedDictTypeServiceServer
 // for forward compatibility.
 //
-// DictTypeService 字典类型管理（T4，自 go-wind-admin dict 域 sys_dict_types 精简移植）。
+// DictTypeService 字典类型管理（自 go-wind-admin dict 域 sys_dict_types 精简移植）。
 //
 // 字典是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离，ListEntries 的
 // Cache-Aside 键含租户维度（dict biz）。type_code 即主键（源 immutable），仅

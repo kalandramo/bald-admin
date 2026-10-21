@@ -4,7 +4,7 @@ package e2e
 //
 // 源：`i_plan.proto`(5) + `i_plan_module.proto`(5) + `i_plan_quota.proto`(4)。
 //
-// ## 核心语义：**级联删除**（本波重点）
+// ## 核心语义：**级联删除**
 //
 // 源用 ent Edge + `OnDelete: entsql.Cascade`（`plan.go:93,100`）——
 // **删套餐时 DB 自动级联删其 modules/quotas**。
@@ -41,7 +41,7 @@ func startPlanREST(t *testing.T) string {
 	authBiz.SetAuthenticator(bootstrappkg.Authenticator)
 
 	e := gingonic.New()
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, authBiz, nil, nil)
 	hgin.RegisterPlan(e, bootstrappkg.Authenticator, bootstrappkg.Authorizer, planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota))
@@ -52,7 +52,7 @@ func startPlanREST(t *testing.T) string {
 
 func planSuffix() string { return "pl" + time.Now().Format("150405.000000") }
 
-// TestWave4_2_CascadeDelete —— **本波最重要的验证点**。
+// TestWave4_2_CascadeDelete —— **核心验证点**。
 //
 // 删套餐 → 其 modules/quotas 一并删除（源 ent Cascade 语义）。
 // 与 org/permgroup 的「拒绝删除」相反——这是源的差异。

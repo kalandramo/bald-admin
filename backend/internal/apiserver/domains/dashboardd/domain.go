@@ -1,5 +1,5 @@
-// Package dashboardd 是 dashboard 域的装配声明包（批 4 第三波，机械域）。
-// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package dashboardd 是 dashboard 域的装配声明包。
+// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
 // 特殊点：无 proto 纯 gin 面；审计仓储与 auditlog 域同一实例（无双构造）。
 package dashboardd
@@ -36,7 +36,7 @@ type Deps struct {
 }
 
 // Domain 返回 dashboard 域的装配声明值。Routes 委托 hgin.RegisterDashboard——传输适配
-// 不搬家，路由面/中间件链与迁移前逐行等价；无 gRPC 面，Services 不声明。
+// 不搬家；无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *dashbiz.Biz
 	return appkit.Domain{

@@ -32,7 +32,7 @@ type Biz struct {
 	typeStore  *store.Store[authmodel.DictType]
 	entryStore *store.Store[authmodel.DictEntry]
 	// cache 是读穿透缓存（cache/loadable 组合器）；nil = 禁用，直连 store。
-	// D1 迁移：原 contrib/cache-redis 的请求期 loader 由构造期 loader 承接
+	// 请求期 loader 由构造期 loader 承接
 	// （SetCache 时绑定，loader 从 key 反解 typeCode）。
 	cache *loadable.Cache
 }
@@ -54,7 +54,7 @@ func (b *Biz) wrapCache(backend cache.Cache) {
 	}
 	b.cache = loadable.New(backend, b.loadEntries,
 		loadable.WithTTL(cachekit.DefaultCacheTTL),
-		loadable.WithDegradeOnError(), // Redis 故障降级直连 store（T4 语义）
+		loadable.WithDegradeOnError(), // Redis 故障降级直连 store
 	)
 }
 

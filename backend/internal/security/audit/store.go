@@ -18,7 +18,7 @@ import (
 // **生产路径（audit_wiring.go）与 e2e 路径共用同一映射**，避免两条路径
 // 落库列不同导致 e2e 测不出生产行为（见 record_mapper.go 头注）。
 //
-// 2026-09-22：映射改为构造期求值的工厂（NewRecordMapper），使兜底租户可经
+// 映射为构造期求值的工厂（NewRecordMapper），使兜底租户可经
 // SetFallbackTenant 配置。此处传空串 → 取当前生效的兜底租户。
 func NewStore(db *gorm.DB) audit.Auditor {
 	return auditgorm.New(db, auditgorm.WithRecordMapper(NewRecordMapper("")))

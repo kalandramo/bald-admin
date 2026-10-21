@@ -1,7 +1,6 @@
 package app
 
-// providers.go —— 批 2 装配形态的**段驱动 Provider**集合（原 registries.go 的
-// 13 张 New+MustRegister+WithXRegistry 注册表整体删除，各段改由 Provider 声明，
+// providers.go —— **段驱动 Provider**集合（各段由 Provider 声明，
 // 经 appkit.MustServe 的段驱动装配引擎消费；范本 contrib/store-gorm 的
 // AppProvider 与 _example/bald/main.go）。
 //
@@ -61,8 +60,8 @@ const configFileDefault = "configs/" + configNamespace + ".yaml"
 
 // configSourceProvider 消费契约 config 段（构造期产层）。远程 nacos 源经
 // bootstrap.NacosProvider 建层（层语义：Watch=true 参与热更新）；本地文件层
-// 由 appkit.ConfigFile 内建（原 ConfigRegistry 的 file provider 与其读同一路径、
-// 内容一致，批 2 起不再重复注册）。层优先级不变：本地文件 > 契约源层（nacos）
+// 由 appkit.ConfigFile 内建。层优先级：本地文件 > 契约源层（nacos）
+// ——「远程只补本地未定义的键」。
 // ——「远程只补本地未定义的键」。
 //
 // 段缺失语义：config 段 Provider 被**无条件构建**（源可独立于 config 段存在，
@@ -100,8 +99,8 @@ func (configSourceProvider) Build(ctx context.Context, s appkit.BuildScope) (any
 //   - 官方 cache/redis contract.AppProvider 在段存在时 validate/dial/Ping
 //     **fail-fast**，且产物 *rediscache.Cache **不暴露底层 client**——本业务的
 //     TokenStore/验证码/MFA/审计流/cachemonitor 都需要原生 go-redis client，
-//     官方 Provider 形态不满足（任务书冲突项，取舍：保留业务 Provider，
-//     注册表已删、接缝与 audit 段同款「用户声明自己的 Provider」）；
+//     官方 Provider 形态不满足（取舍：保留业务 Provider，
+//     接缝与 audit 段同款「用户声明自己的 Provider」）；
 //   - Redis 不可达仅 warn 不阻断（审计流降级），与 InitBridges 既有语义一致
 //     ——返回空产物，消费侧按缺失降级；
 //   - BuildRedisCache 经 UseRedisClient 把底层 client 记入 RedisClient
@@ -131,8 +130,8 @@ func (cacheRedisProvider) Build(ctx context.Context, s appkit.BuildScope) (any, 
 // ---------------------------------------------------------------------------
 
 // tracerProvider 消费 tracer 段：按 tracer.type 分派到 observability-otlp 的
-// 既有构造函数（appkit.TracerProvider 函数契约缝，批 2 保留）。原
-// TracerRegistry 的注册表形态删除，type 分派（当前唯一后端 otlp）收敛到本
+// 既有构造函数（appkit.TracerProvider 函数契约缝）。
+// type 分派（当前唯一后端 otlp）收敛到本
 // Provider；未注册 type fail-fast 语义保留。产物为 nil（shutdown 由 cleanup
 // 槽位承载，引擎按 "appkit:tracer-shutdown" Effect 逆序回放最后执行）。
 type tracerProvider struct{}

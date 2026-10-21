@@ -20,8 +20,8 @@ type DictType struct {
 // DictEntry 字典项（自 go-wind-admin sys_dict_entries 精简移植）。主键 =
 // "<type_code>:<entry_value>" 业务键（同 RolePolicy 范式：Create 冲突即条目重复，
 // 源「同租户同类型 entry_value 唯一」约束的等价实现——type_code/value 不可变，
-// Update 仅改展示属性）。Label 内联源 sys_dict_entry_i18n 的 zh 条目（i18n 表按
-// §2.2 多语言后续迭代不移植）；Numeric 对应源 numeric_value 可空数值。
+// Update 仅改展示属性）。Label 内联源 sys_dict_entry_i18n 的 zh 条目（仅 zh，
+// 多语言表不移植）；Numeric 对应源 numeric_value 可空数值。
 type DictEntry struct {
 	ID        string `gorm:"primaryKey"` // 业务键 "<type_code>:<entry_value>"
 	TenantID  string `gorm:"index"`

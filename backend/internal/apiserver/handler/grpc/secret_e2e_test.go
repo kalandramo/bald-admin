@@ -128,7 +128,7 @@ func TestGRPCTransport_NoToken(t *testing.T) {
 
 // TestGRPCTransport_Admin_OK 真实传输：admin 删除后 secret 真正从 store 消失。
 // 自建专属资源（与 gin 侧 TestDeleteSecret_RealDelete 同范式，shuffle 无共享写污染），
-// 锁定 gRPC DeleteSecret 不再是占位返回（CR 修复：gateway 转码删除曾全部假成功）。
+// 锁定 gRPC DeleteSecret 为真实删除（gateway 转码路径不得假成功）。
 func TestGRPCTransport_Admin_OK(t *testing.T) {
 	srv, addr := startServer(t)
 	defer srv.Stop(context.Background())
@@ -231,8 +231,8 @@ func TestGRPCTransport_MultiTenant_Isolation(t *testing.T) {
 	}
 }
 
-// TestRESTGateway_MultiTenant_Isolation M5：grpc-gateway REST 转码，复用同一 gRPC 拦截器
-// 链（认证/授权/多租户）。T2 起 REST GET /v1/user 经转码进入 UserService.ListUsers，
+// TestRESTGateway_MultiTenant_Isolation：grpc-gateway REST 转码，复用同一 gRPC 拦截器
+// 链（认证/授权/多租户）。REST GET /v1/user 经转码进入 UserService.ListUsers，
 // 跨租户隔离同样生效。
 func TestRESTGateway_MultiTenant_Isolation(t *testing.T) {
 	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {

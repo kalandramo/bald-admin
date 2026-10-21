@@ -1,9 +1,9 @@
 package e2e
 
 // t6_audit_e2e_test.go 审计增强+查询 REST e2e（验收）：真实 gin 引擎 +
-// httptest + 真实 SQLite 内存库（StoreAuditor 落库 → AuditStore 查询，§0 禁 fake）。
+// httptest + 真实 SQLite 内存库（StoreAuditor 落库 → AuditStore 查询，禁 fake）。
 //
-// 验收点（移植计划 T6）：
+// 验收点：
 //  1. 登录写路径触发 category=login 审计（成功 allow / 失败 deny + 原因，
 //     IP/UA 独立列落库）
 //  2. 业务写路径触发 category=operation 审计（gin AuditMiddleware，IP/UA）
@@ -41,7 +41,7 @@ func startAuditREST(t *testing.T) string {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	// T6：审计后端 = StoreAuditor（真实落库），登录/业务审计共用该入口。
+	// 审计后端 = StoreAuditor（真实落库），登录/业务审计共用该入口。
 	securityaudit.SetCurrent(securityaudit.NewStore(bootstrappkg.DB))
 	t.Cleanup(func() { securityaudit.SetCurrent(audit.NopAuditor()) })
 
@@ -49,14 +49,14 @@ func startAuditREST(t *testing.T) string {
 	// 与 main.go 对称：审计中间件在路由注册前全局挂载（wrap 型旁路）。
 	// Auditor 显式注入 securityaudit.Global() 动态转发器——ginmw.AuditMiddleware
 	// 构造期快照 auditor、缺省 Nop（bald pkg/middleware/gin/audit.go「显式注入是
-	// 唯一通道」），不注入则 operation 类审计静默丢失（本文件 169 行 total=0，
-	// HEAD 对照运行即复现：批 3 W1 审计总线显式化时本挂载点漏改，与批 4 无关）。
+	// 唯一通道」），不注入则 operation 类审计静默丢失。
+	// 审计丢失即先查此处注入。
 	e.Use(ginmw.AuditMiddleware(
 		ginmw.AuditWithObjectResolver(authz.DefaultHTTPObject),
 		ginmw.AuditWithActionResolver(authz.DefaultHTTPAction),
 		ginmw.AuditWithAuditor(securityaudit.Global()),
 	))
-	// BizSet 直构位溶解（批 4 域化收官）：域路径等价形态——共面 + 逐域 Register*，
+	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, nil, nil, nil)
 	srv := httptest.NewServer(e)
@@ -146,12 +146,12 @@ func TestAuditREST_LoginAuditFields(t *testing.T) {
 }
 
 // TestAuditREST_OperationAudit 业务写路径触发 category=operation 审计
-// （gin AuditMiddleware，object/action P9 归一化，T6 验收 2）。
+// （gin AuditMiddleware，object/action P9 归一化）。
 func TestAuditREST_OperationAudit(t *testing.T) {
 	base := startAuditREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
 
-	// 业务写：创建租户（已知 body 形态，T2 范式）。
+	// 业务写：创建租户（已知 body 形态）。
 	body := `{"id":"t-audit-op","name":"audit-op","remark":"t6"}`
 	if code, raw := postJSON(t, base, http.MethodPost, "/v1/tenant", "t6-op-agent/1.0", tok, body); code != http.StatusCreated {
 		t.Fatalf("create tenant status=%d body=%s", code, raw)
@@ -185,7 +185,7 @@ func TestAuditREST_PaginationAndInvalidToken(t *testing.T) {
 	}
 
 	// 页 1：paging.page_size=2，total=5，next_token 非空。
-	// 2026-09-22 统一分页风格：参数名改 paging.*（grpc-gateway 约定），
+	// 分页参数名 paging.*（grpc-gateway 约定），
 	// total/next_token 移入 meta。
 	list := listAudit(t, base, tok, "?category=login&subject=t6-page-user&paging.page_size=2")
 	if list.GetMeta().GetTotal().GetValue() != 5 || list.GetMeta().GetNextToken() == "" || len(list.GetItems()) != 2 {

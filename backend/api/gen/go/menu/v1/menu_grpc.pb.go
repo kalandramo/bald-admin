@@ -30,7 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// MenuService 菜单管理服务（T3，自 go-wind-admin permission 域 sys_menus 精简移植）。
+// MenuService 菜单管理服务（自 go-wind-admin permission 域 sys_menus 精简移植）。
 //
 // 菜单是前端导航树的数据源（自引用树，parent_id），同时是权限点可见性的挂载面
 // （Permission.MenuIDs）。管理面操作仅授予 admin 角色（casbin 策略数据化装载）。
@@ -116,7 +116,7 @@ func (c *menuServiceClient) DeleteMenu(ctx context.Context, in *DeleteMenuReques
 // All implementations must embed UnimplementedMenuServiceServer
 // for forward compatibility.
 //
-// MenuService 菜单管理服务（T3，自 go-wind-admin permission 域 sys_menus 精简移植）。
+// MenuService 菜单管理服务（自 go-wind-admin permission 域 sys_menus 精简移植）。
 //
 // 菜单是前端导航树的数据源（自引用树，parent_id），同时是权限点可见性的挂载面
 // （Permission.MenuIDs）。管理面操作仅授予 admin 角色（casbin 策略数据化装载）。

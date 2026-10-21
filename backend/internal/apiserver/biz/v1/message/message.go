@@ -17,8 +17,8 @@
 //  4. **SendMessage 三模式**：全员广播（源走 asynq，进程重启后自动重试）/
 //     单收件人 / 多收件人（同步，上报失败数而非静默丢弃）。
 //
-// **本波不实现 SSE 实时推送**（源的 publishNotification）——那是 的传输轴，
-// 本波只做「落库 + 收件箱读取」。
+// **SSE 实时推送不在本域**（源的 publishNotification 属传输轴职责），
+// 本域只做「落库 + 收件箱读取」。
 package message
 
 import (
@@ -196,7 +196,7 @@ func (b *Biz) UpdateMessage(ctx context.Context, id string, m Message) error {
 // 同时删除其全部收件记录（避免悬挂——源用事务保证）。
 //
 // 级联删除是**集合删除**（按 message_id 匹配）。`Store.Delete` 现为幂等语义
-// （0 行返回 (0, nil)，2026-09-23 决策，D12 修复）——无收件记录的消息（如草稿）
+// （0 行返回 (0, nil)）——无收件记录的消息（如草稿）
 // 删 0 行是合法结果，不再需要容忍 ErrNotFound 的样板。
 func (b *Biz) DeleteMessage(ctx context.Context, id string) error {
 	// 先删收件记录（无外键约束下的手工级联；顺序重要：先子后父）。

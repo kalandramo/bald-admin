@@ -9,7 +9,7 @@ import "google/protobuf/timestamp.proto";
 
 // RedisCacheMonitorService Redis 缓存监控（只读，聚合 INFO/DBSIZE/SLOWLOG 视图）。
 //
-// Wave 6.2 真新增（裁定见计划 §Wave 6.1）：源 redis_cache 域仅此 1 rpc，无对标 biz。
+// bald 真新增：源 redis_cache 域仅此 1 rpc，无对标 biz。
 //
 // ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）
 //

@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// （login 段的默认值/段存在性/flag 影子/校验测试随批 4 域化迁往
-// internal/apiserver/domains/authd/config_test.go——所有权随配置迁移。）
+// （login 段的默认值/段存在性/flag 影子/校验测试住
+// internal/apiserver/domains/authd/config_test.go。）
 
-// W2 配置聚合：ServerOptions 的默认值、flag 绑定、校验、解码。
+// 配置聚合：ServerOptions 的默认值、flag 绑定、校验、解码。
 //
 // 设计对齐 miniblog docs/08：配置项聚合到结构体 + NewServerOptions 默认值
 // + AddFlags 绑定命令行 + Validate 聚合校验 + 由配置文件覆盖默认值。

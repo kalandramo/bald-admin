@@ -1,17 +1,17 @@
-// Package authd 是 auth 域的装配声明包（批 4 第三波，重域）。
-// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注（共用同一裁决）。
+// Package authd 是 auth 域的装配声明包。
+// 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
-// 重域特殊点（评估 §3.3「业务阈值住装配层」的本波修复）：登录防护三件
-// （限流/熔断/重试）的构造器原住 cmd/bald-admin/app/builders.go，读业务自持
-// 配置段 biz.login.*——本波随域迁入：域 Wire 自读 Settings 快照的 login 段
-// （decodeLogin：段内严格解码 + 校验）并自行构造（config.go），装配层不再出现
+// 重域特殊点：登录防护三件
+// （限流/熔断/重试）的构造器住本包（config.go），读业务自持
+// 配置段 biz.login.*：域 Wire 自读 Settings 快照的 login 段
+// （decodeLogin：段内严格解码 + 校验）并自行构造，装配层不再出现
 // 业务阈值；命令行 flag 通道经 FlagOptions（PlainBinder）保留——装配层仅
 // Bind 声明，键名与默认值仍归本包。
 //
 // 其余独有依赖（TokenStore/验证码/平台判据/令牌 TTL）按 file 域先例：基础设施
 // 构造留装配层（BeforeStart 抉择），域经 Deps getter 迟到取用。auth biz 的
-// setter 全部「nil 不覆盖」，getter 返回零值即禁用态——与迁移前 BeforeStart
-// 的接线逐行等价。含「无 Redis 时认证器退化为纯验签」：token.NewRevocationChecker
+// setter 全部「nil 不覆盖」，getter 返回零值即禁用态。
+// 含「无 Redis 时认证器退化为纯验签」：token.NewRevocationChecker
 // 对 nil store 返回原认证器，装配层单一 Authn getter 即覆盖原两分支。
 package authd
 
@@ -62,15 +62,15 @@ type Deps struct {
 }
 
 // Domain 返回 auth 域的装配声明值。Routes 委托 hgin.RegisterAuth（传输适配
-// 不搬家，路由面/中间件链与迁移前逐行等价）；auth 无 gRPC 面，Services 不声明。
+// 不搬家）；auth 无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *authbiz.Biz
 	return appkit.Domain{
 		Name: "auth",
 		Wire: func(_ context.Context, app *appkit.App) error {
 			// 登录防护三件的本域配置（biz.login.*）：域自读 Settings 快照，
-			// 段内严格解码 + 校验，非法配置在此 fail-fast（启动期错误，与迁移前
-			// BeforeStart 内 Validate 同为启动失败，不静默）。
+			// 段内严格解码 + 校验，非法配置在此 fail-fast
+			// （启动期错误，不静默）。
 			cfg, err := decodeLogin(app.Settings())
 			if err != nil {
 				return err
@@ -81,14 +81,14 @@ func Domain(d Deps) appkit.Domain {
 					"(InitBridges must run in business BeforeStart before domain Wire)")
 			}
 			biz = authbiz.New(d.Signer(), us, ts, d.ReloadPolicies())
-			// 登录防护三件（构造器自 builders.go 迁入；nil=未配置禁用态，
+			// 登录防护三件（nil=未配置禁用态，
 			// biz 侧 SetLoginXxx 对 nil 不覆盖）。
 			biz.SetLoginLimiter(buildLoginLimiter(cfg))
 			biz.SetLoginBreaker(buildLoginBreaker(cfg))
 			biz.SetLoginRetrier(buildLoginRetrier(cfg))
 			// 平台判据（纯函数，无条件注入）/令牌/验证码/TTL：装配层已抉择
-			// 产物，getter 返回零值即禁用态（setter nil 不覆盖）——与迁移前
-			// BeforeStart 的「tokenStore != nil」条件接线逐行等价。
+			// 产物，getter 返回零值即禁用态（setter nil 不覆盖）。
+			// 依赖缺席即保持禁用态，不报错。
 			biz.SetPlatformResolver(d.PlatformResolver())
 			biz.SetTokenStore(d.TokenStore())
 			biz.SetAuthenticator(d.Authn())

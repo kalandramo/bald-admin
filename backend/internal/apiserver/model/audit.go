@@ -13,7 +13,7 @@ type AuditRecord struct {
 	Result   string // allow/deny/error（来自 AuditEvent.Result）
 	Error    string // 错误详情（来自 AuditEvent.Error，空为成功）
 
-	// T6 审计增强（自源 audit/service/v1 的 Operation/LoginAuditLog 精简，
+	// 审计增强字段（自源 audit/service/v1 的 Operation/LoginAuditLog 精简，
 	// 单表 + Category 分类而非双表；Success 由 Result 推导不冗余存储）。
 	Category  string `gorm:"index"` // 分类："operation"/"login"/"api"/"data_access"/"permission"
 	IPAddress string // 客户端 IP（Meta["client_ip"]，源 ip_address）
