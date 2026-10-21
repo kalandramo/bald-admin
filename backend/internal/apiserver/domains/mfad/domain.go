@@ -6,12 +6,10 @@ package mfad
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
-
 	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
@@ -42,18 +40,17 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "mfa",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-		st := d.FactorStore()
-			if st == nil {
-				return fmt.Errorf("mfad: store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			st, err := domains.RequireStore("mfad", "store", d.FactorStore())
+			if err != nil {
+				return err
 			}
 			biz = mfabiz.New(st, d.Challenges())
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("mfad: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("mfad", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterMFA(e, d.Authn(), d.Authz(), biz)
 			return nil

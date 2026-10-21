@@ -9,11 +9,10 @@ package languaged
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
 	langbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/language"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -39,18 +38,17 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "language",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-			st := d.Store()
-			if st == nil {
-				return fmt.Errorf("languaged: language store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			st, err := domains.RequireStore("languaged", "language store", d.Store())
+			if err != nil {
+				return err
 			}
 			biz = langbiz.New(st)
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("languaged: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("languaged", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterLanguage(e, d.Authn(), d.Authz(), biz)
 			return nil

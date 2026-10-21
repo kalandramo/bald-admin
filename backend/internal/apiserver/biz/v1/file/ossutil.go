@@ -61,9 +61,9 @@ var allowedExactMimeTypes = map[string]struct{}{
 	"application/vnd.openxmlformats-officedocument.presentationml.presentation": {},
 }
 
-// IsAllowedMimeType 判断某 MIME 类型是否在上传白名单内（源同名函数）。
+// isAllowedMimeType 判断某 MIME 类型是否在上传白名单内（源同名函数）。
 // 同时支持前缀（image/* 等）与精确匹配（pdf/zip 等）。
-func IsAllowedMimeType(mimeType string) bool {
+func isAllowedMimeType(mimeType string) bool {
 	if mimeType == "" {
 		return false
 	}
@@ -84,9 +84,9 @@ func IsAllowedMimeType(mimeType string) bool {
 	return false
 }
 
-// IsFileDirectorySafe 校验客户端传入的 FileDirectory 是否安全（源同名函数）。
+// isFileDirectorySafe 校验客户端传入的 FileDirectory 是否安全（源同名函数）。
 // 仅允许字母、数字、下划线、连字符与斜杠；拒绝 ..、绝对路径等穿越/注入手法。
-func IsFileDirectorySafe(dir string) bool {
+func isFileDirectorySafe(dir string) bool {
 	if dir == "" {
 		return true // 空目录允许（落到根命名空间）
 	}
@@ -110,9 +110,9 @@ func IsFileDirectorySafe(dir string) bool {
 	return true
 }
 
-// ContentTypeToBucketName 根据内容类型获取存储桶名称（源同名函数）：
+// contentTypeToBucketName 根据内容类型获取存储桶名称（源同名函数）：
 // image/video/audio → 同名桶；text 与常见文档 → docs；其余 → files。
-func ContentTypeToBucketName(contentType string) string {
+func contentTypeToBucketName(contentType string) string {
 	if strings.TrimSpace(contentType) == "" {
 		return BucketFiles
 	}
@@ -160,9 +160,9 @@ func ContentTypeToBucketName(contentType string) string {
 	}
 }
 
-// ContentTypeToFileExtension 根据内容类型获取文件后缀（含前导点，小写）。
+// contentTypeToFileExtension 根据内容类型获取文件后缀（含前导点，小写）。
 // 精简自源同名函数：常用映射 + 标准库回退。
-func ContentTypeToFileExtension(contentType string) string {
+func contentTypeToFileExtension(contentType string) string {
 	if strings.TrimSpace(contentType) == "" {
 		return ""
 	}
@@ -259,10 +259,10 @@ func ContentTypeToFileExtension(contentType string) string {
 	return "" // 未知类型返回空串，调用方兜底 "bin"
 }
 
-// DetectFileType 根据文件内容推断 MIME 类型和扩展名（源同名函数）：
+// detectFileType 根据文件内容推断 MIME 类型和扩展名（源同名函数）：
 // 前 512 字节 http.DetectContentType + 常见魔术头优先判定。
 // 输出 mimeType（如 "image/png"）和 ext（如 ".png"，未知则为空）。
-func DetectFileType(fileContent []byte) (mimeType, ext string) {
+func detectFileType(fileContent []byte) (mimeType, ext string) {
 	head := fileContent
 	if len(head) > 512 {
 		head = head[:512]
@@ -308,9 +308,9 @@ func DetectFileType(fileContent []byte) (mimeType, ext string) {
 	return mimeType, ""
 }
 
-// GeneraUUIDFileName 生成基于 UUID 的文件名（源 GeneraUUIDFileName，语义保持；
+// generaUUIDFileName 生成基于 UUID 的文件名（源 generaUUIDFileName，语义保持；
 // google/uuid 替代 tx7do id.NewGUIDv4(false)）：去横线 UUID + 清理后的扩展名。
-func GeneraUUIDFileName(fileExt string) string {
+func generaUUIDFileName(fileExt string) string {
 	name := strings.ReplaceAll(uuid.NewString(), "-", "")
 	cleanExt := strings.TrimPrefix(fileExt, ".")
 	if cleanExt == "" {
@@ -319,10 +319,10 @@ func GeneraUUIDFileName(fileExt string) string {
 	return fmt.Sprintf("%s.%s", name, cleanExt)
 }
 
-// GenerateObjectName 生成对象键（源同名函数 UUID 策略）：dir + uuid.ext。
+// generateObjectName 生成对象键（源同名函数 UUID 策略）：dir + uuid.ext。
 // 清理首尾斜杠，避免双斜杠或以斜杠开头的对象名。
-func GenerateObjectName(fileDirectory, fileExt string) string {
-	name := GeneraUUIDFileName(fileExt)
+func generateObjectName(fileDirectory, fileExt string) string {
+	name := generaUUIDFileName(fileExt)
 	dir := strings.Trim(fileDirectory, "/")
 	if dir == "" {
 		return name
@@ -330,15 +330,9 @@ func GenerateObjectName(fileDirectory, fileExt string) string {
 	return dir + "/" + name
 }
 
-// EnsureObjectName 确保扩展名存在后生成对象键（源同名函数）。
-func EnsureObjectName(fileDirectory, sourceFileName, contentType string, fileContent []byte) string {
-	fileExt := EnsureFileExtension(sourceFileName, contentType, fileContent)
-	return GenerateObjectName(fileDirectory, fileExt)
-}
-
-// ExtractFileExtension 从文件名提取扩展名（不含点，小写；源同名函数）。
+// extractFileExtension 从文件名提取扩展名（不含点，小写；源同名函数）。
 // 查找最后一个点作为扩展名分隔（点在开头不算）。
-func ExtractFileExtension(fileName string) string {
+func extractFileExtension(fileName string) string {
 	idx := strings.LastIndex(fileName, ".")
 	if idx <= 0 {
 		return ""
@@ -346,16 +340,16 @@ func ExtractFileExtension(fileName string) string {
 	return strings.ToLower(fileName[idx+1:])
 }
 
-// EnsureFileExtension 确保文件后缀存在（源同名函数，返回值统一含前导点）：
+// ensureFileExtension 确保文件后缀存在（源同名函数，返回值统一含前导点）：
 // 按顺序从文件名、内容类型、文件内容检测；最终兜底 ".bin"。
-func EnsureFileExtension(fileName, contentType string, fileContent []byte) string {
-	if ext := ExtractFileExtension(fileName); ext != "" {
+func ensureFileExtension(fileName, contentType string, fileContent []byte) string {
+	if ext := extractFileExtension(fileName); ext != "" {
 		return "." + ext
 	}
-	if ext := ContentTypeToFileExtension(contentType); ext != "" {
+	if ext := contentTypeToFileExtension(contentType); ext != "" {
 		return ext
 	}
-	if _, ext := DetectFileType(fileContent); ext != "" {
+	if _, ext := detectFileType(fileContent); ext != "" {
 		return ext
 	}
 	return ".bin"

@@ -35,10 +35,10 @@ import (
 const (
 	// Issuer 是 otpauth URI 中的发行方标识（认证器 App 内展示归属）。
 	Issuer = "GoWindAdmin"
-	// Skew 是允许的时间窗口偏移（±1 个 30s 周期），防时钟小幅漂移。
-	Skew = 1
-	// Period 是 TOTP 周期（秒）。
-	Period = 30
+	// skew 是允许的时间窗口偏移（±1 个 30s 周期），防时钟小幅漂移。
+	skew = 1
+	// period 是 TOTP 周期（秒）。
+	period = 30
 )
 
 // ErrInvalidCode 验证码错误。
@@ -53,15 +53,15 @@ var ErrOperationInvalid = errors.New("mfa: invalid or expired operation")
 // ErrUserMismatch 操作上下文归属与当前用户不符（跨用户劫持）。
 var ErrUserMismatch = errors.New("mfa: operation user mismatch")
 
-// TOTPKey 是 TOTP 密钥的生成结果。
-type TOTPKey struct {
+// totpKey 是 TOTP 密钥的生成结果。
+type totpKey struct {
 	Secret string // base32 secret
 	URL    string // otpauth:// URI（供认证器扫码）
 }
 
 // GenerateTOTP 生成新的 TOTP 密钥。
 // AccountName 用 userID 防认证器 App 内同名冲突（源用 `uid:%d`）。
-func GenerateTOTP(userID string) (*TOTPKey, error) {
+func GenerateTOTP(userID string) (*totpKey, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      Issuer,
 		AccountName: fmt.Sprintf("uid:%s", userID),
@@ -69,7 +69,7 @@ func GenerateTOTP(userID string) (*TOTPKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mfa: generate totp key: %w", err)
 	}
-	return &TOTPKey{Secret: key.Secret(), URL: key.URL()}, nil
+	return &totpKey{Secret: key.Secret(), URL: key.URL()}, nil
 }
 
 // ValidateTOTP 校验 TOTP 码（**±1 窗口**，30s 周期，6 位 SHA1）。
@@ -78,8 +78,8 @@ func GenerateTOTP(userID string) (*TOTPKey, error) {
 // 让「窗口/周期/位数」这三个安全参数在代码里可见——它们变了就是安全语义变了。
 func ValidateTOTP(code, secret string) bool {
 	ok, err := totp.ValidateCustom(code, secret, time.Now(), totp.ValidateOpts{
-		Period:    Period,
-		Skew:      Skew,
+		Period:    period,
+		Skew:      skew,
 		Digits:    otp.DigitsSix,
 		Algorithm: otp.AlgorithmSHA1,
 	})
@@ -89,8 +89,8 @@ func ValidateTOTP(code, secret string) bool {
 // opSeq 是 fallback 路径的进程内单调计数器（crypto/rand 失败时使用）。
 var opSeq atomic.Uint64
 
-// NewOperationID 生成操作 id（源 newOperationID 的等价物：随机十六进制串）。
-func NewOperationID() string {
+// newOperationID 生成操作 id（源 newOperationID 的等价物：随机十六进制串）。
+func newOperationID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return fallbackOperationID()

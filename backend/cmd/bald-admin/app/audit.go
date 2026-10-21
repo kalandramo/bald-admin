@@ -193,14 +193,3 @@ func parseAuditBackends(s string) []string {
 	}
 	return out
 }
-
-// contains 判断切片是否含某元素。
-
-func contains(s []string, v string) bool {
-	for _, x := range s {
-		if x == v {
-			return true
-		}
-	}
-	return false
-}

@@ -88,11 +88,6 @@ func New(ms *store.Store[authmodel.InternalMessage], cs *store.Store[authmodel.I
 	return &Biz{messageStore: ms, categoryStore: cs, recipientStore: rs, userStore: us}
 }
 
-// NewWithPublisher 构造带 SSE 推送能力的 Biz。
-func NewWithPublisher(ms *store.Store[authmodel.InternalMessage], cs *store.Store[authmodel.InternalMessageCategory], rs *store.Store[authmodel.InternalMessageRecipient], us *store.Store[authmodel.User], p Publisher) *Biz {
-	return &Biz{messageStore: ms, categoryStore: cs, recipientStore: rs, userStore: us, publisher: p}
-}
-
 // SetPublisher 注入/替换推送能力（源用同名注册方法）。
 func (b *Biz) SetPublisher(p Publisher) { b.publisher = p }
 

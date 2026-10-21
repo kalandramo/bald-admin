@@ -97,8 +97,8 @@ var TokenStore token.Store
 // 最小耦合的桥接（与 Signer/TokenStore 同款的包级桥接模式）。
 var policyReloader func() error
 
-// SetPolicyReloader 由 main 装配时注入策略重载钩子（重建 casbin 策略快照）。
-func SetPolicyReloader(fn func() error) { policyReloader = fn }
+// setPolicyReloader 由 main 装配时注入策略重载钩子（重建 casbin 策略快照）。
+func setPolicyReloader(fn func() error) { policyReloader = fn }
 
 // ReloadPolicies 触发策略热重载（用户/角色变更后调用）。
 // 未注入钩子时为无操作（返回 nil）——保持既有测试零改动。
@@ -109,13 +109,13 @@ func ReloadPolicies() error {
 	return policyReloader()
 }
 
-// BuildAuthorizer 从 DB 重建 casbin 授权器（策略真源 = RolePolicy 表 + User.Roles）。
+// buildAuthorizer 从 DB 重建 casbin 授权器（策略真源 = RolePolicy 表 + User.Roles）。
 // 供 main 装配 ReloadableAuthorizer 的 build 函数使用（InitBridges 内的首次构造
 // 也走同一逻辑，保证首次与重载语义一致）。
 //
 // repos 由调用方显式传入——本函数不再读包级仓储变量。装配根的 reloadable
 // 闭包捕获首次 InitBridges 返回的 repos（见 InitBridges），故重载读的是同一套仓储。
-func BuildAuthorizer(ctx context.Context, repos *Repositories) (authz.Authorizer, error) {
+func buildAuthorizer(ctx context.Context, repos *Repositories) (authz.Authorizer, error) {
 	csv, err := loadPolicyCSV(ctx, repos)
 	if err != nil {
 		return nil, err
@@ -427,10 +427,10 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	}
 	// -3：用可热重载装饰器包装——运行期新增用户/改角色后，
 	// 业务调用 ReloadPolicies() 即可让新权限生效（否则须重启进程）。
-	// 重建函数复用 BuildAuthorizer（与首次构造同一逻辑，语义一致）。
+	// 重建函数复用 buildAuthorizer（与首次构造同一逻辑，语义一致）。
 	// 闭包捕获本次的 repos——重载读同一套仓储（已核实该闭包在运行期触发）。
 	reloadable := appauthz.NewReloadable(az, func() (authz.Authorizer, error) {
-		return BuildAuthorizer(context.Background(), repos)
+		return buildAuthorizer(context.Background(), repos)
 	})
 	// 再包一层 object 别名装饰器。P9 归一化把 gRPC Service 名压成
 	// 无分隔小写（OrgUnitService→"orgunit"），而策略 object 沿用 HTTP 路径段
@@ -439,7 +439,7 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	// 详见 internal/security/authz/alias.go 头注与 grpcObjectAliases 的对应说明。
 	Authorizer = appauthz.NewObjectAlias(reloadable, grpcObjectAliases)
 	// 热重载仍指向内层：别名层无状态，重建策略快照即可。
-	SetPolicyReloader(reloadable.Reload)
+	setPolicyReloader(reloadable.Reload)
 
 	log.Info(ctx, "bridges initialized",
 		"authenticator", "bald-authn-jwt", "authorizer", "casbin", "store", "bald-store-gorm")

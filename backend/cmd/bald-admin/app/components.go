@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald-admin/internal/apiserver"
+	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -84,6 +84,6 @@ func (h *heartbeatComp) Dispose(_ context.Context) error {
 
 func registerAdminRoutes(router *gin.Engine, ref *appRefT,
 	authenticator authn.Authenticator, authorizer authz.Authorizer,
-	factories map[string]apiserver.ComponentFactory) {
-	apiserver.RegisterAdmin(router, ref.get, authenticator, authorizer, factories)
+	factories map[string]hgin.ComponentFactory) {
+	hgin.RegisterAdmin(router, ref.get, authenticator, authorizer, factories)
 }

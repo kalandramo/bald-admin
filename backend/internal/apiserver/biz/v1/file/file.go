@@ -92,16 +92,16 @@ func (b *Biz) Upload(ctx context.Context, fileName, fileDirectory string, conten
 		return nil, berrors.BadRequest(ReasonUploadTooLarge)
 	}
 	// 以嗅探结果为准（扩展名可伪装），白名单外一律拒绝
-	mimeType, _ := DetectFileType(content)
-	if !IsAllowedMimeType(mimeType) {
+	mimeType, _ := detectFileType(content)
+	if !isAllowedMimeType(mimeType) {
 		return nil, berrors.BadRequest("file/mime_not_allowed")
 	}
-	if !IsFileDirectorySafe(fileDirectory) {
+	if !isFileDirectorySafe(fileDirectory) {
 		return nil, berrors.BadRequest("file/directory_unsafe")
 	}
 
-	ext := EnsureFileExtension(fileName, mimeType, content)
-	objectName := GenerateObjectName(fileDirectory, ext)
+	ext := ensureFileExtension(fileName, mimeType, content)
+	objectName := generateObjectName(fileDirectory, ext)
 
 	bucket := b.bucketFor(mimeType)
 	if err := b.ensureBucket(ctx, bucket); err != nil {
@@ -200,7 +200,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (string, error) {
 
 // bucketFor 按内容类型分桶；files 兜底桶名由 file.bucket 配置覆盖（空 = "files"）。
 func (b *Biz) bucketFor(contentType string) string {
-	bucket := ContentTypeToBucketName(contentType)
+	bucket := contentTypeToBucketName(contentType)
 	if bucket == BucketFiles && b.defaultBucket != "" {
 		return b.defaultBucket
 	}

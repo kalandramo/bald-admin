@@ -45,13 +45,12 @@ import (
 //	sse:     {addr: ":8090", path: "/events"}
 //	gateway: {addr: ":8081"}
 type ServerOptions struct {
-	File    FileOptions    `mapstructure:"file"`
-	Audit   AuditOptions   `mapstructure:"audit"`
-	Auth    AuthOptions    `mapstructure:"auth"`
-	Asynq   AsynqOptions   `mapstructure:"asynq"`
-	Redis   RedisOptions   `mapstructure:"redis"`
-	SSE     SSEOptions     `mapstructure:"sse"`
-	Metrics MetricsOptions `mapstructure:"metrics"`
+	File    fileOptions    `mapstructure:"file"`
+	Audit   auditOptions   `mapstructure:"audit"`
+	Auth    authOptions    `mapstructure:"auth"`
+	Asynq   asynqOptions   `mapstructure:"asynq"`
+	Redis   redisOptions   `mapstructure:"redis"`
+	SSE     sseOptions     `mapstructure:"sse"`
 
 	// flagShadow 是 AddFlags 的绑定目标（pflag 需要一个可写地址）。
 	//
@@ -61,53 +60,37 @@ type ServerOptions struct {
 	// login 段的 flag 绑定（含影子字段纪律）住 authd.FlagOptions。
 }
 
-// FileOptions 文件模块（对象存储桶；bconf storage 段无 bucket 字段）。
-type FileOptions struct {
+// fileOptions 文件模块（对象存储桶；bconf storage 段无 bucket 字段）。
+type fileOptions struct {
 	Bucket string `mapstructure:"bucket"`
 }
 
-// AuditOptions 审计（兜底租户：login 失败/permission 等无租户事件落库归属）。
-type AuditOptions struct {
+// auditOptions 审计（兜底租户：login 失败/permission 等无租户事件落库归属）。
+type auditOptions struct {
 	FallbackTenant string `mapstructure:"fallback_tenant"`
 }
 
-// AuthOptions 令牌生命周期。
-type AuthOptions struct {
+// authOptions 令牌生命周期。
+type authOptions struct {
 	AccessTTLMinutes int `mapstructure:"access_ttl_minutes"`
 	RefreshTTLHours  int `mapstructure:"refresh_ttl_hours"`
 }
 
-// AsynqOptions 任务队列。
-type AsynqOptions struct {
+// asynqOptions 任务队列。
+type asynqOptions struct {
 	Codec string `mapstructure:"codec"`
 }
 
-// RedisOptions 业务侧 Redis 地址（任务队列/缓存复用的同一实例）。
+// redisOptions 业务侧 Redis 地址（任务队列/缓存复用的同一实例）。
 // 与 bconf cache.redis 段并存：本字段是 env 兼容通道（wire 构造期需要）。
-type RedisOptions struct {
+type redisOptions struct {
 	Addr string `mapstructure:"addr"`
 }
 
-// SSEOptions SSE 传输轴（空 addr = 不启用）。
-type SSEOptions struct {
+// sseOptions SSE 传输轴（空 addr = 不启用）。
+type sseOptions struct {
 	Addr string `mapstructure:"addr"`
 	Path string `mapstructure:"path"`
-}
-
-// MetricsOptions 可观测性暴露端的废弃 env 通道（无运行期消费者）。
-//
-// env 通道统一走框架路径名（`BALD_ADMIN_METRICS_PROMETHEUS_ADDR` /
-// `BALD_ADMIN_METRICS_OTLP_ENDPOINT` / `BALD_ADMIN_TRACER_OTLP_ENDPOINT`），
-// 优先级与其余契约字段一致（env 层高于本地文件层）。
-//
-// 字段与类型保留仅为兼容「程序化覆写」的既有结构（无 flag 绑定）；
-// 运行期消费者已删，改端口/端点请用上述路径名或对应配置段。
-type MetricsOptions struct {
-	// Addr 废弃字段（无消费者）。改暴露端口请用 `metrics.prometheus.addr`。
-	Addr string `mapstructure:"addr"`
-	// OtlpAddr 废弃字段（无消费者）。改端点请用 `metrics.otlp.endpoint`
-	// 与 `tracer.otlp.endpoint`（两者需分别设置）。
-	OtlpAddr string `mapstructure:"otlp_addr"`
 }
 
 // BusinessSection 是 bald-admin 业务配置的**顶层段名**。
@@ -188,9 +171,9 @@ func (o *ServerOptions) DecodeInto(settings map[string]any, ownedSections ...str
 // 禁用），与替换前的「cfg.Get(段) 不存在即返回 nil」语义逐字一致（行为不回退）。
 func NewServerOptions() *ServerOptions {
 	return &ServerOptions{
-		File:  FileOptions{Bucket: ""}, // 空 = 未配置对象存储（file 模块降级）
-		Audit: AuditOptions{FallbackTenant: "t-default"},
-		Auth:  AuthOptions{AccessTTLMinutes: 120, RefreshTTLHours: 168},
+		File:  fileOptions{Bucket: ""}, // 空 = 未配置对象存储（file 模块降级）
+		Audit: auditOptions{FallbackTenant: "t-default"},
+		Auth:  authOptions{AccessTTLMinutes: 120, RefreshTTLHours: 168},
 		// Asynq/Redis/SSE 的 env 兼容通道（构造期需要，见各字段注释）。
 		// 集中在此处读取——替换前它们散落在 asynq.go/sse.go/servers.go 各自
 		// os.Getenv（「同源配置多条链」），现收敛为唯一默认值来源。
@@ -201,10 +184,9 @@ func NewServerOptions() *ServerOptions {
 		// 会被配置段覆盖。改用框架路径名后优先级与其余字段一致。
 		// SSE 例外：契约 `server.sse` 段无 provider（registered=false），
 		// 用路径名会 fail-fast，故保留短名通道（见 sse.go 文件头）。
-		Asynq:   AsynqOptions{Codec: envDefault("BALD_ADMIN_ASYNQ_CODEC", "json")},
-		Redis:   RedisOptions{Addr: os.Getenv("BALD_ADMIN_REDIS_ADDR")},
-		SSE:     SSEOptions{Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"), Path: os.Getenv("BALD_ADMIN_SSE_PATH")},
-		Metrics: MetricsOptions{},
+		Asynq:   asynqOptions{Codec: envDefault("BALD_ADMIN_ASYNQ_CODEC", "json")},
+		Redis:   redisOptions{Addr: os.Getenv("BALD_ADMIN_REDIS_ADDR")},
+		SSE:     sseOptions{Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"), Path: os.Getenv("BALD_ADMIN_SSE_PATH")},
 	}
 }
 

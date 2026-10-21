@@ -10,14 +10,13 @@ package dictd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"google.golang.org/grpc"
 
-	gingonic "github.com/gin-gonic/gin"
 	dictv1 "github.com/kalandramo/bald-admin/api/gen/go/dict/v1"
 	dictbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dict"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -50,23 +49,21 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "dict",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-			ts := d.TypeStore()
-			if ts == nil {
-				return fmt.Errorf("dictd: dict type store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			ts, err := domains.RequireStore("dictd", "dict type store", d.TypeStore())
+			if err != nil {
+				return err
 			}
-			es := d.EntryStore()
-			if es == nil {
-				return fmt.Errorf("dictd: dict entry store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			es, err := domains.RequireStore("dictd", "dict entry store", d.EntryStore())
+			if err != nil {
+				return err
 			}
 			biz = dictbiz.New(ts, es, d.Cache())
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("dictd: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("dictd", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterDict(e, d.Authn(), d.Authz(), biz)
 			return nil

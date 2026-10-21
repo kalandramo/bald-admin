@@ -6,12 +6,10 @@ package permgroupd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
-
 	pgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -40,19 +38,21 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "permgroup",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-		gs := d.GroupStore()
-		els := d.EvalLogStore()
-			if gs == nil || els == nil {
-				return fmt.Errorf("permgroupd: store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			gs, err := domains.RequireStore("permgroupd", "store", d.GroupStore())
+			if err != nil {
+				return err
+			}
+			els, err := domains.RequireStore("permgroupd", "store", d.EvalLogStore())
+			if err != nil {
+				return err
 			}
 			biz = pgbiz.New(gs, els)
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("permgroupd: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("permgroupd", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterPermGroup(e, d.Authn(), d.Authz(), biz)
 			return nil

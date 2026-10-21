@@ -53,7 +53,8 @@ func (f *fakePublisher) TryPublish(stream, event string, _ any) bool {
 func TestWave3_2_DeliverTriggersPush(t *testing.T) {
 	initMsgBridges(t)
 	pub := &fakePublisher{}
-	biz := msgbiz.NewWithPublisher(repos.Message, repos.MessageCategory, repos.Recipient, repos.User, pub)
+	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
+	biz.SetPublisher(pub)
 	ctx := context.Background()
 
 	uid := "u-push-" + time.Now().Format("150405.000000")
@@ -106,7 +107,8 @@ func TestWave3_2_NilPublisherDegrades(t *testing.T) {
 func TestWave3_2_MultipleRecipientsPushEach(t *testing.T) {
 	initMsgBridges(t)
 	pub := &fakePublisher{}
-	biz := msgbiz.NewWithPublisher(repos.Message, repos.MessageCategory, repos.Recipient, repos.User, pub)
+	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
+	biz.SetPublisher(pub)
 	ctx := context.Background()
 
 	sfx := time.Now().Format("150405.000000")
@@ -139,7 +141,8 @@ func TestWave3_2_MultipleRecipientsPushEach(t *testing.T) {
 func TestWave3_2_IdempotentDeliverDoesNotDoublePush(t *testing.T) {
 	initMsgBridges(t)
 	pub := &fakePublisher{}
-	biz := msgbiz.NewWithPublisher(repos.Message, repos.MessageCategory, repos.Recipient, repos.User, pub)
+	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
+	biz.SetPublisher(pub)
 	ctx := context.Background()
 
 	uid := "u-idem-" + time.Now().Format("150405.000000")

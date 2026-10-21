@@ -40,28 +40,28 @@ const ConfigSection = "login"
 // 缺省即禁用」（防御性增强，未配置不介入）。指针在 mapstructure 解码时对缺失的
 // 段保持 nil，故能精确保留该语义。
 type LoginConfig struct {
-	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+	RateLimit rateLimitConfig `mapstructure:"rate_limit"`
 	// Breaker 非 nil = 启用登录 DB 查询熔断（段存在即启用）。
-	Breaker *BreakerConfig `mapstructure:"breaker"`
+	Breaker *breakerConfig `mapstructure:"breaker"`
 	// Retry 非 nil = 启用登录 DB 查询重试（段存在即启用）。
-	Retry *RetryConfig `mapstructure:"retry"`
+	Retry *retryConfig `mapstructure:"retry"`
 }
 
-// RateLimitConfig 登录限流（令牌桶）。零值=禁用（fail-open，不阻断登录）。
-type RateLimitConfig struct {
+// rateLimitConfig 登录限流（令牌桶）。零值=禁用（fail-open，不阻断登录）。
+type rateLimitConfig struct {
 	Rate  float64 `mapstructure:"rate"`
 	Burst float64 `mapstructure:"burst"`
 }
 
-// BreakerConfig 登录 DB 查询熔断（阈值式 hystrix）。
-type BreakerConfig struct {
+// breakerConfig 登录 DB 查询熔断（阈值式 hystrix）。
+type breakerConfig struct {
 	ErrorThreshold     float64 `mapstructure:"error_threshold"`
 	RequestVolume      int     `mapstructure:"request_volume"`
 	SleepWindowSeconds int     `mapstructure:"sleep_window_seconds"`
 }
 
-// RetryConfig 登录 DB 查询重试（瞬时故障）。
-type RetryConfig struct {
+// retryConfig 登录 DB 查询重试（瞬时故障）。
+type retryConfig struct {
 	MaxAttempts      int `mapstructure:"max_attempts"`
 	InitialBackoffMs int `mapstructure:"initial_backoff_ms"`
 	MaxBackoffMs     int `mapstructure:"max_backoff_ms"`
@@ -69,28 +69,28 @@ type RetryConfig struct {
 
 // breakerDefaults / retryDefaults 返回启用态下的字段缺省值：flag 默认值展示与
 // nil 段校验兜底用；启用态构造时字段值由「>0 才覆盖」落到库默认（见 builders）。
-func breakerDefaults() BreakerConfig {
-	return BreakerConfig{ErrorThreshold: 0.5, RequestVolume: 20, SleepWindowSeconds: 5}
+func breakerDefaults() breakerConfig {
+	return breakerConfig{ErrorThreshold: 0.5, RequestVolume: 20, SleepWindowSeconds: 5}
 }
 
-func retryDefaults() RetryConfig {
-	return RetryConfig{MaxAttempts: 3, InitialBackoffMs: 200, MaxBackoffMs: 10000}
+func retryDefaults() retryConfig {
+	return retryConfig{MaxAttempts: 3, InitialBackoffMs: 200, MaxBackoffMs: 10000}
 }
 
-// BreakerEnabled / RetryEnabled 报告该能力是否被配置启用（段是否存在）。
+// BreakerEnabled / retryEnabled 报告该能力是否被配置启用（段是否存在）。
 func (c LoginConfig) BreakerEnabled() bool { return c.Breaker != nil }
-func (c LoginConfig) RetryEnabled() bool   { return c.Retry != nil }
+func (c LoginConfig) retryEnabled() bool   { return c.Retry != nil }
 
-// BreakerOrDefault 返回熔断配置：未配置（nil）时返回缺省值。
-func (c LoginConfig) BreakerOrDefault() BreakerConfig {
+// breakerOrDefault 返回熔断配置：未配置（nil）时返回缺省值。
+func (c LoginConfig) breakerOrDefault() breakerConfig {
 	if c.Breaker == nil {
 		return breakerDefaults()
 	}
 	return *c.Breaker
 }
 
-// RetryOrDefault 返回重试配置：未配置（nil）时返回缺省值。
-func (c LoginConfig) RetryOrDefault() RetryConfig {
+// retryOrDefault 返回重试配置：未配置（nil）时返回缺省值。
+func (c LoginConfig) retryOrDefault() retryConfig {
 	if c.Retry == nil {
 		return retryDefaults()
 	}
@@ -145,7 +145,7 @@ func (c LoginConfig) Validate() error {
 		errs = append(errs, fmt.Sprintf("login.rate_limit.burst must be >= 0 (got %v)", c.RateLimit.Burst))
 	}
 	// 熔断：仅在启用（段存在）时校验；未配置即禁用，不产生错误。
-	if br := c.BreakerOrDefault(); br.ErrorThreshold < 0 || br.ErrorThreshold > 1 {
+	if br := c.breakerOrDefault(); br.ErrorThreshold < 0 || br.ErrorThreshold > 1 {
 		errs = append(errs, fmt.Sprintf("login.breaker.error_threshold must be within [0,1] (got %v)", br.ErrorThreshold))
 	} else if c.BreakerEnabled() {
 		if br.RequestVolume <= 0 {
@@ -156,8 +156,8 @@ func (c LoginConfig) Validate() error {
 		}
 	}
 	// 重试：次数至少 1（含首次）；仅在启用时校验。
-	if c.RetryEnabled() {
-		if rt := c.RetryOrDefault(); rt.MaxAttempts < 1 {
+	if c.retryEnabled() {
+		if rt := c.retryOrDefault(); rt.MaxAttempts < 1 {
 			errs = append(errs, fmt.Sprintf("login.retry.max_attempts must be >= 1 (got %d)", rt.MaxAttempts))
 		}
 	}
@@ -245,7 +245,7 @@ func buildLoginBreaker(cfg LoginConfig) circuitbreaker.CircuitBreaker {
 	if !cfg.BreakerEnabled() {
 		return nil // 未配置：禁用态
 	}
-	br := cfg.BreakerOrDefault()
+	br := cfg.breakerOrDefault()
 	o := []hystrix.Option{}
 	if br.ErrorThreshold > 0 {
 		o = append(o, hystrix.WithErrorThreshold(br.ErrorThreshold))
@@ -275,10 +275,10 @@ func buildLoginBreaker(cfg LoginConfig) circuitbreaker.CircuitBreaker {
 // 分类器固定为 authbiz.RetryOnTransientDBError——**只重试瞬时故障**，
 // 不重试 ErrNotFound（确定性业务结果，重试只是浪费 DB 往返）。
 func buildLoginRetrier(cfg LoginConfig) *retry.Retrier {
-	if !cfg.RetryEnabled() {
+	if !cfg.retryEnabled() {
 		return nil // 未配置：禁用态
 	}
-	rt := cfg.RetryOrDefault()
+	rt := cfg.retryOrDefault()
 	o := []retry.Option{
 		retry.WithClassifier(authbiz.RetryOnTransientDBError),
 	}

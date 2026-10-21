@@ -6,12 +6,10 @@ package taskd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
-
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -46,19 +44,18 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "task",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-		st := d.TaskStore()
-			if st == nil {
-				return fmt.Errorf("taskd: store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			st, err := domains.RequireStore("taskd", "store", d.TaskStore())
+			if err != nil {
+				return err
 			}
 			biz = taskbiz.New(st)
 			wired = biz
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("taskd: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("taskd", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterTask(e, d.Authn(), d.Authz(), biz)
 			return nil

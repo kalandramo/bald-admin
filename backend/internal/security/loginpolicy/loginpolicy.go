@@ -22,17 +22,17 @@ import (
 
 // Method 常量（对齐源 proto 的 LoginPolicy.Method）。
 const (
-	MethodIP     = "IP"
-	MethodMAC    = "MAC"
-	MethodRegion = "REGION"
-	MethodTime   = "TIME"
-	MethodDevice = "DEVICE"
+	methodIP     = "IP"
+	methodMAC    = "MAC"
+	methodRegion = "REGION"
+	methodTime   = "TIME"
+	methodDevice = "DEVICE"
 )
 
 // Type 常量（对齐源 proto 的 LoginPolicy.Type）。
 const (
-	TypeBlacklist = "BLACKLIST"
-	TypeWhitelist = "WHITELIST"
+	typeBlacklist = "BLACKLIST"
+	typeWhitelist = "WHITELIST"
 )
 
 // ValidateValue 校验策略值格式（对齐源 ValidateLoginPolicyValue）。
@@ -43,7 +43,7 @@ func ValidateValue(method, value string) error {
 		return fmt.Errorf("policy value is empty")
 	}
 	switch strings.ToUpper(method) {
-	case MethodIP:
+	case methodIP:
 		// 含 "/" 按 CIDR 解析，否则按单个 IP。
 		if strings.Contains(value, "/") {
 			if _, _, err := net.ParseCIDR(value); err != nil {
@@ -55,7 +55,7 @@ func ValidateValue(method, value string) error {
 			return fmt.Errorf("invalid IP: %s", value)
 		}
 		return nil
-	case MethodTime:
+	case methodTime:
 		parts := strings.Split(value, "-")
 		if len(parts) != 2 {
 			return fmt.Errorf("time window must be HH:MM-HH:MM")
@@ -69,12 +69,12 @@ func ValidateValue(method, value string) error {
 			return fmt.Errorf("time window start equals end: %s", value)
 		}
 		return nil
-	case MethodDevice, MethodMAC:
+	case methodDevice, methodMAC:
 		if len(value) > 128 {
 			return fmt.Errorf("value too long")
 		}
 		return nil
-	case MethodRegion:
+	case methodRegion:
 		if len(value) > 32 {
 			return fmt.Errorf("region code too long")
 		}
@@ -105,7 +105,7 @@ func parseHHMM(s string) (int, bool) {
 // ValidateType 校验策略类型（BLACKLIST / WHITELIST）。
 func ValidateType(t string) error {
 	switch strings.ToUpper(t) {
-	case TypeBlacklist, TypeWhitelist:
+	case typeBlacklist, typeWhitelist:
 		return nil
 	}
 	return fmt.Errorf("unknown policy type: %s", t)

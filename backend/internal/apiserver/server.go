@@ -1,7 +1,7 @@
 // Package apiserver 是 bald-admin 的 HTTP 服务装配根（server 层）。
 //
-// 本层只剩**非域共面**的挂载（RegisterBaseFaces）与
-// 管理面 re-export：21 域的路由/gRPC 服务全部由各自域声明包
+// 本层只剩**非域共面**的挂载（RegisterBaseFaces）：
+// 21 域的路由/gRPC 服务全部由各自域声明包
 // （internal/apiserver/domains/<d>d）的 Routes/Services 注册——appkit 在业务
 // BeforeStart 之后逐域调用（声明序=执行序），域路由随 WithHTTP 声明的
 // *gin.Engine 挂载。认证/授权依赖由装配层注入，不在此写业务。
@@ -9,10 +9,6 @@ package apiserver
 
 import (
 	gingonic "github.com/gin-gonic/gin"
-
-	"github.com/kalandramo/bald/pkg/appkit"
-	"github.com/kalandramo/bald/pkg/authn"
-	"github.com/kalandramo/bald/pkg/authz"
 
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	"github.com/kalandramo/bald-admin/internal/apiserver/middleware/apiaudit"
@@ -33,14 +29,4 @@ func RegisterBaseFaces(e *gingonic.Engine) {
 	e.Use(apiaudit.Middleware())
 	hgin.RegisterServiceInfo(e)
 	hgin.RegisterOpenAPI(e)
-}
-
-// ComponentFactory 是管理面组件工厂的包级别名（re-export，供 cmd 层构造工厂目录）。
-type ComponentFactory = hgin.ComponentFactory
-
-// RegisterAdmin 挂载管理面路由（re-export）。
-func RegisterAdmin(e *gingonic.Engine, appFn func() *appkit.App,
-	authenticator authn.Authenticator, authorizer authz.Authorizer,
-	factories map[string]ComponentFactory) {
-	hgin.RegisterAdmin(e, appFn, authenticator, authorizer, factories)
 }

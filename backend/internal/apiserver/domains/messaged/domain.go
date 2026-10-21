@@ -6,12 +6,10 @@ package messaged
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
-
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -52,22 +50,30 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "message",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-		ms := d.MessageStore()
-		cs := d.CategoryStore()
-		rs := d.RecipientStore()
-		us := d.UserStore()
-			if ms == nil || cs == nil || rs == nil || us == nil {
-				return fmt.Errorf("messaged: store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			ms, err := domains.RequireStore("messaged", "store", d.MessageStore())
+			if err != nil {
+				return err
+			}
+			cs, err := domains.RequireStore("messaged", "store", d.CategoryStore())
+			if err != nil {
+				return err
+			}
+			rs, err := domains.RequireStore("messaged", "store", d.RecipientStore())
+			if err != nil {
+				return err
+			}
+			us, err := domains.RequireStore("messaged", "store", d.UserStore())
+			if err != nil {
+				return err
 			}
 			biz = msgbiz.New(ms, cs, rs, us)
 			wired = biz
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("messaged: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("messaged", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterMessage(e, d.Authn(), d.Authz(), biz)
 			return nil

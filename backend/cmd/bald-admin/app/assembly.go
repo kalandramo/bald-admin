@@ -36,6 +36,7 @@ import (
 	taskd "github.com/kalandramo/bald-admin/internal/apiserver/domains/taskd"
 	tenantd "github.com/kalandramo/bald-admin/internal/apiserver/domains/tenantd"
 	userd "github.com/kalandramo/bald-admin/internal/apiserver/domains/userd"
+	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
@@ -131,7 +132,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// demo.heartbeat 演示带 goroutine 的组件生命周期（Start 起心跳、Dispose 收），与
 	// StreamAuditor 同构；admin 角色经 /admin/components 端点挂载/卸载。
 	appRef := &appRefT{}
-	componentFactories := map[string]apiserver.ComponentFactory{
+	componentFactories := map[string]hgin.ComponentFactory{
 		"demo.heartbeat": func() appkit.Component { return newHeartbeatComponent(appRef.get) },
 	}
 

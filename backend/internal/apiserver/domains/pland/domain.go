@@ -6,12 +6,10 @@ package pland
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
-
 	planbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/plan"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -42,20 +40,25 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "plan",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-		ps := d.PlanStore()
-		ms := d.ModuleStore()
-		qs := d.QuotaStore()
-			if ps == nil || ms == nil || qs == nil {
-				return fmt.Errorf("pland: store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			ps, err := domains.RequireStore("pland", "store", d.PlanStore())
+			if err != nil {
+				return err
+			}
+			ms, err := domains.RequireStore("pland", "store", d.ModuleStore())
+			if err != nil {
+				return err
+			}
+			qs, err := domains.RequireStore("pland", "store", d.QuotaStore())
+			if err != nil {
+				return err
 			}
 			biz = planbiz.New(ps, ms, qs)
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("pland: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("pland", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterPlan(e, d.Authn(), d.Authz(), biz)
 			return nil

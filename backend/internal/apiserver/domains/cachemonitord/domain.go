@@ -12,13 +12,12 @@ package cachemonitord
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
 	goredis "github.com/redis/go-redis/v9"
 
 	cmbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/cachemonitor"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/authn"
@@ -47,9 +46,9 @@ func Domain(d Deps) appkit.Domain {
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("cachemonitord: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("cachemonitord", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterRedisCacheMonitor(e, d.Authn(), d.Authz(), biz)
 			return nil

@@ -11,7 +11,7 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald-admin/internal/apiserver"
+	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/pkg/appkit"
 )
@@ -67,7 +67,7 @@ func setupAdmin(t *testing.T) (*gingonic.Engine, *stubComp) {
 	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, nil, nil, nil)
-	apiserver.RegisterAdmin(e, func() *appkit.App { return app }, bootstrappkg.Authenticator, bootstrappkg.Authorizer, map[string]apiserver.ComponentFactory{
+	hgin.RegisterAdmin(e, func() *appkit.App { return app }, bootstrappkg.Authenticator, bootstrappkg.Authorizer, map[string]hgin.ComponentFactory{
 		"e2e.comp": func() appkit.Component { return comp },
 	})
 

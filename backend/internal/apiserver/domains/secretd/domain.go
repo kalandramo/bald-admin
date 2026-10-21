@@ -8,14 +8,13 @@ package secretd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"google.golang.org/grpc"
 
-	gingonic "github.com/gin-gonic/gin"
 	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/secret/v1"
 	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -46,18 +45,17 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "secret",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-			st := d.Store()
-			if st == nil {
-				return fmt.Errorf("secretd: secret store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			st, err := domains.RequireStore("secretd", "secret store", d.Store())
+			if err != nil {
+				return err
 			}
 			biz = secretbiz.New(st, d.Cache())
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("secretd: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("secretd", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterSecret(e, d.Authn(), d.Authz(), biz)
 			return nil

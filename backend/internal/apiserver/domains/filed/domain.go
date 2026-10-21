@@ -12,15 +12,14 @@ package filed
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"google.golang.org/grpc"
 
-	gingonic "github.com/gin-gonic/gin"
 	filev1 "github.com/kalandramo/bald-admin/api/gen/go/file/v1"
 	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -56,10 +55,9 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "file",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-			st := d.Store()
-			if st == nil {
-				return fmt.Errorf("filed: file store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			st, err := domains.RequireStore("filed", "file store", d.Store())
+			if err != nil {
+				return err
 			}
 			biz = filebiz.New(st, d.Minio(), d.Bucket())
 			// 补注：桥接就绪即覆盖构造期 minio
@@ -68,9 +66,9 @@ func Domain(d Deps) appkit.Domain {
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("filed: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("filed", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterFile(e, d.Authn(), d.Authz(), biz)
 			return nil

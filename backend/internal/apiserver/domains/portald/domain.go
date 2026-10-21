@@ -6,12 +6,10 @@ package portald
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
-
 	portalbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/portal"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -44,21 +42,29 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "portal",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-		us := d.UserStore()
-		rs := d.RoleStore()
-		ps := d.PermissionStore()
-		ms := d.MenuStore()
-			if us == nil || rs == nil || ps == nil || ms == nil {
-				return fmt.Errorf("portald: store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			us, err := domains.RequireStore("portald", "store", d.UserStore())
+			if err != nil {
+				return err
+			}
+			rs, err := domains.RequireStore("portald", "store", d.RoleStore())
+			if err != nil {
+				return err
+			}
+			ps, err := domains.RequireStore("portald", "store", d.PermissionStore())
+			if err != nil {
+				return err
+			}
+			ms, err := domains.RequireStore("portald", "store", d.MenuStore())
+			if err != nil {
+				return err
 			}
 			biz = portalbiz.New(us, rs, ps, ms)
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("portald: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("portald", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterAdminPortal(e, d.Authn(), d.Authz(), biz)
 			return nil

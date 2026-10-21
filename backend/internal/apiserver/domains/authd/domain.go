@@ -17,11 +17,8 @@ package authd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
-
-	gingonic "github.com/gin-gonic/gin"
 
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -30,6 +27,7 @@ import (
 	"github.com/kalandramo/bald/pkg/store"
 
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
@@ -75,10 +73,13 @@ func Domain(d Deps) appkit.Domain {
 			if err != nil {
 				return err
 			}
-			us, ts := d.UserStore(), d.TenantStore()
-			if us == nil || ts == nil {
-				return fmt.Errorf("authd: user/tenant store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			us, err := domains.RequireStore("authd", "user/tenant store", d.UserStore())
+			if err != nil {
+				return err
+			}
+			ts, err := domains.RequireStore("authd", "user/tenant store", d.TenantStore())
+			if err != nil {
+				return err
 			}
 			biz = authbiz.New(d.Signer(), us, ts, d.ReloadPolicies())
 			// 登录防护三件（nil=未配置禁用态，
@@ -98,9 +99,9 @@ func Domain(d Deps) appkit.Domain {
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("authd: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("authd", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterAuth(e, d.Authn(), d.Authz(), biz)
 			return nil

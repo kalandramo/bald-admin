@@ -9,14 +9,13 @@ package orgd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"google.golang.org/grpc"
 
-	gingonic "github.com/gin-gonic/gin"
 	identityv1 "github.com/kalandramo/bald-admin/api/gen/go/identity/v1"
 	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -47,28 +46,25 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "org",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-			ous := d.OrgUnitStore()
-			if ous == nil {
-				return fmt.Errorf("orgd: org unit store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			ous, err := domains.RequireStore("orgd", "org unit store", d.OrgUnitStore())
+			if err != nil {
+				return err
 			}
-			ps := d.PositionStore()
-			if ps == nil {
-				return fmt.Errorf("orgd: position store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			ps, err := domains.RequireStore("orgd", "position store", d.PositionStore())
+			if err != nil {
+				return err
 			}
-			us := d.UserStore()
-			if us == nil {
-				return fmt.Errorf("orgd: user store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			us, err := domains.RequireStore("orgd", "user store", d.UserStore())
+			if err != nil {
+				return err
 			}
 			biz = orgbiz.New(ous, ps, us)
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("orgd: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("orgd", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterOrg(e, d.Authn(), d.Authz(), biz)
 			return nil

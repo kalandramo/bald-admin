@@ -4,14 +4,13 @@ package menud
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"google.golang.org/grpc"
 
-	gingonic "github.com/gin-gonic/gin"
 	menuv1 "github.com/kalandramo/bald-admin/api/gen/go/menu/v1"
 	menubiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/menu"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -38,18 +37,17 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "menu",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-			st := d.Store()
-			if st == nil {
-				return fmt.Errorf("menud: menu store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			st, err := domains.RequireStore("menud", "menu store", d.Store())
+			if err != nil {
+				return err
 			}
 			biz = menubiz.New(st)
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("menud: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("menud", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterMenu(e, d.Authn(), d.Authz(), biz)
 			return nil

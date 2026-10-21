@@ -44,11 +44,6 @@ func badRequest(reason, format string, args ...any) error {
 	return berrors.BadRequest(reason).WithMessage(format, args...)
 }
 
-// notFound 构造 404。
-func notFound(reason, format string, args ...any) error {
-	return berrors.NotFound(reason).WithMessage(format, args...)
-}
-
 // conflict 构造 409。
 func conflict(reason, format string, args ...any) error {
 	return berrors.AlreadyExists(reason).WithMessage(format, args...)

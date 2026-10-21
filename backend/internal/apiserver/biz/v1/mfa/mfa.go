@@ -31,17 +31,10 @@ type Biz struct {
 	challenges  mfa.ChallengeStore
 }
 
-// New 构造 MFA Biz。st 是 MFA 因子仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，MFAFactorStore 已就绪）；challenges 为挑战存储，nil =
-// 运行期经 SetChallenges 补注。
+// New 构造 MFA Biz。st 是 MFA 因子仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，MFAFactorStore 已就绪）；challenges 为挑战存储
+//（nil=无 Redis 禁用态，biz 判 nil fail-closed）。
 func New(st *store.Store[authmodel.UserMFAFactor], challenges mfa.ChallengeStore) *Biz {
 	return &Biz{factorStore: st, challenges: challenges}
-}
-
-// SetChallenges 运行期注入挑战存储（nil 不覆盖）。
-func (b *Biz) SetChallenges(cs mfa.ChallengeStore) {
-	if cs != nil {
-		b.challenges = cs
-	}
 }
 
 // factorID 构造因子业务键（tenant:user:method），与 model 注释一致。

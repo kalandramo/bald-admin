@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -64,7 +65,7 @@ func TestReconcileAudit_MountLog(t *testing.T) {
 	if err := reconcileAudit(context.Background(), rctx); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	if !contains(app.ListComponents(), "log") {
+	if !slices.Contains(app.ListComponents(), "log") {
 		t.Fatalf("expected log mounted, got %v", app.ListComponents())
 	}
 	cap := &capturedAuditor{Auditor: securityaudit.Current()}
@@ -99,7 +100,7 @@ func TestReconcileAudit_RemoveOnEmpty(t *testing.T) {
 	if err := reconcileAudit(context.Background(), rctx); err != nil {
 		t.Fatalf("mount reconcile: %v", err)
 	}
-	if !contains(app.ListComponents(), "log") {
+	if !slices.Contains(app.ListComponents(), "log") {
 		t.Fatal("precondition: log should be mounted")
 	}
 
@@ -108,7 +109,7 @@ func TestReconcileAudit_RemoveOnEmpty(t *testing.T) {
 	if err := reconcileAudit(context.Background(), rctx2); err != nil {
 		t.Fatalf("remove reconcile: %v", err)
 	}
-	if contains(app.ListComponents(), "log") {
+	if slices.Contains(app.ListComponents(), "log") {
 		t.Fatalf("expected log removed, got %v", app.ListComponents())
 	}
 	// 全局审计器退回 nop：实际态表清空即代表已无生效后端。

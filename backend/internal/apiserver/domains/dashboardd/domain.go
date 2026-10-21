@@ -6,12 +6,10 @@ package dashboardd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
-
 	dashbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dashboard"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -42,20 +40,25 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "dashboard",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-		as := d.AuditStore()
-		rs := d.RoleStore()
-		us := d.UserStore()
-			if as == nil || rs == nil || us == nil {
-				return fmt.Errorf("dashboardd: store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			as, err := domains.RequireStore("dashboardd", "store", d.AuditStore())
+			if err != nil {
+				return err
+			}
+			rs, err := domains.RequireStore("dashboardd", "store", d.RoleStore())
+			if err != nil {
+				return err
+			}
+			us, err := domains.RequireStore("dashboardd", "store", d.UserStore())
+			if err != nil {
+				return err
 			}
 			biz = dashbiz.New(as, rs, us)
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("dashboardd: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("dashboardd", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterDashboard(e, d.Authn(), d.Authz(), biz)
 			return nil

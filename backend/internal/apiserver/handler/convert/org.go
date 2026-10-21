@@ -13,7 +13,7 @@ import (
 func OrgUnitToPB(m *orgbiz.OrgUnit) *identityv1.OrgUnit {
 	pb := &identityv1.OrgUnit{
 		Id: m.ID, Code: m.Code, Name: m.Name,
-		Type: ParseOrgType(m.Type), Status: ParseOrgStatus(m.Status),
+		Type: parseOrgType(m.Type), Status: parseOrgStatus(m.Status),
 		ParentId: m.ParentID, Path: m.Path, SortOrder: m.SortOrder,
 		LeaderId: m.LeaderID, LeaderName: m.LeaderName,
 		Remark: m.Remark, Description: m.Description,
@@ -32,7 +32,7 @@ func PositionToPB(m *orgbiz.Position) *identityv1.Position {
 	pb := &identityv1.Position{
 		Id: m.ID, Code: m.Code, Name: m.Name,
 		Headcount: m.Headcount, SortOrder: m.SortOrder,
-		Status: ParsePosStatus(m.Status), Type: ParsePosType(m.Type),
+		Status: parsePosStatus(m.Status), Type: parsePosType(m.Type),
 		Remark: m.Remark, Description: m.Description,
 		JobFamily: m.JobFamily, JobGrade: m.JobGrade,
 		Level: m.Level, IsKeyPosition: m.IsKeyPosition,
@@ -45,32 +45,32 @@ func PositionToPB(m *orgbiz.Position) *identityv1.Position {
 	return pb
 }
 
-// ParseOrgStatus 字符串状态 → 枚举（未知值回落 UNSPECIFIED）。
-func ParseOrgStatus(s string) identityv1.OrgUnit_Status {
+// parseOrgStatus 字符串状态 → 枚举（未知值回落 UNSPECIFIED）。
+func parseOrgStatus(s string) identityv1.OrgUnit_Status {
 	if v, ok := identityv1.OrgUnit_Status_value[s]; ok {
 		return identityv1.OrgUnit_Status(v)
 	}
 	return identityv1.OrgUnit_STATUS_UNSPECIFIED
 }
 
-// ParseOrgType 字符串类型 → 枚举。
-func ParseOrgType(s string) identityv1.OrgUnit_Type {
+// parseOrgType 字符串类型 → 枚举。
+func parseOrgType(s string) identityv1.OrgUnit_Type {
 	if v, ok := identityv1.OrgUnit_Type_value[s]; ok {
 		return identityv1.OrgUnit_Type(v)
 	}
 	return identityv1.OrgUnit_TYPE_UNSPECIFIED
 }
 
-// ParsePosStatus 字符串状态 → 枚举。
-func ParsePosStatus(s string) identityv1.Position_Status {
+// parsePosStatus 字符串状态 → 枚举。
+func parsePosStatus(s string) identityv1.Position_Status {
 	if v, ok := identityv1.Position_Status_value[s]; ok {
 		return identityv1.Position_Status(v)
 	}
 	return identityv1.Position_STATUS_UNSPECIFIED
 }
 
-// ParsePosType 字符串类型 → 枚举。
-func ParsePosType(s string) identityv1.Position_Type {
+// parsePosType 字符串类型 → 枚举。
+func parsePosType(s string) identityv1.Position_Type {
 	if v, ok := identityv1.Position_Type_value[s]; ok {
 		return identityv1.Position_Type(v)
 	}

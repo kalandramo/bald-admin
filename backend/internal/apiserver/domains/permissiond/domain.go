@@ -4,14 +4,13 @@ package permissiond
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"google.golang.org/grpc"
 
-	gingonic "github.com/gin-gonic/gin"
 	permissionv1 "github.com/kalandramo/bald-admin/api/gen/go/permission/v1"
 	permissionbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permission"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	secretgrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -40,18 +39,17 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "permission",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-			st := d.Store()
-			if st == nil {
-				return fmt.Errorf("permissiond: permission store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			st, err := domains.RequireStore("permissiond", "permission store", d.Store())
+			if err != nil {
+				return err
 			}
 			biz = permissionbiz.New(st, d.PolicyStore())
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("permissiond: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("permissiond", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterPermission(e, d.Authn(), d.Authz(), biz)
 			return nil

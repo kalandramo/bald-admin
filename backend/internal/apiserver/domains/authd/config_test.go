@@ -22,7 +22,7 @@ func TestDecodeLogin_AbsentSectionStaysDisabled(t *testing.T) {
 	if cfg.RateLimit.Rate != 0 || cfg.RateLimit.Burst != 0 {
 		t.Errorf("rate limit should decode to disabled (0), got %v/%v", cfg.RateLimit.Rate, cfg.RateLimit.Burst)
 	}
-	if cfg.BreakerEnabled() || cfg.RetryEnabled() {
+	if cfg.BreakerEnabled() || cfg.retryEnabled() {
 		t.Fatal("absent segments must not be enabled")
 	}
 	if buildLoginLimiter(cfg) != nil {
@@ -53,13 +53,13 @@ func TestDecodeLogin_PresenceEnables(t *testing.T) {
 	if !cfg.BreakerEnabled() {
 		t.Error("breaker segment present but not enabled")
 	}
-	if !cfg.RetryEnabled() {
+	if !cfg.retryEnabled() {
 		t.Error("retry segment present but not enabled")
 	}
-	if br := cfg.BreakerOrDefault(); br.ErrorThreshold != 0.6 {
+	if br := cfg.breakerOrDefault(); br.ErrorThreshold != 0.6 {
 		t.Errorf("decoded breaker.error_threshold = %v, want 0.6", br.ErrorThreshold)
 	}
-	if rt := cfg.RetryOrDefault(); rt.MaxAttempts != 5 {
+	if rt := cfg.retryOrDefault(); rt.MaxAttempts != 5 {
 		t.Errorf("decoded retry.max_attempts = %d, want 5", rt.MaxAttempts)
 	}
 	if buildLoginBreaker(cfg) == nil {
@@ -119,11 +119,11 @@ func TestLoginConfig_Validate(t *testing.T) {
 		wantErr bool
 	}{
 		{"零值合法", LoginConfig{}, false},
-		{"限流 rate 为负", LoginConfig{RateLimit: RateLimitConfig{Rate: -1}}, true},
-		{"限流 burst 为负", LoginConfig{RateLimit: RateLimitConfig{Burst: -1}}, true},
-		{"重试次数为负（启用后）", LoginConfig{Retry: &RetryConfig{MaxAttempts: -1}}, true},
-		{"熔断错误率越界（启用后）", LoginConfig{Breaker: &BreakerConfig{ErrorThreshold: 1.5}}, true},
-		{"熔断请求量为零（启用后）", LoginConfig{Breaker: &BreakerConfig{ErrorThreshold: 0.5}}, true},
+		{"限流 rate 为负", LoginConfig{RateLimit: rateLimitConfig{Rate: -1}}, true},
+		{"限流 burst 为负", LoginConfig{RateLimit: rateLimitConfig{Burst: -1}}, true},
+		{"重试次数为负（启用后）", LoginConfig{Retry: &retryConfig{MaxAttempts: -1}}, true},
+		{"熔断错误率越界（启用后）", LoginConfig{Breaker: &breakerConfig{ErrorThreshold: 1.5}}, true},
+		{"熔断请求量为零（启用后）", LoginConfig{Breaker: &breakerConfig{ErrorThreshold: 0.5}}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -141,8 +141,8 @@ func TestLoginConfig_Validate(t *testing.T) {
 // 校验必须**聚合**全部错误，不是 fail-fast 首个。
 func TestLoginConfig_ValidateAggregatesAllErrors(t *testing.T) {
 	cfg := LoginConfig{
-		RateLimit: RateLimitConfig{Rate: -1},
-		Retry:     &RetryConfig{MaxAttempts: 0},
+		RateLimit: rateLimitConfig{Rate: -1},
+		Retry:     &retryConfig{MaxAttempts: 0},
 	}
 	err := cfg.Validate()
 	if err == nil {

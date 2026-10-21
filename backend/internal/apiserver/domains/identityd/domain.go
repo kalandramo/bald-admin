@@ -6,12 +6,10 @@ package identityd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	gingonic "github.com/gin-gonic/gin"
-
 	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
+	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	"github.com/kalandramo/bald/pkg/appkit"
@@ -40,19 +38,21 @@ func Domain(d Deps) appkit.Domain {
 	return appkit.Domain{
 		Name: "identity",
 		Wire: func(_ context.Context, _ *appkit.App) error {
-		cs := d.CredentialStore()
-		lps := d.LoginPolicyStore()
-			if cs == nil || lps == nil {
-				return fmt.Errorf("identityd: store not ready " +
-					"(InitBridges must run in business BeforeStart before domain Wire)")
+			cs, err := domains.RequireStore("identityd", "store", d.CredentialStore())
+			if err != nil {
+				return err
+			}
+			lps, err := domains.RequireStore("identityd", "store", d.LoginPolicyStore())
+			if err != nil {
+				return err
 			}
 			biz = identitybiz.New(cs, lps)
 			return nil
 		},
 		Routes: func(h http.Handler) error {
-			e, ok := h.(*gingonic.Engine)
-			if !ok {
-				return fmt.Errorf("identityd: HTTP face is %T, want *gin.Engine (the domain owns its router coupling)", h)
+			e, err := domains.AssertGin("identityd", h)
+			if err != nil {
+				return err
 			}
 			hgin.RegisterIdentity(e, d.Authn(), d.Authz(), biz)
 			return nil

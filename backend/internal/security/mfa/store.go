@@ -13,10 +13,10 @@ import (
 const (
 	// EnrollTTL 是注册挑战有效期。
 	EnrollTTL = 10 * time.Minute
-	// LoginTTL 是登录挑战有效期。
-	LoginTTL = 5 * time.Minute
-	// EnrollCooldown 是注册发起冷却（防循环 Start 塞 Redis，源同此语义）。
-	EnrollCooldown = 30 * time.Second
+	// loginTTL 是登录挑战有效期。
+	loginTTL = 5 * time.Minute
+	// enrollCooldown 是注册发起冷却（防循环 Start 塞 Redis，源同此语义）。
+	enrollCooldown = 30 * time.Second
 	// MaxLoginFailures 是登录挑战最大失败次数（超过即作废挑战，防暴破）。
 	// 6 位码空间 10^6，5 次失败后作废已足够安全。
 	MaxLoginFailures = 5
@@ -42,7 +42,7 @@ func NewRedisChallengeStore(rdb goredis.UniversalClient) *RedisChallengeStore {
 
 // SetEnroll 实现 ChallengeStore。
 func (s *RedisChallengeStore) SetEnroll(ctx context.Context, ec EnrollContext) (string, error) {
-	opID := NewOperationID()
+	opID := newOperationID()
 	raw, err := json.Marshal(ec)
 	if err != nil {
 		return "", fmt.Errorf("mfa: marshal enroll ctx: %w", err)
@@ -73,12 +73,12 @@ func (s *RedisChallengeStore) DeleteEnroll(ctx context.Context, opID string) {
 
 // SetLogin 实现 ChallengeStore。
 func (s *RedisChallengeStore) SetLogin(ctx context.Context, lc LoginChallengeContext) (string, error) {
-	opID := NewOperationID()
+	opID := newOperationID()
 	raw, err := json.Marshal(lc)
 	if err != nil {
 		return "", fmt.Errorf("mfa: marshal login ctx: %w", err)
 	}
-	if err := s.rdb.Set(ctx, keyLogin(opID), raw, LoginTTL).Err(); err != nil {
+	if err := s.rdb.Set(ctx, keyLogin(opID), raw, loginTTL).Err(); err != nil {
 		return "", fmt.Errorf("mfa: set login: %w", err)
 	}
 	return opID, nil
@@ -104,7 +104,7 @@ func (s *RedisChallengeStore) RecordLoginFailure(ctx context.Context, opID strin
 	if err != nil {
 		return false
 	}
-	s.rdb.Expire(ctx, keyFail(opID), LoginTTL)
+	s.rdb.Expire(ctx, keyFail(opID), loginTTL)
 	if n >= MaxLoginFailures {
 		s.rdb.Del(ctx, keyLogin(opID), keyFail(opID))
 		return true
@@ -121,7 +121,7 @@ func (s *RedisChallengeStore) TakeLoginAtomic(ctx context.Context, opID string) 
 
 // TryAcquireEnrollCooldown 尝试获取注册冷却锁（返回 false = 冷却中）。
 func (s *RedisChallengeStore) TryAcquireEnrollCooldown(ctx context.Context, tenantID, userID string) bool {
-	ok, err := s.rdb.SetNX(ctx, keyCooldown(tenantID, userID), "1", EnrollCooldown).Result()
+	ok, err := s.rdb.SetNX(ctx, keyCooldown(tenantID, userID), "1", enrollCooldown).Result()
 	if err != nil {
 		// Redis 故障：**fail-closed**（拒绝）——MFA 是安全边界。
 		return false
