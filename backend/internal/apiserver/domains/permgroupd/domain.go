@@ -31,6 +31,14 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
+// wired 是域 Wire 构造的 biz 端口。授权记录装饰器（bootstrap.Authorizer 最外层的
+// RecordingAuthorizer）经装配层注入的迟到 getter 读取同一实例——与 taskd/messaged
+// 同款（见 taskd/domain.go 的 Biz() 注），无双构造。
+var wired *pgbiz.Biz
+
+// Biz 返回 permgroup 域的 biz 端口（未 Wire 时 nil——调用方判空即降级不记录）。
+func Biz() *pgbiz.Biz { return wired }
+
 // Domain 返回 permgroup 域的装配声明值。Routes 委托 hgin.RegisterPermGroup——传输适配
 // 不搬家；无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
@@ -47,6 +55,7 @@ func Domain(d Deps) appkit.Domain {
 				return err
 			}
 			biz = pgbiz.New(gs, els)
+			wired = biz
 			return nil
 		},
 		Routes: func(h http.Handler) error {

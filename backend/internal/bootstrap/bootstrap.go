@@ -109,6 +109,31 @@ func ReloadPolicies() error {
 	return policyReloader()
 }
 
+// evalRecorder 是策略评估日志的写入面（由 Authorizer 最外层的 RecordingAuthorizer
+// 在**请求期**读取）。
+//
+// 为什么又是包级钩子（与 policyReloader 同款桥接）：写入面是 permgroup 域的 Biz，
+// 而 permgroup 的测试文件已 import 本包取仓储聚合（repos_test.go 的
+// LastRepositories）——bootstrap 反向 import permgroup 会在测试构建期成环
+// （"import cycle not allowed in test"）。故由装配层注入（唯一调用点见
+// cmd/bald-admin/app/assembly.go 的 SetEvalRecorder）。
+//
+// 未注入时装饰器纯透传：判定语义与接线前逐字一致，评估日志保持既有「读为主」形态。
+//
+// 存的是 getter 而非实例：写入面（permgroup 域 biz）在域 Wire 才构造，晚于
+// InitBridges——传实例会把装配顺序焊死成依赖环，传 getter 则装饰器只在请求期解析。
+var evalRecorder func() appauthz.EvaluationRecorder
+
+// SetEvalRecorder 注入策略评估日志写入面的迟到取用函数（nil = 关闭记录）。
+//
+// 调用时机不敏感：Authorizer 装的是「读包级变量再调用」的闭包，故本函数在
+// InitBridges 之后调用同样生效。与 policyReloader 同纪律——装配期注入一次，
+// 运行期只读，不加锁。
+//
+// getter 返回 nil 接口是「暂不记录」的正规形态；持有可能是 nil 的 *Biz 指针时
+// **必须先判空再返回**（typed-nil 装进接口后 != nil，会在写入时空指针解引用）。
+func SetEvalRecorder(fn func() appauthz.EvaluationRecorder) { evalRecorder = fn }
+
 // buildAuthorizer 从 DB 重建 casbin 授权器（策略真源 = RolePolicy 表 + User.Roles）。
 // 供 main 装配 ReloadableAuthorizer 的 build 函数使用（InitBridges 内的首次构造
 // 也走同一逻辑，保证首次与重载语义一致）。
@@ -437,7 +462,18 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	// 命名（"org-units"）；casbin 精确匹配下 gRPC 面恒 403（实测复现）。
 	// 装饰器在内层**明确拒绝**后按别名重试一次，不放宽任何语义边界。
 	// 详见 internal/security/authz/alias.go 头注与 grpcObjectAliases 的对应说明。
-	Authorizer = appauthz.NewObjectAlias(reloadable, grpcObjectAliases)
+	alias := appauthz.NewObjectAlias(reloadable, grpcObjectAliases)
+	// 最外层再包一层判定记录装饰器：每次授权判定（allow 与 deny 都记）落一条
+	// 策略评估日志，GET /v1/policy-evaluation-logs 从此有真实数据。
+	// 写入面经闭包在**请求期**读包级钩子（装配期 permgroup 域尚未 Wire，且
+	// bootstrap 不能直接 import 它——见 SetEvalRecorder 注），未注入即纯透传。
+	// 装在最外层还有一层含义：别名重试发生在内层，一次请求只产生一条日志。
+	Authorizer = appauthz.NewRecording(alias, func() appauthz.EvaluationRecorder {
+		if evalRecorder == nil {
+			return nil
+		}
+		return evalRecorder()
+	})
 	// 热重载仍指向内层：别名层无状态，重建策略快照即可。
 	setPolicyReloader(reloadable.Reload)
 

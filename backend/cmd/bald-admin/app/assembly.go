@@ -39,6 +39,7 @@ import (
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	appauthz "github.com/kalandramo/bald-admin/internal/security/authz"
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
 	"github.com/kalandramo/bald-admin/internal/security/token"
@@ -555,6 +556,18 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			// 赋给**函数作用域**变量（非 `:=` 新建）——运行期 gRPC 选项工厂
 			// 与 SSE 工厂读取同一实例。
 			authenticator = token.NewRevocationChecker(bootstrappkg.Authenticator, tokenStore)
+			// 策略评估日志写入面接线：bootstrappkg.Authorizer 最外层的
+			// RecordingAuthorizer 经本钩子在**请求期**迟到取用 permgroup 域 biz。
+			// 此刻域 Wire 尚未执行（permgroupd.Biz() 仍为 nil），故注入 getter 而非
+			// 实例——判空即降级不记录（typed-nil 装进接口 != nil，会空指针解引用）。
+			// 授权器是所有域与 gRPC/SSE/管理面共用的同一实例，故一处接线覆盖全部
+			// 判定，不止 permgroup 路由；写入失败/panic 不改判定（装饰器 best-effort）。
+			bootstrappkg.SetEvalRecorder(func() appauthz.EvaluationRecorder {
+				if b := permgroupd.Biz(); b != nil {
+					return b
+				}
+				return nil
+			})
 			authorizer = bootstrappkg.Authorizer
 			// 共面挂载（api 审计中间件 + service info + openapi）。21 域的路由
 			// 由各域声明包的 Routes 注册——本钩子（业务 BeforeStart）先于域装配
