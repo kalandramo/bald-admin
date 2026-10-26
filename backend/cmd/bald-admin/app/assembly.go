@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -60,6 +57,7 @@ import (
 	miniocontract "github.com/kalandramo/bald/oss/minio/contract"
 	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/kalandramo/bald/pkg/appkit/appcli"
 	"github.com/kalandramo/bald/pkg/appkit/mech"
 	"github.com/kalandramo/bald/pkg/appkit/std"
 	"github.com/kalandramo/bald/pkg/authn"
@@ -627,59 +625,20 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	return opts
 }
 
-// NewCommand 构造 bald-admin 根命令。
+// Execute 构建并执行根命令（serve 为默认行为），返回错误交由调用方（main 包）
+// 决定退出码——CLI 机制单轨进 pkg/appkit/appcli（bald ≥ v0.27.0）：FParseErr
+// 白名单、k8s 风格 flag 错误 UX、--version / version 子命令、kubectl 风格插件
+// 转发（前缀 = 二进制名，即 bald-admin-<name>，与旧手写版同行为；差异只有一条：
+// 插件未找到时不再往 stderr 多打一行提示，交 cobra 原生处理未知参数）。
 //
-// **flag 的注册不在 cobra 层**——root 不注册任何 flag（无 Flags()/PersistentFlags()
-// 调用）。全部 flag 由 Serve 路径的 loadConfig 自建 pflag.FlagSet 注册，两类来源
-// 合流：
-//   - 框架：Serve 硬编码绑定 `--server.http.*` / `--server.grpc.*` 与 `--log.*`
-//     壳（appkit 装配），外加 --config（parseConfigFlag）；
-//   - 业务：本包的 appkit.Bind("", svrOpts) → ServerOptions.AddFlags，
-//     注册 `--biz.*` 系业务项（login 段键名归 authd.FlagOptions）。
-//
-// 二者经同一个装载 FlagSet 合流，共享「flag > env > 文件 > 远程」优先级。
-//
-// 故 cobra 只需放行未知 flag（FParseErrWhitelist.UnknownFlags）——否则它解析
-// os.Args 时会因不认识 `--config` / `--server.http.addr` / `--biz.*` 而提前
-// 报错退出。cobra 在这里只负责「识别子命令 + 放行参数」，不参与 flag 定义。
-func NewCommand() *cobra.Command {
-	root := &cobra.Command{
-		Use:   "bald-admin",
-		Short: "bald-admin 服务（bald 重构范例）",
-		RunE:  serveRunE,
-	}
-	root.FParseErrWhitelist.UnknownFlags = true
-	return root
-}
-
-// Execute 构建并执行根命令，返回错误交由调用方（main 包）决定退出码。
-//
-// kubectl 风格插件发现：首参非已知子命令（且非 flag）时转发到 PATH 中的
-// bald-admin-<name>；PATH 中无匹配插件则回落到根命令，由其打印错误并用帮助。
+// **flag 的注册不在 cobra 层**——root 不注册任何 flag。全部 flag 由 Serve 路径的
+// loadConfig 自建 pflag.FlagSet 注册，两类来源合流：框架 flag（appkit 内化的
+// `--server.http.*` / `--server.grpc.*` / `--log.*` 壳，外加 --config）与业务
+// flag（appkit.Bind("", svrOpts) → ServerOptions.AddFlags 注册 `--biz.*` 系，
+// login 段键名归 authd.FlagOptions）。二者经同一个装载 FlagSet 合流，共享
+// 「flag > env > 文件 > 远程」优先级。所以 cobra 只放行未知 flag——它识别子命令、
+// 放行参数，不参与 flag 定义。
 func Execute() error {
-	root := NewCommand()
-	if len(os.Args) > 1 {
-		sub := os.Args[1]
-		if !strings.HasPrefix(sub, "-") && !isKnownCommand(root, sub) {
-			plugin := "bald-admin-" + sub
-			path, err := exec.LookPath(plugin)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "unknown command %q (and no plugin %q found in PATH)\n", sub, plugin)
-				return root.Execute()
-			}
-			cmd := exec.Command(path, os.Args[2:]...)
-			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-			return cmd.Run()
-		}
-	}
-	return root.Execute()
-}
-
-func isKnownCommand(root *cobra.Command, name string) bool {
-	for _, c := range root.Commands() {
-		if c.Name() == name {
-			return true
-		}
-	}
-	return false
+	return appcli.Main("bald-admin", "bald-admin 服务（bald 重构范例）", serveRunE,
+		appcli.WithPlugins())
 }
