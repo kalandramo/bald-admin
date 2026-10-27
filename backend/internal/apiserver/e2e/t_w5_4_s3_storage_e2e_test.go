@@ -12,12 +12,15 @@ package e2e
 // 用 `bald/oss/s3` 客户端连**真实 S3 兼容服务**（本地 MinIO 或远程 MinIO，
 // 经 env 注入），完成 PutObject → GetObject 往返。缺 env 则整组 Skip。
 //
-//	BALD_ADMIN_TEST_S3_ENDPOINT   host:port（必填，缺省整组 Skip）
-//	BALD_ADMIN_TEST_S3_ACCESS_KEY （必填）
-//	BALD_ADMIN_TEST_S3_SECRET_KEY （必填）
-//	BALD_ADMIN_TEST_S3_REGION     （默认 us-east-1）
-//	BALD_ADMIN_TEST_S3_USE_SSL    "true"/"false"（默认 false）
-//	BALD_ADMIN_TEST_S3_BUCKET     （必填，须已存在的桶——s3 封装无建桶 API）
+//	BALD_E2E_S3_ENDPOINT   host:port（必填，缺省整组 Skip）
+//	BALD_E2E_S3_ACCESS_KEY （必填）
+//	BALD_E2E_S3_SECRET_KEY （必填）
+//	BALD_E2E_S3_REGION     （默认 us-east-1）
+//	BALD_E2E_S3_USE_SSL    "true"/"false"（默认 false）
+//	BALD_E2E_S3_BUCKET     （必填，须已存在的桶——s3 封装无建桶 API）
+//
+// 命名空间：e2e 夹具 env 一律 BALD_E2E_*/MINIO_TEST_*，不得用 BALD_ADMIN_ 前缀
+// （那是配置覆盖命名空间，会被 env 层注入契约校验）。
 //
 // ## 签名差异（核心验证点）
 //
@@ -46,18 +49,18 @@ import (
 // s3TestConfig 从 env 读 s3 测试配置（缺必填项则 Skip）。
 func s3TestConfig(t *testing.T) (endpoint, ak, sk, region, bucket string, useSSL bool) {
 	t.Helper()
-	endpoint = os.Getenv("BALD_ADMIN_TEST_S3_ENDPOINT")
-	ak = os.Getenv("BALD_ADMIN_TEST_S3_ACCESS_KEY")
-	sk = os.Getenv("BALD_ADMIN_TEST_S3_SECRET_KEY")
-	bucket = os.Getenv("BALD_ADMIN_TEST_S3_BUCKET")
+	endpoint = os.Getenv("BALD_E2E_S3_ENDPOINT")
+	ak = os.Getenv("BALD_E2E_S3_ACCESS_KEY")
+	sk = os.Getenv("BALD_E2E_S3_SECRET_KEY")
+	bucket = os.Getenv("BALD_E2E_S3_BUCKET")
 	if endpoint == "" || ak == "" || sk == "" || bucket == "" {
-		t.Skip("BALD_ADMIN_TEST_S3_* not set: skip real-S3 e2e (no fake allowed)")
+		t.Skip("BALD_E2E_S3_* not set: skip real-S3 e2e (no fake allowed)")
 	}
-	region = os.Getenv("BALD_ADMIN_TEST_S3_REGION")
+	region = os.Getenv("BALD_E2E_S3_REGION")
 	if region == "" {
 		region = "us-east-1"
 	}
-	useSSL = os.Getenv("BALD_ADMIN_TEST_S3_USE_SSL") == "true"
+	useSSL = os.Getenv("BALD_E2E_S3_USE_SSL") == "true"
 	return
 }
 

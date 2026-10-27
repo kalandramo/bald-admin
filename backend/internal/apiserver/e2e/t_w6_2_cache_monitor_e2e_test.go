@@ -11,7 +11,7 @@ package e2e
 //
 //  1. **Redis 不可用**（本机无本地 Redis，RedisClient=nil）：断言返回 200 +
 //     空视图（fail-soft 语义的直接证据，不需外部依赖）。
-//  2. **Redis 可用**（env 注入 `BALD_ADMIN_TEST_REDIS_ADDR`）：断言 INFO 分节
+//  2. **Redis 可用**（env 注入 `BALD_E2E_REDIS_ADDR`，与 redis_test_helper 同源）：断言 INFO 分节
 //     解析 + DBSIZE 返回——真实数据验证。缺 env 则跳过该段。
 
 import (
@@ -40,11 +40,11 @@ func startCacheMonitorREST(t *testing.T) string {
 	repos = bootstrappkg.LastRepositories()
 	// 若 env 提供 Redis，注入真实客户端（否则保持 nil → fail-soft 空视图）。
 	// **必须传密码**：远程 Redis 开了 ACL 认证，无密码会 WRONGPASS（实测踩坑）。
-	if addr := os.Getenv("BALD_ADMIN_TEST_REDIS_ADDR"); addr != "" {
+	if addr := os.Getenv("BALD_E2E_REDIS_ADDR"); addr != "" {
 		rdb := goredis.NewClient(&goredis.Options{
 			Addr:     addr,
-			Password: os.Getenv("BALD_ADMIN_TEST_REDIS_PASSWORD"),
-			DB:       atoiSafe(os.Getenv("BALD_ADMIN_TEST_REDIS_DB")),
+			Password: os.Getenv("BALD_E2E_REDIS_PASSWORD"),
+			DB:       atoiSafe(os.Getenv("BALD_E2E_REDIS_DB")),
 		})
 		t.Cleanup(func() { _ = rdb.Close() })
 		bootstrappkg.RedisClient = rdb
@@ -92,10 +92,10 @@ func TestWave6_2_CacheMonitorFailSoft(t *testing.T) {
 
 // TestWave6_2_CacheMonitorWithRedis Redis 可用时返回真实 INFO/DBSIZE。
 //
-// 需 env BALD_ADMIN_TEST_REDIS_ADDR；缺省 Skip（不伪装通过）。
+// 需 env BALD_E2E_REDIS_ADDR；缺省 Skip（不伪装通过）。
 func TestWave6_2_CacheMonitorWithRedis(t *testing.T) {
-	if os.Getenv("BALD_ADMIN_TEST_REDIS_ADDR") == "" {
-		t.Skip("BALD_ADMIN_TEST_REDIS_ADDR not set: skip real-Redis e2e (no fake allowed)")
+	if os.Getenv("BALD_E2E_REDIS_ADDR") == "" {
+		t.Skip("BALD_E2E_REDIS_ADDR not set: skip real-Redis e2e (no fake allowed)")
 	}
 	base := startCacheMonitorREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")

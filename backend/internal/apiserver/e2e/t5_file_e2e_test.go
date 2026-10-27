@@ -3,11 +3,15 @@ package e2e
 // t5_file_e2e_test.go 文件管理 REST e2e（验收）：真实 gin 引擎 + httptest +
 // 真实 MinIO（外部依赖禁止 fake/mock/stub）。MinIO 连接经 env 注入：
 //
-//	BALD_ADMIN_TEST_MINIO_ENDPOINT   host:port（必填，缺省则整组 Skip）
-//	BALD_ADMIN_TEST_MINIO_ACCESS_KEY （必填）
-//	BALD_ADMIN_TEST_MINIO_SECRET_KEY （必填）
-//	BALD_ADMIN_TEST_MINIO_USE_SSL    "true"/"false"（默认 false）
-//	BALD_ADMIN_TEST_MINIO_BUCKET     files 类兜底桶（默认 go-bald-admin-test）
+//	MINIO_TEST_ENDPOINT   host:port（必填，缺省则整组 Skip）
+//	MINIO_TEST_ACCESS_KEY （必填）
+//	MINIO_TEST_SECRET_KEY （必填）
+//	MINIO_TEST_USE_SSL    "true"/"false"（默认 false）
+//	MINIO_TEST_BUCKET     files 类兜底桶（默认 go-bald-admin-test）
+//
+// 命名空间教训：测试夹具 env 不得用 BALD_ADMIN_ 前缀——那是 app name 派生的
+// 配置覆盖命名空间（environMap 按前缀注入契约合并），CI 曾因此把装配测试
+// 连红八场（unknown contract keys: .test）。
 //
 // 验收点：
 //  1. 上传 → 下载内容一致（真实 MinIO 往返；PNG 魔术头嗅探 → images 桶）
@@ -56,13 +60,13 @@ var png1x1 = []byte{
 // 不引入任何 fake）。返回 base URL、file biz 与 MinIO Storage（落桶断言用）。
 func startFileREST(t *testing.T) (string, *filebiz.Biz, *miniooss.Storage) {
 	t.Helper()
-	endpoint := os.Getenv("BALD_ADMIN_TEST_MINIO_ENDPOINT")
-	accessKey := os.Getenv("BALD_ADMIN_TEST_MINIO_ACCESS_KEY")
-	secretKey := os.Getenv("BALD_ADMIN_TEST_MINIO_SECRET_KEY")
+	endpoint := os.Getenv("MINIO_TEST_ENDPOINT")
+	accessKey := os.Getenv("MINIO_TEST_ACCESS_KEY")
+	secretKey := os.Getenv("MINIO_TEST_SECRET_KEY")
 	if endpoint == "" || accessKey == "" || secretKey == "" {
-		t.Skip("BALD_ADMIN_TEST_MINIO_* not set: skip real-MinIO e2e (no fake allowed)")
+		t.Skip("MINIO_TEST_* not set: skip real-MinIO e2e (no fake allowed)")
 	}
-	bucket := os.Getenv("BALD_ADMIN_TEST_MINIO_BUCKET")
+	bucket := os.Getenv("MINIO_TEST_BUCKET")
 	if bucket == "" {
 		bucket = "go-bald-admin-test"
 	}
@@ -75,7 +79,7 @@ func startFileREST(t *testing.T) (string, *filebiz.Biz, *miniooss.Storage) {
 		Endpoint:  endpoint,
 		AccessKey: accessKey,
 		SecretKey: secretKey,
-		UseSsl:    os.Getenv("BALD_ADMIN_TEST_MINIO_USE_SSL") == "true",
+		UseSsl:    os.Getenv("MINIO_TEST_USE_SSL") == "true",
 	})
 	// 连通性预检：MinIO 不可达即失败（快速失败优于半途 panic）
 	if _, err := mc.SDK().ListBuckets(context.Background()); err != nil {

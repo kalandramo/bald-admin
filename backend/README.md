@@ -142,7 +142,7 @@ go test -shuffle=on ./...
 | 依赖 | Task 目标 | 注入的 env |
 |---|---|---|
 | Redis（token/captcha/MFA/broker） | `task test:redis` | `BALD_E2E_REDIS_ADDR`（默认 `127.0.0.1:6379`）、`BALD_E2E_REDIS_PASSWORD` |
-| MinIO（文件模块） | `task test:file` | `BALD_ADMIN_TEST_MINIO_ENDPOINT` 等 |
+| MinIO（文件模块） | `task test:file` | `MINIO_TEST_ENDPOINT` 等 |
 
 ```bash
 # 指向非本地 Redis（如集群内实例；受管实例通常强制鉴权，必须带密码）

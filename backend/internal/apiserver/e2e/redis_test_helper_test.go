@@ -13,7 +13,7 @@ package e2e
 //
 // 本文件把连接参数收敛为一处，并支持环境变量覆盖——**与仓库既有惯例一致**
 // （`t_w4_4_registry_e2e_test.go` 的 `BALD_E2E_ETCD_ADDR`、
-// `t5_file_e2e_test.go` 的 `BALD_ADMIN_TEST_MINIO_*`）。
+// `t5_file_e2e_test.go` 的 `MINIO_TEST_*`）。
 //
 // ## 用法
 //
