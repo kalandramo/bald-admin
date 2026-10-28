@@ -13,7 +13,7 @@ package app
 //     （observability-otlp 函数契约缝 + 暴露端自持）。audit 段见 audit_wiring.go。
 //
 // App 绑定：Serve 路径下 App 由框架内部构造，业务声明期拿不到实例——阶段 B
-// Provider 的 BuildScope.App 是业务侧唯一取用点（本仓的管理面 handler 经
+// Provider 的 ApplyScope.App 是业务侧唯一取用点（本仓的管理面 handler 经
 // appRef 请求期取 App、BeforeStart 经 appRef 读 Settings，都依赖此绑定）。
 // 绑定由 appBindingProvider 承担：契约 app 段被 bconf.NewBootstrap 预填（恒
 // 存在），且 app 顶层段缺省相位即阶段 B——故它**无条件**触发，不依赖任何
@@ -25,6 +25,7 @@ import (
 
 	baldbootstrap "github.com/kalandramo/bald/bootstrap"
 	baldconfig "github.com/kalandramo/bald/bootstrap/config"
+	"github.com/kalandramo/bald/cache"
 	otlpcontract "github.com/kalandramo/bald/contrib/observability-otlp/contract"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/log/bslog"
@@ -73,9 +74,23 @@ type configSourceProvider struct{}
 func (configSourceProvider) Segments() []string { return []string{"config"} }
 
 // Apply 把自身追加进声明（Provider 即 Option，可直接作为 MustServe 变参项）。
-func (configSourceProvider) Apply(d *appkit.Decl) { d.Providers = append(d.Providers, configSourceProvider{}) }
+func (configSourceProvider) Apply(d *appkit.Decl) {
+	d.Providers = append(d.Providers, configSourceProvider{})
+}
 
-func (configSourceProvider) Build(ctx context.Context, s appkit.BuildScope) (any, appkit.Cleanup, error) {
+// Plan 声明构造期配置层节点（config 段无条件构建，层先于 App 构造）。
+// 配置源自身变更需重启（ReloadRestart）：远端层在构造期已订阅，不能原地换源。
+func (configSourceProvider) Plan(context.Context, appkit.PlanScope) ([]appkit.Node, error) {
+	return []appkit.Node{{
+		Key:      "config",
+		Kind:     "config",
+		Segments: []string{"config"},
+		Phase:    appkit.PhaseConfigure,
+		Reload:   appkit.ReloadRestart,
+	}}, nil
+}
+
+func (configSourceProvider) Build(ctx context.Context, s appkit.ApplyScope, _ appkit.Node) (any, appkit.Cleanup, error) {
 	l, closer, err := baldbootstrap.NacosProvider()(ctx, s.Config)
 	if err != nil {
 		return nil, nil, fmt.Errorf("config source nacos: %w", err)
@@ -108,11 +123,32 @@ func (configSourceProvider) Build(ctx context.Context, s appkit.BuildScope) (any
 //     client，无 cleanup）。
 type cacheRedisProvider struct{}
 
+// CacheRedis 是本业务 cache.redis Provider 的类型化句柄。产物是 cache.Cache
+// 适配器（非官方 contract 的 *rediscache.Cache——本业务需要底层原生 client，
+// 见下方取舍说明）。
+var CacheRedis = appkit.NewKey[cache.Cache]("cache.redis")
+
 func (cacheRedisProvider) Segments() []string { return []string{"cache.redis"} }
 
-func (cacheRedisProvider) Apply(d *appkit.Decl) { d.Providers = append(d.Providers, cacheRedisProvider{}) }
+func (cacheRedisProvider) Apply(d *appkit.Decl) {
+	d.Providers = append(d.Providers, cacheRedisProvider{})
+}
 
-func (cacheRedisProvider) Build(ctx context.Context, s appkit.BuildScope) (any, appkit.Cleanup, error) {
+// Plan 声明 cache 段节点：阶段 B、cache 优先级，停机效果名沿用旧 canonical 名。
+// 客户端地址变更需重启（ReloadRestart）：连接池/底层 client 不原地重建。
+func (cacheRedisProvider) Plan(context.Context, appkit.PlanScope) ([]appkit.Node, error) {
+	return []appkit.Node{{
+		Key:        "cache.redis",
+		Kind:       "cache",
+		Segments:   []string{"cache.redis"},
+		Phase:      appkit.PhaseBootstrap,
+		Priority:   appkit.PriorityCache,
+		EffectName: "appkit:cache-clients",
+		Reload:     appkit.ReloadRestart,
+	}}, nil
+}
+
+func (cacheRedisProvider) Build(ctx context.Context, s appkit.ApplyScope, _ appkit.Node) (any, appkit.Cleanup, error) {
 	rc := s.Config.GetCache().GetRedis()
 	if rc == nil || rc.GetAddr() == "" {
 		return map[string]any{}, nil, nil // 段存在但空 addr：禁用态（与 resolveRedis 空返回同构）
@@ -140,7 +176,23 @@ func (tracerProvider) Segments() []string { return []string{"tracer"} }
 
 func (tracerProvider) Apply(d *appkit.Decl) { d.Providers = append(d.Providers, tracerProvider{}) }
 
-func (tracerProvider) Build(ctx context.Context, s appkit.BuildScope) (any, appkit.Cleanup, error) {
+// Plan 声明 tracer 节点：阶段 B、追踪优先级；停机排在 logger/metrics 之后
+// （先 flush 指标、再关追踪，最后由 logger 收尾）。OTLP 上报端变更需重启
+// （ReloadRestart）：全局 TracerProvider 不可原地替换。
+func (tracerProvider) Plan(context.Context, appkit.PlanScope) ([]appkit.Node, error) {
+	return []appkit.Node{{
+		Key:           "tracer",
+		Kind:          "tracer",
+		Segments:      []string{"tracer"},
+		Phase:         appkit.PhaseBootstrap,
+		Priority:      appkit.PriorityTracer,
+		TeardownAfter: []appkit.ResourceKey{"logger", "metrics"},
+		EffectName:    "appkit:tracer-shutdown",
+		Reload:        appkit.ReloadRestart,
+	}}, nil
+}
+
+func (tracerProvider) Build(ctx context.Context, s appkit.ApplyScope, _ appkit.Node) (any, appkit.Cleanup, error) {
 	tc := s.Config.GetTracer()
 	if tc == nil {
 		return nil, nil, nil // 段缺省：不装配
@@ -181,7 +233,23 @@ func (metricsProvider) Segments() []string { return []string{"metrics"} }
 
 func (metricsProvider) Apply(d *appkit.Decl) { d.Providers = append(d.Providers, metricsProvider{}) }
 
-func (metricsProvider) Build(ctx context.Context, s appkit.BuildScope) (any, appkit.Cleanup, error) {
+// Plan 声明 metrics 节点：阶段 B、指标优先级；停机排在 logger 之后（先停
+// 暴露端、再 flush 直推通道，尾批指标不丢）。暴露端/上报端变更需重启
+// （ReloadRestart）：MeterProvider 与监听口不可原地替换。
+func (metricsProvider) Plan(context.Context, appkit.PlanScope) ([]appkit.Node, error) {
+	return []appkit.Node{{
+		Key:           "metrics",
+		Kind:          "metrics",
+		Segments:      []string{"metrics"},
+		Phase:         appkit.PhaseBootstrap,
+		Priority:      appkit.PriorityMetrics,
+		TeardownAfter: []appkit.ResourceKey{"logger"},
+		EffectName:    "appkit:metrics-server",
+		Reload:        appkit.ReloadRestart,
+	}}, nil
+}
+
+func (metricsProvider) Build(ctx context.Context, s appkit.ApplyScope, _ appkit.Node) (any, appkit.Cleanup, error) {
 	mc := s.Config.GetMetrics()
 	if mc == nil {
 		return nil, nil, nil // 段缺省：不装配
@@ -231,7 +299,22 @@ func (p loggerProvider) Segments() []string { return []string{"logger"} }
 
 func (p loggerProvider) Apply(d *appkit.Decl) { d.Providers = append(d.Providers, p) }
 
-func (p loggerProvider) Build(_ context.Context, s appkit.BuildScope) (any, appkit.Cleanup, error) {
+// Plan 声明 logger 节点：阶段 B、日志优先级，效果名与内置引导 logger 一致
+// （热更重建按该槽位原子换槽）。logger 段可协调（ReloadReconcile）：热更按
+// 两阶段协议重建全局 Logger，旧后端 cleanup 在换槽时兑现。
+func (p loggerProvider) Plan(context.Context, appkit.PlanScope) ([]appkit.Node, error) {
+	return []appkit.Node{{
+		Key:        "logger",
+		Kind:       "logger",
+		Segments:   []string{"logger"},
+		Phase:      appkit.PhaseBootstrap,
+		Priority:   appkit.PriorityLogger,
+		EffectName: "appkit:bootstrap-logger",
+		Reload:     appkit.ReloadReconcile,
+	}}, nil
+}
+
+func (p loggerProvider) Build(_ context.Context, s appkit.ApplyScope, _ appkit.Node) (any, appkit.Cleanup, error) {
 	l := s.Config.GetLogger()
 	if l == nil {
 		// 阶段 A（契约装载前）：引导 bslog——启动期日志仍带脱敏。
@@ -267,11 +350,11 @@ func (p loggerProvider) Build(_ context.Context, s appkit.BuildScope) (any, appk
 // app 段：App 实例绑定（无条件触发的阶段 B Provider）
 // ---------------------------------------------------------------------------
 
-// appBindingProvider 把 BuildScope.App 绑定给业务侧句柄（appRef）。契约 app
+// appBindingProvider 把 ApplyScope.App 绑定给业务侧句柄（appRef）。契约 app
 // 段被 bconf.NewBootstrap 预填、恒存在，app 顶层段缺省相位即阶段 B（appkit.
 // phaseByTop）——故本 Provider 在每次 Serve 装配中**无条件**触发，App 绑定不
 // 依赖任何业务段是否配置。无产物、无清理（纯副作用绑定）。
-type appBindingProvider struct{
+type appBindingProvider struct {
 	// bindApp 由装配方提供（appRef.set）；nil 在 Build 时显式失败（装配缺陷）。
 	bindApp func(*appkit.App)
 }
@@ -280,7 +363,20 @@ func (appBindingProvider) Segments() []string { return []string{"app"} }
 
 func (p appBindingProvider) Apply(d *appkit.Decl) { d.Providers = append(d.Providers, p) }
 
-func (p appBindingProvider) Build(ctx context.Context, s appkit.BuildScope) (any, appkit.Cleanup, error) {
+// Plan 声明 App 绑定节点：app 段（框架恒消费的顶层段）、阶段 B、优先级 0
+// ——绑定排在任何资源 Provider 之前，后续 Provider/BeforeStart 都拿得到 App。
+// Key 用 "app.binding" 避开框架合成的 app 元数据节点（同 Key 即冲突）。
+func (appBindingProvider) Plan(context.Context, appkit.PlanScope) ([]appkit.Node, error) {
+	return []appkit.Node{{
+		Key:      "app.binding",
+		Kind:     "app",
+		Segments: []string{"app"},
+		Phase:    appkit.PhaseBootstrap,
+		Priority: 0,
+	}}, nil
+}
+
+func (p appBindingProvider) Build(ctx context.Context, s appkit.ApplyScope, _ appkit.Node) (any, appkit.Cleanup, error) {
 	if p.bindApp == nil {
 		return nil, nil, fmt.Errorf("appBindingProvider: bindApp not wired (assembly bug)")
 	}

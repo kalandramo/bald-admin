@@ -56,7 +56,7 @@ func TestAuditProvider_StreamBackendAssembled(t *testing.T) {
 	// App 传 nil：store 后端在无 DB 时 fail-open（NewStore(nil)），
 	// stream 后端从包级 RedisClient 取连接——两者都不依赖资源面。
 	p := auditProvider{}
-	prod, cleanup, err := p.Build(context.Background(), appkit.BuildScope{Config: cfg})
+	prod, cleanup, err := p.Build(context.Background(), appkit.ApplyScope{Config: cfg}, appkit.Node{})
 	if err != nil {
 		t.Fatalf("Build with stream backend failed: %v\n"+
 			"（契约轨未接管 stream 后端？错误应直指缺失后端）", err)
@@ -101,5 +101,5 @@ func waitStreamLen(t *testing.T, rdb *goredis.Client, stream string, want int64)
 	t.Fatalf("stream %q length = %d, want >= %d（事件未发布到 Redis Stream）", stream, last, want)
 }
 
-// 保证 appkit 被引用（BuildScope 含 *App 字段）。
+// 保证 appkit 被引用（ApplyScope 含 *App 字段）。
 var _ = (*appkit.App)(nil)

@@ -25,10 +25,11 @@ import (
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	auditgorm "github.com/kalandramo/bald/contrib/audit-gorm"
 	auditstream "github.com/kalandramo/bald/contrib/audit-stream"
+	storegorm "github.com/kalandramo/bald/contrib/store-gorm"
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/audit"
-	gormpkg "gorm.io/gorm"
 	goredis "github.com/redis/go-redis/v9"
+	gormpkg "gorm.io/gorm"
 
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
@@ -37,14 +38,31 @@ import (
 // auditProvider 消费 audit 段：按 audit.backends 列表逐后端构造，多后端组装、
 // 构造失败逆序回滚收敛在 pkg/audit.Compose（列表序即广播序）。后端构造时点
 // 在阶段 B 的 audit 槽位——引擎保证其排在 database/cache 客户端之后（canonical
-// 序），故 store 后端此刻可经 App.Resource("database.sql") 取真实连接。
+// 序），故 store 后端此刻可经 storegorm.SQL.Resource(app) 取真实连接。
 type auditProvider struct{}
 
 func (auditProvider) Segments() []string { return []string{"audit"} }
 
 func (auditProvider) Apply(d *appkit.Decl) { d.Providers = append(d.Providers, auditProvider{}) }
 
-func (auditProvider) Build(ctx context.Context, s appkit.BuildScope) (any, appkit.Cleanup, error) {
+// Plan 声明 audit 节点：阶段 B、审计优先级（依赖 database/cache 客户端就绪）；
+// 停机用 ["*"] 排到最后——stream 尾批审计事件在指标/span flush 之后收集。
+// audit 段变更可原地重建后端链（ReloadReconcile）：新链就绪后旧链在替换槽位
+// 时被兑现，不泄漏。
+func (auditProvider) Plan(context.Context, appkit.PlanScope) ([]appkit.Node, error) {
+	return []appkit.Node{{
+		Key:           "audit",
+		Kind:          "audit",
+		Segments:      []string{"audit"},
+		Phase:         appkit.PhaseBootstrap,
+		Priority:      appkit.PriorityAudit,
+		TeardownAfter: []appkit.ResourceKey{"*"},
+		EffectName:    "appkit:audit-restore",
+		Reload:        appkit.ReloadReconcile,
+	}}, nil
+}
+
+func (auditProvider) Build(ctx context.Context, s appkit.ApplyScope, _ appkit.Node) (any, appkit.Cleanup, error) {
 	acfg := s.Config.GetAudit()
 	if acfg == nil {
 		return nil, nil, nil // 段缺省：不装配（引擎仅在段存在时调用，防御性）
@@ -140,16 +158,12 @@ func resolveAuditRedis() goredis.UniversalClient {
 
 // resolveAuditDB 从已装配资源取审计落库用的 *gorm.DB。
 //
-// 优先契约装配的 sql 客户端（App.Resource("database.sql")，
+// 优先契约装配的 sql 客户端（storegorm.SQL.Resource(res)），
 // 取不到返回 nil（buildStoreAuditor 走 fail-open
 // 分支）。res 可为 nil（直测 Provider 时无 App）。
 func resolveAuditDB(res *appkit.App) *gormpkg.DB {
-	if res != nil {
-		if v, ok := res.Resource("database.sql"); ok {
-			if db, ok := v.(*gormpkg.DB); ok && db != nil {
-				return db
-			}
-		}
+	if db, ok := storegorm.SQL.Resource(res); ok && db != nil {
+		return db
 	}
 	return nil
 }

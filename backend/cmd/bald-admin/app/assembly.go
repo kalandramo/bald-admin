@@ -172,7 +172,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// app 段被契约预填恒存在，本 Provider 无条件触发（见 providers.go）。
 		appBindingProvider{bindApp: appRef.set},
 		// storegorm.AppProvider()：契约 database.sql 段 → *gorm.DB，产物经
-		// app.Resource("database.sql") 取用，停机自动释放连接池。
+		// storegorm.SQL.Resource(app) 取用，停机自动释放连接池。
 		storegorm.AppProvider(),
 		// 配置源（config 段：nacos 远程层）与注册中心（registry.nacos 段）。
 		configSourceProvider{},
@@ -499,21 +499,21 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			router.Use(ginBundle.Gin()...)
 
 			// 契约装配实例注入桥接变量（Provider 产物；nil 实例 = 降级态，Wire* 对
-			// nil 为 no-op，InitBridges 走自建/降级）。资源按契约段路径取用
-			// （App.Resource(segment)，any+断言——类型安全在消费侧）。
-			if v, ok := app.Resource("database.sql"); ok {
-				bootstrappkg.WireDatabase(v)
+			// nil 为 no-op，InitBridges 走自建/降级）。资源经 Provider 导出的
+			// 类型化句柄取用（Key[T]，类型不符即 miss）。
+			if db, ok := storegorm.SQL.Resource(app); ok {
+				bootstrappkg.WireDatabase(db)
 			}
-			if v, ok := app.Resource("cache.redis"); ok {
-				bootstrappkg.WireCache(v)
+			if c, ok := CacheRedis.Resource(app); ok {
+				bootstrappkg.WireCache(c)
 			}
-			if v, ok := app.Resource("storage.minio"); ok {
-				bootstrappkg.WireStorage(v)
+			if st, ok := miniocontract.MinIO.Resource(app); ok {
+				bootstrappkg.WireStorage(st)
 			}
 			// storage.type=s3 时装配 s3 后端（与 minio 互斥择一）。
 			// WireStorage 按实际类型分派，两者共用 ObjectStorageBridge。
-			if v, ok := app.Resource("storage.s3"); ok {
-				bootstrappkg.WireStorage(v)
+			if st, ok := s3contract.S3.Resource(app); ok {
+				bootstrappkg.WireStorage(st)
 			}
 			// 注入真实依赖配置（业务自持 file.bucket；database/cache/storage
 			// 段已由 Provider 消费，此处仅传桥接所需的余下配置）。
