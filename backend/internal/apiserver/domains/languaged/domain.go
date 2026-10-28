@@ -36,7 +36,8 @@ type Deps struct {
 func Domain(d Deps) appkit.Domain {
 	var biz *langbiz.Biz
 	return appkit.Domain{
-		Name: "language",
+		Name:    "language",
+		Declare: declare,
 		Wire: func(_ context.Context, _ *appkit.App) error {
 			st, err := domains.RequireStore("languaged", "language store", d.Store())
 			if err != nil {
@@ -54,4 +55,20 @@ func Domain(d Deps) appkit.Domain {
 			return nil
 		},
 	}
+}
+
+// declare 声明域的拓扑（Domain v2 迁移期形态，bald 设计 §4.6）：HTTP 面存在
+// 才有路由节点；实际注册仍由 Routes 完成，引擎把它塌缩成兼容接线的
+// domain.language.wire 节点，路由节点声明「serve 时点前已挂载」的依赖事实。
+func declare(_ context.Context, s appkit.PlanScope) ([]appkit.Node, error) {
+	if s.Decl.HTTPHandler == nil {
+		return nil, nil
+	}
+	return []appkit.Node{{
+		Key:       "domain.language.routes",
+		Segments:  []string{"server.http"},
+		Phase:     appkit.PhaseServe,
+		Priority:  10,
+		DependsOn: []appkit.ResourceKey{"domain.language.wire"},
+	}}, nil
 }
