@@ -2,9 +2,9 @@ package app
 
 // plan_declared_domain_test.go —— Domain v2 声明面的回归锁。
 //
-// language 域是 bald-admin 首个用 Domain.Declare 声明拓扑的域（bald 设计
-// §4.6 迁移期形态）：路由从「整块 Opaque」变成计划里的具名节点（段与依赖
-// 可检视），实际构造仍收在兼容接线节点 domain.language.wire。本测试走生产
+// language/dict 是 bald-admin 首批用 Domain.Declare 声明拓扑的域（bald 设计
+// §4.6 迁移期形态）：路由/服务从「整块 Opaque」变成计划里的具名节点（段与
+// 依赖可检视），实际构造仍收在兼容接线节点 domain.<name>.wire。本测试走生产
 // 装配声明（appOptions）编译计划，锁住这两半——若 Declare 被删或节点语义
 // 回退，计划里就看得到。
 
@@ -22,7 +22,7 @@ import (
 	"github.com/kalandramo/bald-admin/cmd/bald-admin/app/options"
 )
 
-func TestPlan_LanguageDomainDeclaresRoutes(t *testing.T) {
+func TestPlan_DeclaredDomains(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "configs"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "configs", "bald-admin.yaml"),
@@ -33,21 +33,33 @@ func TestPlan_LanguageDomainDeclaresRoutes(t *testing.T) {
 	p, err := appkit.Compile(context.Background(), opts...)
 	require.NoError(t, err)
 
-	var routes, compat *appkit.Node
+	byKey := make(map[appkit.ResourceKey]*appkit.Node, len(p.Nodes))
 	for i := range p.Nodes {
-		switch p.Nodes[i].Key {
-		case "domain.language.routes":
-			routes = &p.Nodes[i]
-		case "domain.language.wire":
-			compat = &p.Nodes[i]
-		}
+		byKey[p.Nodes[i].Key] = &p.Nodes[i]
 	}
 
-	require.NotNil(t, routes, "language 域应声明 domain.language.routes")
-	assert.False(t, routes.Opaque, "声明节点不应是逃逸舱")
-	assert.Equal(t, []string{"server.http"}, routes.Segments)
-	assert.Contains(t, routes.DependsOn, appkit.ResourceKey("domain.language.wire"))
+	cases := []struct {
+		domain   string
+		key      string
+		segments []string
+	}{
+		{domain: "language", key: "domain.language.routes", segments: []string{"server.http"}},
+		{domain: "dict", key: "domain.dict.routes", segments: []string{"server.http"}},
+		{domain: "dict", key: "domain.dict.services", segments: []string{"server.grpc"}},
+	}
+	for _, c := range cases {
+		n := byKey[appkit.ResourceKey(c.key)]
+		require.NotNil(t, n, "%s 域应声明节点 %s", c.domain, c.key)
+		assert.False(t, n.Opaque, "%s 应为声明节点（非逃逸舱）", c.key)
+		assert.Equal(t, c.segments, n.Segments, "%s 的段", c.key)
+		assert.Contains(t, n.DependsOn, appkit.ResourceKey("domain."+c.domain+".wire"),
+			"%s 应依赖兼容接线节点", c.key)
+	}
 
-	require.NotNil(t, compat, "兼容接线应收在 domain.language.wire")
-	assert.True(t, compat.Opaque, "迁移期构造仍不透明")
+	// 兼容接线节点承接实际构造：仍为 Opaque，且不再逐槽位投影。
+	for _, dom := range []string{"language", "dict"} {
+		compat := byKey[appkit.ResourceKey("domain."+dom+".wire")]
+		require.NotNil(t, compat, "%s 的兼容接线应收在 domain.%s.wire", dom, dom)
+		assert.True(t, compat.Opaque, "%s 迁移期构造仍不透明", dom)
+	}
 }

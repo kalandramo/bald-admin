@@ -47,7 +47,8 @@ type Deps struct {
 func Domain(d Deps) appkit.Domain {
 	var biz *dictbiz.Biz
 	return appkit.Domain{
-		Name: "dict",
+		Name:    "dict",
+		Declare: declare,
 		Wire: func(_ context.Context, _ *appkit.App) error {
 			ts, err := domains.RequireStore("dictd", "dict type store", d.TypeStore())
 			if err != nil {
@@ -73,4 +74,30 @@ func Domain(d Deps) appkit.Domain {
 			dictv1.RegisterDictEntryServiceServer(s, secretgrpc.NewDictEntryServer(biz))
 		},
 	}
+}
+
+// declare 声明域的拓扑（Domain v2 迁移期形态，bald 设计 §4.6）：HTTP/gRPC 面
+// 存在才声明对应节点；实际注册仍由 Routes/Services 完成，引擎把它们与 Wire
+// 一起塌缩成兼容接线节点 domain.dict.wire。
+func declare(_ context.Context, s appkit.PlanScope) ([]appkit.Node, error) {
+	var nodes []appkit.Node
+	if s.Decl.HTTPHandler != nil {
+		nodes = append(nodes, appkit.Node{
+			Key:       "domain.dict.routes",
+			Segments:  []string{"server.http"},
+			Phase:     appkit.PhaseServe,
+			Priority:  10,
+			DependsOn: []appkit.ResourceKey{"domain.dict.wire"},
+		})
+	}
+	if s.Config.GetServer().GetGrpc() != nil {
+		nodes = append(nodes, appkit.Node{
+			Key:       "domain.dict.services",
+			Segments:  []string{"server.grpc"},
+			Phase:     appkit.PhaseServe,
+			Priority:  5,
+			DependsOn: []appkit.ResourceKey{"domain.dict.wire"},
+		})
+	}
+	return nodes, nil
 }

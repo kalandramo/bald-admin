@@ -623,11 +623,11 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 计划缓存：真实启动记录计划基线，doctor 据此报告相对上次的装配变更
 		//（本地文件，非执行依据）。
 		appkit.WithPlanCache(".bald/plan-cache.json"),
-		// 逃逸舱预算：当前 20 个业务域均未用 Domain.Declare、基建 Provider 仍带
-		// Opaque 标记，计划期 Opaque 恒为 50。预算=当前值：不产生告警，但任何
-		// 新增逃逸舱（新 legacy Provider / 新 Opaque 槽位）会让 --plan/doctor
-		// 出现 opaque-budget 告警——确定性只能靠预算守住，不靠人记。
-		appkit.WithOpaqueBudget(50),
+		// 逃逸舱预算：当前 18 个 legacy 域 + 2 个已声明域（language/dict 的兼容
+		// 接线各占 1）+ 基建 Provider 的 Opaque，计划期 Opaque 恒为 47。预算=当前值：
+		// 不产生告警，但任何新增逃逸舱（新 legacy Provider / 新 Opaque 槽位）会让
+		// --plan/doctor 出现 opaque-budget 告警——确定性只能靠预算守住，不靠人记。
+		appkit.WithOpaqueBudget(47),
 	}
 
 	return opts
