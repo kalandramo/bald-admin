@@ -640,5 +640,9 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 // 放行参数，不参与 flag 定义。
 func Execute() error {
 	return appcli.Main("bald-admin", "bald-admin 服务（bald 重构范例）", serveRunE,
-		appcli.WithPlugins())
+		appcli.WithPlugins(),
+		// doctor：与 serve 同一份装配 Options——报告必须与真实启动同源。
+		appcli.WithDoctor(func(ctx context.Context) error {
+			return appkit.Doctor(ctx, appOptions(options.NewServerOptions())...)
+		}))
 }
