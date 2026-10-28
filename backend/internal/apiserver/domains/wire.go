@@ -1,4 +1,6 @@
-// Package domains 持有各域装配声明包（同级 <name>d 子包）共享的 Wire/Routes 小工具。
+// Package domains 持有各域装配声明包（同级 <name>d 子包）共享的装配小工具：
+// Wire/Routes 守卫（AssertGin/RequireStore）与 biz+routes 通用拓扑
+// （StandardDomain，见 standard.go）。
 package domains
 
 import (

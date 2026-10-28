@@ -9,7 +9,7 @@ package languaged
 
 import (
 	"context"
-	"fmt"
+	"net/http"
 
 	langbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/language"
 	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
@@ -31,52 +31,27 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 language 域的装配声明值（ApplyNode 形态：biz 节点构造领域
-// 能力，routes 节点委托 hgin.RegisterLanguage——传输适配不搬家；无 gRPC 面
-// 故无 Services，域不再产生 Opaque 兼容节点）。
+// Domain 返回 language 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain）：biz 节点构造领域能力，routes 节点委托
+// hgin.RegisterLanguage——传输适配不搬家；无 gRPC 面故无 Services。
 func Domain(d Deps) appkit.Domain {
 	var biz *langbiz.Biz
-	return appkit.Domain{
-		Name:    "language",
-		Declare: declare,
-		ApplyNode: func(_ context.Context, app *appkit.App, node appkit.Node) error {
-			switch node.Key {
-			case "domain.language.biz":
-				st, err := domains.RequireStore("languaged", "language store", d.Store())
-				if err != nil {
-					return err
-				}
-				biz = langbiz.New(st)
-				return nil
-			case "domain.language.routes":
-				e, err := domains.AssertGin("languaged", app.HTTPHandler())
-				if err != nil {
-					return err
-				}
-				hgin.RegisterLanguage(e, d.Authn(), d.Authz(), biz)
-				return nil
+	return domains.StandardDomain("language", "languaged",
+		func(context.Context, *appkit.App) error {
+			st, err := domains.RequireStore("languaged", "language store", d.Store())
+			if err != nil {
+				return err
 			}
-			return fmt.Errorf("languaged: unknown declared node %q", node.Key)
+			biz = langbiz.New(st)
+			return nil
 		},
-	}
-}
-
-// declare 声明域的拓扑：biz 节点恒有（构造领域能力），HTTP 面存在才有路由
-// 节点。节点按计划序执行（设计 §4.6）。
-func declare(_ context.Context, s appkit.PlanScope) ([]appkit.Node, error) {
-	nodes := []appkit.Node{{
-		Key:      "domain.language.biz",
-		Phase:    appkit.PhaseWire,
-		Priority: 10,
-	}}
-	if s.Decl.HTTPHandler == nil {
-		return nodes, nil
-	}
-	return append(nodes, appkit.Node{
-		Key:       "domain.language.routes",
-		Segments:  []string{"server.http"},
-		Phase:     appkit.PhaseServe,
-		Priority:  10,
-		DependsOn: []appkit.ResourceKey{"domain.language.biz"},
-	}), nil
+		func(h http.Handler) error {
+			e, err := domains.AssertGin("languaged", h)
+			if err != nil {
+				return err
+			}
+			hgin.RegisterLanguage(e, d.Authn(), d.Authz(), biz)
+			return nil
+		},
+	)
 }

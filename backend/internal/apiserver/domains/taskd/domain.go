@@ -37,13 +37,13 @@ var wired *taskbiz.Biz
 // Biz 返回 task 域的 biz 端口（未 Wire 时 nil——装配回调判空即降级不接线）。
 func Biz() *taskbiz.Biz { return wired }
 
-// Domain 返回 task 域的装配声明值。Routes 委托 hgin.RegisterTask——传输适配
-// 不搬家；无 gRPC 面，Services 不声明。
+// Domain 返回 task 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain）：routes 委托 hgin.RegisterTask——传输适配不搬家；
+// 无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *taskbiz.Biz
-	return appkit.Domain{
-		Name: "task",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	return domains.StandardDomain("task", "taskd",
+		func(context.Context, *appkit.App) error {
 			st, err := domains.RequireStore("taskd", "store", d.TaskStore())
 			if err != nil {
 				return err
@@ -52,7 +52,7 @@ func Domain(d Deps) appkit.Domain {
 			wired = biz
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("taskd", h)
 			if err != nil {
 				return err
@@ -60,5 +60,5 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterTask(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-	}
+	)
 }

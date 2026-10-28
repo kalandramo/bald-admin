@@ -33,13 +33,13 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 mfa 域的装配声明值。Routes 委托 hgin.RegisterMFA——传输适配
-// 不搬家；无 gRPC 面，Services 不声明。
+// Domain 返回 mfa 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain）：routes 委托 hgin.RegisterMFA——传输适配不搬家；
+// 无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *mfabiz.Biz
-	return appkit.Domain{
-		Name: "mfa",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	return domains.StandardDomain("mfa", "mfad",
+		func(context.Context, *appkit.App) error {
 			st, err := domains.RequireStore("mfad", "store", d.FactorStore())
 			if err != nil {
 				return err
@@ -47,7 +47,7 @@ func Domain(d Deps) appkit.Domain {
 			biz = mfabiz.New(st, d.Challenges())
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("mfad", h)
 			if err != nil {
 				return err
@@ -55,5 +55,5 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterMFA(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-	}
+	)
 }

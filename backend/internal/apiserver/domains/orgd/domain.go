@@ -39,13 +39,13 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 org 域的装配声明值（Routes 委托 hgin.RegisterOrg、Services 委托
-// secretgrpc.NewOrgServer/NewPositionServer——传输适配不搬家）。
+// Domain 返回 org 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain；Services 委托 secretgrpc.NewOrgServer/NewPositionServer
+// ——传输适配不搬家）。
 func Domain(d Deps) appkit.Domain {
 	var biz *orgbiz.Biz
-	return appkit.Domain{
-		Name: "org",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	dom := domains.StandardDomain("org", "orgd",
+		func(context.Context, *appkit.App) error {
 			ous, err := domains.RequireStore("orgd", "org unit store", d.OrgUnitStore())
 			if err != nil {
 				return err
@@ -61,7 +61,7 @@ func Domain(d Deps) appkit.Domain {
 			biz = orgbiz.New(ous, ps, us)
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("orgd", h)
 			if err != nil {
 				return err
@@ -69,9 +69,10 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterOrg(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-		Services: func(s *grpc.Server) {
-			identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(biz))
-			identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(biz))
-		},
+	)
+	dom.Services = func(s *grpc.Server) {
+		identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(biz))
+		identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(biz))
 	}
+	return dom
 }

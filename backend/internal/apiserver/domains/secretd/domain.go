@@ -38,13 +38,12 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 secret 域的装配声明值。Routes 委托 hgin.RegisterSecret（受限资源
-// 两路由）、Services 委托 secretgrpc.NewServer——传输适配不搬家。
+// Domain 返回 secret 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain；Services 委托 secretgrpc.NewServer——传输适配不搬家）。
 func Domain(d Deps) appkit.Domain {
 	var biz *secretbiz.SecretBiz
-	return appkit.Domain{
-		Name: "secret",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	dom := domains.StandardDomain("secret", "secretd",
+		func(context.Context, *appkit.App) error {
 			st, err := domains.RequireStore("secretd", "secret store", d.Store())
 			if err != nil {
 				return err
@@ -52,7 +51,7 @@ func Domain(d Deps) appkit.Domain {
 			biz = secretbiz.New(st, d.Cache())
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("secretd", h)
 			if err != nil {
 				return err
@@ -60,8 +59,9 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterSecret(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-		Services: func(s *grpc.Server) {
-			adminv1.RegisterSecretServiceServer(s, secretgrpc.NewServer(biz))
-		},
+	)
+	dom.Services = func(s *grpc.Server) {
+		adminv1.RegisterSecretServiceServer(s, secretgrpc.NewServer(biz))
 	}
+	return dom
 }

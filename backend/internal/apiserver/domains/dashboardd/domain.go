@@ -33,13 +33,13 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 dashboard 域的装配声明值。Routes 委托 hgin.RegisterDashboard——传输适配
+// Domain 返回 dashboard 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain）：routes 委托 hgin.RegisterDashboard——传输适配
 // 不搬家；无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *dashbiz.Biz
-	return appkit.Domain{
-		Name: "dashboard",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	return domains.StandardDomain("dashboard", "dashboardd",
+		func(context.Context, *appkit.App) error {
 			as, err := domains.RequireStore("dashboardd", "store", d.AuditStore())
 			if err != nil {
 				return err
@@ -55,7 +55,7 @@ func Domain(d Deps) appkit.Domain {
 			biz = dashbiz.New(as, rs, us)
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("dashboardd", h)
 			if err != nil {
 				return err
@@ -63,5 +63,5 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterDashboard(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-	}
+	)
 }

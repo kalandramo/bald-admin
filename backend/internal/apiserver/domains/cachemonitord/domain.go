@@ -35,17 +35,17 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 cachemonitor 域的装配声明值。Routes 委托
-// hgin.RegisterRedisCacheMonitor——传输适配不搬家；无 gRPC 面，Services 不声明。
+// Domain 返回 cachemonitor 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain）：routes 委托 hgin.RegisterRedisCacheMonitor——传输
+// 适配不搬家；无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *cmbiz.Biz
-	return appkit.Domain{
-		Name: "cachemonitor",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	return domains.StandardDomain("cachemonitor", "cachemonitord",
+		func(context.Context, *appkit.App) error {
 			biz = cmbiz.New(d.RDB())
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("cachemonitord", h)
 			if err != nil {
 				return err
@@ -53,5 +53,5 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterRedisCacheMonitor(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-	}
+	)
 }

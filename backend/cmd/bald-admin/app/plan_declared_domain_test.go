@@ -2,7 +2,7 @@ package app
 
 // plan_declared_domain_test.go —— Domain v2 目标形态的回归锁。
 //
-// language/dict 用 Domain.Declare 声明节点、Domain.ApplyNode 逐节点执行
+// 20 个域都用 Domain.Declare 声明节点、Domain.ApplyNode 逐节点执行
 //（bald 设计 §4.6）：biz 节点构造领域能力，routes 节点挂 REST 路由；服务
 // 注册仍走 Domain.Services（server 构建时的延迟回调），域不再产生 Opaque
 // 兼容节点。本测试走生产装配声明（appOptions）编译计划，锁住这几点——若
@@ -39,44 +39,40 @@ func TestPlan_DeclaredDomains(t *testing.T) {
 		byKey[p.Nodes[i].Key] = &p.Nodes[i]
 	}
 
-	cases := []struct {
-		domain   string
-		key      string
-		segments []string
-	}{
-		{domain: "language", key: "domain.language.biz"},
-		{domain: "language", key: "domain.language.routes", segments: []string{"server.http"}},
-		{domain: "dict", key: "domain.dict.biz"},
-		{domain: "dict", key: "domain.dict.routes", segments: []string{"server.http"}},
+	// 全部域同形：biz 节点恒有，routes 节点随 HTTP 面投影（生产装配声明了
+	// gin handler，故 20 个域都有路由节点）。
+	domains := []string{
+		"auditlog", "auth", "cachemonitor", "dashboard", "dict", "file",
+		"identity", "language", "menu", "message", "mfa", "org", "permgroup",
+		"permission", "plan", "portal", "secret", "task", "tenant", "user",
 	}
-	for _, c := range cases {
-		n := byKey[appkit.ResourceKey(c.key)]
-		require.NotNil(t, n, "%s 域应声明节点 %s", c.domain, c.key)
-		assert.False(t, n.Opaque, "%s 应为声明节点（非逃逸舱）", c.key)
-		assert.Equal(t, c.segments, n.Segments, "%s 的段", c.key)
-		if c.key != "domain."+c.domain+".biz" {
-			assert.Contains(t, n.DependsOn, appkit.ResourceKey("domain."+c.domain+".biz"),
-				"%s 应依赖域构造节点", c.key)
-		}
-	}
+	for _, dom := range domains {
+		bizKey := appkit.ResourceKey("domain." + dom + ".biz")
+		biz := byKey[bizKey]
+		require.NotNil(t, biz, "%s 域应声明 biz 节点", dom)
+		assert.False(t, biz.Opaque, "%s 的 biz 节点应是声明节点（非逃逸舱）", dom)
 
-	// 目标形态：构造已进节点，不再有兼容接线节点；服务注册不经计划。
-	for _, dom := range []string{"language", "dict"} {
+		routes := byKey[appkit.ResourceKey("domain."+dom+".routes")]
+		require.NotNil(t, routes, "%s 域应声明 routes 节点", dom)
+		assert.False(t, routes.Opaque, "%s 的 routes 节点应是声明节点（非逃逸舱）", dom)
+		assert.Equal(t, []string{"server.http"}, routes.Segments, "%s routes 的段", dom)
+		assert.Contains(t, routes.DependsOn, bizKey, "%s 的 routes 应依赖 biz 节点", dom)
+
+		// 迁移期形态已收口：没有整块兼容接线节点，服务注册不经计划。
 		assert.Nil(t, byKey[appkit.ResourceKey("domain."+dom+".wire")],
 			"%s 已迁 ApplyNode，不应再有兼容接线节点", dom)
+		assert.Nil(t, byKey[appkit.ResourceKey("domain."+dom+".services")],
+			"%s 的服务注册走 Domain.Services，不应在计划里声明节点", dom)
 	}
-	assert.Nil(t, byKey["domain.dict.services"],
-		"服务注册走 Domain.Services，不应在计划里声明节点")
 
-	// 这两个域贡献的逃逸舱归零（其余 legacy 域仍是迁移期形态，不在此断言）。
+	// 域不再贡献任何逃逸舱：Opaque 只应来自框架 Provider。
 	for _, n := range p.Nodes {
 		if !n.Opaque {
 			continue
 		}
-		for _, dom := range []string{"language", "dict"} {
-			assert.NotEqual(t, appkit.ResourceKey("domain."+dom), n.Key)
-			assert.False(t, strings.HasPrefix(string(n.Key), "domain."+dom+"."),
-				"已迁 ApplyNode 的 %s 域不应留下逃逸舱：%s", dom, n.Key)
-		}
+		assert.NotEqual(t, appkit.OriginDomain, n.Origin,
+			"域不应留下逃逸舱：%s", n.Key)
+		assert.False(t, strings.HasPrefix(string(n.Key), "domain."),
+			"域不应留下逃逸舱：%s", n.Key)
 	}
 }

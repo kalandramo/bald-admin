@@ -48,13 +48,13 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 file 域的装配声明值（Routes 委托 hgin.RegisterFile、Services
-// 委托 secretgrpc.NewFileServer——传输适配不搬家）。
+// Domain 返回 file 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain；Services 委托 secretgrpc.NewFileServer——传输适配
+// 不搬家）。
 func Domain(d Deps) appkit.Domain {
 	var biz *filebiz.Biz
-	return appkit.Domain{
-		Name: "file",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	dom := domains.StandardDomain("file", "filed",
+		func(context.Context, *appkit.App) error {
 			st, err := domains.RequireStore("filed", "file store", d.Store())
 			if err != nil {
 				return err
@@ -65,7 +65,7 @@ func Domain(d Deps) appkit.Domain {
 			biz.SetObjectStorage(d.ObjectStorage(), d.Bucket())
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("filed", h)
 			if err != nil {
 				return err
@@ -73,8 +73,9 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterFile(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-		Services: func(s *grpc.Server) {
-			filev1.RegisterFileServiceServer(s, secretgrpc.NewFileServer(biz))
-		},
+	)
+	dom.Services = func(s *grpc.Server) {
+		filev1.RegisterFileServiceServer(s, secretgrpc.NewFileServer(biz))
 	}
+	return dom
 }

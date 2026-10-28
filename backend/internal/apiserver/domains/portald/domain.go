@@ -35,13 +35,13 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 portal 域的装配声明值。Routes 委托 hgin.RegisterAdminPortal——传输适配
+// Domain 返回 portal 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain）：routes 委托 hgin.RegisterAdminPortal——传输适配
 // 不搬家；无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *portalbiz.Biz
-	return appkit.Domain{
-		Name: "portal",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	return domains.StandardDomain("portal", "portald",
+		func(context.Context, *appkit.App) error {
 			us, err := domains.RequireStore("portald", "store", d.UserStore())
 			if err != nil {
 				return err
@@ -61,7 +61,7 @@ func Domain(d Deps) appkit.Domain {
 			biz = portalbiz.New(us, rs, ps, ms)
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("portald", h)
 			if err != nil {
 				return err
@@ -69,5 +69,5 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterAdminPortal(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-	}
+	)
 }

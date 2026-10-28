@@ -10,7 +10,7 @@ package dictd
 
 import (
 	"context"
-	"fmt"
+	"net/http"
 
 	"google.golang.org/grpc"
 
@@ -42,61 +42,36 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 dict 域的装配声明值（ApplyNode 形态：biz 节点构造领域能力，
-// routes 节点委托 hgin.RegisterDict；Services 是 server 构建时的延迟注册
-// 回调——grpc.Server 在域窗口里还不存在，故服务注册不经 ApplyNode）。
+// Domain 返回 dict 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain）；Services 是 server 构建时的延迟注册回调——
+// grpc.Server 在域窗口里还不存在，故服务注册不经 ApplyNode。
 func Domain(d Deps) appkit.Domain {
 	var biz *dictbiz.Biz
-	return appkit.Domain{
-		Name:    "dict",
-		Declare: declare,
-		ApplyNode: func(_ context.Context, app *appkit.App, node appkit.Node) error {
-			switch node.Key {
-			case "domain.dict.biz":
-				ts, err := domains.RequireStore("dictd", "dict type store", d.TypeStore())
-				if err != nil {
-					return err
-				}
-				es, err := domains.RequireStore("dictd", "dict entry store", d.EntryStore())
-				if err != nil {
-					return err
-				}
-				biz = dictbiz.New(ts, es, d.Cache())
-				return nil
-			case "domain.dict.routes":
-				e, err := domains.AssertGin("dictd", app.HTTPHandler())
-				if err != nil {
-					return err
-				}
-				hgin.RegisterDict(e, d.Authn(), d.Authz(), biz)
-				return nil
+	dom := domains.StandardDomain("dict", "dictd",
+		func(context.Context, *appkit.App) error {
+			ts, err := domains.RequireStore("dictd", "dict type store", d.TypeStore())
+			if err != nil {
+				return err
 			}
-			return fmt.Errorf("dictd: unknown declared node %q", node.Key)
+			es, err := domains.RequireStore("dictd", "dict entry store", d.EntryStore())
+			if err != nil {
+				return err
+			}
+			biz = dictbiz.New(ts, es, d.Cache())
+			return nil
 		},
-		Services: func(s *grpc.Server) {
-			dictv1.RegisterDictTypeServiceServer(s, secretgrpc.NewDictTypeServer(biz))
-			dictv1.RegisterDictEntryServiceServer(s, secretgrpc.NewDictEntryServer(biz))
+		func(h http.Handler) error {
+			e, err := domains.AssertGin("dictd", h)
+			if err != nil {
+				return err
+			}
+			hgin.RegisterDict(e, d.Authn(), d.Authz(), biz)
+			return nil
 		},
+	)
+	dom.Services = func(s *grpc.Server) {
+		dictv1.RegisterDictTypeServiceServer(s, secretgrpc.NewDictTypeServer(biz))
+		dictv1.RegisterDictEntryServiceServer(s, secretgrpc.NewDictEntryServer(biz))
 	}
-}
-
-// declare 声明域的拓扑：biz 节点恒有（构造领域能力），HTTP 面存在才有路由
-// 节点。服务注册不在计划里——它由 Services 槽位在 server 构建时兑现，域窗口
-// 内没有 grpc.Server 可注册。
-func declare(_ context.Context, s appkit.PlanScope) ([]appkit.Node, error) {
-	nodes := []appkit.Node{{
-		Key:      "domain.dict.biz",
-		Phase:    appkit.PhaseWire,
-		Priority: 10,
-	}}
-	if s.Decl.HTTPHandler == nil {
-		return nodes, nil
-	}
-	return append(nodes, appkit.Node{
-		Key:       "domain.dict.routes",
-		Segments:  []string{"server.http"},
-		Phase:     appkit.PhaseServe,
-		Priority:  10,
-		DependsOn: []appkit.ResourceKey{"domain.dict.biz"},
-	}), nil
+	return dom
 }

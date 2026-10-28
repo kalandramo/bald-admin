@@ -59,13 +59,13 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 auth 域的装配声明值。Routes 委托 hgin.RegisterAuth（传输适配
-// 不搬家）；auth 无 gRPC 面，Services 不声明。
+// Domain 返回 auth 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain；routes 委托 hgin.RegisterAuth——传输适配不搬家）；
+// auth 无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *authbiz.Biz
-	return appkit.Domain{
-		Name: "auth",
-		Wire: func(_ context.Context, app *appkit.App) error {
+	return domains.StandardDomain("auth", "authd",
+		func(_ context.Context, app *appkit.App) error {
 			// 登录防护三件的本域配置（biz.login.*）：域自读 Settings 快照，
 			// 段内严格解码 + 校验，非法配置在此 fail-fast
 			// （启动期错误，不静默）。
@@ -98,7 +98,7 @@ func Domain(d Deps) appkit.Domain {
 			biz.SetTokenTTL(access, refresh)
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("authd", h)
 			if err != nil {
 				return err
@@ -106,5 +106,5 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterAuth(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-	}
+	)
 }

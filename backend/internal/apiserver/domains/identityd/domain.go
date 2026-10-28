@@ -31,13 +31,13 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 identity 域的装配声明值。Routes 委托 hgin.RegisterIdentity——传输适配
-// 不搬家；无 gRPC 面，Services 不声明。
+// Domain 返回 identity 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain）：routes 委托 hgin.RegisterIdentity——传输适配不搬家；
+// 无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *identitybiz.Biz
-	return appkit.Domain{
-		Name: "identity",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	return domains.StandardDomain("identity", "identityd",
+		func(context.Context, *appkit.App) error {
 			cs, err := domains.RequireStore("identityd", "store", d.CredentialStore())
 			if err != nil {
 				return err
@@ -49,7 +49,7 @@ func Domain(d Deps) appkit.Domain {
 			biz = identitybiz.New(cs, lps)
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("identityd", h)
 			if err != nil {
 				return err
@@ -57,5 +57,5 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterIdentity(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-	}
+	)
 }

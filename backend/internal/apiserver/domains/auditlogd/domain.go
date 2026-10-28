@@ -33,13 +33,13 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 auditlog 域的装配声明值（Routes 委托 hgin.RegisterAudit、
-// Services 委托 secretgrpc.NewAuditServer——传输适配不搬家）。
+// Domain 返回 auditlog 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// domains.StandardDomain；Services 是 server 构建时的延迟注册回调——grpc.Server
+// 在域窗口里还不存在，故服务注册不经 ApplyNode）。
 func Domain(d Deps) appkit.Domain {
 	var biz *auditlogbiz.Biz
-	return appkit.Domain{
-		Name: "auditlog",
-		Wire: func(_ context.Context, _ *appkit.App) error {
+	dom := domains.StandardDomain("auditlog", "auditlogd",
+		func(context.Context, *appkit.App) error {
 			st, err := domains.RequireStore("auditlogd", "audit store", d.Store())
 			if err != nil {
 				return err
@@ -47,7 +47,7 @@ func Domain(d Deps) appkit.Domain {
 			biz = auditlogbiz.New(st)
 			return nil
 		},
-		Routes: func(h http.Handler) error {
+		func(h http.Handler) error {
 			e, err := domains.AssertGin("auditlogd", h)
 			if err != nil {
 				return err
@@ -55,8 +55,9 @@ func Domain(d Deps) appkit.Domain {
 			hgin.RegisterAudit(e, d.Authn(), d.Authz(), biz)
 			return nil
 		},
-		Services: func(s *grpc.Server) {
-			auditv1.RegisterAuditServiceServer(s, secretgrpc.NewAuditServer(biz))
-		},
+	)
+	dom.Services = func(s *grpc.Server) {
+		auditv1.RegisterAuditServiceServer(s, secretgrpc.NewAuditServer(biz))
 	}
+	return dom
 }
