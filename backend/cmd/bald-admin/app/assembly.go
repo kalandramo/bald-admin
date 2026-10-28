@@ -225,7 +225,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 「不启用」= 移除 sse 段。
 		sseServerProvider(func() authn.Authenticator { return authenticator }),
 
-		// --- 业务域声明（21 域全量在册）---
+		// --- 业务域声明（20 域全量在册）---
 		// 手写域清单（bald-admin 无 domains.gen.go，与上方 Provider 清单并列——
 		// Domain 实现 Option，变参直传 MustServe）。
 		// 基础设施取用约定：store/authn/authz 住装配层（InitBridges 与 BeforeStart
@@ -567,7 +567,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 				return nil
 			})
 			authorizer = bootstrappkg.Authorizer
-			// 共面挂载（api 审计中间件 + service info + openapi）。21 域的路由
+			// 共面挂载（api 审计中间件 + service info + openapi）。20 域的路由
 			// 由各域声明包的 Routes 注册——本钩子（业务 BeforeStart）先于域装配
 			// 钩子执行（注册序=执行序），gin 的 Use 只影响其后注册的路由，故
 			// apiaudit 中间件覆盖全部域路由；共面/管理面在域路由之前挂载。
@@ -623,6 +623,11 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 计划缓存：真实启动记录计划基线，doctor 据此报告相对上次的装配变更
 		//（本地文件，非执行依据）。
 		appkit.WithPlanCache(".bald/plan-cache.json"),
+		// 逃逸舱预算：当前 20 个业务域均未用 Domain.Declare、基建 Provider 仍带
+		// Opaque 标记，计划期 Opaque 恒为 50。预算=当前值：不产生告警，但任何
+		// 新增逃逸舱（新 legacy Provider / 新 Opaque 槽位）会让 --plan/doctor
+		// 出现 opaque-budget 告警——确定性只能靠预算守住，不靠人记。
+		appkit.WithOpaqueBudget(50),
 	}
 
 	return opts
