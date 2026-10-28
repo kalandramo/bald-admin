@@ -1,17 +1,18 @@
 package app
 
-// plan_declared_domain_test.go —— Domain v2 声明面的回归锁。
+// plan_declared_domain_test.go —— Domain v2 目标形态的回归锁。
 //
-// language/dict 是 bald-admin 首批用 Domain.Declare 声明拓扑的域（bald 设计
-// §4.6 迁移期形态）：路由/服务从「整块 Opaque」变成计划里的具名节点（段与
-// 依赖可检视），实际构造仍收在兼容接线节点 domain.<name>.wire。本测试走生产
-// 装配声明（appOptions）编译计划，锁住这两半——若 Declare 被删或节点语义
-// 回退，计划里就看得到。
+// language/dict 用 Domain.Declare 声明节点、Domain.ApplyNode 逐节点执行
+//（bald 设计 §4.6）：biz 节点构造领域能力，routes 节点挂 REST 路由；服务
+// 注册仍走 Domain.Services（server 构建时的延迟回调），域不再产生 Opaque
+// 兼容节点。本测试走生产装配声明（appOptions）编译计划，锁住这几点——若
+// Declare/ApplyNode 被删或节点语义回退，计划里就看得到。
 
 import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,23 +44,39 @@ func TestPlan_DeclaredDomains(t *testing.T) {
 		key      string
 		segments []string
 	}{
+		{domain: "language", key: "domain.language.biz"},
 		{domain: "language", key: "domain.language.routes", segments: []string{"server.http"}},
+		{domain: "dict", key: "domain.dict.biz"},
 		{domain: "dict", key: "domain.dict.routes", segments: []string{"server.http"}},
-		{domain: "dict", key: "domain.dict.services", segments: []string{"server.grpc"}},
 	}
 	for _, c := range cases {
 		n := byKey[appkit.ResourceKey(c.key)]
 		require.NotNil(t, n, "%s 域应声明节点 %s", c.domain, c.key)
 		assert.False(t, n.Opaque, "%s 应为声明节点（非逃逸舱）", c.key)
 		assert.Equal(t, c.segments, n.Segments, "%s 的段", c.key)
-		assert.Contains(t, n.DependsOn, appkit.ResourceKey("domain."+c.domain+".wire"),
-			"%s 应依赖兼容接线节点", c.key)
+		if c.key != "domain."+c.domain+".biz" {
+			assert.Contains(t, n.DependsOn, appkit.ResourceKey("domain."+c.domain+".biz"),
+				"%s 应依赖域构造节点", c.key)
+		}
 	}
 
-	// 兼容接线节点承接实际构造：仍为 Opaque，且不再逐槽位投影。
+	// 目标形态：构造已进节点，不再有兼容接线节点；服务注册不经计划。
 	for _, dom := range []string{"language", "dict"} {
-		compat := byKey[appkit.ResourceKey("domain."+dom+".wire")]
-		require.NotNil(t, compat, "%s 的兼容接线应收在 domain.%s.wire", dom, dom)
-		assert.True(t, compat.Opaque, "%s 迁移期构造仍不透明", dom)
+		assert.Nil(t, byKey[appkit.ResourceKey("domain."+dom+".wire")],
+			"%s 已迁 ApplyNode，不应再有兼容接线节点", dom)
+	}
+	assert.Nil(t, byKey["domain.dict.services"],
+		"服务注册走 Domain.Services，不应在计划里声明节点")
+
+	// 这两个域贡献的逃逸舱归零（其余 legacy 域仍是迁移期形态，不在此断言）。
+	for _, n := range p.Nodes {
+		if !n.Opaque {
+			continue
+		}
+		for _, dom := range []string{"language", "dict"} {
+			assert.NotEqual(t, appkit.ResourceKey("domain."+dom), n.Key)
+			assert.False(t, strings.HasPrefix(string(n.Key), "domain."+dom+"."),
+				"已迁 ApplyNode 的 %s 域不应留下逃逸舱：%s", dom, n.Key)
+		}
 	}
 }

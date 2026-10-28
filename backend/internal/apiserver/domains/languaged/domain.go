@@ -9,7 +9,7 @@ package languaged
 
 import (
 	"context"
-	"net/http"
+	"fmt"
 
 	langbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/language"
 	"github.com/kalandramo/bald-admin/internal/apiserver/domains"
@@ -25,50 +25,58 @@ import (
 type Deps struct {
 	// Store 语言仓储（InitBridges 的 repos.Language 同一实例，无双构造）。
 	Store func() *store.Store[authmodel.Language]
-	// Authn 认证器（带吊销检查；Routes 时点已就绪）。
+	// Authn 认证器（带吊销检查；路由节点执行时已就绪）。
 	Authn func() authn.Authenticator
-	// Authz 授权器（casbin 桥接；Routes 时点已就绪）。
+	// Authz 授权器（casbin 桥接；路由节点执行时已就绪）。
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 language 域的装配声明值（Routes 委托 hgin.RegisterLanguage——
-// 传输适配不搬家；无 gRPC 面故无 Services）。
+// Domain 返回 language 域的装配声明值（ApplyNode 形态：biz 节点构造领域
+// 能力，routes 节点委托 hgin.RegisterLanguage——传输适配不搬家；无 gRPC 面
+// 故无 Services，域不再产生 Opaque 兼容节点）。
 func Domain(d Deps) appkit.Domain {
 	var biz *langbiz.Biz
 	return appkit.Domain{
 		Name:    "language",
 		Declare: declare,
-		Wire: func(_ context.Context, _ *appkit.App) error {
-			st, err := domains.RequireStore("languaged", "language store", d.Store())
-			if err != nil {
-				return err
+		ApplyNode: func(_ context.Context, app *appkit.App, node appkit.Node) error {
+			switch node.Key {
+			case "domain.language.biz":
+				st, err := domains.RequireStore("languaged", "language store", d.Store())
+				if err != nil {
+					return err
+				}
+				biz = langbiz.New(st)
+				return nil
+			case "domain.language.routes":
+				e, err := domains.AssertGin("languaged", app.HTTPHandler())
+				if err != nil {
+					return err
+				}
+				hgin.RegisterLanguage(e, d.Authn(), d.Authz(), biz)
+				return nil
 			}
-			biz = langbiz.New(st)
-			return nil
-		},
-		Routes: func(h http.Handler) error {
-			e, err := domains.AssertGin("languaged", h)
-			if err != nil {
-				return err
-			}
-			hgin.RegisterLanguage(e, d.Authn(), d.Authz(), biz)
-			return nil
+			return fmt.Errorf("languaged: unknown declared node %q", node.Key)
 		},
 	}
 }
 
-// declare 声明域的拓扑（Domain v2 迁移期形态，bald 设计 §4.6）：HTTP 面存在
-// 才有路由节点；实际注册仍由 Routes 完成，引擎把它塌缩成兼容接线的
-// domain.language.wire 节点，路由节点声明「serve 时点前已挂载」的依赖事实。
+// declare 声明域的拓扑：biz 节点恒有（构造领域能力），HTTP 面存在才有路由
+// 节点。节点按计划序执行（设计 §4.6）。
 func declare(_ context.Context, s appkit.PlanScope) ([]appkit.Node, error) {
+	nodes := []appkit.Node{{
+		Key:      "domain.language.biz",
+		Phase:    appkit.PhaseWire,
+		Priority: 10,
+	}}
 	if s.Decl.HTTPHandler == nil {
-		return nil, nil
+		return nodes, nil
 	}
-	return []appkit.Node{{
+	return append(nodes, appkit.Node{
 		Key:       "domain.language.routes",
 		Segments:  []string{"server.http"},
 		Phase:     appkit.PhaseServe,
 		Priority:  10,
-		DependsOn: []appkit.ResourceKey{"domain.language.wire"},
-	}}, nil
+		DependsOn: []appkit.ResourceKey{"domain.language.biz"},
+	}), nil
 }
