@@ -5,6 +5,9 @@
 /backend/configs/bald-admin.yaml
 /backend/configs/bald-admin.yaml
 
+# bald 装配计划缓存（appkit.WithPlanCache 的本地基线，非生成物）
+.bald/
+
 # Go
 *.exe
 *.exe~

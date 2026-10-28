@@ -620,6 +620,9 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			baldlog.Info(ctx, "bald-admin stopping")
 			return nil
 		}),
+		// 计划缓存：真实启动记录计划基线，doctor 据此报告相对上次的装配变更
+		//（本地文件，非执行依据）。
+		appkit.WithPlanCache(".bald/plan-cache.json"),
 	}
 
 	return opts
