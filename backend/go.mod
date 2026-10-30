@@ -35,7 +35,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald v0.28.1-0.20261030013915-b1b6a9b09859
+	github.com/kalandramo/bald v0.28.1-0.20261030014544-39bb5de24a6f
 	github.com/kalandramo/bald/bconf v0.12.0
 	github.com/kalandramo/bald/berrors v0.1.1
 	github.com/kalandramo/bald/bootstrap v0.13.1
