@@ -551,6 +551,8 @@ github.com/kalandramo/bald v0.28.1-0.20261030021337-bbde65789c0e h1:kYPmsuDY1f1E
 github.com/kalandramo/bald v0.28.1-0.20261030021337-bbde65789c0e/go.mod h1:zs1o2JxgPke9NQlG8EStaoZQMWDwyTRzYWk3+NOHwdk=
 github.com/kalandramo/bald v0.28.1-0.20261030022008-b0163183e364 h1:oJr2p2gtuhQLHXFD0eLqVASZy448GMxaU8odqSY6RxQ=
 github.com/kalandramo/bald v0.28.1-0.20261030022008-b0163183e364/go.mod h1:zs1o2JxgPke9NQlG8EStaoZQMWDwyTRzYWk3+NOHwdk=
+github.com/kalandramo/bald v0.28.1-0.20261030023410-636dd8cb8d01 h1:dn6eoQ7XGPz8pvc5PEnhZOHtL6qXTDnJa1NYDy/FMpI=
+github.com/kalandramo/bald v0.28.1-0.20261030023410-636dd8cb8d01/go.mod h1:zs1o2JxgPke9NQlG8EStaoZQMWDwyTRzYWk3+NOHwdk=
 github.com/kalandramo/bald-crud/viewer v0.3.0 h1:qzFgCqZxxYks6qmtpTnTNYZ0+yM+AvQsnMVdZB+j55g=
 github.com/kalandramo/bald-crud/viewer v0.3.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
 github.com/kalandramo/bald/bconf v0.12.0 h1:L3r0pE9f1IP+WdwZYCXJ4Zda1UdFBeMfs1PnKdKv5RY=
