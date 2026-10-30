@@ -35,15 +35,15 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald v0.28.1-0.20261030023410-636dd8cb8d01
-	github.com/kalandramo/bald/bconf v0.12.0
+	github.com/kalandramo/bald v0.29.0
+	github.com/kalandramo/bald/bconf v0.13.0
 	github.com/kalandramo/bald/berrors v0.1.1
 	github.com/kalandramo/bald/bootstrap v0.13.1
-	github.com/kalandramo/bald/broker v0.2.0
-	github.com/kalandramo/bald/broker/redis v0.3.1-0.20261028173005-d2e519cd75b8
-	github.com/kalandramo/bald/cache v0.2.0
+	github.com/kalandramo/bald/broker v0.3.0
+	github.com/kalandramo/bald/broker/redis v0.4.0
+	github.com/kalandramo/bald/cache v0.3.0
 	github.com/kalandramo/bald/cache/loadable v0.2.0
-	github.com/kalandramo/bald/cache/redis v0.2.2-0.20261028173005-d2e519cd75b8
+	github.com/kalandramo/bald/cache/redis v0.3.0
 	github.com/kalandramo/bald/circuitbreaker v0.1.0
 	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0
 	github.com/kalandramo/bald/contrib/audit-gorm v0.2.1
@@ -51,27 +51,27 @@ require (
 	github.com/kalandramo/bald/contrib/authn-jwt v0.3.0
 	github.com/kalandramo/bald/contrib/authz-casbin v0.2.2
 	github.com/kalandramo/bald/contrib/observability-otlp v0.3.1
-	github.com/kalandramo/bald/contrib/store-gorm v0.2.1-0.20261028173005-d2e519cd75b8
+	github.com/kalandramo/bald/contrib/store-gorm v0.3.0
 	github.com/kalandramo/bald/encoding v0.1.0
 	github.com/kalandramo/bald/encoding/json v0.1.1
 	github.com/kalandramo/bald/encoding/msgpack v0.1.0
 	github.com/kalandramo/bald/health v0.1.1
 	github.com/kalandramo/bald/log v0.5.3
-	github.com/kalandramo/bald/oss/minio v0.2.1-0.20261028173005-d2e519cd75b8
-	github.com/kalandramo/bald/oss/s3 v0.2.1-0.20261028173005-d2e519cd75b8
+	github.com/kalandramo/bald/oss/minio v0.3.0
+	github.com/kalandramo/bald/oss/s3 v0.3.0
 	github.com/kalandramo/bald/ratelimit v0.2.0
 	github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0
-	github.com/kalandramo/bald/registry v0.2.0
-	github.com/kalandramo/bald/registry/etcd v0.2.1-0.20261028173005-d2e519cd75b8
-	github.com/kalandramo/bald/registry/nacos v0.2.1-0.20261028173005-d2e519cd75b8
+	github.com/kalandramo/bald/registry v0.3.0
+	github.com/kalandramo/bald/registry/etcd v0.3.0
+	github.com/kalandramo/bald/registry/nacos v0.3.0
 	github.com/kalandramo/bald/retry v0.2.0
-	github.com/kalandramo/bald/transport v0.3.0
-	github.com/kalandramo/bald/transport/asynq v0.4.1-0.20261028162517-609cc9fd6446
-	github.com/kalandramo/bald/transport/cron v0.5.1-0.20261028162517-609cc9fd6446
-	github.com/kalandramo/bald/transport/gateway v0.3.1-0.20261028162517-609cc9fd6446
+	github.com/kalandramo/bald/transport v0.4.0
+	github.com/kalandramo/bald/transport/asynq v0.5.0
+	github.com/kalandramo/bald/transport/cron v0.6.0
+	github.com/kalandramo/bald/transport/gateway v0.4.0
 	github.com/kalandramo/bald/transport/grpc v0.1.1
-	github.com/kalandramo/bald/transport/sse v0.3.1-0.20261028162517-609cc9fd6446
-	github.com/kalandramo/bald/transport/web v0.1.0
+	github.com/kalandramo/bald/transport/sse v0.4.0
+	github.com/kalandramo/bald/transport/web v0.2.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/mojocn/base64Captcha v1.3.8
 	github.com/pquerna/otp v1.5.0
