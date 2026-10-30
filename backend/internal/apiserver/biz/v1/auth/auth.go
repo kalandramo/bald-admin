@@ -12,14 +12,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/circuitbreaker"
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/audit"
-	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/store"
 	"github.com/kalandramo/bald/ratelimit"
@@ -92,6 +93,16 @@ type UserInfo struct {
 // handler 层映射为 503（服务暂不可用），提示客户端稍后重试。
 var ErrLoginUnavailable = errors.New("auth: login temporarily unavailable")
 
+// loginGuards 是登录防护三件的一代快照（限流 / 熔断 / 重试）。
+//
+// nil 字段 = 对应能力禁用态：限流 fail-open 不阻断登录；熔断/重试缺省即
+// 单次直连。快照整体替换（copy-on-write），读路径无需加锁。
+type loginGuards struct {
+	limiter ratelimit.Limiter
+	breaker circuitbreaker.CircuitBreaker
+	retrier *retry.Retrier
+}
+
 // Biz 认证业务。
 type Biz struct {
 	signer authnjwt.Signer // 私钥签发器（非对称场景只持私钥）
@@ -102,20 +113,11 @@ type Biz struct {
 	// reloadPolicies 重建 casbin 策略（注入，替代直调 bootstrap.ReloadPolicies）。
 	// nil = 跳过（策略热重载非关键路径；nil 时登录照常完成，仅不触发策略刷新）。
 	reloadPolicies func() error
-	// loginLimiter 登录限流器（，bald ratelimit/tokenbucket）。
-	// nil = 禁用态：不阻断登录（对齐源项目 LoginRateLimiter 的 fail-open——
-	// 限流是防御性增强，不应让限流组件故障导致登录全部不可用）。
-	loginLimiter ratelimit.Limiter
-	// loginBreaker 登录 DB 查询熔断器（，bald circuitbreaker/sres）。
-	// nil = 禁用态。熔断的意义：DB 故障时快速失败，避免所有登录请求都卡在
-	// 超时上（雪崩）。**只对真故障计数**——ErrNotFound（用户不存在）是正常
-	// 业务结果，计入会让人用不存在的用户名熔断整个登录。
-	loginBreaker circuitbreaker.CircuitBreaker
-	// loginRetrier 登录 DB 查询重试器（，bald retry）。
-	// nil = 禁用态（单次查询）。与熔断**天然组合**：retry 处理偶发抖动
-	//（重试可恢复），熔断处理持续故障（重试无望时快速失败）。
-	// 分类器排除 ErrNotFound——重试确定性失败只是浪费 DB 往返。
-	loginRetrier *retry.Retrier
+	// loginLimiter / loginBreaker / loginRetrier 收拢为一份原子快照
+	// （loginGuards）：启动期由 SetLoginXxx 逐项注入（nil 不覆盖），配置热更
+	// 由 ReplaceLoginGuards 整体替换（nil = 真的禁用）。读路径无锁 Load 一次
+	// 拿到同一代三件，避免热更中途读到半新半旧组合。
+	loginGuards atomic.Pointer[loginGuards]
 	// tokenStore 令牌服务端状态存储（吊销名单 + 刷新令牌）。
 	// nil = 禁用态：Logout 记日志不吊销（无法收回无状态 JWT）、不签发刷新令牌。
 	tokenStore token.Store
@@ -193,7 +195,7 @@ func (b *Biz) SetPlatformResolver(fn func(*authmodel.User) bool) {
 // 限流器构造需要配置（rate/burst），而配置在 BeforeStart 才装载完成。
 func (b *Biz) SetLoginLimiter(l ratelimit.Limiter) {
 	if l != nil {
-		b.loginLimiter = l
+		b.updateLoginGuards(func(g *loginGuards) { g.limiter = l })
 	}
 }
 
@@ -201,7 +203,7 @@ func (b *Biz) SetLoginLimiter(l ratelimit.Limiter) {
 // 与 SetLoginLimiter 同款的运行期注入（配置在 BeforeStart 才装载完成）。
 func (b *Biz) SetLoginBreaker(cb circuitbreaker.CircuitBreaker) {
 	if cb != nil {
-		b.loginBreaker = cb
+		b.updateLoginGuards(func(g *loginGuards) { g.breaker = cb })
 	}
 }
 
@@ -209,8 +211,29 @@ func (b *Biz) SetLoginBreaker(cb circuitbreaker.CircuitBreaker) {
 // 应与 SetLoginBreaker 配合使用（retry 处理抖动、熔断处理持续故障）。
 func (b *Biz) SetLoginRetrier(r *retry.Retrier) {
 	if r != nil {
-		b.loginRetrier = r
+		b.updateLoginGuards(func(g *loginGuards) { g.retrier = r })
 	}
+}
+
+// ReplaceLoginGuards 以一份新快照整体替换登录防护三件（配置热更协调入口）。
+//
+// 与 SetLoginXxx 的「nil 不覆盖」不同：协调器表达的是配置的当前期望态，
+// nil 就是「该能力已从配置移除」，必须真的关掉（否则热更只能开不能关）。
+func (b *Biz) ReplaceLoginGuards(l ratelimit.Limiter,
+	cb circuitbreaker.CircuitBreaker, r *retry.Retrier,
+) {
+	b.loginGuards.Store(&loginGuards{limiter: l, breaker: cb, retrier: r})
+}
+
+// updateLoginGuards 以当前快照为底应用变更（启动期逐项注入用；非并发调用，
+// 但同样走 copy-on-write 以免与热更替换互相踩踏）。
+func (b *Biz) updateLoginGuards(fn func(*loginGuards)) {
+	var next loginGuards
+	if cur := b.loginGuards.Load(); cur != nil {
+		next = *cur
+	}
+	fn(&next)
+	b.loginGuards.Store(&next)
 }
 
 // SetTokenStore 运行期注入令牌存储。nil 不覆盖——保留禁用态语义。
@@ -580,8 +603,8 @@ func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 	// 限流在凭据校验之前——先拦流量再做昂贵的 bcrypt 比较，
 	// 否则限流形同虚设（攻击者仍能消耗 CPU）。限流器为 nil 时直接放行
 	//（禁用态，对齐源项目 LoginRateLimiter 的 fail-open）。
-	if b.loginLimiter != nil {
-		allowed, lerr := b.loginLimiter.Allow()
+	if g := b.loginGuards.Load(); g != nil && g.limiter != nil {
+		allowed, lerr := g.limiter.Allow()
 		switch {
 		case !allowed:
 			// 超限：Allow 契约规定 ok=false 伴随 ratelimit.ErrLimited——
@@ -885,23 +908,31 @@ func (b *Biz) queryUser(ctx context.Context, username string) (*authmodel.User, 
 		})
 	}
 
+	// 一次 Load 取同一代快照：熔断与重试在整个查询里保持配套（热更替换
+	// 发生在两次 Load 之间时才可能不一致，故这里只 Load 一次）。
+	var breaker circuitbreaker.CircuitBreaker
+	var retrier *retry.Retrier
+	if g := b.loginGuards.Load(); g != nil {
+		breaker, retrier = g.breaker, g.retrier
+	}
+
 	// 熔断前置检查（Open 时直接拒绝，不做重试）。
-	if b.loginBreaker != nil {
-		if err := b.loginBreaker.Allow(); err != nil {
+	if breaker != nil {
+		if err := breaker.Allow(); err != nil {
 			return nil, err // ErrCircuitOpen
 		}
 	}
 
 	// 重试包裹实际查询（nil retrier 时单次执行）。
-	u, err := b.queryWithRetry(ctx, q)
+	u, err := b.queryWithRetry(ctx, q, retrier)
 
 	// 熔断结果上报（只对真故障计失败）。
-	if b.loginBreaker != nil {
+	if breaker != nil {
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			b.loginBreaker.MarkFailure()
+			breaker.MarkFailure()
 		} else {
 			// 成功或 NotFound（正常业务结果）都算「依赖可用」。
-			b.loginBreaker.MarkSuccess()
+			breaker.MarkSuccess()
 		}
 	}
 	return u, err
@@ -909,9 +940,9 @@ func (b *Biz) queryUser(ctx context.Context, username string) (*authmodel.User, 
 
 // queryWithRetry 执行查询并在瞬时故障时重试（retrier 为 nil 时单次执行）。
 func (b *Biz) queryWithRetry(ctx context.Context,
-	q func(context.Context) (*authmodel.User, error),
+	q func(context.Context) (*authmodel.User, error), r *retry.Retrier,
 ) (*authmodel.User, error) {
-	if b.loginRetrier == nil {
+	if r == nil {
 		return q(ctx)
 	}
 	var (
@@ -919,7 +950,7 @@ func (b *Biz) queryWithRetry(ctx context.Context,
 		err error
 	)
 	// Retrier.Do 的 fn 无返回值，经闭包捕获结果。
-	rerr := b.loginRetrier.Do(ctx, func(c context.Context) error {
+	rerr := r.Do(ctx, func(c context.Context) error {
 		u, err = q(c)
 		return err
 	})

@@ -268,6 +268,11 @@ biz:
   # LoginRateLimiter 的语义——限流是防御性增强，不应因组件故障导致登录不可用）。
   # 限流在凭据校验**之前**生效（先拦流量再做昂贵 bcrypt 比较）。
   # 超限返回 HTTP 429 + reason="auth/rate_limited"。
+  #
+  # 热更：本段是域声明的可协调节点（domain.auth.biz，segments=biz.login，
+  # reload=reconcile）——改 rate/burst/breaker/retry 后无需重启：框架重算计划
+  # 发现摘要变化即调用 auth 域 Reconcile，整体替换登录防护三件（段被移除 =
+  # 该能力真的关闭）。非法值使本次协调失败，旧配置继续生效（不做半切换）。
   login:
     rate_limit:
       rate: 1      # 每秒补充令牌数（rate=1 → 约每秒放行 1 次尝试）

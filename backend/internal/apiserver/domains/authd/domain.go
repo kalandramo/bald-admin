@@ -8,6 +8,11 @@
 // 业务阈值；命令行 flag 通道经 FlagOptions（PlainBinder）保留——装配层仅
 // Bind 声明，键名与默认值仍归本包。
 //
+// biz.login 是**可协调节点**（ReloadReconcile）：配置热更时本域 Reconcile
+// 重新解码同一快照并整体替换登录防护三件（authbiz.ReplaceLoginGuards，
+// nil = 真的禁用），无需重启。故本域不用 domains.StandardDomain 的通用
+// 拓扑，而是手写 Declare/ApplyNode/Reconcile。
+//
 // 其余独有依赖（TokenStore/验证码/平台判据/令牌 TTL）按 file 域先例：基础设施
 // 构造留装配层（BeforeStart 抉择），域经 Deps getter 迟到取用。auth biz 的
 // setter 全部「nil 不覆盖」，getter 返回零值即禁用态。
@@ -17,6 +22,7 @@ package authd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -59,52 +65,107 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 auth 域的装配声明值（biz+routes 声明节点，通用拓扑见
-// domains.StandardDomain；routes 委托 hgin.RegisterAuth——传输适配不搬家）；
-// auth 无 gRPC 面，Services 不声明。
+const (
+	bizKey    = appkit.ResourceKey("domain.auth.biz")
+	routesKey = appkit.ResourceKey("domain.auth.routes")
+)
+
+// Domain 返回 auth 域的装配声明值（biz+routes 声明节点；biz 节点读取
+// biz.login 段并以 ReloadReconcile 参与热更，routes 委托 hgin.RegisterAuth——
+// 传输适配不搬家）；auth 无 gRPC 面，Services 不声明。
 func Domain(d Deps) appkit.Domain {
 	var biz *authbiz.Biz
-	return domains.StandardDomain("auth", "authd",
-		func(_ context.Context, app *appkit.App) error {
-			// 登录防护三件的本域配置（biz.login.*）：域自读 Settings 快照，
-			// 段内严格解码 + 校验，非法配置在此 fail-fast
-			// （启动期错误，不静默）。
+	wire := func(ctx context.Context, app *appkit.App) error {
+		// 登录防护三件的本域配置（biz.login.*）：域自读 Settings 快照，
+		// 段内严格解码 + 校验，非法配置在此 fail-fast
+		// （启动期错误，不静默）。
+		cfg, err := decodeLogin(app.Settings())
+		if err != nil {
+			return err
+		}
+		us, err := domains.RequireStore("authd", "user/tenant store", d.UserStore())
+		if err != nil {
+			return err
+		}
+		ts, err := domains.RequireStore("authd", "user/tenant store", d.TenantStore())
+		if err != nil {
+			return err
+		}
+		biz = authbiz.New(d.Signer(), us, ts, d.ReloadPolicies())
+		// 登录防护三件（nil=未配置禁用态，
+		// biz 侧 SetLoginXxx 对 nil 不覆盖）。
+		biz.SetLoginLimiter(buildLoginLimiter(cfg))
+		biz.SetLoginBreaker(buildLoginBreaker(cfg))
+		biz.SetLoginRetrier(buildLoginRetrier(cfg))
+		// 平台判据（纯函数，无条件注入）/令牌/验证码/TTL：装配层已抉择
+		// 产物，getter 返回零值即禁用态（setter nil 不覆盖）。
+		// 依赖缺席即保持禁用态，不报错。
+		biz.SetPlatformResolver(d.PlatformResolver())
+		biz.SetTokenStore(d.TokenStore())
+		biz.SetAuthenticator(d.Authn())
+		biz.SetCaptchaStore(d.CaptchaStore())
+		access, refresh := d.TokenTTL()
+		biz.SetTokenTTL(access, refresh)
+		return nil
+	}
+	mount := func(h http.Handler) error {
+		e, err := domains.AssertGin("authd", h)
+		if err != nil {
+			return err
+		}
+		hgin.RegisterAuth(e, d.Authn(), d.Authz(), biz)
+		return nil
+	}
+
+	return appkit.Domain{
+		Name: "auth",
+		Declare: func(_ context.Context, s appkit.PlanScope) ([]appkit.Node, error) {
+			nodes := []appkit.Node{{
+				Key:      bizKey,
+				Segments: []string{"biz." + ConfigSection},
+				Phase:    appkit.PhaseWire,
+				Priority: 10,
+				Reload:   appkit.ReloadReconcile,
+			}}
+			if s.Decl.HTTPHandler == nil {
+				return nodes, nil
+			}
+			return append(nodes, appkit.Node{
+				Key:       routesKey,
+				Segments:  []string{"server.http"},
+				Phase:     appkit.PhaseServe,
+				Priority:  10,
+				DependsOn: []appkit.ResourceKey{bizKey},
+			}), nil
+		},
+		ApplyNode: func(ctx context.Context, app *appkit.App, node appkit.Node) error {
+			switch node.Key {
+			case bizKey:
+				return wire(ctx, app)
+			case routesKey:
+				h := app.HTTPHandler()
+				if h == nil {
+					return fmt.Errorf("authd: declared node %q has no HTTP face at execution time", node.Key)
+				}
+				return mount(h)
+			}
+			return fmt.Errorf("authd: unknown declared node %q", node.Key)
+		},
+		Reconcile: func(_ context.Context, app *appkit.App, node appkit.Node) error {
+			if node.Key != bizKey {
+				return nil // routes 节点是静态挂载，无需协调
+			}
+			if biz == nil {
+				return fmt.Errorf("authd: reconcile %q before wire", node.Key)
+			}
+			// 与 Wire 同一解码/校验路径：热更配置非法时本次协调失败（框架记
+			// Drift/日志），旧三件保持生效，不做半切换。
 			cfg, err := decodeLogin(app.Settings())
 			if err != nil {
 				return err
 			}
-			us, err := domains.RequireStore("authd", "user/tenant store", d.UserStore())
-			if err != nil {
-				return err
-			}
-			ts, err := domains.RequireStore("authd", "user/tenant store", d.TenantStore())
-			if err != nil {
-				return err
-			}
-			biz = authbiz.New(d.Signer(), us, ts, d.ReloadPolicies())
-			// 登录防护三件（nil=未配置禁用态，
-			// biz 侧 SetLoginXxx 对 nil 不覆盖）。
-			biz.SetLoginLimiter(buildLoginLimiter(cfg))
-			biz.SetLoginBreaker(buildLoginBreaker(cfg))
-			biz.SetLoginRetrier(buildLoginRetrier(cfg))
-			// 平台判据（纯函数，无条件注入）/令牌/验证码/TTL：装配层已抉择
-			// 产物，getter 返回零值即禁用态（setter nil 不覆盖）。
-			// 依赖缺席即保持禁用态，不报错。
-			biz.SetPlatformResolver(d.PlatformResolver())
-			biz.SetTokenStore(d.TokenStore())
-			biz.SetAuthenticator(d.Authn())
-			biz.SetCaptchaStore(d.CaptchaStore())
-			access, refresh := d.TokenTTL()
-			biz.SetTokenTTL(access, refresh)
+			biz.ReplaceLoginGuards(buildLoginLimiter(cfg), buildLoginBreaker(cfg), buildLoginRetrier(cfg))
 			return nil
 		},
-		func(h http.Handler) error {
-			e, err := domains.AssertGin("authd", h)
-			if err != nil {
-				return err
-			}
-			hgin.RegisterAuth(e, d.Authn(), d.Authz(), biz)
-			return nil
-		},
-	)
+	}
 }
