@@ -35,42 +35,42 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald v0.29.0
-	github.com/kalandramo/bald/bconf v0.13.0
+	github.com/kalandramo/bald v0.32.0
+	github.com/kalandramo/bald/bconf v0.14.0
 	github.com/kalandramo/bald/berrors v0.1.1
-	github.com/kalandramo/bald/bootstrap v0.13.1
+	github.com/kalandramo/bald/bootstrap v0.13.2
 	github.com/kalandramo/bald/broker v0.3.0
-	github.com/kalandramo/bald/broker/redis v0.4.0
+	github.com/kalandramo/bald/broker/redis v0.4.1
 	github.com/kalandramo/bald/cache v0.3.0
 	github.com/kalandramo/bald/cache/loadable v0.2.0
-	github.com/kalandramo/bald/cache/redis v0.3.0
+	github.com/kalandramo/bald/cache/redis v0.3.1
 	github.com/kalandramo/bald/circuitbreaker v0.1.0
 	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0
-	github.com/kalandramo/bald/contrib/audit-gorm v0.2.1
-	github.com/kalandramo/bald/contrib/audit-stream v0.4.0
+	github.com/kalandramo/bald/contrib/audit-gorm v0.2.2
+	github.com/kalandramo/bald/contrib/audit-stream v0.4.1
 	github.com/kalandramo/bald/contrib/authn-jwt v0.3.0
 	github.com/kalandramo/bald/contrib/authz-casbin v0.2.2
-	github.com/kalandramo/bald/contrib/observability-otlp v0.3.1
+	github.com/kalandramo/bald/contrib/observability-otlp v0.3.2
 	github.com/kalandramo/bald/contrib/store-gorm v0.3.0
 	github.com/kalandramo/bald/encoding v0.1.0
 	github.com/kalandramo/bald/encoding/json v0.1.1
 	github.com/kalandramo/bald/encoding/msgpack v0.1.0
 	github.com/kalandramo/bald/health v0.1.1
-	github.com/kalandramo/bald/log v0.5.3
-	github.com/kalandramo/bald/oss/minio v0.3.0
-	github.com/kalandramo/bald/oss/s3 v0.3.0
+	github.com/kalandramo/bald/log v0.5.4
+	github.com/kalandramo/bald/oss/minio v0.3.1
+	github.com/kalandramo/bald/oss/s3 v0.3.1
 	github.com/kalandramo/bald/ratelimit v0.2.0
 	github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0
-	github.com/kalandramo/bald/registry v0.3.0
-	github.com/kalandramo/bald/registry/etcd v0.3.0
-	github.com/kalandramo/bald/registry/nacos v0.3.0
+	github.com/kalandramo/bald/registry v0.3.1
+	github.com/kalandramo/bald/registry/etcd v0.3.1
+	github.com/kalandramo/bald/registry/nacos v0.3.1
 	github.com/kalandramo/bald/retry v0.2.0
 	github.com/kalandramo/bald/transport v0.4.0
-	github.com/kalandramo/bald/transport/asynq v0.5.0
-	github.com/kalandramo/bald/transport/cron v0.6.0
-	github.com/kalandramo/bald/transport/gateway v0.4.0
+	github.com/kalandramo/bald/transport/asynq v0.5.1
+	github.com/kalandramo/bald/transport/cron v0.6.1
+	github.com/kalandramo/bald/transport/gateway v0.4.1
 	github.com/kalandramo/bald/transport/grpc v0.1.1
-	github.com/kalandramo/bald/transport/sse v0.4.0
+	github.com/kalandramo/bald/transport/sse v0.4.1
 	github.com/kalandramo/bald/transport/web v0.2.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/mojocn/base64Captcha v1.3.8
@@ -79,7 +79,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.57.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260904194346-d0f1323225a4
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
@@ -215,8 +215,8 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.3.0 // indirect
-	github.com/kalandramo/bald/bconfig v0.2.0 // indirect
-	github.com/kalandramo/bald/transport/http v0.1.1 // indirect
+	github.com/kalandramo/bald/bconfig v0.2.1 // indirect
+	github.com/kalandramo/bald/transport/http v0.1.3 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
@@ -243,7 +243,7 @@ require (
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/quic-go/quic-go v0.59.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
@@ -284,12 +284,12 @@ require (
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/exp v0.0.0-20260820142414-ca536658362e // indirect
 	golang.org/x/image v0.23.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/term v0.45.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/term v0.46.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260904194346-d0f1323225a4 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
