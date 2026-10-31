@@ -1,18 +1,16 @@
 package e2e
 
-// t_w3_2_sse_push_e2e_test.go —— ：message 域 → SSE 实时推送接线。
+// t_w3_2_sse_push_e2e_test.go —— message 域 → SSE 实时推送接线。
 //
-// ## 对齐源的三处对接
+// ## 三处对接
 //
-// 源：`sse.NewSseServer(cfg, WithAuthorizeFunc(HandleAuthorize))` +
-// `RegisterInternalMessagePublisher(srv)`。本项目形态一一对应：
 //   - 授权：`sseAuthorize`（token 校验 + stream 主体绑定）；
 //   - 推送：`sseMessagePublisher`（把 message biz 的窄接口适配到 *sse.Server）；
 //   - 注入：`wireMessageSSE`（SSE 未装配时降级为「只落库不推送」）。
 //
 // ## 核心安全语义
 //
-// **stream 参数必须与 token 主体一致**（源同款）——防用户 A 订阅用户 B 的流。
+// **stream 参数必须与 token 主体一致**——防用户 A 订阅用户 B 的流。
 //
 // 注：本文件用 httptest 驱动 biz 层接线（不依赖真实 server），
 // 真实 HTTP 链路（订阅→发送→收到事件、越权 403）已在端到端脚本验证。
@@ -69,7 +67,7 @@ func TestWave3_2_DeliverTriggersPush(t *testing.T) {
 		t.Fatalf("推送调用数=%d, want 1", len(pub.calls))
 	}
 	c := pub.calls[0]
-	// **streamID 必须是收件人**（源注释：同一用户所有设备订阅同一条流）。
+	// **streamID 必须是收件人**（同一用户所有设备订阅同一条流）。
 	if c.stream != uid {
 		t.Fatalf("stream=%q, want %q（收件人）", c.stream, uid)
 	}

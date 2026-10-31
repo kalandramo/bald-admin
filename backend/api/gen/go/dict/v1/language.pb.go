@@ -26,7 +26,7 @@ const (
 // Language 语言条目。ID 即标准语言代码（如 "zh-CN"）。
 type Language struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                         // 标准语言代码（主键，源 language_code）
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                         // 标准语言代码（主键）
 	LanguageName  string                 `protobuf:"bytes,2,opt,name=language_name,json=languageName,proto3" json:"language_name,omitempty"` // 语言名称（如 "中文（简体）"）
 	NativeName    string                 `protobuf:"bytes,3,opt,name=native_name,json=nativeName,proto3" json:"native_name,omitempty"`       // 本地语言名称（如 "简体中文"）
 	IsDefault     bool                   `protobuf:"varint,4,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`         // 是否默认语言

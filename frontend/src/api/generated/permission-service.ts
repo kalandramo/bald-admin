@@ -91,7 +91,7 @@ export const permissionServiceDeleteRolePolicy = (
   /**
  * GetPermission 取权限点。
  *    REST: GET /v1/permission/{id}
- *  单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源（P9）。
+ *  单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源。
  */
 export const permissionServiceGetPermission = (
     id: string,

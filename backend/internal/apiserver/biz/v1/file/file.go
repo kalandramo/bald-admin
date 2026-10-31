@@ -1,13 +1,12 @@
 package file
 
-// file.go 文件模块业务层。语义对齐源 go-wind-admin file_transfer_service.go：
+// file.go 文件模块业务层：
 // 上传校验（大小上限/MIME 白名单/目录安全）→ 按内容类型分桶 + 兜底建桶 →
 // MinIO PutObject → 元数据落库（SHA256/大小/扩展名/原始名）；下载按元数据重建
 // 对象键读取内容；删除先删对象再删元数据。
 //
-// 文件是租户级业务数据（源 mixin TenantID）：store 层 P8 自动注入与隔离
-// TenantID（Where.T）；CreatedBy 取认证后的 UserID（contextx）。
-// store 经构造期注入（起；此前为请求期读 bootstrap 包级变量）。
+// 文件是租户级业务数据：store 层自动注入与隔离 TenantID（Where.T）；
+// CreatedBy 取认证后的 UserID（contextx）。store 经构造期注入。
 
 import (
 	"bytes"
@@ -49,7 +48,7 @@ type Biz struct {
 }
 
 // New 构造 File biz。st 是文件元数据仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，FileStore 已就绪）；mc 由 bootstrap 桥接装配；defaultBucket
-// 为 file.bucket 配置，空 = 沿用源默认 "files"。
+// 为 file.bucket 配置，空 = 沿用默认 "files"。
 //
 // 注意（对象存储仍为运行期接线）：storage.minio / storage.s3 段经契约 provider 在
 // Serve 装配的阶段 B 构造，故构造期值拷贝 mc 可能为 nil——此处构造后仍须在
@@ -79,7 +78,7 @@ func (b *Biz) SetObjectStorage(s filestore.ObjectStorage, defaultBucket string) 
 	b.defaultBucket = defaultBucket
 }
 
-// Upload 上传文件（语义对齐源 UploadFile）：校验 → 分桶 → 建桶 → PutObject →
+// Upload 上传文件：校验 → 分桶 → 建桶 → PutObject →
 // 元数据落库。返回登记后的元数据（ID 为新 uuid，FileName 保留原始名）。
 func (b *Biz) Upload(ctx context.Context, fileName, fileDirectory string, content []byte) (*authmodel.File, error) {
 	if b.store == nil {
@@ -115,7 +114,7 @@ func (b *Biz) Upload(ctx context.Context, fileName, fileDirectory string, conten
 
 	dir, base := parseKey(info.Key)
 	m := &authmodel.File{
-		ID:            uuid.NewString(), // 源 recordFile：Id 独立 uuid
+		ID:            uuid.NewString(), // 独立 uuid
 		Provider:      "storage",        // 后端无关（minio/s3 经 ObjectStorage 抽象）
 		BucketName:    bucket,
 		SaveFileName:  base + ext, // 保存名 = uuid + 扩展名（对象键重建用）
@@ -133,7 +132,7 @@ func (b *Biz) Upload(ctx context.Context, fileName, fileDirectory string, conten
 	return m, nil
 }
 
-// Download 下载文件内容（语义对齐源 DownloadFile）：按元数据重建对象键读取。
+// Download 下载文件内容：按元数据重建对象键读取。
 func (b *Biz) Download(ctx context.Context, id string) (*authmodel.File, []byte, error) {
 	if b.store == nil {
 		return nil, nil, berrors.Internal("file/storage_unavailable")
@@ -178,7 +177,7 @@ func (b *Biz) List(ctx context.Context, fileName, mimeType string) ([]*authmodel
 	return b.fileStore.List(ctx, w.T(ctx))
 }
 
-// Delete 删除文件（语义对齐源 Delete）：先删对象，再删元数据。
+// Delete 删除文件：先删对象，再删元数据。
 func (b *Biz) Delete(ctx context.Context, id string) (string, error) {
 	if b.store == nil {
 		return "", berrors.Internal("file/storage_unavailable")
@@ -207,7 +206,7 @@ func (b *Biz) bucketFor(contentType string) string {
 	return bucket
 }
 
-// ensureBucket 桶兜底创建（源 EnsureBucket 语义）：不存在则创建（默认区域）。
+// ensureBucket 桶兜底创建：不存在则创建（默认区域）。
 func (b *Biz) ensureBucket(ctx context.Context, bucket string) error {
 	exists, err := b.store.BucketExists(ctx, bucket)
 	if err != nil {
@@ -230,7 +229,7 @@ func (b *Biz) objectKey(m *authmodel.File) string {
 	return m.FileDirectory + "/" + m.SaveFileName
 }
 
-// parseKey 拆对象键为目录与去扩展名基础名（源 parseKey 语义）。
+// parseKey 拆对象键为目录与去扩展名基础名。
 func parseKey(key string) (dir, base string) {
 	parts := strings.SplitN(key, "/", 2)
 	if len(parts) == 2 {
@@ -243,7 +242,7 @@ func parseKey(key string) (dir, base string) {
 	return dir, base
 }
 
-// sha256Hex 内容 SHA256 hex（源 ContentHash 语义）。
+// sha256Hex 内容 SHA256 hex。
 func sha256Hex(content []byte) string {
 	sum := sha256.Sum256(content)
 	return hex.EncodeToString(sum[:])

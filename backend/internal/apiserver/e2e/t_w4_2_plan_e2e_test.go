@@ -1,15 +1,12 @@
 package e2e
 
-// t_w4_2_plan_e2e_test.go —— ：套餐三件套（源 14 rpc）。
-//
-// 源：`i_plan.proto`(5) + `i_plan_module.proto`(5) + `i_plan_quota.proto`(4)。
+// t_w4_2_plan_e2e_test.go —— 套餐三件套（plan / module / quota）。
 //
 // ## 核心语义：**级联删除**
 //
-// 源用 ent Edge + `OnDelete: entsql.Cascade`（`plan.go:93,100`）——
 // **删套餐时 DB 自动级联删其 modules/quotas**。
 //
-// **与 org/permgroup 的语义差异（源的差异，非实现随意）**：
+// **与 org/permgroup 的语义差异**：
 //   - org / permgroup：**有子节点时拒绝删除**（Restrict 语义）
 //   - plan：**级联删除**（Cascade 语义）
 //
@@ -54,8 +51,8 @@ func planSuffix() string { return "pl" + time.Now().Format("150405.000000") }
 
 // TestWave4_2_CascadeDelete —— **核心验证点**。
 //
-// 删套餐 → 其 modules/quotas 一并删除（源 ent Cascade 语义）。
-// 与 org/permgroup 的「拒绝删除」相反——这是源的差异。
+// 删套餐 → 其 modules/quotas 一并删除。
+// 与 org/permgroup 的「拒绝删除」相反。
 func TestWave4_2_CascadeDelete(t *testing.T) {
 	base := startPlanREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
@@ -261,7 +258,7 @@ func TestWave4_2_ModuleAndQuota(t *testing.T) {
 		t.Fatalf("删模块 status=%d", st)
 	}
 
-	// ---- 配额（源无 Get，只有 List/Create/Update/Delete）----
+	// ---- 配额（无 Get，只有 List/Create/Update/Delete）----
 	st, raw = callRaw(t, base, admin, http.MethodPost, "/v1/plan-quotas",
 		map[string]any{"plan_id": p.ID, "quota_type": "max_users", "quota_value": 500})
 	if st != http.StatusCreated {

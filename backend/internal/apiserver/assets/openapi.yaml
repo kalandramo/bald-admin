@@ -10,7 +10,9 @@ paths:
         get:
             tags:
                 - AdminPortalService
-            description: "GetInitialContext 一次性获取进入后台所需的所有上下文（菜单树 + 权限码）。\r\n   REST: GET /admin/v1/initial-context"
+            description: |-
+                GetInitialContext 一次性获取进入后台所需的所有上下文（菜单树 + 权限码）。
+                   REST: GET /admin/v1/initial-context
             operationId: AdminPortalService_GetInitialContext
             responses:
                 "200":
@@ -23,7 +25,9 @@ paths:
         get:
             tags:
                 - AdminPortalService
-            description: "GetMyPermissionCode 查询当前用户的权限码列表。\r\n   REST: GET /admin/v1/perm-codes"
+            description: |-
+                GetMyPermissionCode 查询当前用户的权限码列表。
+                   REST: GET /admin/v1/perm-codes
             operationId: AdminPortalService_GetMyPermissionCode
             responses:
                 "200":
@@ -36,7 +40,9 @@ paths:
         get:
             tags:
                 - AdminPortalService
-            description: "GetNavigation 查询前端路由表（当前用户可见的菜单树，去 BUTTON 类型）。\r\n   REST: GET /admin/v1/routes"
+            description: |-
+                GetNavigation 查询前端路由表（当前用户可见的菜单树，去 BUTTON 类型）。
+                   REST: GET /admin/v1/routes
             operationId: AdminPortalService_GetNavigation
             responses:
                 "200":
@@ -49,7 +55,9 @@ paths:
         get:
             tags:
                 - AuditService
-            description: "ListAuditRecords 分页查询审计日志（category/subject/object/action/result/ip 过滤）。\r\n   REST: GET /v1/audit"
+            description: |-
+                ListAuditRecords 分页查询审计日志（category/subject/object/action/result/ip 过滤）。
+                   REST: GET /v1/audit
             operationId: AuditService_ListAuditRecords
             parameters:
                 - name: category
@@ -153,7 +161,9 @@ paths:
         get:
             tags:
                 - AuditService
-            description: "GetAuditRecord 取单条审计日志详情。\r\n   REST: GET /v1/audit/{id}"
+            description: |-
+                GetAuditRecord 取单条审计日志详情。
+                   REST: GET /v1/audit/{id}
             operationId: AuditService_GetAuditRecord
             parameters:
                 - name: id
@@ -319,7 +329,7 @@ paths:
             description: |-
                 GetDictType 取字典类型。
                    REST: GET /v1/dict_type/{id}
-                 单数路径段与 DefaultGRPCObject("DictTypeService/...")="dict_type" 同源（P9）。
+                 单数路径段与 DefaultGRPCObject("DictTypeService/...")="dict_type" 同源。
             operationId: DictTypeService_GetDictType
             parameters:
                 - name: id
@@ -384,7 +394,9 @@ paths:
         get:
             tags:
                 - FileService
-            description: "ListFiles 列出文件（租户过滤自动；原始文件名/内容类型过滤）。\r\n   REST: GET /v1/file"
+            description: |-
+                ListFiles 列出文件（租户过滤自动；原始文件名/内容类型过滤）。
+                   REST: GET /v1/file
             operationId: FileService_ListFiles
             parameters:
                 - name: file_name
@@ -406,7 +418,10 @@ paths:
         post:
             tags:
                 - FileService
-            description: "UploadFile 上传文件：校验后写入 MinIO 并登记元数据。\r\n   REST(gateway): POST /v1/file/upload（JSON body，content 为 base64）\r\n   REST(gin):     POST /v1/file/upload（multipart form：file + directory）"
+            description: |-
+                UploadFile 上传文件：校验后写入 MinIO 并登记元数据。
+                   REST(gateway): POST /v1/file/upload（JSON body，content 为 base64）
+                   REST(gin):     POST /v1/file/upload（multipart form：file + directory）
             operationId: FileService_UploadFile
             requestBody:
                 content:
@@ -425,7 +440,9 @@ paths:
         get:
             tags:
                 - FileService
-            description: "GetFile 取文件元数据。\r\n   REST: GET /v1/file/{id}"
+            description: |-
+                GetFile 取文件元数据。
+                   REST: GET /v1/file/{id}
             operationId: FileService_GetFile
             parameters:
                 - name: id
@@ -443,7 +460,9 @@ paths:
         delete:
             tags:
                 - FileService
-            description: "DeleteFile 删除文件（先删对象，再删元数据）。\r\n   REST: DELETE /v1/file/{id}"
+            description: |-
+                DeleteFile 删除文件（先删对象，再删元数据）。
+                   REST: DELETE /v1/file/{id}
             operationId: FileService_DeleteFile
             parameters:
                 - name: id
@@ -462,7 +481,10 @@ paths:
         get:
             tags:
                 - FileService
-            description: "DownloadFile 下载文件内容（bytes）。\r\n   REST(gateway): GET /v1/file/{id}/download（JSON）\r\n   REST(gin):     GET /v1/file/{id}/download（流式，Content-Disposition）"
+            description: |-
+                DownloadFile 下载文件内容（bytes）。
+                   REST(gateway): GET /v1/file/{id}/download（JSON）
+                   REST(gin):     GET /v1/file/{id}/download（流式，Content-Disposition）
             operationId: FileService_DownloadFile
             parameters:
                 - name: id
@@ -481,7 +503,9 @@ paths:
         get:
             tags:
                 - LanguageService
-            description: "ListLanguages 列出语言（sort_order 升序）。\r\n   REST: GET /v1/language"
+            description: |-
+                ListLanguages 列出语言（sort_order 升序）。
+                   REST: GET /v1/language
             operationId: LanguageService_ListLanguages
             parameters:
                 - name: enabled_only
@@ -498,7 +522,9 @@ paths:
         post:
             tags:
                 - LanguageService
-            description: "CreateLanguage 创建语言（language_code 为业务键，重复 → 409）。\r\n   REST: POST /v1/language"
+            description: |-
+                CreateLanguage 创建语言（language_code 为业务键，重复 → 409）。
+                   REST: POST /v1/language
             operationId: LanguageService_CreateLanguage
             requestBody:
                 content:
@@ -517,7 +543,9 @@ paths:
         post:
             tags:
                 - LanguageService
-            description: "BatchCreateLanguages 批量创建。**源未实现**（见 service 头注）→ UNIMPLEMENTED。\r\n   REST: POST /v1/language/batch"
+            description: |-
+                BatchCreateLanguages 批量创建。**源未实现**（见 service 头注）→ UNIMPLEMENTED。
+                   REST: POST /v1/language/batch
             operationId: LanguageService_BatchCreateLanguages
             requestBody:
                 content:
@@ -536,7 +564,9 @@ paths:
         get:
             tags:
                 - LanguageService
-            description: "CountLanguages 统计语言数量。\r\n   REST: GET /v1/language/count"
+            description: |-
+                CountLanguages 统计语言数量。
+                   REST: GET /v1/language/count
             operationId: LanguageService_CountLanguages
             responses:
                 "200":
@@ -549,7 +579,9 @@ paths:
         get:
             tags:
                 - LanguageService
-            description: "GetLanguage 取单个语言。\r\n   REST: GET /v1/language/{id}"
+            description: |-
+                GetLanguage 取单个语言。
+                   REST: GET /v1/language/{id}
             operationId: LanguageService_GetLanguage
             parameters:
                 - name: id
@@ -567,7 +599,9 @@ paths:
         put:
             tags:
                 - LanguageService
-            description: "UpdateLanguage 更新语言（非空字段即更新；language_code 不可变）。\r\n   REST: PUT /v1/language/{id}"
+            description: |-
+                UpdateLanguage 更新语言（非空字段即更新；language_code 不可变）。
+                   REST: PUT /v1/language/{id}
             operationId: LanguageService_UpdateLanguage
             parameters:
                 - name: id
@@ -591,7 +625,9 @@ paths:
         delete:
             tags:
                 - LanguageService
-            description: "DeleteLanguage 删除语言。\r\n   REST: DELETE /v1/language/{id}"
+            description: |-
+                DeleteLanguage 删除语言。
+                   REST: DELETE /v1/language/{id}
             operationId: LanguageService_DeleteLanguage
             parameters:
                 - name: id
@@ -611,8 +647,7 @@ paths:
             tags:
                 - MenuService
             description: |-
-                ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过——
-                 源项目 pagination.BuildTree 同语义）。
+                ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过）。
                    REST: GET /v1/menu
             operationId: MenuService_ListMenus
             responses:
@@ -626,7 +661,7 @@ paths:
             tags:
                 - MenuService
             description: |-
-                CreateMenu 创建菜单节点（parent_id 空 = 根节点；源 parent_id=0 语义）。
+                CreateMenu 创建菜单节点（parent_id 空 = 根节点）。
                    REST: POST /v1/menu
             operationId: MenuService_CreateMenu
             requestBody:
@@ -649,7 +684,7 @@ paths:
             description: |-
                 GetMenu 取菜单节点。
                    REST: GET /v1/menu/{id}
-                 单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（P9 策略单写）。
+                 单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（策略单写）。
             operationId: MenuService_GetMenu
             parameters:
                 - name: id
@@ -694,7 +729,7 @@ paths:
             tags:
                 - MenuService
             description: |-
-                DeleteMenu 删除菜单节点（递归级联删除子树——源 QueryAllChildrenIds 语义）。
+                DeleteMenu 删除菜单节点（递归级联删除子树）。
                    REST: DELETE /v1/menu/{id}
             operationId: MenuService_DeleteMenu
             parameters:
@@ -714,7 +749,10 @@ paths:
         get:
             tags:
                 - OrgUnitService
-            description: "ListOrgUnits 列出**根节点**（分页，children 不预填）。\r\n 子节点经 ListOrgUnitChildren 懒加载（树形展开用）。\r\n   REST: GET /v1/org-units"
+            description: |-
+                ListOrgUnits 列出**根节点**（分页，children 不预填）。
+                 子节点经 ListOrgUnitChildren 懒加载（树形展开用）。
+                   REST: GET /v1/org-units
             operationId: OrgUnitService_ListOrgUnits
             parameters:
                 - name: paging.page
@@ -793,7 +831,9 @@ paths:
         post:
             tags:
                 - OrgUnitService
-            description: "CreateOrgUnit 创建组织单元（code 为业务键，重复 → 409）。\r\n   REST: POST /v1/org-units"
+            description: |-
+                CreateOrgUnit 创建组织单元（code 为业务键，重复 → 409）。
+                   REST: POST /v1/org-units
             operationId: OrgUnitService_CreateOrgUnit
             requestBody:
                 content:
@@ -812,7 +852,9 @@ paths:
         post:
             tags:
                 - OrgUnitService
-            description: "BatchCreateOrgUnits 批量创建（逐条创建，**部分失败不回滚**——对齐源语义）。\r\n   REST: POST /v1/org-units/batch"
+            description: |-
+                BatchCreateOrgUnits 批量创建（逐条创建，**部分失败不回滚**）。
+                   REST: POST /v1/org-units/batch
             operationId: OrgUnitService_BatchCreateOrgUnits
             requestBody:
                 content:
@@ -831,7 +873,11 @@ paths:
         get:
             tags:
                 - OrgUnitService
-            description: "CountOrgUnits 统计组织单元数量。\r\n   REST: GET /v1/org-units/count\r\n 注意：REST 路径 `/org-units/count` 必须注册在 `/org-units/{code}` **之前**\r\n （gin 路由树对静态段优先，显式排序避免歧义——同 dict/language 的 /count 约定）。"
+            description: |-
+                CountOrgUnits 统计组织单元数量。
+                   REST: GET /v1/org-units/count
+                 注意：REST 路径 `/org-units/count` 必须注册在 `/org-units/{code}` **之前**
+                 （gin 路由树对静态段优先，显式排序避免歧义——同 dict/language 的 /count 约定）。
             operationId: OrgUnitService_CountOrgUnits
             responses:
                 "200":
@@ -844,7 +890,9 @@ paths:
         get:
             tags:
                 - OrgUnitService
-            description: "GetOrgUnit 取单个组织单元（按 code）。\r\n   REST: GET /v1/org-units/{code}"
+            description: |-
+                GetOrgUnit 取单个组织单元（按 code）。
+                   REST: GET /v1/org-units/{code}
             operationId: OrgUnitService_GetOrgUnit
             parameters:
                 - name: code
@@ -862,7 +910,10 @@ paths:
         put:
             tags:
                 - OrgUnitService
-            description: "UpdateOrgUnit 更新组织单元（非空字段即更新；code 不可变）。\r\n **防环**：不能把节点挂到自己的子孙下（源无此校验，是本项目的正确性增强）。\r\n   REST: PUT /v1/org-units/{code}"
+            description: |-
+                UpdateOrgUnit 更新组织单元（非空字段即更新；code 不可变）。
+                 **防环**：不能把节点挂到自己的子孙下。
+                   REST: PUT /v1/org-units/{code}
             operationId: OrgUnitService_UpdateOrgUnit
             parameters:
                 - name: code
@@ -886,7 +937,9 @@ paths:
         delete:
             tags:
                 - OrgUnitService
-            description: "DeleteOrgUnit 删除组织单元。**有子节点时拒绝**（否则产生悬挂引用）。\r\n   REST: DELETE /v1/org-units/{code}"
+            description: |-
+                DeleteOrgUnit 删除组织单元。**有子节点时拒绝**（否则产生悬挂引用）。
+                   REST: DELETE /v1/org-units/{code}
             operationId: OrgUnitService_DeleteOrgUnit
             parameters:
                 - name: code
@@ -905,7 +958,10 @@ paths:
         get:
             tags:
                 - OrgUnitService
-            description: "ListOrgUnitChildren 列出某节点的**直接子节点**（分页，不递归）。\r\n 用于 el-table 懒加载：展开节点时按需拉取其下一层。\r\n   REST: GET /v1/org-units/{parent_id}/children"
+            description: |-
+                ListOrgUnitChildren 列出某节点的**直接子节点**（分页，不递归）。
+                 用于 el-table 懒加载：展开节点时按需拉取其下一层。
+                   REST: GET /v1/org-units/{parent_id}/children
             operationId: OrgUnitService_ListOrgUnitChildren
             parameters:
                 - name: parent_id
@@ -1090,7 +1146,7 @@ paths:
             description: |-
                 GetPermission 取权限点。
                    REST: GET /v1/permission/{id}
-                 单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源（P9）。
+                 单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源。
             operationId: PermissionService_GetPermission
             parameters:
                 - name: id
@@ -1155,7 +1211,9 @@ paths:
         get:
             tags:
                 - PositionService
-            description: "ListPositions 列出职位（回填 org_unit_name / reports_to_position_name）。\r\n   REST: GET /v1/positions"
+            description: |-
+                ListPositions 列出职位（回填 org_unit_name / reports_to_position_name）。
+                   REST: GET /v1/positions
             operationId: PositionService_ListPositions
             responses:
                 "200":
@@ -1167,7 +1225,9 @@ paths:
         post:
             tags:
                 - PositionService
-            description: "CreatePosition 创建职位（校验所属组织单元存在——避免悬挂引用）。\r\n   REST: POST /v1/positions"
+            description: |-
+                CreatePosition 创建职位（校验所属组织单元存在——避免悬挂引用）。
+                   REST: POST /v1/positions
             operationId: PositionService_CreatePosition
             requestBody:
                 content:
@@ -1186,7 +1246,9 @@ paths:
         post:
             tags:
                 - PositionService
-            description: "BatchCreatePositions 批量创建（部分失败不回滚）。\r\n   REST: POST /v1/positions/batch"
+            description: |-
+                BatchCreatePositions 批量创建（部分失败不回滚）。
+                   REST: POST /v1/positions/batch
             operationId: PositionService_BatchCreatePositions
             requestBody:
                 content:
@@ -1205,7 +1267,9 @@ paths:
         get:
             tags:
                 - PositionService
-            description: "CountPositions 统计职位数量。\r\n   REST: GET /v1/positions/count"
+            description: |-
+                CountPositions 统计职位数量。
+                   REST: GET /v1/positions/count
             operationId: PositionService_CountPositions
             responses:
                 "200":
@@ -1218,7 +1282,9 @@ paths:
         get:
             tags:
                 - PositionService
-            description: "GetPosition 取单个职位（按 code）。\r\n   REST: GET /v1/positions/{code}"
+            description: |-
+                GetPosition 取单个职位（按 code）。
+                   REST: GET /v1/positions/{code}
             operationId: PositionService_GetPosition
             parameters:
                 - name: code
@@ -1236,7 +1302,9 @@ paths:
         put:
             tags:
                 - PositionService
-            description: "UpdatePosition 更新职位（非空字段即更新；code 不可变）。\r\n   REST: PUT /v1/positions/{code}"
+            description: |-
+                UpdatePosition 更新职位（非空字段即更新；code 不可变）。
+                   REST: PUT /v1/positions/{code}
             operationId: PositionService_UpdatePosition
             parameters:
                 - name: code
@@ -1260,7 +1328,9 @@ paths:
         delete:
             tags:
                 - PositionService
-            description: "DeletePosition 删除职位。\r\n   REST: DELETE /v1/positions/{code}"
+            description: |-
+                DeletePosition 删除职位。
+                   REST: DELETE /v1/positions/{code}
             operationId: PositionService_DeletePosition
             parameters:
                 - name: code
@@ -1279,7 +1349,9 @@ paths:
         get:
             tags:
                 - RedisCacheMonitorService
-            description: "GetRedisCacheMonitor 查询 Redis 缓存监控信息。\r\n   REST: GET /v1/redis-cache-monitor"
+            description: |-
+                GetRedisCacheMonitor 查询 Redis 缓存监控信息。
+                   REST: GET /v1/redis-cache-monitor
             operationId: RedisCacheMonitorService_GetRedisCacheMonitor
             responses:
                 "200":
@@ -1372,7 +1444,7 @@ paths:
                 GetTenant 取租户。
                    REST: GET /v1/tenant/{id}
                  注意 REST 用单数段：DefaultHTTPObject 取首资源段（"tenant"），与 gRPC
-                 DefaultGRPCObject("TenantService/...")="tenant" 同源（P9 归一化，策略单写）。
+                 DefaultGRPCObject("TenantService/...")="tenant" 同源（归一化，策略单写）。
             operationId: TenantService_GetTenant
             parameters:
                 - name: id
@@ -1438,7 +1510,7 @@ paths:
             tags:
                 - UserService
             description: |-
-                ListUsers 列出当前租户用户（M3 多租户隔离验证点，对象列表版本）。
+                ListUsers 列出当前租户用户（多租户隔离验证点，对象列表版本）。
                    REST: GET /v1/user
             operationId: UserService_ListUsers
             responses:
@@ -1475,7 +1547,7 @@ paths:
             description: |-
                 GetUser 取用户。
                    REST: GET /v1/user/{id}
-                 REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源（P9）。
+                 REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源。
             operationId: UserService_GetUser
             parameters:
                 - name: id
@@ -1567,7 +1639,7 @@ components:
                     type: string
                 http_method:
                     type: string
-                    description: '---- api 类专属（源 ApiAuditLog）----'
+                    description: '---- api 类专属 ----'
                 path:
                     type: string
                 status_code:
@@ -1578,7 +1650,7 @@ components:
                     format: uint32
                 table_name:
                     type: string
-                    description: '---- data_access 类专属（源 DataAccessAuditLog）----'
+                    description: '---- data_access 类专属 ----'
                 data_source:
                     type: string
                 db_user:
@@ -1590,7 +1662,7 @@ components:
                     format: uint32
                 target_type:
                     type: string
-                    description: '---- permission 类专属（源 PermissionAuditLog）----'
+                    description: '---- permission 类专属 ----'
                 target_id:
                     type: string
                 old_value:
@@ -1599,13 +1671,20 @@ components:
                     type: string
                 session_id:
                     type: string
-                    description: '---- login 类专属（源 LoginAuditLog）----'
+                    description: '---- login 类专属 ----'
                 mfa_status:
                     type: string
                 time:
                     type: string
                     format: date-time
-            description: "AuditRecord 审计日志条目。字段对齐 model.AuditRecord（源\r\n OperationAuditLog/LoginAuditLog 共有核心字段精简；\r\n Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。\r\n\r\n Wave 5.1：单表 + category 承载源**五类**审计（operation/login/api/\r\n data_access/permission）。源是五张独立表、字段差异大，此处取并集为\r\n nullable 列（决策记录见 e2e 文件头）——api/data_access/permission\r\n 三类专属字段列在下方分组。"
+            description: |-
+                AuditRecord 审计日志条目。字段对齐 model.AuditRecord
+                 （Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。
+
+                 单表 + category 承载**五类**审计（operation/login/api/
+                 data_access/permission）。五类字段差异大，此处取并集为
+                 nullable 列（决策记录见 e2e 文件头）——api/data_access/permission
+                 三类专属字段列在下方分组。
         BatchCreateLanguagesRequest:
             type: object
             properties:
@@ -1809,6 +1888,16 @@ components:
                     type: string
                 description:
                     type: string
+            description: |-
+                CreateOrgUnitRequest 创建组织单元入参。
+
+                 **字段校验**：code/name 的必填与长度以 buf.validate
+                 注解表达，运行时由 protovalidate 读取执行（gRPC 面经 ValidatorInterceptor、
+                 gin 面经 handler 显式校验，两处共用同一份规则）。业务不变量（parent 存在性、
+                 防环）注解表达不了，仍归 biz——见 biz/v1/org/org.go。
+
+                 注：**注解只加在本专用输入消息上**，不加在共享的 OrgUnit（它同时用于响应与
+                 BatchCreateOrgUnitsRequest.items——加注解会让历史数据的列表接口全线报错）。
         CreateOrgUnitResponse:
             type: object
             properties:
@@ -1883,6 +1972,11 @@ components:
                 start_at:
                     type: string
                     format: date-time
+            description: |-
+                CreatePositionRequest 创建职位入参。
+                 **字段校验**：code/name 的必填与长度以 buf.validate 注解表达（同
+                 CreateOrgUnitRequest 的说明——只加专用输入消息，不碰共享 Position）。
+                 org_unit_id 的**存在性**校验依赖查库，注解表达不了，仍归 biz。
         CreatePositionResponse:
             type: object
             properties:
@@ -2021,9 +2115,7 @@ components:
                 updated_at:
                     type: string
                     format: date-time
-            description: |-
-                DictEntry 字典项。Label 内联源 sys_dict_entry_i18n 的 zh 条目（i18n 表按
-                 移植计划 §2.2 多语言后续迭代不移植）。
+            description: DictEntry 字典项。Label 内联 zh 条目（仅 zh，多语言表不实现）。
         DictType:
             type: object
             properties:
@@ -2089,7 +2181,7 @@ components:
                 updated_at:
                     type: string
                     format: date-time
-            description: File 文件元数据。字段对齐源 storage/service/v1 的 File（recordFile）。
+            description: File 文件元数据。
         GetAuditRecordResponse:
             type: object
             properties:
@@ -2216,7 +2308,9 @@ components:
                 meta:
                     allOf:
                         - $ref: '#/components/schemas/PaginationResponseMeta'
-                    description: "分页元数据：total（当前过滤条件下总数）/ total_pages / next_token 等。\r\n 原扁平字段 total/next_page_token 已并入此结构。"
+                    description: |-
+                        分页元数据：total（当前过滤条件下总数）/ total_pages / next_token 等。
+                         原扁平字段 total/next_page_token 已并入此结构。
         ListDictEntriesResponse:
             type: object
             properties:
@@ -2424,7 +2518,7 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/MenuRouteItem'
-            description: MenuRouteItem 前端路由项（扁平结构，见 service 头注的差异说明）。
+            description: MenuRouteItem 前端路由项（扁平结构，见 service 头注的设计说明）。
         OrgUnit:
             type: object
             properties:
@@ -2531,9 +2625,9 @@ components:
                     type: string
                     format: date-time
             description: |-
-                Permission 权限点（注册表）。ID 即权限码（P9 归一化的 "object:action"，如
+                Permission 权限点（注册表）。ID 即权限码（归一化的 "object:action"，如
                  "tenant:list"），与 Role.Perms（CSV 角色权限绑定）同命名空间；MenuIDs 是该
-                 权限点对应的可见菜单（源 sys_permission_menus 关联表的内联精简）。
+                 权限点对应的可见菜单（关联关系内联）。
         Position:
             type: object
             properties:
@@ -2624,8 +2718,8 @@ components:
                 action:
                     type: string
             description: |-
-                RolePolicy 角色策略行（casbin p 行的数据化形态，源 sys_role_permissions 的
-                 精简等价物——bald 用 P9 归一化 object:action 而非源 path/method/domain）。
+                RolePolicy 角色策略行（casbin p 行的数据化形态——
+                 用归一化 object:action 而非 path/method/domain）。
         SlowLogEntry:
             type: object
             properties:
@@ -2670,7 +2764,7 @@ components:
                     format: date-time
             description: |-
                 Tenant 租户。ID 即租户编码（business code，如 "platform"、"t-acme"），
-                 与 bald P8 的 tenant_id 同一命名空间——业务租户创建后即作为 P8 隔离维度使用。
+                 与 store 层的 tenant_id 同一命名空间——业务租户创建后即作为隔离维度使用。
         UpdateDictEntryRequest:
             type: object
             properties:
@@ -2833,6 +2927,13 @@ components:
                     type: string
                 description:
                     type: string
+            description: |-
+                UpdateOrgUnitRequest 更新组织单元入参。
+
+                 **校验语义与 Create 的关键差异**：更新采用「非空字段即更新」语义，name 为空
+                 表示「不改」——故 name **只加 max_len、不加 min_len**（加 min_len 会把
+                 「只改其他字段、不传 name」这种正常操作误判为非法）。code 是路径参数定位，
+                 同样不强制非空（路由保证非空段）。
         UpdateOrgUnitResponse:
             type: object
             properties:
@@ -2914,6 +3015,9 @@ components:
                     type: string
                 reports_to_position_id:
                     type: string
+            description: |-
+                UpdatePositionRequest 更新职位入参。
+                 **校验语义同 UpdateOrgUnitRequest**：name 为空 = 不改，故只加 max_len 不加 min_len。
         UpdatePositionResponse:
             type: object
             properties:
@@ -2993,70 +3097,151 @@ components:
                     format: date-time
             description: |-
                 User 用户。ID 为业务编码（如 "u-admin"）；tenant_id 不在此消息中——
-                 由 bald P8 从上下文注入（写）与过滤（读），客户端不可指定。
+                 由 store 层从上下文注入（写）与过滤（读），客户端不可指定。
 tags:
     - name: AdminPortalService
-      description: "AdminPortalService 后台前端初始化数据与配置服务（Wave 6.2，自 go-wind-admin\r\n admin 域 i_admin_portal.proto 精简移植，3 rpc）。\r\n\r\n ## 为何是真新增（裁定见计划 §Wave 6.1）\r\n\r\n 本 service **不 import** 其他业务域的消息类型（源仅 import menu.proto 作\r\n MenuRouteItem 复用）——三个 rpc 全是**跨域聚合**：把 user/role/permission/menu\r\n 四域的数据拼成前端初始化所需的视图，无单一对标 biz。\r\n\r\n ## 聚合链（源 admin_portal_service.go 实测）\r\n\r\n\tUser.Roles(角色名) → Role.Perms(权限码) → Permission.MenuIDs(菜单ID) → Menu 树\r\n\r\n 即「当前登录用户 → 其角色 → 角色权限码 → 权限点关联的菜单 → 过滤出路由」。\r\n\r\n ## 与源的差异\r\n\r\n 源的 `MenuRouteItem` 复用 permission 域消息（含 meta 嵌套对象）；本项目 Menu\r\n model 已内联 Title/Icon/Order（见 model/menu.go），故 MenuRouteItem 在本域\r\n 重新定义为扁平结构。源的套餐模块白名单过滤（filterMenusByPlanWhitelist）\r\n 未移植——本项目 plan_module 的 module 字段语义未对齐（源用枚举，本项目\r\n 未落该字段），强行实现会造无数据来源的逻辑。"
+      description: |-
+        AdminPortalService 后台前端初始化数据与配置服务（3 个 rpc）。
+
+         本 service **不 import** 其他业务域的消息类型——三个 rpc 全是**跨域聚合**：
+         把 user/role/permission/menu 四域的数据拼成前端初始化所需的视图，无单一对标 biz。
+
+         ## 聚合链
+
+        	User.Roles(角色名) → Role.Perms(权限码) → Permission.MenuIDs(菜单ID) → Menu 树
+
+         即「当前登录用户 → 其角色 → 角色权限码 → 权限点关联的菜单 → 过滤出路由」。
+
+         ## 设计说明
+
+         `MenuRouteItem` 在本域重新定义为扁平结构（不复用 permission 域消息）：本项目
+         Menu model 已内联 Title/Icon/Order（见 model/menu.go）。套餐白名单过滤未实现
+         ——plan_module 的 module 字段语义未落，强行实现会造无数据来源的逻辑。
     - name: AuditService
-      description: "AuditService 审计日志查询服务（T6，自 go-wind-admin audit 域精简移植）。\r\n\r\n 只读查询：审计事件由写路径自动落库（gin/gRPC 拦截器链 → category=operation；\r\n 登录动作 → category=login），本服务不提供写入（源 Create rpc 是内部补录口，\r\n 精简省略——伪造审计记录违背审计不可抵赖语义）。\r\n\r\n 数据来自 AuditRecord 单表（源 Operation/LoginAuditLog 双表 + Category 分类\r\n 精简合并）；P9 归一化对象 \"audit\"（REST /v1/audit 与 gRPC AuditService 同源）。\r\n\r\n **分页与租户隔离（2026-09-22 统一）**：List 用框架标准 `bald.store.v1.PagingRequest`\r\n （与 identity/org_unit.proto 一致），底层走 `Store.ListWithPaging`。由此带来一处\r\n **行为变更**：框架 `mergeTenant` 强制注入租户隔离（无跳过机制），故本域从\r\n 「跨租户全量查询」改为「仅本租户可见」——多租户下消除潜在信息泄露面。\r\n 见 biz/v1/auditlog/auditlog.go 的包注释。"
+      description: |-
+        AuditService 审计日志查询服务。
+
+         只读查询：审计事件由写路径自动落库（gin/gRPC 拦截器链 → category=operation；
+         登录动作 → category=login），本服务不提供写入——伪造审计记录违背审计不可抵赖语义。
+
+         数据来自 AuditRecord 单表（Category 分类合并）；归一化对象 "audit"
+         （REST /v1/audit 与 gRPC AuditService 同源）。
+
+         **分页与租户隔离**：List 用框架标准 `bald.store.v1.PagingRequest`
+         （与 identity/org_unit.proto 一致），底层走 `Store.ListWithPaging`。由此带来一处
+         **行为变更**：框架 `mergeTenant` 强制注入租户隔离（无跳过机制），故本域从
+         「跨租户全量查询」改为「仅本租户可见」——多租户下消除潜在信息泄露面。
+         见 biz/v1/auditlog/auditlog.go 的包注释。
     - name: DictEntryService
       description: |-
         DictEntryService 字典项管理。条目挂在类型下（type_code 引用），业务键
          "<type_code>:<entry_value>"；ListEntries 是 Cache-Aside 的消费点。
     - name: DictTypeService
       description: |-
-        DictTypeService 字典类型管理（T4，自 go-wind-admin dict 域 sys_dict_types 精简移植）。
+        DictTypeService 字典类型管理。
 
-         字典是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离，ListEntries 的
-         Cache-Aside 键含租户维度（dict biz）。type_code 即主键（源 immutable），仅
+         字典是租户级业务数据：查询自动经 store 层租户隔离，ListEntries 的
+         Cache-Aside 键含租户维度（dict biz）。type_code 即主键（不可变），仅
          展示属性可更新；删除类型级联删除其全部条目并失效对应缓存。
     - name: FileService
-      description: "FileService 文件管理服务（T5，自 go-wind-admin storage 域精简移植）。\r\n\r\n 文件是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离。上传校验\r\n 大小上限（50MiB）与 MIME 白名单（源 pkg/oss 语义），对象按内容类型分桶并\r\n 兜底创建桶；元数据含 SHA256 内容哈希与长度。上传/下载为二进制流：gateway\r\n 转码（bytes→base64 JSON）可用，推荐经 gin 主服务的 multipart/流式 REST。"
+      description: |-
+        FileService 文件管理服务。
+
+         文件是租户级业务数据：查询自动经 store 层租户隔离。上传校验
+         大小上限（50MiB）与 MIME 白名单，对象按内容类型分桶并
+         兜底创建桶；元数据含 SHA256 内容哈希与长度。上传/下载为二进制流：gateway
+         转码（bytes→base64 JSON）可用，推荐经 gin 主服务的 multipart/流式 REST。
     - name: LanguageService
-      description: "LanguageService 语言管理（Wave 5.3，自 go-wind-admin dict 域 language 精简移植）。\r\n\r\n 源语言域 7 rpc（List/Count/Get/Create/BatchCreate/Update/Delete）。本实现\r\n **对齐项目既有惯例**（与同目录 DictType/DictEntry 一致），与源有两处显式偏差：\r\n\r\n  1. **主键用 string 业务键**（`language_code`，如 \"zh-CN\"）而非源 `uint32 id`\r\n     ——源 ID 由 DB 自增生成，本项目 dict 域同款场景（type_code 作主键）已确立\r\n     「业务键主键」范式（见 model/dict.go），语言代码天然唯一且可读。\r\n  2. **请求体简化**：源的 `FieldMask view_mask`/`update_mask`/`oneof query_by`\r\n     未移植——本项目 handler 用「非空字段即更新」语义（同 DictType 的 Update），\r\n     字段掩码是源框架的通用能力，复刻它对功能对等无增益。\r\n\r\n BatchCreate 源 service 层**未实现**（proto 有、`language_service.go` 无该方法）\r\n ——故本实现同样返回 UNIMPLEMENTED（对齐源行为，不自创）。"
+      description: |-
+        LanguageService 语言管理（7 个 rpc：List/Count/Get/Create/BatchCreate/Update/Delete）。
+
+         设计约定（与同目录 DictType/DictEntry 一致）：
+
+          1. **主键用 string 业务键**（`language_code`，如 "zh-CN"）而非 DB 自增 ID
+             ——dict 域同款场景（type_code 作主键）已确立「业务键主键」范式
+             （见 model/dict.go），语言代码天然唯一且可读。
+          2. **请求体简化**：不使用 `FieldMask view_mask`/`update_mask`/`oneof query_by`
+             ——handler 用「非空字段即更新」语义（同 DictType 的 Update），
+             字段掩码对功能对等无增益。
+
+         BatchCreate 返回 UNIMPLEMENTED（未实现，避免自创语义）。
     - name: MenuService
       description: |-
-        MenuService 菜单管理服务（T3，自 go-wind-admin permission 域 sys_menus 精简移植）。
+        MenuService 菜单管理服务。
 
          菜单是前端导航树的数据源（自引用树，parent_id），同时是权限点可见性的挂载面
          （Permission.MenuIDs）。管理面操作仅授予 admin 角色（casbin 策略数据化装载）。
     - name: OrgUnitService
-      description: "OrgUnitService 组织单元管理（Wave P0.5，自 go-wind-admin identity 域\r\n org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。\r\n\r\n 本实现**对齐项目既有惯例**（与 dict/menu/tenant 一致），与源有多处显式偏差：\r\n\r\n  1. **主键用 string 业务键**（`code`，如 \"FIN-LEADER-001\"）而非源 `uint32 id`\r\n     ——源 ID 由 DB 自增生成；本项目 model.OrgUnit 主键即 `\"<tenant>:<code>\"`\r\n     （见 internal/apiserver/model/org.go），code 是跨系统同步的稳定标识。\r\n     proto 的 `id` 字段保留为**只读输出**（完整主键），供前端判断编辑态。\r\n  2. **请求体简化**：源的 `oneof query_by` / `FieldMask view_mask` /\r\n     `update_mask` / `allow_missing` 未移植——本项目 handler 用「非空字段即更新」\r\n     语义，并用 `*_set` 显式位区分「未设置」与「设为零值」（见 UpdateOrgUnitRequest）。\r\n  3. **枚举加前缀 + 补 0 值**：源 `Status{OFF=0,ON=1}` 的 0 值语义为「禁用」，\r\n     但 proto3 的 0 值必须是默认值——本实现改 `STATUS_UNSPECIFIED=0`（同 menu/tenant）。\r\n  4. **`parent_id` 语义统一为「父节点 code」**：源 model 存完整主键、对外暴露\r\n     也是完整主键（输入 code 输出主键，语义不对称）；本实现输入输出统一为 code。\r\n  5. **分页用框架自有 `bald.store.v1.PagingRequest`**：源用第三方\r\n     `pagination.PagingRequest`（且源实现收了参数却全量返回，是「假分页」）。\r\n     本实现改为**真分页**——用框架自有 `bald-bconf` 契约（与源字段结构逐项一致，\r\n     见 buf.yaml），且因树形与分页语义冲突（分页会截断 children），采用\r\n     **根节点分页 + 子节点懒加载**：ListOrgUnits 只返回根节点分页，\r\n     展开节点时调 ListOrgUnitChildren 拉取直接子节点。\r\n  6. **不移植** gnostic 注解 / `attributes` map / `business_scopes` /\r\n     `permission_tags` / 法务与地理字段（源 40 字段 → 本实现 14 字段）：\r\n     以本项目 model.OrgUnit 的实际字段集为准（用户要求「对齐本项目字段」）。"
+      description: |-
+        OrgUnitService 组织单元管理（7 个 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
+
+         设计约定（与 dict/menu/tenant 一致）：
+
+          1. **主键用 string 业务键**（`code`，如 "FIN-LEADER-001"）而非 DB 自增 ID；
+             model.OrgUnit 主键即 `"<tenant>:<code>"`（见 internal/apiserver/model/org.go），
+             code 是跨系统同步的稳定标识。proto 的 `id` 字段保留为**只读输出**（完整主键），
+             供前端判断编辑态。
+          2. **请求体简化**：不使用 `oneof query_by` / `FieldMask view_mask` /
+             `update_mask` / `allow_missing`——handler 用「非空字段即更新」语义，
+             并用 `*_set` 显式位区分「未设置」与「设为零值」（见 UpdateOrgUnitRequest）。
+          3. **枚举加前缀 + 补 0 值**：proto3 的 0 值必须是默认值，故
+             `STATUS_UNSPECIFIED=0`（同 menu/tenant）。
+          4. **`parent_id` 语义统一为「父节点 code」**：输入输出都是 code，不混用主键与编码。
+          5. **分页用框架自有 `bald.store.v1.PagingRequest`**（见 buf.yaml）。树形与分页语义
+             冲突（分页会截断 children），故采用**根节点分页 + 子节点懒加载**：
+             ListOrgUnits 只返回根节点分页，展开节点时调 ListOrgUnitChildren 拉取直接子节点。
+          6. **字段集以 model.OrgUnit 实际字段为准**（14 字段）：不含 `attributes` map /
+             `business_scopes` / `permission_tags` / 法务与地理字段。
     - name: PermissionService
       description: |-
-        PermissionService 权限管理服务（T3，自 go-wind-admin permission 域精简移植）。
+        PermissionService 权限管理服务。
 
          两块职责：
            1. 权限点注册表（Permission）：权限码 → 名称/菜单可见性关联
-              （源 sys_permissions + sys_permission_menus 精简——关联内联为 MenuIDs CSV）；
+              （关联内联为 MenuIDs CSV）；
            2. 角色策略（RolePolicy）：casbin p 行（role,object,action）的数据化持久层，
-              替代 M6.1 的静态 rbac_policy.csv（D3 策略数据化装载，重启生效）。
+              重启生效（策略装载自本表）。
          管理面操作仅授予 admin 角色（策略本身也数据化于 RolePolicy 表）。
     - name: PositionService
-      description: "PositionService 职位管理（Wave P0.5，自 go-wind-admin identity 域\r\n position.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。\r\n\r\n 与 OrgUnitService 同域的显式偏差（主键 string 业务键 / 请求体简化 /\r\n 枚举加前缀 / 不移植分页与 gnostic 注解）见 org_unit.proto 头注，此处不重复。\r\n\r\n 额外两点：\r\n  1. **关联字段回填**：`org_unit_name` / `reports_to_position_name` 由服务端\r\n     批量查询回填（源 org_unit_service.go 的三步式：extractRelationIDs →\r\n     fetchRelationInfo 批量查 → bindRelations 递归回填）。**批量**是源的精髓，\r\n     逐个查会退化成 N+1。\r\n  2. **源枚举注释有误**：源 `position.proto` 的 `OFF = 0; // 打开` 与\r\n     `ON = 1; // 关闭` 注释与枚举名语义相反（源缺陷）；本实现按名称语义修正。"
+      description: |-
+        PositionService 职位管理（7 个 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
+
+         约定（主键 string 业务键 / 请求体简化 / 枚举加前缀 / 列表不分页）见
+         org_unit.proto 头注，此处不重复。
+
+         额外两点：
+          1. **关联字段回填**：`org_unit_name` / `reports_to_position_name` 由服务端
+             批量查询回填（extractRelationIDs → fetchRelationInfo → bindRelations）。
+             必须**批量**，逐个查会退化成 N+1。
+          2. 状态枚举按名称语义：ON=1（启用）、OFF=2（禁用），0 值留作 UNSPECIFIED。
     - name: RedisCacheMonitorService
-      description: "RedisCacheMonitorService Redis 缓存监控（只读，聚合 INFO/DBSIZE/SLOWLOG 视图）。\r\n\r\n Wave 6.2 真新增（裁定见计划 §Wave 6.1）：源 redis_cache 域仅此 1 rpc，无对标 biz。\r\n\r\n ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）\r\n\r\n 三个只读命令（INFO / DBSIZE / SLOWLOG GET）**任一失败不阻断其余**——失败项\r\n 置空并记日志，而非整体报错。Redis 不可用时返回**空视图**（非错误），避免\r\n 单点故障导致整个监控页不可用。"
+      description: |-
+        RedisCacheMonitorService Redis 缓存监控（只读，聚合 INFO/DBSIZE/SLOWLOG 视图）。
+
+         ## fail-soft 语义
+
+         三个只读命令（INFO / DBSIZE / SLOWLOG GET）**任一失败不阻断其余**——失败项
+         置空并记日志，而非整体报错。Redis 不可用时返回**空视图**（非错误），避免
+         单点故障导致整个监控页不可用。
     - name: SecretService
       description: |-
-        SecretService 受限资源服务（M5：经 grpc-gateway 同时暴露 gRPC 与 REST）。
+        SecretService 受限资源服务（经 grpc-gateway 同时暴露 gRPC 与 REST）。
 
-         T2 起 proto 全部收敛到 api/ 目录（buf 模块根=api/）；本文件的 ListUsers 演示 RPC
+         proto 全部收敛到 api/ 目录（buf 模块根=api/）；本文件的 ListUsers 演示 RPC
          已由 UserService.ListUsers（api/user/v1）接管 GET /v1/users（对象列表版本）。
     - name: TenantService
       description: |-
-        TenantService 租户管理服务（T2，自 go-wind-admin identity/tenant.proto 精简搬运）。
+        TenantService 租户管理服务。
 
-         双层语义（移植计划 §6 D2）：
-           1. 业务层——本服务管理租户本身（租户即业务实体，对应源 sys_tenants；
-              platform 为平台租户，对应源 PlatformTenantID=0）；
-           2. 框架层——bald P8 pkg/store 对其他业务表（users/secrets/…）自动注入
+         双层语义：
+           1. 业务层——本服务管理租户本身（租户即业务实体；
+              platform 为平台租户，ID=0 等价物）；
+           2. 框架层——pkg/store 对其他业务表（users/secrets/…）自动注入
               tenant_id 读过滤与写注入，与本服务无关。
          租户管理是平台侧操作：REST/gRPC 路由仅授予 platform:admin 角色（casbin 策略）。
     - name: UserService
       description: |-
-        UserService 用户管理服务（T2，自 go-wind-admin identity/user.proto + user_profile.proto
-         精简搬运）。列表/读写天然按当前租户过滤（bald P8 pkg/store 自动注入 tenant_id），
-         跨租户用户不可见（隔离验证点）。
+        UserService 用户管理服务。列表/读写天然按当前租户过滤
+         （pkg/store 自动注入 tenant_id），跨租户用户不可见。
 
-         注意：原 SecretService.ListUsers（string 列表演示 RPC，M3）自本版本起由本服务
-         ListUsers 接管 GET /v1/users（对象列表，语义延续且增强），避免 gateway 路由重复注册。
+         ListUsers 接管 GET /v1/users（对象列表），避免 gateway 路由重复注册。

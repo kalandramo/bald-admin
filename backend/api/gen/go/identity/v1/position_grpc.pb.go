@@ -32,19 +32,16 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// PositionService 职位管理（自 go-wind-admin identity 域
-// position.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
+// PositionService 职位管理（7 个 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
-// 与 OrgUnitService 同域的显式偏差（主键 string 业务键 / 请求体简化 /
-// 枚举加前缀 / 不移植分页与 gnostic 注解）见 org_unit.proto 头注，此处不重复。
+// 约定（主键 string 业务键 / 请求体简化 / 枚举加前缀 / 列表不分页）见
+// org_unit.proto 头注，此处不重复。
 //
 // 额外两点：
 //  1. **关联字段回填**：`org_unit_name` / `reports_to_position_name` 由服务端
-//     批量查询回填（源 org_unit_service.go 的三步式：extractRelationIDs →
-//     fetchRelationInfo 批量查 → bindRelations 递归回填）。**批量**是源的精髓，
-//     逐个查会退化成 N+1。
-//  2. **源枚举注释有误**：源 `position.proto` 的 `OFF = 0; // 打开` 与
-//     `ON = 1; // 关闭` 注释与枚举名语义相反（源缺陷）；本实现按名称语义修正。
+//     批量查询回填（extractRelationIDs → fetchRelationInfo → bindRelations）。
+//     必须**批量**，逐个查会退化成 N+1。
+//  2. 状态枚举按名称语义：ON=1（启用）、OFF=2（禁用），0 值留作 UNSPECIFIED。
 type PositionServiceClient interface {
 	// ListPositions 列出职位（回填 org_unit_name / reports_to_position_name）。
 	//   REST: GET /v1/positions
@@ -151,19 +148,16 @@ func (c *positionServiceClient) BatchCreatePositions(ctx context.Context, in *Ba
 // All implementations must embed UnimplementedPositionServiceServer
 // for forward compatibility.
 //
-// PositionService 职位管理（自 go-wind-admin identity 域
-// position.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
+// PositionService 职位管理（7 个 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
-// 与 OrgUnitService 同域的显式偏差（主键 string 业务键 / 请求体简化 /
-// 枚举加前缀 / 不移植分页与 gnostic 注解）见 org_unit.proto 头注，此处不重复。
+// 约定（主键 string 业务键 / 请求体简化 / 枚举加前缀 / 列表不分页）见
+// org_unit.proto 头注，此处不重复。
 //
 // 额外两点：
 //  1. **关联字段回填**：`org_unit_name` / `reports_to_position_name` 由服务端
-//     批量查询回填（源 org_unit_service.go 的三步式：extractRelationIDs →
-//     fetchRelationInfo 批量查 → bindRelations 递归回填）。**批量**是源的精髓，
-//     逐个查会退化成 N+1。
-//  2. **源枚举注释有误**：源 `position.proto` 的 `OFF = 0; // 打开` 与
-//     `ON = 1; // 关闭` 注释与枚举名语义相反（源缺陷）；本实现按名称语义修正。
+//     批量查询回填（extractRelationIDs → fetchRelationInfo → bindRelations）。
+//     必须**批量**，逐个查会退化成 N+1。
+//  2. 状态枚举按名称语义：ON=1（启用）、OFF=2（禁用），0 值留作 UNSPECIFIED。
 type PositionServiceServer interface {
 	// ListPositions 列出职位（回填 org_unit_name / reports_to_position_name）。
 	//   REST: GET /v1/positions

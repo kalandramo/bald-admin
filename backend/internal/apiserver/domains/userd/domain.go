@@ -1,8 +1,8 @@
 // Package userd 是 user 域的装配声明包。包定位、
 // 依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
-// 与 tenant 的差异仅一处：user 是租户内读写域——隔离不经本域代码，store 层
-// P8（Where.T 自动过滤/写入注入）承担；本包 Wire 只构造 biz，无租户感知。
+// 与 tenant 的差异仅一处：user 是租户内读写域——隔离不经本域代码，
+// 由 store 层（Where.T 自动过滤/写入注入）承担；本包 Wire 只构造 biz，无租户感知。
 package userd
 
 import (

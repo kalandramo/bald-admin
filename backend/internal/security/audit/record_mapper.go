@@ -1,14 +1,14 @@
 package audit
 
-// record_mapper.go —— ：审计事件 → authmodel.AuditRecord 的业务映射。
+// record_mapper.go —— 审计事件 → authmodel.AuditRecord 的业务映射。
 //
 // ## 为何需要自定义映射
 //
 // 框架 `contrib/audit-gorm` 的默认映射（`defaultRecord`）只填 12 个基础列。
-// 为承载源 go-wind-admin 的**五类审计**（operation/login/api/
-// data_access/permission）在 `authmodel.AuditRecord` 上扩了 15 个 nullable 列
-// （见 model/audit.go）。本映射把 `AuditEvent.Meta` 里的分类专属字段提取到
-// 对应列——**零框架改动**（`auditgorm.WithRecordMapper` 是框架提供的扩展点）。
+// 为承载**五类审计**（operation/login/api/data_access/permission）在
+// `authmodel.AuditRecord` 上扩了 15 个 nullable 列（见 model/audit.go）。
+// 本映射把 `AuditEvent.Meta` 里的分类专属字段提取到对应列——**零框架改动**
+// （`auditgorm.WithRecordMapper` 是框架提供的扩展点）。
 //
 // ## 为何下沉到本包（而非留在 cmd/bald-admin）
 //
@@ -114,26 +114,26 @@ func NewRecordMapper(fallbackTenantID string) func(audit.AuditEvent) any {
 			RequestID: metaStr(ev.Meta, "request_id", ""),
 			TraceID:   metaStr(ev.Meta, "trace_id", ""),
 
-			// api 类（源 ApiAuditLog）。
+			// api 类。
 			HTTPMethod: metaStr(ev.Meta, "http_method", ""),
 			Path:       metaStr(ev.Meta, "path", ""),
 			StatusCode: metaUint32(ev.Meta, "status"),
 			LatencyMs:  metaUint32(ev.Meta, "latency_ms"),
 
-			// data_access 类（源 DataAccessAuditLog）。
+			// data_access 类。
 			TableName:    metaStr(ev.Meta, "table_name", ""),
 			DataSource:   metaStr(ev.Meta, "data_source", ""),
 			DBUser:       metaStr(ev.Meta, "db_user", ""),
 			SQLText:      metaStr(ev.Meta, "sql_text", ""),
 			AffectedRows: metaUint32(ev.Meta, "affected_rows"),
 
-			// permission 类（源 PermissionAuditLog）。
+			// permission 类。
 			TargetType: metaStr(ev.Meta, "target_type", ""),
 			TargetID:   metaStr(ev.Meta, "target_id", ""),
 			OldValue:   metaStr(ev.Meta, "old_value", ""),
 			NewValue:   metaStr(ev.Meta, "new_value", ""),
 
-			// login 类（源 LoginAuditLog）。
+			// login 类。
 			SessionID: metaStr(ev.Meta, "session_id", ""),
 			MFAStatus: metaStr(ev.Meta, "mfa_status", ""),
 		}

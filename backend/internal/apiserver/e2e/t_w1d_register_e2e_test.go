@@ -1,17 +1,16 @@
 package e2e
 
-// t_w1d_register_e2e_test.go —— -3：RegisterUser（源 authentication.proto L31）。
+// t_w1d_register_e2e_test.go —— RegisterUser。
 //
 // 验收：
 //   - 注册新用户 → 返回 user_id；该用户**能立即登录**（这是最关键的端到端断言：
-//     源项目曾有此 bug——密码哈希对象不一致导致注册用户永远无法登录）；
+//     密码哈希对象不一致会导致注册用户永远无法登录——此处锁住该回归）；
 //   - 重复用户名 → 409 冲突（不覆盖已有用户）；
-//   - 弱密码/短用户名 → 400（对齐契约的 min_len 约束）；
-//   - 无效租户码 → 400（源项目同款：租户模式下注册必须归属有效租户）。
+//   - 弱密码/短用户名 → 400（min_len 契约约束）；
+//   - 无效租户码 → 400（租户模式下注册必须归属有效租户）。
 //
-// 契约偏差（记录）：源 RegisterUserResponse.user_id 是 uint32，而 bald-admin 的
-// User.ID 是 string（如 "u-admin"）——ID 体系不同。此处 user_id 字段承载字符串 ID
-//（HTTP JSON 无类型约束），并额外提供 id 字段。
+// 字段约定（记录）：user_id 字段承载字符串 ID（如 "u-admin"；HTTP JSON 无类型
+// 约束），并额外提供 id 字段。
 
 import (
 	"context"

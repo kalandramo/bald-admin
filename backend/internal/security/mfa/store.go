@@ -9,13 +9,13 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-// TTL 常量（与源 data.MfaChallengeTTL 对齐）。
+// TTL 常量。
 const (
 	// EnrollTTL 是注册挑战有效期。
 	EnrollTTL = 10 * time.Minute
 	// loginTTL 是登录挑战有效期。
 	loginTTL = 5 * time.Minute
-	// enrollCooldown 是注册发起冷却（防循环 Start 塞 Redis，源同此语义）。
+	// enrollCooldown 是注册发起冷却（防循环 Start 塞 Redis）。
 	enrollCooldown = 30 * time.Second
 	// MaxLoginFailures 是登录挑战最大失败次数（超过即作废挑战，防暴破）。
 	// 6 位码空间 10^6，5 次失败后作废已足够安全。

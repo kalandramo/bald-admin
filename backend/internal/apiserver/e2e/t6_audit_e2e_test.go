@@ -146,7 +146,7 @@ func TestAuditREST_LoginAuditFields(t *testing.T) {
 }
 
 // TestAuditREST_OperationAudit 业务写路径触发 category=operation 审计
-// （gin AuditMiddleware，object/action P9 归一化）。
+// （gin AuditMiddleware，object/action 传输中立归一化）。
 func TestAuditREST_OperationAudit(t *testing.T) {
 	base := startAuditREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")

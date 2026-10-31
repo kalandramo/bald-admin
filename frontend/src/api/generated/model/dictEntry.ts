@@ -5,8 +5,7 @@
  */
 
 /**
- * DictEntry 字典项。Label 内联源 sys_dict_entry_i18n 的 zh 条目（i18n 表按
- *  移植计划 §2.2 多语言后续迭代不移植）。
+ * DictEntry 字典项。Label 内联 zh 条目（仅 zh，多语言表不实现）。
  */
 export interface DictEntry {
   id?: string;

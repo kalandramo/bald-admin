@@ -8,19 +8,16 @@ import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 import "buf/validate/validate.proto";
 
-// PositionService 职位管理（自 go-wind-admin identity 域
-// position.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
+// PositionService 职位管理（7 个 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
-// 与 OrgUnitService 同域的显式偏差（主键 string 业务键 / 请求体简化 /
-// 枚举加前缀 / 不移植分页与 gnostic 注解）见 org_unit.proto 头注，此处不重复。
+// 约定（主键 string 业务键 / 请求体简化 / 枚举加前缀 / 列表不分页）见
+// org_unit.proto 头注，此处不重复。
 //
 // 额外两点：
 //  1. **关联字段回填**：`org_unit_name` / `reports_to_position_name` 由服务端
-//     批量查询回填（源 org_unit_service.go 的三步式：extractRelationIDs →
-//     fetchRelationInfo 批量查 → bindRelations 递归回填）。**批量**是源的精髓，
-//     逐个查会退化成 N+1。
-//  2. **源枚举注释有误**：源 `position.proto` 的 `OFF = 0; // 打开` 与
-//     `ON = 1; // 关闭` 注释与枚举名语义相反（源缺陷）；本实现按名称语义修正。
+//     批量查询回填（extractRelationIDs → fetchRelationInfo → bindRelations）。
+//     必须**批量**，逐个查会退化成 N+1。
+//  2. 状态枚举按名称语义：ON=1（启用）、OFF=2（禁用），0 值留作 UNSPECIFIED。
 service PositionService {
   // ListPositions 列出职位（回填 org_unit_name / reports_to_position_name）。
   //   REST: GET /v1/positions
@@ -86,22 +83,22 @@ service PositionService {
 message Position {
   enum Status {
     STATUS_UNSPECIFIED = 0; // 未指定
-    STATUS_ON = 1;          // 启用（源 Status.ON）
-    STATUS_OFF = 2;         // 禁用（源 Status.OFF）
+    STATUS_ON = 1;          // 启用
+    STATUS_OFF = 2;         // 禁用
   }
 
   enum Type {
     TYPE_UNSPECIFIED = 0; // 未指定
-    TYPE_REGULAR = 1;     // 普通职位（源 REGULAR）
-    TYPE_LEADER = 2;      // 领导职位（源 LEADER）
-    TYPE_MANAGER = 3;     // 管理职位（源 MANAGER）
-    TYPE_INTERN = 4;      // 实习职位（源 INTERN）
-    TYPE_CONTRACT = 5;    // 合同职位（源 CONTRACT）
-    TYPE_OTHER = 100;     // 其他职位（源 OTHER）
+    TYPE_REGULAR = 1;     // 普通职位
+    TYPE_LEADER = 2;      // 领导职位
+    TYPE_MANAGER = 3;     // 管理职位
+    TYPE_INTERN = 4;      // 实习职位
+    TYPE_CONTRACT = 5;    // 合同职位
+    TYPE_OTHER = 100;     // 其他职位
   }
 
   string id = 1;   // 完整主键 "<tenant>:pos:<code>"（**只读**）
-  string code = 2; // 唯一编码（业务键，源 code）
+  string code = 2; // 唯一编码（业务键）
   string name = 3; // 职位名称
 
   int32 headcount = 4;   // 编制人数（0 = 无限制）
@@ -129,7 +126,7 @@ message Position {
 }
 
 message ListPositionsRequest {
-  // 精简为全量；源项目支持 pagination，列入后续迭代。
+  // 全量列表（职位数量有限，不分页）。
 }
 
 message ListPositionsResponse {

@@ -32,20 +32,18 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// LanguageService 语言管理（自 go-wind-admin dict 域 language 精简移植）。
+// LanguageService 语言管理（7 个 rpc：List/Count/Get/Create/BatchCreate/Update/Delete）。
 //
-// 源语言域 7 rpc（List/Count/Get/Create/BatchCreate/Update/Delete）。本实现
-// **对齐项目既有惯例**（与同目录 DictType/DictEntry 一致），与源有两处显式偏差：
+// 设计约定（与同目录 DictType/DictEntry 一致）：
 //
-//  1. **主键用 string 业务键**（`language_code`，如 "zh-CN"）而非源 `uint32 id`
-//     ——源 ID 由 DB 自增生成，本项目 dict 域同款场景（type_code 作主键）已确立
-//     「业务键主键」范式（见 model/dict.go），语言代码天然唯一且可读。
-//  2. **请求体简化**：源的 `FieldMask view_mask`/`update_mask`/`oneof query_by`
-//     未移植——本项目 handler 用「非空字段即更新」语义（同 DictType 的 Update），
-//     字段掩码是源框架的通用能力，复刻它对功能对等无增益。
+//  1. **主键用 string 业务键**（`language_code`，如 "zh-CN"）而非 DB 自增 ID
+//     ——dict 域同款场景（type_code 作主键）已确立「业务键主键」范式
+//     （见 model/dict.go），语言代码天然唯一且可读。
+//  2. **请求体简化**：不使用 `FieldMask view_mask`/`update_mask`/`oneof query_by`
+//     ——handler 用「非空字段即更新」语义（同 DictType 的 Update），
+//     字段掩码对功能对等无增益。
 //
-// BatchCreate 源 service 层**未实现**（proto 有、`language_service.go` 无该方法）
-// ——故本实现同样返回 UNIMPLEMENTED（对齐源行为，不自创）。
+// BatchCreate 返回 UNIMPLEMENTED（未实现，避免自创语义）。
 type LanguageServiceClient interface {
 	// ListLanguages 列出语言（sort_order 升序）。
 	//   REST: GET /v1/language
@@ -152,20 +150,18 @@ func (c *languageServiceClient) CountLanguages(ctx context.Context, in *CountLan
 // All implementations must embed UnimplementedLanguageServiceServer
 // for forward compatibility.
 //
-// LanguageService 语言管理（自 go-wind-admin dict 域 language 精简移植）。
+// LanguageService 语言管理（7 个 rpc：List/Count/Get/Create/BatchCreate/Update/Delete）。
 //
-// 源语言域 7 rpc（List/Count/Get/Create/BatchCreate/Update/Delete）。本实现
-// **对齐项目既有惯例**（与同目录 DictType/DictEntry 一致），与源有两处显式偏差：
+// 设计约定（与同目录 DictType/DictEntry 一致）：
 //
-//  1. **主键用 string 业务键**（`language_code`，如 "zh-CN"）而非源 `uint32 id`
-//     ——源 ID 由 DB 自增生成，本项目 dict 域同款场景（type_code 作主键）已确立
-//     「业务键主键」范式（见 model/dict.go），语言代码天然唯一且可读。
-//  2. **请求体简化**：源的 `FieldMask view_mask`/`update_mask`/`oneof query_by`
-//     未移植——本项目 handler 用「非空字段即更新」语义（同 DictType 的 Update），
-//     字段掩码是源框架的通用能力，复刻它对功能对等无增益。
+//  1. **主键用 string 业务键**（`language_code`，如 "zh-CN"）而非 DB 自增 ID
+//     ——dict 域同款场景（type_code 作主键）已确立「业务键主键」范式
+//     （见 model/dict.go），语言代码天然唯一且可读。
+//  2. **请求体简化**：不使用 `FieldMask view_mask`/`update_mask`/`oneof query_by`
+//     ——handler 用「非空字段即更新」语义（同 DictType 的 Update），
+//     字段掩码对功能对等无增益。
 //
-// BatchCreate 源 service 层**未实现**（proto 有、`language_service.go` 无该方法）
-// ——故本实现同样返回 UNIMPLEMENTED（对齐源行为，不自创）。
+// BatchCreate 返回 UNIMPLEMENTED（未实现，避免自创语义）。
 type LanguageServiceServer interface {
 	// ListLanguages 列出语言（sort_order 升序）。
 	//   REST: GET /v1/language

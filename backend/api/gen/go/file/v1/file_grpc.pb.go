@@ -30,10 +30,10 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// FileService 文件管理服务（自 go-wind-admin storage 域精简移植）。
+// FileService 文件管理服务。
 //
-// 文件是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离。上传校验
-// 大小上限（50MiB）与 MIME 白名单（源 pkg/oss 语义），对象按内容类型分桶并
+// 文件是租户级业务数据：查询自动经 store 层租户隔离。上传校验
+// 大小上限（50MiB）与 MIME 白名单，对象按内容类型分桶并
 // 兜底创建桶；元数据含 SHA256 内容哈希与长度。上传/下载为二进制流：gateway
 // 转码（bytes→base64 JSON）可用，推荐经 gin 主服务的 multipart/流式 REST。
 type FileServiceClient interface {
@@ -118,10 +118,10 @@ func (c *fileServiceClient) DeleteFile(ctx context.Context, in *DeleteFileReques
 // All implementations must embed UnimplementedFileServiceServer
 // for forward compatibility.
 //
-// FileService 文件管理服务（自 go-wind-admin storage 域精简移植）。
+// FileService 文件管理服务。
 //
-// 文件是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离。上传校验
-// 大小上限（50MiB）与 MIME 白名单（源 pkg/oss 语义），对象按内容类型分桶并
+// 文件是租户级业务数据：查询自动经 store 层租户隔离。上传校验
+// 大小上限（50MiB）与 MIME 白名单，对象按内容类型分桶并
 // 兜底创建桶；元数据含 SHA256 内容哈希与长度。上传/下载为二进制流：gateway
 // 转码（bytes→base64 JSON）可用，推荐经 gin 主服务的 multipart/流式 REST。
 type FileServiceServer interface {

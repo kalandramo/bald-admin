@@ -53,11 +53,11 @@ type Store interface {
 	ConsumeRefresh(ctx context.Context, refreshToken string) (string, error)
 
 	// TrackAccess 把访问令牌登记到 subject 的活跃集合，供
-	// GetAccessTokens 列出）。ttl 为该令牌的剩余有效期。
+	// GetAccessTokens 列出。ttl 为该令牌的剩余有效期。
 	TrackAccess(ctx context.Context, subject, token string, ttl time.Duration) error
 
-	// ListAccess 列出 subject 的**未过期**活跃访问令牌（明文，对齐源契约
-	// GetAccessTokensResponse.access_tokens 语义）。
+	// ListAccess 列出 subject 的**未过期**活跃访问令牌（明文，契约
+	// GetAccessTokensResponse.access_tokens 要求返回明文列表）。
 	ListAccess(ctx context.Context, subject string) ([]string, error)
 
 	// UntrackAccess 从活跃集合移除某令牌（撤销/解除拉黑时清理索引）。
@@ -98,8 +98,8 @@ func keyRefresh(token string) string { return "auth:refresh:" + fingerprint(toke
 // keyAccessIndex 是「某用户的活跃访问令牌」索引键。
 //
 // 用 **ZSET** 而非 SET 或 SCAN：
-//   - 源的实现用 `SCAN at:{ct}:{uid}:*` 全库模式匹配（`user_token_cache.go:387-411`）
-//     ——O(N) 且需遍历全部键，用户多时不可接受；
+//   - 全库 SCAN 模式匹配（`SCAN at:{ct}:{uid}:*`）——O(N) 且需遍历全部键，
+//     用户多时不可接受；
 //   - SET 无法给**单个成员**设过期时间（TTL 只能作用于整个键）；
 //   - ZSET 以 score = 过期时刻（unix 秒），可用 `ZRANGEBYSCORE (now +inf` 只取
 //     未过期的，并用 `ZREMRANGEBYSCORE -inf now` 惰性清理——O(log N)。
@@ -207,7 +207,7 @@ type RevocationChecker struct {
 }
 
 // NewRevocationChecker 包装认证器，加入吊销检查。store 为 nil 时直接返回 inner
-// （禁用态——与 /1b/1c 的 nil 即禁用语义一致）。
+// （禁用态——与登录熔断/重试的 nil 即禁用语义一致）。
 func NewRevocationChecker(inner authn.Authenticator, store Store) authn.Authenticator {
 	if store == nil {
 		return inner
@@ -247,7 +247,7 @@ func (c *RevocationChecker) AuthenticateToken(token string) (*authn.AuthClaims, 
 	return claims, nil
 }
 
-// ---- -4：活跃令牌索引 + 封禁（token 管理 4 rpc 的存储支撑）----
+// ---- 活跃令牌索引 + 封禁（token 管理 4 rpc 的存储支撑）----
 
 // TrackAccess 实现 Store：把令牌登记到 subject 的活跃集合。
 //

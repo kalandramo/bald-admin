@@ -1,18 +1,17 @@
-// Package cachemonitor 是 Redis 缓存监控业务（，自 go-wind-admin
-// redis_cache 域精简移植，1 rpc）。
+// Package cachemonitor 是 Redis 缓存监控业务（1 个 rpc）。
 //
-// ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）
+// ## fail-soft 语义
 //
 // 三个只读命令（INFO / DBSIZE / SLOWLOG GET）**任一失败不阻断其余**：失败项
 // 置空并记日志，而非整体报错。Redis 不可用（RedisClient 为 nil）时返回**空视图**
 // （非错误）——避免单点故障导致整个监控页不可用。
 //
-// ## UTF-8 净化（源实测踩坑）
+// ## UTF-8 净化
 //
 // Redis 命令参数是二进制安全的（如二进制序列化的 key），而 proto string 字段
 // **强制 UTF-8**——未净化直接透传会让响应在 HTTP codec 序列化阶段整体失败
 // （500 "invalid UTF-8"）。故 slowlog 的 args/client_name 经 strings.ToValidUTF8
-// 净化（对齐源 sanitizeSlowLogArgs）。
+// 净化后输出。
 package cachemonitor
 
 import (
@@ -25,13 +24,13 @@ import (
 	"github.com/kalandramo/bald/log"
 )
 
-// slowLogFetchLimit SLOWLOG GET 抓取的最近条目数上限（与源一致）。
+// slowLogFetchLimit SLOWLOG GET 抓取的最近条目数上限。
 const slowLogFetchLimit = 10
 
 // Biz 缓存监控业务。
 type Biz struct {
 	// rdb 是 Redis 客户端（构造期注入，替代请求期读 bootstrap.RedisClient）。
-	// nil = Redis 未装配，Info 返回空视图（fail-soft，对齐源语义）。
+	// nil = Redis 未装配，Info 返回空视图（fail-soft）。
 	rdb goredis.UniversalClient
 }
 
@@ -68,7 +67,7 @@ func (b *Biz) Info(ctx context.Context) (*Result, error) {
 	out := &Result{}
 	rdb := b.rdb
 	if rdb == nil {
-		return out, nil // Redis 不可用 → 空视图（对齐源）
+		return out, nil // Redis 不可用 → 空视图（fail-soft）
 	}
 
 	if raw, err := rdb.Info(ctx).Result(); err != nil {

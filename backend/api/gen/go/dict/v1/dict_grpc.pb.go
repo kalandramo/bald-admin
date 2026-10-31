@@ -30,15 +30,15 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// DictTypeService 字典类型管理（自 go-wind-admin dict 域 sys_dict_types 精简移植）。
+// DictTypeService 字典类型管理。
 //
-// 字典是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离，ListEntries 的
-// Cache-Aside 键含租户维度（dict biz）。type_code 即主键（源 immutable），仅
+// 字典是租户级业务数据：查询自动经 store 层租户隔离，ListEntries 的
+// Cache-Aside 键含租户维度（dict biz）。type_code 即主键（不可变），仅
 // 展示属性可更新；删除类型级联删除其全部条目并失效对应缓存。
 type DictTypeServiceClient interface {
 	// GetDictType 取字典类型。
 	//   REST: GET /v1/dict_type/{id}
-	// 单数路径段与 DefaultGRPCObject("DictTypeService/...")="dict_type" 同源（P9）。
+	// 单数路径段与 DefaultGRPCObject("DictTypeService/...")="dict_type" 同源。
 	GetDictType(ctx context.Context, in *GetDictTypeRequest, opts ...grpc.CallOption) (*GetDictTypeResponse, error)
 	// ListDictTypes 列出调用方租户的字典类型（SortOrder 升序）。
 	//   REST: GET /v1/dict_type
@@ -116,15 +116,15 @@ func (c *dictTypeServiceClient) DeleteDictType(ctx context.Context, in *DeleteDi
 // All implementations must embed UnimplementedDictTypeServiceServer
 // for forward compatibility.
 //
-// DictTypeService 字典类型管理（自 go-wind-admin dict 域 sys_dict_types 精简移植）。
+// DictTypeService 字典类型管理。
 //
-// 字典是租户级业务数据（源 mixin TenantID）：查询自动经 P8 隔离，ListEntries 的
-// Cache-Aside 键含租户维度（dict biz）。type_code 即主键（源 immutable），仅
+// 字典是租户级业务数据：查询自动经 store 层租户隔离，ListEntries 的
+// Cache-Aside 键含租户维度（dict biz）。type_code 即主键（不可变），仅
 // 展示属性可更新；删除类型级联删除其全部条目并失效对应缓存。
 type DictTypeServiceServer interface {
 	// GetDictType 取字典类型。
 	//   REST: GET /v1/dict_type/{id}
-	// 单数路径段与 DefaultGRPCObject("DictTypeService/...")="dict_type" 同源（P9）。
+	// 单数路径段与 DefaultGRPCObject("DictTypeService/...")="dict_type" 同源。
 	GetDictType(context.Context, *GetDictTypeRequest) (*GetDictTypeResponse, error)
 	// ListDictTypes 列出调用方租户的字典类型（SortOrder 升序）。
 	//   REST: GET /v1/dict_type

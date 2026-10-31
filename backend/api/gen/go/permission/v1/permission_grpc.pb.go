@@ -33,11 +33,11 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// PermissionService 权限管理服务（自 go-wind-admin permission 域精简移植）。
+// PermissionService 权限管理服务。
 //
 // 两块职责：
 //  1. 权限点注册表（Permission）：权限码 → 名称/菜单可见性关联
-//     （源 sys_permissions + sys_permission_menus 精简——关联内联为 MenuIDs CSV）；
+//     （关联内联为 MenuIDs CSV）；
 //  2. 角色策略（RolePolicy）：casbin p 行（role,object,action）的数据化持久层，
 //     重启生效（策略装载自本表）。
 //
@@ -45,7 +45,7 @@ const (
 type PermissionServiceClient interface {
 	// GetPermission 取权限点。
 	//   REST: GET /v1/permission/{id}
-	// 单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源（P9）。
+	// 单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源。
 	GetPermission(ctx context.Context, in *GetPermissionRequest, opts ...grpc.CallOption) (*GetPermissionResponse, error)
 	// ListPermissions 列出权限点。
 	//   REST: GET /v1/permission
@@ -162,11 +162,11 @@ func (c *permissionServiceClient) DeleteRolePolicy(ctx context.Context, in *Dele
 // All implementations must embed UnimplementedPermissionServiceServer
 // for forward compatibility.
 //
-// PermissionService 权限管理服务（自 go-wind-admin permission 域精简移植）。
+// PermissionService 权限管理服务。
 //
 // 两块职责：
 //  1. 权限点注册表（Permission）：权限码 → 名称/菜单可见性关联
-//     （源 sys_permissions + sys_permission_menus 精简——关联内联为 MenuIDs CSV）；
+//     （关联内联为 MenuIDs CSV）；
 //  2. 角色策略（RolePolicy）：casbin p 行（role,object,action）的数据化持久层，
 //     重启生效（策略装载自本表）。
 //
@@ -174,7 +174,7 @@ func (c *permissionServiceClient) DeleteRolePolicy(ctx context.Context, in *Dele
 type PermissionServiceServer interface {
 	// GetPermission 取权限点。
 	//   REST: GET /v1/permission/{id}
-	// 单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源（P9）。
+	// 单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源。
 	GetPermission(context.Context, *GetPermissionRequest) (*GetPermissionResponse, error)
 	// ListPermissions 列出权限点。
 	//   REST: GET /v1/permission

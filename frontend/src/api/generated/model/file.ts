@@ -5,7 +5,7 @@
  */
 
 /**
- * File 文件元数据。字段对齐源 storage/service/v1 的 File（recordFile）。
+ * File 文件元数据。
  */
 export interface File {
   id?: string;

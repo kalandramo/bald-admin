@@ -1,6 +1,6 @@
 // Package grpc 提供 bald-admin 的 gRPC service 装配（起改用 proto 生成代码）。
 //
-// 取代 M2 的手写 ServiceDesc + JSON codec 范式：SecretService 由
+// SecretService 由 proto 生成代码提供，不再手写 ServiceDesc + JSON codec：
 // api/protos/secret/v1/secret.proto 经 buf generate 生成
 // （adminv1.SecretServiceServer / RegisterSecretServiceServer /
 // RegisterSecretServiceHandler），并复用 grpc-gateway 把同一 service 转码为 REST。

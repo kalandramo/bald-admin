@@ -53,7 +53,7 @@ export const orgUnitServiceCreateOrgUnit = (
       );
     }
   /**
- * BatchCreateOrgUnits 批量创建（逐条创建，**部分失败不回滚**——对齐源语义）。
+ * BatchCreateOrgUnits 批量创建（逐条创建，**部分失败不回滚**）。
  *    REST: POST /v1/org-units/batch
  */
 export const orgUnitServiceBatchCreateOrgUnits = (
@@ -94,7 +94,7 @@ export const orgUnitServiceGetOrgUnit = (
     }
   /**
  * UpdateOrgUnit 更新组织单元（非空字段即更新；code 不可变）。
- *  **防环**：不能把节点挂到自己的子孙下（源无此校验，是本项目的正确性增强）。
+ *  **防环**：不能把节点挂到自己的子孙下。
  *    REST: PUT /v1/org-units/{code}
  */
 export const orgUnitServiceUpdateOrgUnit = (

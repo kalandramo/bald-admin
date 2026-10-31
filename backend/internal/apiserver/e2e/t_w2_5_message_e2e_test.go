@@ -1,15 +1,15 @@
 package e2e
 
-// t_w2_5_message_e2e_test.go —— ：站内消息域（源 24 rpc，三表）。
+// t_w2_5_message_e2e_test.go —— 站内消息域。
 //
-// 核心验证点（对应源语义）：
+// 核心验证点：
 //   - 三模式发送：全员广播 / 单收件人 / 多收件人；
 //   - **投递幂等**：(message_id, recipient_user_id) 唯一约束——
-//     同一人重复投递不产生重复收件记录（源的 ON CONFLICT DO NOTHING 语义）；
-//   - **一条消息发给 N 人 = 1 条 message + N 条 recipient**（源的分层）；
+//     同一人重复投递不产生重复收件记录（冲突时直接忽略）；
+//   - **一条消息发给 N 人 = 1 条 message + N 条 recipient**（消息体与收件记录分层）；
 //   - 收件箱只返回未删除的（DELETED 的不出现）；
 //   - 标记已读幂等；
-//   - 撤销按收件人（源 RevokeMessage 签名含 UserId）；
+//   - 撤销按收件人；
 //   - 分类 CRUD + 唯一约束（同 code 重复 → 409）。
 
 import (
@@ -122,8 +122,8 @@ func TestWave2_5_CategoryCRUD(t *testing.T) {
 
 // TestWave2_5_SendIdempotent 投递幂等——**核心验证点**。
 //
-// 源注释：「重试幂等性由 (message_id, recipient_user_id) 唯一约束 +
-// CreateBulk 的 ON CONFLICT DO NOTHING 保证」。
+// 幂等契约：(message_id, recipient_user_id) 唯一约束保证重试投递不产生重复
+// 收件记录（用业务键主键表达该约束，冲突即忽略）。
 // 本测试直接驱动 biz 层（HTTP 层每次发送都会新建 message，拿不到同一 message_id
 // 的重复投递场景），故用 SendMessage + 手工重复投递的方式验证约束。
 func TestWave2_5_SendIdempotent(t *testing.T) {

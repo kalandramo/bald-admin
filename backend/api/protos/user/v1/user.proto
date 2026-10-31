@@ -7,23 +7,21 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/user/v1;userv1"
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// UserService 用户管理服务（自 go-wind-admin identity/user.proto + user_profile.proto
-// 精简搬运）。列表/读写天然按当前租户过滤（bald P8 pkg/store 自动注入 tenant_id），
-// 跨租户用户不可见（隔离验证点）。
+// UserService 用户管理服务。列表/读写天然按当前租户过滤
+// （pkg/store 自动注入 tenant_id），跨租户用户不可见。
 //
-// 注意：原 SecretService.ListUsers（string 列表演示 RPC，M3）自本版本起由本服务
-// ListUsers 接管 GET /v1/users（对象列表，语义延续且增强），避免 gateway 路由重复注册。
+// ListUsers 接管 GET /v1/users（对象列表），避免 gateway 路由重复注册。
 service UserService {
   // GetUser 取用户。
   //   REST: GET /v1/user/{id}
-  // REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源（P9）。
+  // REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源。
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {
     option (google.api.http) = {
       get: "/v1/user/{id}"
     };
   }
 
-  // ListUsers 列出当前租户用户（M3 多租户隔离验证点，对象列表版本）。
+  // ListUsers 列出当前租户用户（多租户隔离验证点，对象列表版本）。
   //   REST: GET /v1/user
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
     option (google.api.http) = {
@@ -59,7 +57,7 @@ service UserService {
 }
 
 // User 用户。ID 为业务编码（如 "u-admin"）；tenant_id 不在此消息中——
-// 由 bald P8 从上下文注入（写）与过滤（读），客户端不可指定。
+// 由 store 层从上下文注入（写）与过滤（读），客户端不可指定。
 message User {
   string id = 1;                   // 用户 ID（业务编码）
   string username = 2;             // 登录名

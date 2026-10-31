@@ -27,9 +27,9 @@ type Menu_Type int32
 
 const (
 	Menu_TYPE_UNSPECIFIED Menu_Type = 0 // 未指定
-	Menu_TYPE_CATALOG     Menu_Type = 1 // 目录（分组节点，源 CATALOG）
-	Menu_TYPE_MENU        Menu_Type = 2 // 菜单页面（源 MENU）
-	Menu_TYPE_BUTTON      Menu_Type = 3 // 按钮/操作权限点（源 BUTTON，path 存动作名）
+	Menu_TYPE_CATALOG     Menu_Type = 1 // 目录（分组节点）
+	Menu_TYPE_MENU        Menu_Type = 2 // 菜单页面
+	Menu_TYPE_BUTTON      Menu_Type = 3 // 按钮/操作权限点（path 存动作名）
 )
 
 // Enum value maps for Menu_Type.
@@ -79,7 +79,7 @@ type Menu_Status int32
 
 const (
 	Menu_STATUS_UNSPECIFIED Menu_Status = 0 // 未指定
-	Menu_STATUS_ON          Menu_Status = 1 // 启用（源 SwitchStatus.ON）
+	Menu_STATUS_ON          Menu_Status = 1 // 启用
 	Menu_STATUS_OFF         Menu_Status = 2 // 禁用
 )
 
@@ -133,9 +133,9 @@ type Menu struct {
 	Name          string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`                                              // 路由名（vue router name）
 	Path          string                 `protobuf:"bytes,5,opt,name=path,proto3" json:"path,omitempty"`                                              // 路由路径（BUTTON 类型时存数据操作名）
 	Component     string                 `protobuf:"bytes,6,opt,name=component,proto3" json:"component,omitempty"`                                    // 前端组件
-	Title         string                 `protobuf:"bytes,7,opt,name=title,proto3" json:"title,omitempty"`                                            // 展示标题（源 meta.title）
-	Icon          string                 `protobuf:"bytes,8,opt,name=icon,proto3" json:"icon,omitempty"`                                              // 图标（源 meta.icon）
-	Order         int32                  `protobuf:"varint,9,opt,name=order,proto3" json:"order,omitempty"`                                           // 展示顺序（源 meta.order，越小越前）
+	Title         string                 `protobuf:"bytes,7,opt,name=title,proto3" json:"title,omitempty"`                                            // 展示标题
+	Icon          string                 `protobuf:"bytes,8,opt,name=icon,proto3" json:"icon,omitempty"`                                              // 图标
+	Order         int32                  `protobuf:"varint,9,opt,name=order,proto3" json:"order,omitempty"`                                           // 展示顺序（越小越前）
 	Status        Menu_Status            `protobuf:"varint,10,opt,name=status,proto3,enum=go.bald.admin.menu.v1.Menu_Status" json:"status,omitempty"` // 状态
 	Remark        string                 `protobuf:"bytes,11,opt,name=remark,proto3" json:"remark,omitempty"`                                         // 备注
 	Children      []*Menu                `protobuf:"bytes,12,rep,name=children,proto3" json:"children,omitempty"`                                     // 子节点（ListMenus 树形态填充）

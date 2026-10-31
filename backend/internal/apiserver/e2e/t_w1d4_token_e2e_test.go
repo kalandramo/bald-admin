@@ -1,7 +1,6 @@
 package e2e
 
-// t_w1d4_token_e2e_test.go —— -4：token 管理 4 个 rpc
-//（源 authentication.proto L41/L44/L47/L50）。
+// t_w1d4_token_e2e_test.go —— token 管理 4 个 rpc。
 //
 // 验收：
 //   - GetAccessTokens：列出某用户的活跃访问令牌；
@@ -10,13 +9,12 @@ package e2e
 //   - RevokeTokenById：按标识撤销指定 token（与 BlockToken 同源，语义稍异）；
 //   - 权限：非管理员不得操作他人 token。
 //
-// 契约偏差（显式记录）：
-//   - 源 `user_id` 是 uint32，bald-admin 的 User.ID 是 string → 同 RegisterUser，
-//     字段承载字符串 ID。
-//   - 源以 `jti` 为核心标识，但 bald 的 JWT **不签发 jti**（
-//     `bald/contrib/authn-jwt/jwt.go:208-221` 的 toJWT 不设 RegisteredClaims.ID）。
-//     本实现以 **token 指纹**（SHA-256）作为 jti 的等价物——GetAccessTokens 返回
-//     的是 token 明文，客户端回传时两种字段（token/jti）都按指纹匹配。
+// 标识约定（显式记录）：
+//   - `user_id` 字段承载字符串 ID（bald-admin 的 User.ID 是 string）。
+//   - bald 的 JWT **不签发 jti**（`bald/contrib/authn-jwt/jwt.go:208-221` 的
+//     toJWT 不设 RegisteredClaims.ID）。本实现以 **token 指纹**（SHA-256）作为
+//     jti 的等价物——GetAccessTokens 返回的是 token 明文，客户端回传时两种字段
+//     （token/jti）都按指纹匹配。
 
 import (
 	"context"

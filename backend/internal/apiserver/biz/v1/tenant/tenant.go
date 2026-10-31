@@ -1,7 +1,7 @@
-// Package tenant 是租户管理业务（自 go-wind-admin identity 域精简移植）。
+// Package tenant 是租户管理业务。
 //
 // 平台侧管理面：本表（model.Tenant）无 TenantID 字段，查询不调 Where.T——
-// P8 隔离对租户管理面天然不生效，全量读写即平台语义（源 PlatformTenantID=0 等价物）。
+// 租户隔离对租户管理面天然不生效，全量读写即平台语义（平台租户 ID=0 等价物）。
 // 授权约束（仅 platform:admin 可操作）在中间件层经 casbin 策略完成，biz 不感知角色。
 package tenant
 
@@ -57,7 +57,7 @@ func (b *Biz) Create(ctx context.Context, id, name, remark string) (*authmodel.T
 	return t, nil
 }
 
-// Update 更新租户。空值/UNSPECIFIED 字段不改（源 UpdateTenantRequest 语义）。
+// Update 更新租户。空值/UNSPECIFIED 字段不改。
 // status 合法值："" 不改、"ON"、"OFF"、"FREEZE"。
 func (b *Biz) Update(ctx context.Context, id, name, status, remark string) (*authmodel.Tenant, error) {
 	w := &store.Where{}

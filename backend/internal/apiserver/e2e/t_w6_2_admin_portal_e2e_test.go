@@ -1,20 +1,20 @@
 package e2e
 
-// t_w6_2_admin_portal_e2e_test.go —— ：管理面真新增（AdminPortalService）。
+// t_w6_2_admin_portal_e2e_test.go —— 管理面服务（AdminPortalService）。
 //
-// ## 源的 3 rpc（admin/service/v1/i_admin_portal.proto）
+// ## 3 rpc
 //
 //   - GetNavigation        GET /admin/v1/routes          前端路由表（菜单树，去 BUTTON）
 //   - GetMyPermissionCode  GET /admin/v1/perm-codes       当前用户权限码列表
 //   - GetInitialContext    GET /admin/v1/initial-context   菜单树 + 权限码（一次拉全）
 //
-// ## 聚合链（源 admin_portal_service.go 实测）
+// ## 聚合链
 //
 //   User.Roles(角色名) → Role.Perms(权限码) → Permission.MenuIDs(菜单ID) → Menu 树
 //
 // 即「当前登录用户 → 其角色 → 角色权限码 → 权限点关联的菜单 → 过滤出路由」。
-// 这是**跨域聚合**（user + role + permission + menu 四域），无单一对标 biz
-// ——故是真新增服务。
+// 这是**跨域聚合**（user + role + permission + menu 四域），无单一对应 biz
+// ——故是新增服务。
 //
 // ## 测试数据策略（关键）
 //
@@ -34,8 +34,8 @@ import (
 	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/admin/v1"
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	portal "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/portal"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
+	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 

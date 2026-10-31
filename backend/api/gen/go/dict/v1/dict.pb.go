@@ -26,10 +26,10 @@ const (
 // DictType 字典类型。ID 即类型编码（如 "gender"）。
 type DictType struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                 // 类型编码（主键，源 type_code）
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                 // 类型编码（主键）
 	TypeName      string                 `protobuf:"bytes,2,opt,name=type_name,json=typeName,proto3" json:"type_name,omitempty"`     // 显示名称
-	SortOrder     int32                  `protobuf:"varint,3,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"` // 展示顺序（源 sort_order）
-	Enabled       bool                   `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty"`                      // 启用（源 IsEnabled）
+	SortOrder     int32                  `protobuf:"varint,3,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"` // 展示顺序
+	Enabled       bool                   `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty"`                      // 启用
 	Remark        string                 `protobuf:"bytes,5,opt,name=remark,proto3" json:"remark,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,100,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,101,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
@@ -116,15 +116,14 @@ func (x *DictType) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// DictEntry 字典项。Label 内联源 sys_dict_entry_i18n 的 zh 条目（仅 zh，
-// 多语言表不移植）。
+// DictEntry 字典项。Label 内联 zh 条目（仅 zh，多语言表不实现）。
 type DictEntry struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                             // 业务键 "<type_code>:<entry_value>"
-	TypeCode      string                 `protobuf:"bytes,2,opt,name=type_code,json=typeCode,proto3" json:"type_code,omitempty"` // 所属类型编码（源 type_id FK 精简为编码引用）
-	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`                       // 条目实际值（源 entry_value）
+	TypeCode      string                 `protobuf:"bytes,2,opt,name=type_code,json=typeCode,proto3" json:"type_code,omitempty"` // 所属类型编码（编码引用，不用外键）
+	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`                       // 条目实际值
 	Label         string                 `protobuf:"bytes,4,opt,name=label,proto3" json:"label,omitempty"`                       // 显示标签
-	Numeric       *int32                 `protobuf:"varint,5,opt,name=numeric,proto3,oneof" json:"numeric,omitempty"`            // 数值型值（可空，源 numeric_value）
+	Numeric       *int32                 `protobuf:"varint,5,opt,name=numeric,proto3,oneof" json:"numeric,omitempty"`            // 数值型值（可空）
 	SortOrder     int32                  `protobuf:"varint,6,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`
 	Enabled       bool                   `protobuf:"varint,7,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	Remark        string                 `protobuf:"bytes,8,opt,name=remark,proto3" json:"remark,omitempty"`

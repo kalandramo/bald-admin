@@ -7,7 +7,7 @@ import type { TenantStatus } from './tenantStatus.ts';
 
 /**
  * Tenant 租户。ID 即租户编码（business code，如 "platform"、"t-acme"），
- *  与 bald P8 的 tenant_id 同一命名空间——业务租户创建后即作为 P8 隔离维度使用。
+ *  与 store 层的 tenant_id 同一命名空间——业务租户创建后即作为隔离维度使用。
  */
 export interface Tenant {
   id?: string;

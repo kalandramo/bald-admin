@@ -38,7 +38,7 @@ import (
 // `configs/{configNamespace}.yaml`（经 appkit.ConfigFile 声明，Serve 内部的
 // parseConfigFlag 以它为默认值）。
 //
-// B6 起 env 前缀（`BALD_ADMIN_*`）与多环境文件名由**契约 app.name 派生**
+// env 前缀（`BALD_ADMIN_*`）与多环境文件名由**契约 app.name 派生**
 // （两遍合并：文件层先解析 app.name，再按它挂 env 层）——configs/bald-admin.yaml
 // 的 app.name: bald-admin 即其来源，契约无 app.name 时启动 fail-fast 且报错
 // 可行动。
@@ -223,7 +223,7 @@ func (tracerProvider) Build(ctx context.Context, s appkit.ApplyScope, _ appkit.N
 //   - "otlp"：本地抓取 + OTLP 周期推送（两个 reader 挂**同一 MeterProvider**，
 //     同源双出口——OTLP 推送不依赖 :9091 端点是否监听）。
 //
-// B7：暴露端监听面归能力包——contract Provider 经 observability/metricshttp
+// 暴露端监听面归能力包——contract Provider 经 observability/metricshttp
 // 自持起停，返回可关闭的暴露端（appkit.MetricsExposure）；本 Provider 只做
 // type 分派转发。停机序由引擎合成：先停暴露端、再 flush 直推通道（收集尾批
 // 指标），经 "appkit:metrics-server" Effect 逆序回放最后执行。
@@ -284,11 +284,11 @@ func (metricsProvider) Build(ctx context.Context, s appkit.ApplyScope, _ appkit.
 }
 
 // ---------------------------------------------------------------------------
-// logger 段：装饰自持的日志 Provider（B7：WithLogDecorators 取消导出）
+// logger 段：装饰自持的日志 Provider
 // ---------------------------------------------------------------------------
 
 // loggerProvider 消费 logger 段（覆盖 std 默认的 StandardLoggerProvider，段
-// 路径末者胜）。B7 后装饰归 provider 自持：本 Provider 沿用内置 slog 分派
+// 路径末者胜）。装饰归 provider 自持：本 Provider 沿用内置 slog 分派
 // 语义（阶段 A 引导 bslog；阶段 B/热更按 backends 逐项直构 + 多项合并 +
 // filter_keys 外包），并把 Attr 层脱敏（bslog.WithFilter——契约 filter_keys
 // 漏掉的 slog.Attr 形态由此覆盖，二者互补缺一不可）与固定结构化属性带进

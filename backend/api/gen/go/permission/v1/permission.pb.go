@@ -23,14 +23,14 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Permission 权限点（注册表）。ID 即权限码（P9 归一化的 "object:action"，如
+// Permission 权限点（注册表）。ID 即权限码（归一化的 "object:action"，如
 // "tenant:list"），与 Role.Perms（CSV 角色权限绑定）同命名空间；MenuIDs 是该
-// 权限点对应的可见菜单（源 sys_permission_menus 关联表的内联精简）。
+// 权限点对应的可见菜单（关联关系内联）。
 type Permission struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                          // 权限码（主键，如 "tenant:list"）
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                      // 权限名称（如 "列出租户"）
-	MenuIds       []string               `protobuf:"bytes,3,rep,name=menu_ids,json=menuIds,proto3" json:"menu_ids,omitempty"` // 可见菜单 ID（源 permission_menu 关联）
+	MenuIds       []string               `protobuf:"bytes,3,rep,name=menu_ids,json=menuIds,proto3" json:"menu_ids,omitempty"` // 可见菜单 ID
 	Remark        string                 `protobuf:"bytes,4,opt,name=remark,proto3" json:"remark,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,100,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // 创建时间
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,101,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // 更新时间
@@ -606,13 +606,13 @@ func (x *DeletePermissionResponse) GetDeleted() string {
 	return ""
 }
 
-// RolePolicy 角色策略行（casbin p 行的数据化形态，源 sys_role_permissions 的
-// 精简等价物——bald 用 P9 归一化 object:action 而非源 path/method/domain）。
+// RolePolicy 角色策略行（casbin p 行的数据化形态——
+// 用归一化 object:action 而非 path/method/domain）。
 type RolePolicy struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`         // 行 ID（业务键 "role:object:action"）
 	Role          string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`     // 角色（casbin subject，如 "admin"）
-	Object        string                 `protobuf:"bytes,3,opt,name=object,proto3" json:"object,omitempty"` // 资源对象（P9 归一化，如 "tenant"）
+	Object        string                 `protobuf:"bytes,3,opt,name=object,proto3" json:"object,omitempty"` // 资源对象（归一化，如 "tenant"）
 	Action        string                 `protobuf:"bytes,4,opt,name=action,proto3" json:"action,omitempty"` // 动作（get/list/write/delete）
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

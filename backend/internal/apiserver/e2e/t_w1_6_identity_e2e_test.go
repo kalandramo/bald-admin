@@ -1,13 +1,13 @@
 package e2e
 
-// t_w1_6_identity_e2e_test.go —— ：identity 扩展域
-//（user_credential 10 rpc + login_policy 6 rpc + user_profile 2 rpc 源空实现）。
+// t_w1_6_identity_e2e_test.go —— identity 扩展域
+//（user_credential / login_policy / user_profile 三组）。
 //
 // 核心验证点：
 //   - 凭证创建**强制 bcrypt 哈希**（明文密码不落库）；
 //   - 凭证校验（VerifyCredential）语义：状态非 ENABLED 一律拒绝；
-//   - **登录策略值格式校验**（源的防「白名单配错 = 全员被锁」）；
-//   - user_profile 的 BindContact/VerifyContact 返回 501（源空实现，已复认）。
+//   - **登录策略值格式校验**（防「白名单配错 = 全员被锁」）；
+//   - user_profile 的 BindContact/VerifyContact 返回 501（未实现）。
 
 import (
 	"context"
@@ -51,7 +51,7 @@ func startIdentityREST(t *testing.T) string {
 func freshUserID() string { return "idt" + strconv.FormatInt(time.Now().UnixNano()%10000000, 10) }
 
 // TestWave1_6_CredentialCreateHashesPassword 凭证创建**强制 bcrypt 哈希**。
-// 这是本实现的加固：源把哈希责任交给 repo，本实现在 biz 层强制（防明文落库）。
+// 这是本实现的加固：哈希在 biz 层强制（防明文落库）。
 func TestWave1_6_CredentialCreateHashesPassword(t *testing.T) {
 	base := startIdentityREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
@@ -175,7 +175,7 @@ func TestWave1_6_ChangeCredential(t *testing.T) {
 	t.Logf("改密闭环 ✅（旧密码校验 + 新密码生效 + 旧密码失效）")
 }
 
-// TestWave1_6_LoginPolicyValueValidation **源的防「白名单配错 = 全员被锁」**。
+// TestWave1_6_LoginPolicyValueValidation **防「白名单配错 = 全员被锁」**。
 func TestWave1_6_LoginPolicyValueValidation(t *testing.T) {
 	base := startIdentityREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
@@ -263,7 +263,7 @@ func TestWave1_6_PolicyCRUD(t *testing.T) {
 	t.Logf("策略 CRUD + 冲突检测 ✅")
 }
 
-// TestWave1_6_ProfileUnimplemented 源空实现的两条 rpc 返回 501。
+// TestWave1_6_ProfileUnimplemented 空实现的两条 rpc 返回 501。
 func TestWave1_6_ProfileUnimplemented(t *testing.T) {
 	base := startIdentityREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
@@ -274,7 +274,7 @@ func TestWave1_6_ProfileUnimplemented(t *testing.T) {
 			t.Fatalf("%s: status=%d body=%s, want 501（源空实现）", p, code, raw)
 		}
 	}
-	t.Logf("user_profile 两条源空实现返回 501 ✅（对齐源，不自创）")
+	t.Logf("user_profile 两条空实现返回 501 ✅（不臆造成功语义）")
 }
 
 // TestWave1_6_LoginPolicyValidatorUnit 校验器单元级（边界值）。

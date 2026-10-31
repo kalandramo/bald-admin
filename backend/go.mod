@@ -1,6 +1,6 @@
 // bald-admin 是独立 Go module，不是 bald 核心 module 的一部分。
 //
-// 为什么独立（P5 依赖治理）：本示例需要 gin、grpc、grpc-gateway 等较重依赖，
+// 为什么独立（依赖治理）：本示例需要 gin、grpc、grpc-gateway 等较重依赖，
 // 若放进核心 module，这些依赖会进入核心依赖图。独立成 module 后，
 // 重依赖只存在于本 go.sum，核心 go.mod 保持最小。
 //
@@ -17,8 +17,8 @@
 //     删 tag 重推不会传播（goproxy.cn/goproxy.io 均实测复现）。修正只能递增
 //     版本号重发（即 v0.16.0 的构建缺陷由 v0.16.1 修正，而非重推 v0.16.0）。
 //
-// 本示例用 bald 重构 go-wind-admin/backend，验证 P0–P9 在真实业务下的可用性；
-// 设计见 docs/设计文档.md，分层参考 osbuilder 脚手架模板。
+// 本示例用 bald 实现完整管理后台，验证框架能力在真实业务下的可用性；
+// 设计见 docs/设计文档.md。
 module github.com/kalandramo/bald-admin
 
 go 1.27.1

@@ -30,26 +30,25 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// MenuService 菜单管理服务（自 go-wind-admin permission 域 sys_menus 精简移植）。
+// MenuService 菜单管理服务。
 //
 // 菜单是前端导航树的数据源（自引用树，parent_id），同时是权限点可见性的挂载面
 // （Permission.MenuIDs）。管理面操作仅授予 admin 角色（casbin 策略数据化装载）。
 type MenuServiceClient interface {
 	// GetMenu 取菜单节点。
 	//   REST: GET /v1/menu/{id}
-	// 单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（P9 策略单写）。
+	// 单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（策略单写）。
 	GetMenu(ctx context.Context, in *GetMenuRequest, opts ...grpc.CallOption) (*GetMenuResponse, error)
-	// ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过——
-	// 源项目 pagination.BuildTree 同语义）。
+	// ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过）。
 	//   REST: GET /v1/menu
 	ListMenus(ctx context.Context, in *ListMenusRequest, opts ...grpc.CallOption) (*ListMenusResponse, error)
-	// CreateMenu 创建菜单节点（parent_id 空 = 根节点；源 parent_id=0 语义）。
+	// CreateMenu 创建菜单节点（parent_id 空 = 根节点）。
 	//   REST: POST /v1/menu
 	CreateMenu(ctx context.Context, in *CreateMenuRequest, opts ...grpc.CallOption) (*CreateMenuResponse, error)
 	// UpdateMenu 更新菜单节点（空值/UNSPECIFIED 字段不改）。
 	//   REST: PUT /v1/menu/{id}
 	UpdateMenu(ctx context.Context, in *UpdateMenuRequest, opts ...grpc.CallOption) (*UpdateMenuResponse, error)
-	// DeleteMenu 删除菜单节点（递归级联删除子树——源 QueryAllChildrenIds 语义）。
+	// DeleteMenu 删除菜单节点（递归级联删除子树）。
 	//   REST: DELETE /v1/menu/{id}
 	DeleteMenu(ctx context.Context, in *DeleteMenuRequest, opts ...grpc.CallOption) (*DeleteMenuResponse, error)
 }
@@ -116,26 +115,25 @@ func (c *menuServiceClient) DeleteMenu(ctx context.Context, in *DeleteMenuReques
 // All implementations must embed UnimplementedMenuServiceServer
 // for forward compatibility.
 //
-// MenuService 菜单管理服务（自 go-wind-admin permission 域 sys_menus 精简移植）。
+// MenuService 菜单管理服务。
 //
 // 菜单是前端导航树的数据源（自引用树，parent_id），同时是权限点可见性的挂载面
 // （Permission.MenuIDs）。管理面操作仅授予 admin 角色（casbin 策略数据化装载）。
 type MenuServiceServer interface {
 	// GetMenu 取菜单节点。
 	//   REST: GET /v1/menu/{id}
-	// 单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（P9 策略单写）。
+	// 单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（策略单写）。
 	GetMenu(context.Context, *GetMenuRequest) (*GetMenuResponse, error)
-	// ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过——
-	// 源项目 pagination.BuildTree 同语义）。
+	// ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过）。
 	//   REST: GET /v1/menu
 	ListMenus(context.Context, *ListMenusRequest) (*ListMenusResponse, error)
-	// CreateMenu 创建菜单节点（parent_id 空 = 根节点；源 parent_id=0 语义）。
+	// CreateMenu 创建菜单节点（parent_id 空 = 根节点）。
 	//   REST: POST /v1/menu
 	CreateMenu(context.Context, *CreateMenuRequest) (*CreateMenuResponse, error)
 	// UpdateMenu 更新菜单节点（空值/UNSPECIFIED 字段不改）。
 	//   REST: PUT /v1/menu/{id}
 	UpdateMenu(context.Context, *UpdateMenuRequest) (*UpdateMenuResponse, error)
-	// DeleteMenu 删除菜单节点（递归级联删除子树——源 QueryAllChildrenIds 语义）。
+	// DeleteMenu 删除菜单节点（递归级联删除子树）。
 	//   REST: DELETE /v1/menu/{id}
 	DeleteMenu(context.Context, *DeleteMenuRequest) (*DeleteMenuResponse, error)
 	mustEmbedUnimplementedMenuServiceServer()

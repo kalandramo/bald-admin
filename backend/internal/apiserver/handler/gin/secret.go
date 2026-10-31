@@ -43,7 +43,7 @@ func RegisterSecret(
 	})
 
 	authed.DELETE("/secret/:id", authzMW, func(c *gingonic.Context) {
-		// M6 CR 修复：真实删除，经 biz 落 store，自动受 ctx 租户隔离约束；
+		// 真实删除，经 biz 落 store，自动受 ctx 租户隔离约束；
 		// 跨租户/不存在返回 404（与 Get 一致）。
 		ok, err := biz.Delete(c.Request.Context(), c.Param("id"))
 		if err != nil {

@@ -1,10 +1,9 @@
 package e2e
 
-// t_w1d_auth_e2e_test.go —— -1：authentication 域补全（ValidateToken /
-// RefreshToken / Logout）的 e2e 测试（RED 起点）。
+// t_w1d_auth_e2e_test.go —— authentication 域补全（ValidateToken /
+// RefreshToken / Logout）的 e2e 测试。
 //
-// 验收（对应源 go-wind-admin/backend/api/protos/authentication/service/v1/
-// authentication.proto 的 L28/L35/L38 三个 rpc）：
+// 验收：
 //   - Logout：拉黑当前 token；**拉黑后同一 token 必须被认证中间件拒绝**
 //     （这是最难的一环——JWT 无状态，不查黑名单则 token 仍能通过验签）；
 //   - RefreshToken：用有效凭证换发新 token（新旧不同）；

@@ -8,14 +8,13 @@ import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 import "bald/store/v1/store.proto";
 
-// AuditService 审计日志查询服务（自 go-wind-admin audit 域精简移植）。
+// AuditService 审计日志查询服务。
 //
 // 只读查询：审计事件由写路径自动落库（gin/gRPC 拦截器链 → category=operation；
-// 登录动作 → category=login），本服务不提供写入（源 Create rpc 是内部补录口，
-// 精简省略——伪造审计记录违背审计不可抵赖语义）。
+// 登录动作 → category=login），本服务不提供写入——伪造审计记录违背审计不可抵赖语义。
 //
-// 数据来自 AuditRecord 单表（源 Operation/LoginAuditLog 双表 + Category 分类
-// 精简合并）；P9 归一化对象 "audit"（REST /v1/audit 与 gRPC AuditService 同源）。
+// 数据来自 AuditRecord 单表（Category 分类合并）；归一化对象 "audit"
+// （REST /v1/audit 与 gRPC AuditService 同源）。
 //
 // **分页与租户隔离**：List 用框架标准 `bald.store.v1.PagingRequest`
 // （与 identity/org_unit.proto 一致），底层走 `Store.ListWithPaging`。由此带来一处
@@ -40,12 +39,11 @@ service AuditService {
   }
 }
 
-// AuditRecord 审计日志条目。字段对齐 model.AuditRecord（源
-// OperationAuditLog/LoginAuditLog 共有核心字段精简；
-// Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。
+// AuditRecord 审计日志条目。字段对齐 model.AuditRecord
+// （Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。
 //
-// 单表 + category 承载源**五类**审计（operation/login/api/
-// data_access/permission）。源是五张独立表、字段差异大，此处取并集为
+// 单表 + category 承载**五类**审计（operation/login/api/
+// data_access/permission）。五类字段差异大，此处取并集为
 // nullable 列（决策记录见 e2e 文件头）——api/data_access/permission
 // 三类专属字段列在下方分组。
 message AuditRecord {
@@ -53,8 +51,8 @@ message AuditRecord {
   string tenant_id = 2;       // 租户
   string category = 3;        // 分类："operation" / "login" / "api" / "data_access" / "permission"
   string subject = 4;         // 操作主体（操作者 UserID 或登录账号名）
-  string object = 5;          // 资源对象（P9 归一化，如 "secret" "auth"）
-  string action = 6;          // 动作（P9 归一化，如 "get" "delete" "login"）
+  string object = 5;          // 资源对象（归一化，如 "secret" "auth"）
+  string action = 6;          // 动作（归一化，如 "get" "delete" "login"）
   string result = 7;          // allow / deny / error
   string error = 8;           // 错误/拒绝原因（空为成功）
   string ip_address = 9;      // 客户端 IP
@@ -62,26 +60,26 @@ message AuditRecord {
   string request_id = 11;     // 全局请求 ID
   string trace_id = 12;       // W3C 链路 ID
 
-  // ---- api 类专属（源 ApiAuditLog）----
+  // ---- api 类专属 ----
   string http_method = 13;    // HTTP 方法（GET/POST/...）
   string path = 14;           // 请求路径
   uint32 status_code = 15;    // HTTP 响应状态码
   uint32 latency_ms = 16;     // 处理耗时（毫秒）
 
-  // ---- data_access 类专属（源 DataAccessAuditLog）----
+  // ---- data_access 类专属 ----
   string table_name = 17;     // 被访问的表名
   string data_source = 18;    // 数据源标识
   string db_user = 19;        // 数据库用户
   string sql_text = 20;       // 脱敏后的 SQL 文本
   uint32 affected_rows = 21;  // 影响行数
 
-  // ---- permission 类专属（源 PermissionAuditLog）----
+  // ---- permission 类专属 ----
   string target_type = 22;    // 变更目标类型（role/permission/...）
   string target_id = 23;      // 变更目标 ID
   string old_value = 24;      // 变更前值
   string new_value = 25;      // 变更后值
 
-  // ---- login 类专属（源 LoginAuditLog）----
+  // ---- login 类专属 ----
   string session_id = 26;     // 会话 ID
   string mfa_status = 27;     // MFA 状态
 

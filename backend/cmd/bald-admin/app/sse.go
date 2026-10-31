@@ -19,13 +19,10 @@
 // authenticator —— 故可**运行期构造**并当场完成 biz 接线；`WithExtraServers`
 // 收已构造实例，无法满足该时序。
 //
-// ## 与源项目的对照（3.2 接线）
+// ## 接线形态
 //
-// 源：`sse.NewSseServer(cfg.Server.Sse, WithSubscriberFunction(...),
-// WithAuthorizeFunc(internalMessageService.HandleAuthorize))`，
-// 然后 `internalMessageService.RegisterInternalMessagePublisher(srv)`。
-// bald 的 `transport/sse` 提供**同名同形的 Option**（`options.go`），
-// 故三处对接（授权 / 订阅回调 / 推送发布）形态可一一对应。
+// 三处对接：授权钩子（`WithAuthorizeFunc`）、自动建流与断线补发
+// （`WithAutoStream` / `WithAutoReplay`）、推送发布（`biz.SetPublisher`）。
 package app
 
 import (
@@ -41,7 +38,6 @@ import (
 	"github.com/kalandramo/bald/transport"
 	baldsse "github.com/kalandramo/bald/transport/sse"
 	ssecontract "github.com/kalandramo/bald/transport/sse/contract"
-
 
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
 	messaged "github.com/kalandramo/bald-admin/internal/apiserver/domains/messaged"
@@ -96,26 +92,24 @@ func sseServerOptionsDeferred(authnGetter func() authn.Authenticator) []baldsse.
 		// 在「流不存在 && autoStream=false」时返回 500 "Stream not found!"
 		// （`http.go:79-83`）。开启后首次订阅自动建流。
 		baldsse.WithAutoStream(true),
-		// 断线重连补发（SSE 协议标准语义，源同样具备）。
+		// 断线重连补发（SSE 协议标准语义）。
 		baldsse.WithAutoReplay(true),
 		// 授权钩子：校验 token 且**绑定 stream 到 token 所属用户**
-		// （源 `HandleAuthorize` 同款，防跨用户订阅）。
+		// （防跨用户订阅）。
 		baldsse.WithAuthorizeFunc(func(r *http.Request, token string) error {
 			return sseAuthorize(authnGetter())(r, token)
 		}),
 	}
 }
 
-// sseAuthorize 返回 SSE 订阅授权钩子（源 `HandleAuthorize` 的对应物）。
+// sseAuthorize 返回 SSE 订阅授权钩子。
 //
 // 签名已核实：`func(*http.Request, string) error`（`bald/transport/sse/auth.go:19`）。
 //
-// **核心安全语义（对齐源）**：
+// **核心安全语义**：
 //  1. 校验 token（含过期）——无效 → 401；
 //  2. token 的 Subject 必须与 stream 参数**一致**——否则 403。
 //     这防止用户 A 订阅用户 B 的消息流（越权窃听）。
-//     源的做法：`if streamUserId != tokenUserId { return ErrorForbidden(
-//     "stream user mismatch") }`。
 //
 // 返回 `sse.ErrForbidden` 产生 403，其他 error 产生 401（框架契约，见 auth.go:18）。
 func sseAuthorize(authenticator authn.Authenticator) baldsse.AuthorizeFunc {
@@ -135,7 +129,7 @@ func sseAuthorize(authenticator authn.Authenticator) baldsse.AuthorizeFunc {
 			return errSSEUnauthorized("missing stream parameter")
 		}
 		if streamID != claims.Subject {
-			// 源同款：记录 mismatch 并拒绝。
+			// 记录 mismatch 并拒绝。
 			log.Warn(context.Background(), "sse stream user mismatch",
 				"token_subject", claims.Subject, "stream", streamID)
 			return baldsse.ErrForbidden
@@ -156,7 +150,7 @@ func errSSEUnauthorized(msg string) error { return sseUnauthorizedError{msg: msg
 // sseMessagePublisher 把 message 域的 `Publisher` 接口适配到 `*sse.Server`。
 //
 // 解耦方向：message biz 只依赖窄接口（`TryPublish(streamID, eventName, payload)`），
-// 不 import `bald/transport/sse`——与源 `InternalMessagePublisher` 同款。
+// 不 import `bald/transport/sse`。
 type sseMessagePublisher struct {
 	srv *baldsse.Server
 }
@@ -164,8 +158,7 @@ type sseMessagePublisher struct {
 // TryPublish 实现 msgbiz.Publisher。
 //
 // **用 TryPublish 而非 Publish**：非阻塞——无在线订阅者时立即返回 false，
-// 不拖慢消息发送方（源 `publishNotification` 注释同此意图：
-// 「TryPublish 非阻塞推送：流不存在或缓冲已满时立即跳过，避免慢客户端阻塞发送方」）。
+// 不拖慢消息发送方（流不存在或缓冲已满时立即跳过，避免慢客户端阻塞发送方）。
 func (p sseMessagePublisher) TryPublish(streamID, eventName string, payload any) bool {
 	ok := p.srv.TryPublish(context.Background(), baldsse.StreamID(streamID),
 		&baldsse.Event{
@@ -193,8 +186,7 @@ func mustJSON(v any) []byte {
 	return b
 }
 
-// wireMessageSSE 把 SSE server 接到 message biz 上（源
-// `RegisterInternalMessagePublisher` 的对应物）。
+// wireMessageSSE 把 SSE server 接到 message biz 上。
 //
 // sseSrv 为 nil（未装配 SSE）时返回原 biz——**降级语义**：站内信仍落库、
 // 收件箱可拉取，只是没有实时推送。

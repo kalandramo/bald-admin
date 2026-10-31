@@ -27,9 +27,9 @@ type Tenant_Status int32
 
 const (
 	Tenant_STATUS_UNSPECIFIED Tenant_Status = 0 // 未指定
-	Tenant_STATUS_ON          Tenant_Status = 1 // 启用（源 Status.ON）
-	Tenant_STATUS_OFF         Tenant_Status = 2 // 禁用（源 Status.OFF）
-	Tenant_STATUS_FREEZE      Tenant_Status = 3 // 冻结（源 Status.FREEZE）
+	Tenant_STATUS_ON          Tenant_Status = 1 // 启用
+	Tenant_STATUS_OFF         Tenant_Status = 2 // 禁用
+	Tenant_STATUS_FREEZE      Tenant_Status = 3 // 冻结
 )
 
 // Enum value maps for Tenant_Status.
@@ -76,10 +76,10 @@ func (Tenant_Status) EnumDescriptor() ([]byte, []int) {
 }
 
 // Tenant 租户。ID 即租户编码（business code，如 "platform"、"t-acme"），
-// 与 bald P8 的 tenant_id 同一命名空间——业务租户创建后即作为 P8 隔离维度使用。
+// 与 store 层的 tenant_id 同一命名空间——业务租户创建后即作为隔离维度使用。
 type Tenant struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                     // 租户编码（= P8 tenant_id，如 "t-acme"）
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                     // 租户编码（= tenant_id，如 "t-acme"）
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                                 // 租户名称（展示名）
 	Status        Tenant_Status          `protobuf:"varint,3,opt,name=status,proto3,enum=go.bald.admin.tenant.v1.Tenant_Status" json:"status,omitempty"` // 租户状态
 	Remark        string                 `protobuf:"bytes,4,opt,name=remark,proto3" json:"remark,omitempty"`                                             // 备注

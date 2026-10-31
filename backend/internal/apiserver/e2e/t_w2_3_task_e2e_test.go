@@ -1,11 +1,10 @@
 package e2e
 
-// t_w2_3_task_e2e_test.go —— ：任务调度域（源 task.proto 11 rpc）。
+// t_w2_3_task_e2e_test.go —— 任务调度域。
 //
 // 核心验证点：
 //   - 任务定义 CRUD（PERIODIC 需 cronSpec，DELAY/WAIT_RESULT 不需要）；
-//   - **调度器未配置时明确报错**（源的 hasScheduler() nil 防护语义）——
-//     这是源注释强调的「避免 nil 解引用 panic」；
+//   - **调度器未配置时明确报错**——避免 nil 解引用 panic；
 //   - 任务启停控制（ControlTask / StartAll / StopAll / RestartAll）；
 //   - ListTaskTypeName 返回已注册处理器类型。
 
@@ -167,8 +166,8 @@ func TestWave2_3_TaskCRUD(t *testing.T) {
 	t.Logf("任务 CRUD + 类型校验 ✅")
 }
 
-// TestWave2_3_SchedulerNilGuard **调度器未配置时明确报错**（源的 nil 防护）。
-// 这是源注释强调的核心：避免 nil 解引用 panic。
+// TestWave2_3_SchedulerNilGuard **调度器未配置时明确报错**。
+// 核心是避免 nil 解引用 panic。
 func TestWave2_3_SchedulerNilGuard(t *testing.T) {
 	base := startTaskREST(t, nil) // 无调度器
 	admin := loginAs(t, base, "admin", "admin123")
@@ -274,7 +273,7 @@ func TestWave2_3_DisabledTaskNotStarted(t *testing.T) {
 			"enable": false}); code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", code, raw)
 	}
-	// 单独启动被拒（源语义：未启用不启动）。
+	// 单独启动被拒（未启用不启动）。
 	code, _ := callRaw(t, base, admin, http.MethodPost, "/v1/tasks/"+tn+"/control",
 		map[string]any{"start": true})
 	if code != http.StatusBadRequest {

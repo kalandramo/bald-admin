@@ -5,12 +5,11 @@
  */
 
 /**
- * AuditRecord 审计日志条目。字段对齐 model.AuditRecord（源
- *  OperationAuditLog/LoginAuditLog 共有核心字段精简；
- *  Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。
+ * AuditRecord 审计日志条目。字段对齐 model.AuditRecord
+ *  （Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。
  *
- *  Wave 5.1：单表 + category 承载源**五类**审计（operation/login/api/
- *  data_access/permission）。源是五张独立表、字段差异大，此处取并集为
+ *  单表 + category 承载**五类**审计（operation/login/api/
+ *  data_access/permission）。五类字段差异大，此处取并集为
  *  nullable 列（决策记录见 e2e 文件头）——api/data_access/permission
  *  三类专属字段列在下方分组。
  */
@@ -27,23 +26,23 @@ export interface AuditRecord {
   user_agent?: string;
   request_id?: string;
   trace_id?: string;
-  /** ---- api 类专属（源 ApiAuditLog）---- */
+  /** ---- api 类专属 ---- */
   http_method?: string;
   path?: string;
   status_code?: number;
   latency_ms?: number;
-  /** ---- data_access 类专属（源 DataAccessAuditLog）---- */
+  /** ---- data_access 类专属 ---- */
   table_name?: string;
   data_source?: string;
   db_user?: string;
   sql_text?: string;
   affected_rows?: number;
-  /** ---- permission 类专属（源 PermissionAuditLog）---- */
+  /** ---- permission 类专属 ---- */
   target_type?: string;
   target_id?: string;
   old_value?: string;
   new_value?: string;
-  /** ---- login 类专属（源 LoginAuditLog）---- */
+  /** ---- login 类专属 ---- */
   session_id?: string;
   mfa_status?: string;
   time?: string;

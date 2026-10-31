@@ -6,13 +6,13 @@ package e2e
 //
 // 前提「broker(redis 后端) 承载消息事件总线（**替换 goroutine fanout**）」
 // 取证后**被推翻**：
-//   1. 源项目 go-wind-admin **根本不用 broker**（`broker` 仅作为
+//   1. 本项目**根本不用 broker**（`broker` 仅作为
 //      `kratos-transport/broker` 的 **indirect** 依赖出现在 go.mod）；
 //   2. `bald/broker` 在 appkit **零引用**，真实消费者是
 //      `bald/transport/{redis,rabbitmq,kafka}`；
 //   3. 契约里的 `broker_address`/`broker_type` 属于 **Machinery** 段，
 //      与 `bald/broker` 不是一回事；
-//   4. 「跨实例持久化扇出」的收益**已被 asynq 覆盖**（源即如此）。
+//   4. 「跨实例持久化扇出」的收益**已被 asynq 覆盖**。
 //
 // 故此处只做**能力勘探**——
 // 而 broker 是框架里**零消费者的休眠组件**，勘探它就是有价值的产出。

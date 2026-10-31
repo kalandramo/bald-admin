@@ -24,12 +24,11 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// AuditRecord 审计日志条目。字段对齐 model.AuditRecord（源
-// OperationAuditLog/LoginAuditLog 共有核心字段精简；
-// Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。
+// AuditRecord 审计日志条目。字段对齐 model.AuditRecord
+// （Success 由 Result 推导，LogHash/Signature 合规链后续迭代）。
 //
-// 单表 + category 承载源**五类**审计（operation/login/api/
-// data_access/permission）。源是五张独立表、字段差异大，此处取并集为
+// 单表 + category 承载**五类**审计（operation/login/api/
+// data_access/permission）。五类字段差异大，此处取并集为
 // nullable 列（决策记录见 e2e 文件头）——api/data_access/permission
 // 三类专属字段列在下方分组。
 type AuditRecord struct {
@@ -38,31 +37,31 @@ type AuditRecord struct {
 	TenantId  string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`     // 租户
 	Category  string                 `protobuf:"bytes,3,opt,name=category,proto3" json:"category,omitempty"`                     // 分类："operation" / "login" / "api" / "data_access" / "permission"
 	Subject   string                 `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`                       // 操作主体（操作者 UserID 或登录账号名）
-	Object    string                 `protobuf:"bytes,5,opt,name=object,proto3" json:"object,omitempty"`                         // 资源对象（P9 归一化，如 "secret" "auth"）
-	Action    string                 `protobuf:"bytes,6,opt,name=action,proto3" json:"action,omitempty"`                         // 动作（P9 归一化，如 "get" "delete" "login"）
+	Object    string                 `protobuf:"bytes,5,opt,name=object,proto3" json:"object,omitempty"`                         // 资源对象（归一化，如 "secret" "auth"）
+	Action    string                 `protobuf:"bytes,6,opt,name=action,proto3" json:"action,omitempty"`                         // 动作（归一化，如 "get" "delete" "login"）
 	Result    string                 `protobuf:"bytes,7,opt,name=result,proto3" json:"result,omitempty"`                         // allow / deny / error
 	Error     string                 `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`                           // 错误/拒绝原因（空为成功）
 	IpAddress string                 `protobuf:"bytes,9,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`  // 客户端 IP
 	UserAgent string                 `protobuf:"bytes,10,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"` // 客户端 UA
 	RequestId string                 `protobuf:"bytes,11,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"` // 全局请求 ID
 	TraceId   string                 `protobuf:"bytes,12,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`       // W3C 链路 ID
-	// ---- api 类专属（源 ApiAuditLog）----
+	// ---- api 类专属 ----
 	HttpMethod string `protobuf:"bytes,13,opt,name=http_method,json=httpMethod,proto3" json:"http_method,omitempty"`  // HTTP 方法（GET/POST/...）
 	Path       string `protobuf:"bytes,14,opt,name=path,proto3" json:"path,omitempty"`                                // 请求路径
 	StatusCode uint32 `protobuf:"varint,15,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"` // HTTP 响应状态码
 	LatencyMs  uint32 `protobuf:"varint,16,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`    // 处理耗时（毫秒）
-	// ---- data_access 类专属（源 DataAccessAuditLog）----
+	// ---- data_access 类专属 ----
 	TableName    string `protobuf:"bytes,17,opt,name=table_name,json=tableName,proto3" json:"table_name,omitempty"`           // 被访问的表名
 	DataSource   string `protobuf:"bytes,18,opt,name=data_source,json=dataSource,proto3" json:"data_source,omitempty"`        // 数据源标识
 	DbUser       string `protobuf:"bytes,19,opt,name=db_user,json=dbUser,proto3" json:"db_user,omitempty"`                    // 数据库用户
 	SqlText      string `protobuf:"bytes,20,opt,name=sql_text,json=sqlText,proto3" json:"sql_text,omitempty"`                 // 脱敏后的 SQL 文本
 	AffectedRows uint32 `protobuf:"varint,21,opt,name=affected_rows,json=affectedRows,proto3" json:"affected_rows,omitempty"` // 影响行数
-	// ---- permission 类专属（源 PermissionAuditLog）----
+	// ---- permission 类专属 ----
 	TargetType string `protobuf:"bytes,22,opt,name=target_type,json=targetType,proto3" json:"target_type,omitempty"` // 变更目标类型（role/permission/...）
 	TargetId   string `protobuf:"bytes,23,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`       // 变更目标 ID
 	OldValue   string `protobuf:"bytes,24,opt,name=old_value,json=oldValue,proto3" json:"old_value,omitempty"`       // 变更前值
 	NewValue   string `protobuf:"bytes,25,opt,name=new_value,json=newValue,proto3" json:"new_value,omitempty"`       // 变更后值
-	// ---- login 类专属（源 LoginAuditLog）----
+	// ---- login 类专属 ----
 	SessionId     string                 `protobuf:"bytes,26,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // 会话 ID
 	MfaStatus     string                 `protobuf:"bytes,27,opt,name=mfa_status,json=mfaStatus,proto3" json:"mfa_status,omitempty"` // MFA 状态
 	Time          *timestamppb.Timestamp `protobuf:"bytes,100,opt,name=time,proto3" json:"time,omitempty"`                           // 事件时间
@@ -310,7 +309,7 @@ type ListAuditRecordsRequest struct {
 	// `bald` 是 `go.bald` 的首段——protobuf 名解析「首段匹配即停」会把
 	// `bald.store.v1.X` 误判为 `go.bald.store.v1.X`（不存在）。
 	//
-	// 分页用 PagingRequest（无扁平 page_size/page_token 字段，见本域
+	// 原扁平字段 page_size/page_token 已移除（迁移到 PagingRequest，见本域
 	// 分页风格统一：与 identity/org_unit.proto 一致）。
 	Paging        *v1.PagingRequest `protobuf:"bytes,20,opt,name=paging,proto3" json:"paging,omitempty"`
 	unknownFields protoimpl.UnknownFields

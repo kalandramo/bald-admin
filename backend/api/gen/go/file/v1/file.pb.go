@@ -23,7 +23,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// File 文件元数据。字段对齐源 storage/service/v1 的 File（recordFile）。
+// File 文件元数据。
 type File struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                            // 保存文件名去扩展名的 uuid（32 位无横线）

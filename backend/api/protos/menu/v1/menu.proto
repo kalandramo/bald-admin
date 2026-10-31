@@ -7,22 +7,21 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/menu/v1;menuv1"
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// MenuService 菜单管理服务（自 go-wind-admin permission 域 sys_menus 精简移植）。
+// MenuService 菜单管理服务。
 //
 // 菜单是前端导航树的数据源（自引用树，parent_id），同时是权限点可见性的挂载面
 // （Permission.MenuIDs）。管理面操作仅授予 admin 角色（casbin 策略数据化装载）。
 service MenuService {
   // GetMenu 取菜单节点。
   //   REST: GET /v1/menu/{id}
-  // 单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（P9 策略单写）。
+  // 单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（策略单写）。
   rpc GetMenu(GetMenuRequest) returns (GetMenuResponse) {
     option (google.api.http) = {
       get: "/v1/menu/{id}"
     };
   }
 
-  // ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过——
-  // 源项目 pagination.BuildTree 同语义）。
+  // ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过）。
   //   REST: GET /v1/menu
   rpc ListMenus(ListMenusRequest) returns (ListMenusResponse) {
     option (google.api.http) = {
@@ -30,7 +29,7 @@ service MenuService {
     };
   }
 
-  // CreateMenu 创建菜单节点（parent_id 空 = 根节点；源 parent_id=0 语义）。
+  // CreateMenu 创建菜单节点（parent_id 空 = 根节点）。
   //   REST: POST /v1/menu
   rpc CreateMenu(CreateMenuRequest) returns (CreateMenuResponse) {
     option (google.api.http) = {
@@ -48,7 +47,7 @@ service MenuService {
     };
   }
 
-  // DeleteMenu 删除菜单节点（递归级联删除子树——源 QueryAllChildrenIds 语义）。
+  // DeleteMenu 删除菜单节点（递归级联删除子树）。
   //   REST: DELETE /v1/menu/{id}
   rpc DeleteMenu(DeleteMenuRequest) returns (DeleteMenuResponse) {
     option (google.api.http) = {
@@ -61,14 +60,14 @@ service MenuService {
 message Menu {
   enum Type {
     TYPE_UNSPECIFIED = 0; // 未指定
-    TYPE_CATALOG = 1;     // 目录（分组节点，源 CATALOG）
-    TYPE_MENU = 2;        // 菜单页面（源 MENU）
-    TYPE_BUTTON = 3;      // 按钮/操作权限点（源 BUTTON，path 存动作名）
+    TYPE_CATALOG = 1;     // 目录（分组节点）
+    TYPE_MENU = 2;        // 菜单页面
+    TYPE_BUTTON = 3;      // 按钮/操作权限点（path 存动作名）
   }
 
   enum Status {
     STATUS_UNSPECIFIED = 0; // 未指定
-    STATUS_ON = 1;          // 启用（源 SwitchStatus.ON）
+    STATUS_ON = 1;          // 启用
     STATUS_OFF = 2;         // 禁用
   }
 
@@ -78,9 +77,9 @@ message Menu {
   string name = 4;      // 路由名（vue router name）
   string path = 5;      // 路由路径（BUTTON 类型时存数据操作名）
   string component = 6; // 前端组件
-  string title = 7;     // 展示标题（源 meta.title）
-  string icon = 8;      // 图标（源 meta.icon）
-  int32 order = 9;      // 展示顺序（源 meta.order，越小越前）
+  string title = 7;     // 展示标题
+  string icon = 8;      // 图标
+  int32 order = 9;      // 展示顺序（越小越前）
   Status status = 10;   // 状态
   string remark = 11;   // 备注
 
@@ -99,7 +98,7 @@ message GetMenuResponse {
 }
 
 message ListMenusRequest {
-  // 精简为全量树；源项目支持 pagination + treeTravel 开关，列入后续迭代。
+  // 全量树（不分页）。
 }
 
 message ListMenusResponse {

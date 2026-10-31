@@ -1,18 +1,16 @@
-// Package language 是语言管理业务（，自 go-wind-admin dict 域 language
-// 精简移植，7 rpc）。
+// Package language 是语言管理业务（7 个 rpc）。
 //
 // ## 平台级数据（无租户隔离）
 //
-// 源 `language.proto` 无 tenant_id，语言是**平台级**共享数据（所有租户共用），
-// 故本 biz 的查询**不走** `Where.T` 租户过滤（与同目录 dict 的租户级隔离不同）
-// ——这是对齐源语义。
+// 语言是**平台级**共享数据（所有租户共用），故本 biz 的查询**不走** `Where.T`
+// 租户过滤（与同目录 dict 的租户级隔离不同）。
 //
-// ## 业务语义（对齐源）
+// ## 业务语义
 //
 //   - 主键 = 语言代码（如 "zh-CN"），Create 冲突 → 409；
-//   - List 按 sort_order 升序（源语义「值越小越靠前」）；
-//   - Update 用「非空字段即更新」语义（源用 FieldMask，本项目惯例见 proto 头注）；
-//   - BatchCreate **源未实现** → UNIMPLEMENTED（对齐源，不自创）。
+//   - List 按 sort_order 升序（值越小越靠前）；
+//   - Update 用「非空字段即更新」语义，而非 FieldMask（本项目惯例，见 proto 头注）；
+//   - BatchCreate 返回 UNIMPLEMENTED——当前不提供批量创建能力。
 package language
 
 import (
@@ -47,7 +45,7 @@ func New(st *store.Store[authmodel.Language]) *Biz { return &Biz{langStore: st} 
 
 // List 列出语言（sort_order 升序，值小在前）。enabledOnly 为真时只返回启用的。
 //
-// 平台级数据：**不走** Where.T 租户过滤（源无租户维度）。
+// 平台级数据：**不走** Where.T 租户过滤（无租户维度）。
 func (b *Biz) List(ctx context.Context, enabledOnly bool) ([]*authmodel.Language, int64, error) {
 	w := &store.Where{}
 	if enabledOnly {
@@ -97,7 +95,7 @@ func (b *Biz) Create(ctx context.Context, in Language) (*authmodel.Language, err
 
 // Update 更新语言（非空字段即更新；id 不可变）。
 //
-// 与源 FieldMask 的差异：本项目惯例用「显式 set 位」区分「未设置」与「设为
+// 不用 FieldMask：本项目惯例用「显式 set 位」区分「未设置」与「设为
 // false」（见 proto 的 is_default_set/is_enabled_set）。
 func (b *Biz) Update(ctx context.Context, id string, in UpdateInput) (*authmodel.Language, error) {
 	m, err := b.Get(ctx, id)
@@ -149,8 +147,8 @@ func (b *Biz) Count(ctx context.Context) (int64, error) {
 	return total, nil
 }
 
-// BatchCreate 批量创建——**源 service 层未实现**（proto 有、实现无），
-// 故本实现返回 UNIMPLEMENTED（对齐源行为，不自创语义）。
+// BatchCreate 批量创建——**未实现**（proto 已定义，biz 层不提供），
+// 返回 UNIMPLEMENTED。
 //
 // 返回 berrors.Unimplemented（而非裸 error）——writeBizErr 只识别
 // berrors.Error；裸 error 会被兜底成 500（实测踩坑），而 501 才是正确映射。

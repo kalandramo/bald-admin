@@ -1,27 +1,24 @@
 package e2e
 
-// t_w5_1_audit_five_categories_e2e_test.go —— ：审计五类落库与查询。
+// t_w5_1_audit_five_categories_e2e_test.go —— 审计五类落库与查询。
 //
 // ## 背景
 //
-// 源 go-wind-admin 的 audit 域是**五类独立表**（operation / login / api /
-// data_access / permission），各 3 rpc。bald-admin 当前是**单表 + category**
-// （精简，仅 operation/login 两类有数据），五类中的 api / data_access /
-// permission 三类**从未落库**。
+// 审计分**五类**（operation / login / api / data_access / permission），
+// 本项目用**单表 + category** 建模：五类共用一张表，以 category 区分。
 //
-// 决策（用户确认）：**保持单表 + category**，把五类差异字段扩为
-// nullable 列。理由：现有单表是刻意决策且查询面已统一；拆五表要新增 5 个
-// model + 5 个 store + 5 组 handler，代价大而收益仅是表结构对齐。能力验证
-// 的重点是「五类事件能落库 + 能查询」，不是表结构逐字对齐。
+// 决策：**保持单表 + category**，把五类差异字段扩为 nullable 列。理由：
+// 查询面已统一；拆五表要新增多套 model + store + handler，代价大
+// 而收益仅是表结构对齐。能力验证的重点是「五类事件能落库 + 能查询」。
 //
-// ## 本测试锁定（RED 起点）
+// ## 本测试锁定
 //
 //  1. **api 类自动采集**：任一 HTTP 请求经中间件链后，落一条 category=api
-//     审计，含 http_method / path / status_code / latency_ms（框架 gin 审计
-//     中间件当前只填 status，缺 method/path/latency）。
+//     审计，含 http_method / path / status_code（框架 gin 审计中间件只填
+//     status，缺的 method/path 由本项目补齐）。
 //  2. **五类可查**：category 过滤能分别取到 api / data_access / permission
-//     三类（当前只有 operation/login 有数据，其余查不到 → RED）。
-//  3. **permission 类**：权限判定（授权拒绝）落 category=permission 审计，
+//     三类。
+//  3. **permission 类**：权限变更落 category=permission 审计，
 //     含 target_type / old_value / new_value 语义字段。
 
 import (
@@ -73,8 +70,8 @@ func TestWave5_1_APICategoryAutoCollected(t *testing.T) {
 
 // TestWave5_1_DataAccessCategory —— data_access 类审计（SQL 执行被采集）。
 //
-// 依赖 的 SQL 采集机制（gorm callback）。本测试只断言「有 data_access
-// 类记录且含 table_name」，具体的采集实现见 5.2。
+// 依赖 gorm callback 的 SQL 采集机制。本测试只断言「有 data_access
+// 类记录且含 table_name」。
 func TestWave5_1_DataAccessCategory(t *testing.T) {
 	base := startAuditREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
@@ -100,12 +97,10 @@ func TestWave5_1_DataAccessCategory(t *testing.T) {
 
 // TestWave5_1_PermissionCategory —— permission 类审计（权限变更被采集）。
 //
-// ## 源语义核实（关键，修正了首版测试的错误假设）
+// ## 语义（关键，修正了首版测试的错误假设）
 //
-// 源 `permission_audit_log.proto` 的 ActionType 是 **GRANT/REVOKE/ASSIGN/
-// EXPIRE** 等**权限变更**语义，**不是**授权拒绝。且源的写入路径是
-// `applogging.WithWritePermissionAuditLogFunc`（logging 层回调，
-// `rest_server.go:66`）——由**权限变更操作**触发。
+// permission 类审计的 ActionType 是 **GRANT/REVOKE/ASSIGN/EXPIRE** 等
+// **权限变更**语义，**不是**授权拒绝。写入由**权限变更操作**触发。
 //
 // 故本测试触发**策略行增删**（`POST/DELETE /v1/permission/policy`，
 // 即 GRANT/REVOKE 语义），断言落 category=permission 审计。

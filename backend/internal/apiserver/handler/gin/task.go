@@ -16,7 +16,7 @@ import (
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 )
 
-// RegisterTask 挂载任务调度路由（，源 11 rpc）。
+// RegisterTask 挂载任务调度路由。
 func RegisterTask(
 	e *gingonic.Engine,
 	authenticator authn.Authenticator,
@@ -68,13 +68,13 @@ func RegisterTask(
 		c.JSON(http.StatusOK, gingonic.H{"total": n})
 	})
 
-	// 已注册的处理器类型（源 ListTaskTypeName）。
+	// 已注册的处理器类型。
 	authed.GET("/tasks/types", authzMW, func(c *gingonic.Context) {
 		types := biz.ListTaskTypeNames(c.Request.Context())
 		c.JSON(http.StatusOK, gingonic.H{"type_names": types})
 	})
 
-	// 全部启动 / 停止 / 重启（源 StartAllTask / StopAllTask / RestartAllTask）。
+	// 全部启动 / 停止 / 重启。
 	authed.POST("/tasks/start-all", authzMW, func(c *gingonic.Context) {
 		n, err := biz.StartAllTasks(c.Request.Context())
 		if err != nil {
@@ -128,7 +128,7 @@ func RegisterTask(
 		c.JSON(http.StatusOK, gingonic.H{"message": "deleted"})
 	})
 
-	// 单任务启停（源 ControlTask）。
+	// 单任务启停。
 	authed.POST("/tasks/:type_name/control", authzMW, func(c *gingonic.Context) {
 		var req struct {
 			Start bool `json:"start"`
@@ -149,8 +149,8 @@ func RegisterTask(
 func writeTaskErr(c *gingonic.Context, err error) {
 	switch {
 	case errors.Is(err, taskbiz.ErrNoScheduler):
-		// 调度器未配置 → 503（能力不可用，非请求错误）——
-		// 与源「明确报错而非静默」的语义一致。
+		// 调度器未配置 → 503（能力不可用，非请求错误），
+		// 明确报错而非静默。
 		web.ErrorResponse(c, berrors.Unavailable("task/scheduler_unavailable").WithMessage("%s", err))
 	case errors.Is(err, taskbiz.ErrNotFound):
 		web.ErrorResponse(c, berrors.NotFound("task/not_found").WithMessage("%s", err))

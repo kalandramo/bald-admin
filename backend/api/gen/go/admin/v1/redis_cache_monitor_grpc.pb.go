@@ -28,9 +28,7 @@ const (
 //
 // RedisCacheMonitorService Redis 缓存监控（只读，聚合 INFO/DBSIZE/SLOWLOG 视图）。
 //
-// bald 真新增：源 redis_cache 域仅此 1 rpc，无对标 biz。
-//
-// ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）
+// ## fail-soft 语义
 //
 // 三个只读命令（INFO / DBSIZE / SLOWLOG GET）**任一失败不阻断其余**——失败项
 // 置空并记日志，而非整体报错。Redis 不可用时返回**空视图**（非错误），避免
@@ -65,9 +63,7 @@ func (c *redisCacheMonitorServiceClient) GetRedisCacheMonitor(ctx context.Contex
 //
 // RedisCacheMonitorService Redis 缓存监控（只读，聚合 INFO/DBSIZE/SLOWLOG 视图）。
 //
-// bald 真新增：源 redis_cache 域仅此 1 rpc，无对标 biz。
-//
-// ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）
+// ## fail-soft 语义
 //
 // 三个只读命令（INFO / DBSIZE / SLOWLOG GET）**任一失败不阻断其余**——失败项
 // 置空并记日志，而非整体报错。Redis 不可用时返回**空视图**（非错误），避免

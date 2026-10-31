@@ -26,7 +26,7 @@
 //	                permgroup.go:35-40；认证层是唯一可信租户来源）
 //	userID        ← subject（中间件默认 subjectResolver = claims.Subject）
 //	permissionID  ← obj，即 DefaultHTTPObject/DefaultGRPCObject 解析出的资源标识
-//	requestPath   ← 同上 obj——字段名沿用源 schema，语义是「授权资源标识」而非原始路径
+//	requestPath   ← 同上 obj——语义是「授权资源标识」而非原始路径
 //	requestMethod ← act，即 DefaultHTTPAction（小写 HTTP 方法）/ DefaultGRPCAction
 //	result        ← 内层判定原值（allow 与 deny 都记：schema 的 Result bool 即为此设计）
 //	effectDetails ← 主体角色快照（拒绝时的第一手线索：持有哪些角色仍未命中任何 p 行）

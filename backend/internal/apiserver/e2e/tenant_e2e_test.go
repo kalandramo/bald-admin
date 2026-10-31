@@ -5,7 +5,7 @@ package e2e
 //
 // 验证点：
 //  1. admin 全 CRUD + 种子租户可见（platform/t-default/t-other）
-//  2. viewer（无 tenant 权限点）→ 403（casbin P9 归一化策略）
+//  2. viewer（无 tenant 权限点）→ 403（casbin 传输中立归一化策略）
 //  3. platform 平台租户受保护（删除拒绝）
 
 import (
@@ -99,7 +99,7 @@ func TestTenantREST_AdminLifecycle(t *testing.T) {
 
 	// 2. 创建 → 查询 → 更新（冻结）。
 	code, _ = callTenant(t, base, tok, http.MethodPost, "/v1/tenant",
-		map[string]any{"id": "t-acme", "name": "ACME Corp", "remark": "T2 e2e"})
+		map[string]any{"id": "t-acme", "name": "ACME Corp", "remark": "tenant e2e"})
 	if code != http.StatusCreated {
 		t.Fatalf("create status=%d", code)
 	}

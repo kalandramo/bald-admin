@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/cobra"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
 	"github.com/kalandramo/bald-admin/internal/apiserver"
@@ -18,15 +18,15 @@ import (
 	cachemonitord "github.com/kalandramo/bald-admin/internal/apiserver/domains/cachemonitord"
 	dashboardd "github.com/kalandramo/bald-admin/internal/apiserver/domains/dashboardd"
 	dictd "github.com/kalandramo/bald-admin/internal/apiserver/domains/dictd"
-	identityd "github.com/kalandramo/bald-admin/internal/apiserver/domains/identityd"
 	filed "github.com/kalandramo/bald-admin/internal/apiserver/domains/filed"
+	identityd "github.com/kalandramo/bald-admin/internal/apiserver/domains/identityd"
 	languaged "github.com/kalandramo/bald-admin/internal/apiserver/domains/languaged"
 	menud "github.com/kalandramo/bald-admin/internal/apiserver/domains/menud"
 	messaged "github.com/kalandramo/bald-admin/internal/apiserver/domains/messaged"
 	mfad "github.com/kalandramo/bald-admin/internal/apiserver/domains/mfad"
 	orgd "github.com/kalandramo/bald-admin/internal/apiserver/domains/orgd"
-	permissiond "github.com/kalandramo/bald-admin/internal/apiserver/domains/permissiond"
 	permgroupd "github.com/kalandramo/bald-admin/internal/apiserver/domains/permgroupd"
+	permissiond "github.com/kalandramo/bald-admin/internal/apiserver/domains/permissiond"
 	pland "github.com/kalandramo/bald-admin/internal/apiserver/domains/pland"
 	portald "github.com/kalandramo/bald-admin/internal/apiserver/domains/portald"
 	secretd "github.com/kalandramo/bald-admin/internal/apiserver/domains/secretd"
@@ -367,10 +367,10 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			Authz:      func() authz.Authorizer { return authorizer },
 		}),
 		permgroupd.Domain(permgroupd.Deps{
-			GroupStore:  func() *store.Store[authmodel.PermissionGroup] { return repos.PermGroup },
+			GroupStore:   func() *store.Store[authmodel.PermissionGroup] { return repos.PermGroup },
 			EvalLogStore: func() *store.Store[authmodel.PolicyEvaluationLog] { return repos.PolicyEvalLog },
-			Authn:       func() authn.Authenticator { return authenticator },
-			Authz:       func() authz.Authorizer { return authorizer },
+			Authn:        func() authn.Authenticator { return authenticator },
+			Authz:        func() authz.Authorizer { return authorizer },
 		}),
 		pland.Domain(pland.Deps{
 			PlanStore:   func() *store.Store[authmodel.Plan] { return repos.Plan },
@@ -394,7 +394,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		}),
 
 		// --- 配置命名空间与本地文件 ---
-		// env 前缀（BALD_ADMIN_*）由契约 app.name 派生（B6 两遍合并）——
+		// env 前缀（BALD_ADMIN_*）由契约 app.name 派生（两遍合并）——
 		// configs/bald-admin.yaml 的 app.name 即其来源（缺失启动 fail-fast）。
 		// 本地配置文件 + fsnotify 热更新。显式路径缺失 → fail-fast（配置携带
 		// DB/Redis 凭据，宁可启动即失败也不要半配置运行）。--config flag 可覆盖，
@@ -423,7 +423,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 健康检查默认装配：HTTP 双探针 + gRPC health 状态联动。
 		appkit.WithHealth(healthChecker),
 
-		// 日志装饰（B7：WithLogDecorators 取消导出，装饰归 provider 自持）：
+		// 日志装饰（装饰归 provider 自持，见 loggerProvider）：
 		// 经本应用的 loggerProvider（覆盖 std 默认）注入。两套脱敏机制
 		// **互补，不是重复**（实测验证）：
 		//   - 契约 `logger.filter_keys` 包在 MultiLogger 外层，覆盖**位置参数对**

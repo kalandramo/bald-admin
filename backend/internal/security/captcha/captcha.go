@@ -1,8 +1,5 @@
-// Package captcha 提供图片验证码的生成与校验。
-//
-// 对应源 go-wind-admin 的 GenerateCaptcha / VerifyCaptcha 两个 rpc
-// （authentication.proto L58/L61）。图片生成用 github.com/mojocn/base64Captcha
-// ——**与源项目同一库**（源 go.mod:179 用 v1.3.8），行为对齐而非自研重造。
+// Package captcha 提供图片验证码的生成与校验（GenerateCaptcha / VerifyCaptcha
+// 两个 rpc）。图片生成用 github.com/mojocn/base64Captcha（v1.3.8），不自研重造。
 //
 // 框架能力验证结论：bald v0.8.1 **不提供** captcha 组件（实测
 // `grep -rl "captcha" --include="*.go" bald/` 零命中），故本包为业务自建。
@@ -53,7 +50,7 @@ type RedisStore struct {
 
 // NewRedisStore 构造 Redis 验证码存储（默认 TTL）。
 func NewRedisStore(rdb goredis.UniversalClient) *RedisStore {
-	// 源项目同款形态：4 位数字+字母混合（避免易混淆字符由库自身处理）。
+	// 4 位数字+字母混合（避免易混淆字符由库自身处理）。
 	driver := base64Captcha.NewDriverString(
 		40,  // height
 		120, // width

@@ -1,4 +1,4 @@
-// Package permission 是权限管理业务（自 go-wind-admin permission 域精简移植）。
+// Package permission 是权限管理业务。
 //
 // 两块职责（与 proto 对应）：
 //  1. 权限点注册表（model.Permission）：权限码 → 名称/菜单可见性；
@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"time"
 
+	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/audit"
-	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -139,7 +139,7 @@ func (b *Biz) CreateRolePolicy(ctx context.Context, role, object, action string)
 	if err := b.policyStore.Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("permission.CreateRolePolicy(%s,%s,%s): %w", role, object, action, err)
 	}
-	// permission 类审计（源 PermissionAuditLog 的 GRANT 语义）。
+	// permission 类审计（GRANT 语义）。
 	auditPermission(ctx, "grant", role, p.ID, "", role+":"+object+":"+action)
 	return p, nil
 }
@@ -158,17 +158,15 @@ func (b *Biz) DeleteRolePolicy(ctx context.Context, id string) (bool, error) {
 	if _, err := b.policyStore.Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("permission.DeleteRolePolicy(%s): %w", id, err)
 	}
-	// permission 类审计（源 PermissionAuditLog 的 REVOKE 语义）。
+	// permission 类审计（REVOKE 语义）。
 	auditPermission(ctx, "revoke", old.Role, id, old.Role+":"+old.Object+":"+old.Action, "")
 	return true, nil
 }
 
 // auditPermission 记录一条 permission 类审计（权限变更：GRANT/REVOKE）。
 //
-// 源语义核实：源 `permission_audit_log.proto` 的 ActionType 是 GRANT/REVOKE/
-// ASSIGN/EXPIRE 等**权限变更**语义（**非**授权拒绝），写入路径是
-// `applogging.WithWritePermissionAuditLogFunc`（logging 层回调，
-// `rest_server.go:66`）——由权限变更操作触发。本函数对齐该语义。
+// action 取 GRANT/REVOKE/ASSIGN/EXPIRE 等**权限变更**语义（**非**授权拒绝），
+// 由权限变更操作触发。
 //
 // 旁路语义：recordSafely 有 recover 兜底，审计失败不影响业务返回。
 func auditPermission(ctx context.Context, action, targetType, targetID, oldValue, newValue string) {

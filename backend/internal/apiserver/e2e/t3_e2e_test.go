@@ -132,7 +132,7 @@ func TestMenuREST_TreeAndLifecycle(t *testing.T) {
 	if code != http.StatusCreated {
 		t.Fatalf("create child status=%d", code)
 	}
-	// 父不存在 → 404（决策⑧：父资源不存在即 NotFound，三面一致语义）。
+	// 父不存在 → 404（父资源不存在即 NotFound，三面一致语义）。
 	if code, _ := callMenu(t, base, tok, http.MethodPost, "/v1/menu",
 		map[string]any{"id": "menu-orphan", "parent_id": "menu-nope", "type": "TYPE_MENU"}); code != http.StatusNotFound {
 		t.Fatalf("create with missing parent must 404, got %d", code)
@@ -182,7 +182,7 @@ func TestPermissionREST_RegistryAndPolicies(t *testing.T) {
 		t.Fatalf("seed permission secret:list missing")
 	}
 
-	// 2. 创建 → 重复创建冲突 409（决策⑧统一冲突语义，与 user/tenant 域一致）→ 删除。
+	// 2. 创建 → 重复创建冲突 409（统一冲突语义，与 user/tenant 域一致）→ 删除。
 	code, _ = callPermission(t, base, tok, http.MethodPost, "/v1/permission",
 		map[string]any{"id": "dict:list", "name": "列出字典", "menu_ids": []string{"menu-system"}})
 	if code != http.StatusCreated {

@@ -26,7 +26,7 @@ type ComponentFactory = func() appkit.Component
 // appFn 为迟到绑定（gin 装配先于 appkit.New 构造，请求期才取 App 实例）。
 //
 // 三端点全部要求认证 + "admin" 资源授权（casbin 策略 p, admin, admin, get|post|delete，
-// 归一化后 /admin/components → object="admin"、method → action，见 P9 DefaultHTTPObject）。
+// 归一化后 /admin/components → object="admin"、method → action，见 authz.DefaultHTTPObject）。
 // 挂载/卸载经 A1 MountComponent/UnmountComponent 自动产生重组审计事件
 // （AuditEvent{Object:"component", Action:"mount"/"unmount", Subject:请求身份}）。
 func RegisterAdmin(

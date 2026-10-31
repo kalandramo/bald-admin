@@ -22,16 +22,16 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// MenuRouteItem 前端路由项（扁平结构，见 service 头注的差异说明）。
+// MenuRouteItem 前端路由项（扁平结构，见 service 头注的设计说明）。
 type MenuRouteItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`           // 路由路径
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`           // 路由名
 	Component     string                 `protobuf:"bytes,3,opt,name=component,proto3" json:"component,omitempty"` // 前端组件
 	Redirect      string                 `protobuf:"bytes,4,opt,name=redirect,proto3" json:"redirect,omitempty"`   // 重定向地址
-	Title         string                 `protobuf:"bytes,5,opt,name=title,proto3" json:"title,omitempty"`         // 展示标题（源 meta.title）
-	Icon          string                 `protobuf:"bytes,6,opt,name=icon,proto3" json:"icon,omitempty"`           // 图标（源 meta.icon）
-	Order         int32                  `protobuf:"varint,7,opt,name=order,proto3" json:"order,omitempty"`        // 展示顺序（源 meta.order）
+	Title         string                 `protobuf:"bytes,5,opt,name=title,proto3" json:"title,omitempty"`         // 展示标题
+	Icon          string                 `protobuf:"bytes,6,opt,name=icon,proto3" json:"icon,omitempty"`           // 图标
+	Order         int32                  `protobuf:"varint,7,opt,name=order,proto3" json:"order,omitempty"`        // 展示顺序
 	Children      []*MenuRouteItem       `protobuf:"bytes,8,rep,name=children,proto3" json:"children,omitempty"`   // 子路由
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

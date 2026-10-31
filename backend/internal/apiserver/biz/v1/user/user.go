@@ -1,4 +1,4 @@
-// Package user 是用户管理业务（自 go-wind-admin identity/user 域精简移植）。
+// Package user 是用户管理业务。
 //
 // 租户内读写：读路径 Where.T(ctx) 自动注入 tenant_id 过滤（跨租户不可见），
 // 写路径 injectWriteTenant 自动写入/覆写 ctx 租户（防越权改归属）——业务零手写。

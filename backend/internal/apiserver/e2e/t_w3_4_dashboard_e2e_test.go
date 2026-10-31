@@ -1,15 +1,14 @@
 package e2e
 
-// t_w3_4_dashboard_e2e_test.go —— ：首页分析域（源 4 rpc）。
+// t_w3_4_dashboard_e2e_test.go —— 首页分析域（4 rpc）。
 //
-// 源：`go-wind-admin/.../dashboard_service.go` + `data/dashboard_repo.go`。
 // 本域是**纯读聚合**，零新增存储——数据源是本项目已有的 `AuditRecord`
-// （其 `Category` 字段区分 login/operation，恰好覆盖源的 LoginAuditLog /
-// OperationAuditLog 双表语义）。
+// （其 `Category` 字段区分 login/operation，恰好覆盖登录审计 / 操作审计
+// 双表语义）。
 //
 // 核心验证点：
 //   - 概览四卡计数与库中真实数据一致；
-//   - **登录趋势「按日期升序、缺日补零」**（源注释原话，最易漏的语义）；
+//   - **登录趋势「按日期升序、缺日补零」**（最易漏的语义）；
 //   - 操作分布总数 = operation 类审计记录数；
 //   - 登录状态分布正确聚合。
 
@@ -30,8 +29,8 @@ import (
 
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	dashbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/dashboard"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
+	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
 
@@ -126,7 +125,7 @@ func TestWave3_4_Overview(t *testing.T) {
 
 // TestWave3_4_LoginTrendPadsMissingDays —— **核心验证点**。
 //
-// 源注释原话：「按日期升序、**缺日补零**」。
+// 语义：「按日期升序、**缺日补零**」。
 // 没有任何登录的日子也必须出现（count=0），否则前端趋势图断线。
 func TestWave3_4_LoginTrendPadsMissingDays(t *testing.T) {
 	base := startDashboardREST(t)

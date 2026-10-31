@@ -3,9 +3,9 @@
 // ## 与框架审计中间件的关系
 //
 // bald 框架的 `middleware/gin.AuditMiddleware` 发的是**operation 类**事件
-// （业务操作审计，object/action 经 P9 归一化）。源 go-wind-admin 的 api 类
-// （ApiAuditLog）是**独立的接口调用审计**——记录 HTTP 方法/路径/状态码/耗时/
-// 请求体等**协议层**信息，与「谁对什么资源做了什么」的业务语义正交。
+// （业务操作审计，object/action 经传输中立归一化）。本包发的是**独立的接口调用
+// 审计**——记录 HTTP 方法/路径/状态码/耗时/请求体等**协议层**信息，与「谁对什么
+// 资源做了什么」的业务语义正交。
 //
 // 框架中间件的 Meta 已含 status/client_ip/user_agent/request_id/trace_id，
 // 但**缺** http_method/path/latency_ms/request_body/response——且 Meta 由框架
@@ -24,8 +24,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald/pkg/audit"
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
+	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/contextx"
 )

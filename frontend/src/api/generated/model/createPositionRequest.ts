@@ -6,6 +6,12 @@
 import type { CreatePositionRequestStatus } from './createPositionRequestStatus.ts';
 import type { CreatePositionRequestType } from './createPositionRequestType.ts';
 
+/**
+ * CreatePositionRequest 创建职位入参。
+ *  **字段校验**：code/name 的必填与长度以 buf.validate 注解表达（同
+ *  CreateOrgUnitRequest 的说明——只加专用输入消息，不碰共享 Position）。
+ *  org_unit_id 的**存在性**校验依赖查库，注解表达不了，仍归 biz。
+ */
 export interface CreatePositionRequest {
   code?: string;
   name?: string;

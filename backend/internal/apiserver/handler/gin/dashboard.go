@@ -1,4 +1,4 @@
-// Package gin 提供 dashboard 域的 HTTP handler（，源 4 rpc）。
+// Package gin 提供 dashboard 域的 HTTP handler。
 package gin
 
 import (
@@ -16,7 +16,7 @@ import (
 
 // RegisterDashboard 挂载 dashboard 路由（只读聚合，仅 admin）。
 //
-// 权限：分析页是管理面功能，源同样挂在 admin 服务下——故仅 admin 可访问。
+// 权限：分析页是管理面功能，挂在 admin 服务下——故仅 admin 可访问。
 func RegisterDashboard(
 	e *gingonic.Engine,
 	authenticator authn.Authenticator,

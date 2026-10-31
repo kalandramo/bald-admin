@@ -3,13 +3,13 @@ package e2e
 // t_w1_7_org_e2e_test.go —— 组织架构域
 //（org_unit 7 rpc 树形 + position 7 rpc 关联回填）。
 //
-// 响应为 A 轨标准形态（bindPB/writePB + protojson），形状要点：
+// 响应为标准形态（bindPB/writePB + protojson），形状要点：
 //   - 列表：`{"items":[...],"total":N}`（树根数组 + 全节点数）
 //   - 单对象：`{"org_unit":{...}}` / `{"position":{...}}` 包装
 //   - 变更：返回更新后的对象
 // 故断言用 **PB 解码**（decodePB + identityv1 消息）。
 //
-// 核心验证点（对齐源实现）：
+// 核心验证点：
 //   - **树形**：ParentID 建父子关系，List 返回嵌套 children；
 //   - **防环**：不能把节点挂到自己的子孙下（否则遍历死循环）；
 //   - **删除保护**：有子节点时拒绝删除（避免悬挂引用）；
@@ -216,7 +216,7 @@ func TestWave1_7_DeleteWithChildrenRejected(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("删父 status=%d body=%s", code, raw)
 	}
-	// 删除响应回传被删 code（A 轨形状）。
+	// 删除响应回传被删 code（标准形状）。
 	del := new(identityv1.DeleteOrgUnitResponse)
 	decodePB(raw, del)
 	if del.GetDeleted() != root {

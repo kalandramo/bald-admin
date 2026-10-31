@@ -7,19 +7,19 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/tenant/v1;tenan
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// TenantService 租户管理服务（自 go-wind-admin identity/tenant.proto 精简搬运）。
+// TenantService 租户管理服务。
 //
 // 双层语义：
-//   1. 业务层——本服务管理租户本身（租户即业务实体，对应源 sys_tenants；
-//      platform 为平台租户，对应源 PlatformTenantID=0）；
-//   2. 框架层——bald P8 pkg/store 对其他业务表（users/secrets/…）自动注入
+//   1. 业务层——本服务管理租户本身（租户即业务实体；
+//      platform 为平台租户，ID=0 等价物）；
+//   2. 框架层——pkg/store 对其他业务表（users/secrets/…）自动注入
 //      tenant_id 读过滤与写注入，与本服务无关。
 // 租户管理是平台侧操作：REST/gRPC 路由仅授予 platform:admin 角色（casbin 策略）。
 service TenantService {
   // GetTenant 取租户。
   //   REST: GET /v1/tenant/{id}
   // 注意 REST 用单数段：DefaultHTTPObject 取首资源段（"tenant"），与 gRPC
-  // DefaultGRPCObject("TenantService/...")="tenant" 同源（P9 归一化，策略单写）。
+  // DefaultGRPCObject("TenantService/...")="tenant" 同源（归一化，策略单写）。
   rpc GetTenant(GetTenantRequest) returns (GetTenantResponse) {
     option (google.api.http) = {
       get: "/v1/tenant/{id}"
@@ -62,16 +62,16 @@ service TenantService {
 }
 
 // Tenant 租户。ID 即租户编码（business code，如 "platform"、"t-acme"），
-// 与 bald P8 的 tenant_id 同一命名空间——业务租户创建后即作为 P8 隔离维度使用。
+// 与 store 层的 tenant_id 同一命名空间——业务租户创建后即作为隔离维度使用。
 message Tenant {
   enum Status {
     STATUS_UNSPECIFIED = 0; // 未指定
-    STATUS_ON = 1;          // 启用（源 Status.ON）
-    STATUS_OFF = 2;         // 禁用（源 Status.OFF）
-    STATUS_FREEZE = 3;      // 冻结（源 Status.FREEZE）
+    STATUS_ON = 1;          // 启用
+    STATUS_OFF = 2;         // 禁用
+    STATUS_FREEZE = 3;      // 冻结
   }
 
-  string id = 1;      // 租户编码（= P8 tenant_id，如 "t-acme"）
+  string id = 1;      // 租户编码（= tenant_id，如 "t-acme"）
   string name = 2;    // 租户名称（展示名）
   Status status = 3;  // 租户状态
   string remark = 4;  // 备注
@@ -89,8 +89,7 @@ message GetTenantResponse {
 }
 
 message ListTenantsRequest {
-  // 预留：源项目 List 走 pagination.PagingRequest（BSR 自有模块），本服务精简为全量列表；
-  // 租户量级小，分页列入后续迭代。
+  // 全量列表；租户量级小，分页列入后续迭代。
 }
 
 message ListTenantsResponse {

@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1_7_org_validation_e2e_test.go —— Wave 校验层契约化：org 域的端到端校验验证。
+// t_w1_7_org_validation_e2e_test.go —— 校验层契约化：org 域的端到端校验验证。
 //
 // 验证三件事：
 //   A. **gRPC 面**：buf.validate 注解经 ValidatorInterceptor 生效——空 code →

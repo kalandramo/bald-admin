@@ -1,4 +1,4 @@
-// Package bootstrap 负责桥接 bald 核心能力到本应用（认证 + M2 数据化）。
+// Package bootstrap 负责桥接 bald 核心能力到本应用（认证 + 数据访问）。
 //
 // InitBridges 构造并保存：
 //   - Authenticator：来自 bald-authn-jwt（HMAC 对称，MVP）；
@@ -49,16 +49,16 @@ var Authenticator authn.Authenticator
 // 注入 auth biz 的 Login，独占 RSA 私钥；与 Authenticator 分离，实现签发/验签权解耦。
 var Signer authnjwt.Signer
 
-// Authorizer 授权器（起由 casbin 桥接 authz.Authorizer 实现）。
+// Authorizer 授权器（casbin 桥接 authz.Authorizer 实现）。
 var Authorizer authz.Authorizer
 
 // grpcObjectAliases 是 gRPC 归一化名 → 策略 object 名的别名表。
 //
-// 为什么需要：P9 归一化把 gRPC Service 名压成无分隔小写（DefaultGRPCObject：
+// 为什么需要：传输中立归一化把 gRPC Service 名压成无分隔小写（DefaultGRPCObject：
 // 取 Service 段、去 "Service" 后缀、ToLower），而 seedPolicies 的 object 沿用
 // HTTP 路径段风格；casbin 精确匹配（r.obj == p.obj）下两者不等 → gRPC 面 403。
 // 实测复现：OrgUnitService→"orgunit" vs 策略 "org-units"；DictTypeService→
-// "dicttype" vs "dict_type"（dict 域 gRPC 面已挂载，故此前已是 403 静默失效）。
+// "dicttype" vs "dict_type"（dict 域 gRPC 面已挂载，缺别名即 403 静默失效）。
 //
 // **只列多词 service**——单词域（SecretService→"secret"、MenuService→"menu"、
 // TenantService→"tenant"、UserService→"user"、PermissionService→"permission"、
@@ -66,7 +66,7 @@ var Authorizer authz.Authorizer
 // 与策略一致，不入表（避免冗余映射掩盖真实命名问题）。
 //
 // 未挂 gRPC 但 proto 已存在的域（adminportal / rediscachemonitor）提前入表，
-// 防止「将来注册即中招」——见 的不变量测试。
+// 防止「将来注册即中招」——有 e2e 的 object 命名不变量测试覆盖。
 var grpcObjectAliases = map[string]string{
 	"orgunit":           "org-units",
 	"position":          "positions",
@@ -76,10 +76,8 @@ var grpcObjectAliases = map[string]string{
 	"rediscachemonitor": "redis-cache-monitor",
 }
 
-// 注：原 lazyAuthn / lazyAuthz / lazySigner 适配器族已于 删除。
-// 它们的存在理由是装配时序倒置——路由/服务在构造期注册时 Authenticator /
-// Authorizer / Signer 尚为 nil，只能请求期解析。已把业务装配移到
-// Run 期（InitBridges 之后），装配层可直接传真实实例，故适配器成为死代码。
+// 注：装配层直接持有 Authenticator / Authorizer / Signer 的真实实例——
+// 业务装配已移到 Run 期（InitBridges 之后），故不需要任何 lazy 适配器。
 
 // TokenStore 是令牌服务端状态存储（吊销名单 + 刷新令牌）。
 // 由 BeforeStart 装配（复用 RedisClient）；nil = 无 Redis，降级语义见各调用点。
@@ -148,7 +146,7 @@ func buildAuthorizer(ctx context.Context, repos *Repositories) (authz.Authorizer
 	return casbinauthz.New(csv)
 }
 
-// DB 是应用主库（起为 SQLite 内存库，默认经配置 database.sql 切外部 PostgreSQL）。
+// DB 是应用主库（默认为 SQLite 内存库，经配置 database.sql 切换外部 PostgreSQL）。
 var DB *gorm.DB
 
 // RedisClient 是底层 go-redis 客户端（可空：nil 表示无 Redis 环境）。
@@ -262,7 +260,7 @@ var lastRepos *Repositories
 // Wire 构造期注入（Deps getter，见 internal/apiserver/domains/*/domain.go）。
 func LastRepositories() *Repositories { return lastRepos }
 
-// bridgesMu 串行化 InitBridges 的 check-then-act（UT8 修复：并发首调时
+// bridgesMu 串行化 InitBridges 的 check-then-act（并发首调时
 // 双 goroutine 同时通过 nil 判据、各自生成 RSA 密钥对、后写覆盖先写——
 // 败者持有与胜者不同的 Signer 密钥，签发/验签闭环破坏）。用互斥而非
 // sync.Once：Once.Do 失败也计数，与下方「失败路径重入重新生成密钥无害」
@@ -301,7 +299,7 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 		authnjwt.WithLeeway(0),
 	)
 
-	// 2) Store（bald-store-gorm，M4 起 DSN 可配置）。
+	// 2) Store（bald-store-gorm，DSN 由配置注入）。
 	// DB/Redis/MinIO 优先消费注入实例（WireDatabase/WireCache/WireStorage，
 	// Serve 装配的阶段 B 经段驱动 Provider 构造）；未注入才自建（既有测试与
 	// 独立调用路径零改动）。默认 SQLite 内存库，生产经 env
@@ -328,9 +326,8 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	DB = db
 
 	// 注册 data_access 类审计的 gorm SQL 采集回调。
-	// 源用 ent 的 dialect.Driver 包装采集 SQL；bald-admin 用 gorm，对应机制是
-	// Callback（见 sqlaudit 包头注）。**必须在 AutoMigrate 之后**——否则迁移
-	// 期间的 DDL 也会被采集（噪音），且审计表尚未建好。
+	// 采集机制是 gorm Callback（见 sqlaudit 包头注）。**必须在 AutoMigrate
+	// 之后**——否则迁移期间的 DDL 也会被采集（噪音），且审计表尚未建好。
 	// 防重入：sqlaudit 在落库审计时打 ctx sinking 标记 + 表名双保险。
 	sqlaudit.Register(db)
 
@@ -450,14 +447,14 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	if err != nil {
 		return nil, err
 	}
-	// -3：用可热重载装饰器包装——运行期新增用户/改角色后，
+	// 用可热重载装饰器包装——运行期新增用户/改角色后，
 	// 业务调用 ReloadPolicies() 即可让新权限生效（否则须重启进程）。
 	// 重建函数复用 buildAuthorizer（与首次构造同一逻辑，语义一致）。
 	// 闭包捕获本次的 repos——重载读同一套仓储（已核实该闭包在运行期触发）。
 	reloadable := appauthz.NewReloadable(az, func() (authz.Authorizer, error) {
 		return buildAuthorizer(context.Background(), repos)
 	})
-	// 再包一层 object 别名装饰器。P9 归一化把 gRPC Service 名压成
+	// 再包一层 object 别名装饰器。传输中立归一化把 gRPC Service 名压成
 	// 无分隔小写（OrgUnitService→"orgunit"），而策略 object 沿用 HTTP 路径段
 	// 命名（"org-units"）；casbin 精确匹配下 gRPC 面恒 403（实测复现）。
 	// 装饰器在内层**明确拒绝**后按别名重试一次，不放宽任何语义边界。
@@ -484,10 +481,10 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 
 // seed 写入 MVP 初始用户与角色（生产应走迁移脚本/初始化任务）。
 func seed(ctx context.Context, repos *Repositories) error {
-	// 租户种子：platform（平台租户，源 PlatformTenantID=0 等价物）、
-	// t-default/t-other 与存量 users/secrets 的租户维度对齐。
+	// 租户种子：platform（平台租户）、t-default/t-other，
+	// 与存量 users/secrets 的租户维度对齐。
 	tenants := []*authmodel.Tenant{
-		{ID: "platform", Name: "平台租户", Status: "ON", Remark: "平台管理上下文（源 PlatformTenantID=0 等价物）"},
+		{ID: "platform", Name: "平台租户", Status: "ON", Remark: "平台管理上下文"},
 		{ID: "t-default", Name: "默认租户", Status: "ON"},
 		{ID: "t-other", Name: "第二租户", Status: "ON", Remark: "多租户隔离验证用"},
 	}
@@ -510,7 +507,7 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// 密码以 bcrypt 哈希写入（起，不再明文存储）。
+	// 密码以 bcrypt 哈希写入（不再明文存储）。
 	adminHash, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -544,8 +541,8 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// 菜单种子（自 go-wind-admin DefaultMenus 形态精简：2 目录 + 6 页面 + 1 按钮，
-	// 树形 ParentID 显式编死，Order 控制展示顺序——源 meta.order 语义）。
+	// 菜单种子（2 目录 + 6 页面 + 1 按钮）：树形 ParentID 显式编死，
+	// Order 控制展示顺序。
 	menus := []*authmodel.Menu{
 		{ID: "menu-dashboard", Type: "CATALOG", Name: "Dashboard", Path: "/dashboard", Title: "仪表盘", Icon: "lucide:layout-dashboard", Order: -1},
 		{ID: "menu-dashboard-overview", ParentID: "menu-dashboard", Type: "MENU", Name: "Overview", Path: "/dashboard/overview", Title: "总览", Order: 1},
@@ -585,10 +582,9 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// 字典种子（自 go-wind-admin demo 数据形态精简：3 组类型 + 8 条条目）。
-	// 字典是租户级业务数据（源 mixin TenantID），种子归属 t-default——租户字段
-	// 由实体显式携带（启动 ctx 无租户 claims，injectWriteTenant 跳过注入，与
-	// Secret 种子同构）。
+	// 字典种子（3 组类型 + 8 条条目）。字典是租户级业务数据，种子归属 t-default
+	// ——租户字段由实体显式携带（启动 ctx 无租户 claims，injectWriteTenant 跳过
+	// 注入，与 Secret 种子同构）。
 	dictTypes := []*authmodel.DictType{
 		{ID: "gender", TenantID: "t-default", TypeName: "性别", SortOrder: 1},
 		{ID: "status", TenantID: "t-default", TypeName: "状态", SortOrder: 2},
@@ -615,8 +611,7 @@ func seed(ctx context.Context, repos *Repositories) error {
 			return err
 		}
 	}
-	// 语言种子：对齐源 constants.DefaultLanguages 的 7 条
-	// （zh-CN 为默认；sort_order 源值 0/1/100——zh-CN 最小在前）。
+	// 语言种子：7 条（zh-CN 为默认；sort_order 0/1/100——zh-CN 最小在前）。
 	languages := []*authmodel.Language{
 		{ID: "zh-CN", LanguageName: "中文（简体）", NativeName: "简体中文", IsDefault: true, IsEnabled: true, SortOrder: 0},
 		{ID: "en-US", LanguageName: "英语", NativeName: "English", IsEnabled: true, SortOrder: 1},
@@ -642,18 +637,18 @@ func seed(ctx context.Context, repos *Repositories) error {
 // 主键 role:object:action 冲突即重复策略，防重与其他种子同构（ErrConflict 容忍）。
 func seedPolicies(ctx context.Context, repos *Repositories) error {
 	policies := []authmodel.RolePolicy{
-		// admin：机密/认证/管理面（起存量）。
+		// admin：机密/认证/管理面。
 		{Role: "admin", Object: "secret", Action: "get"},
 		{Role: "admin", Object: "secret", Action: "delete"},
 		{Role: "admin", Object: "secret", Action: "list"},
 		{Role: "admin", Object: "auth", Action: "get"},
-		// -4：token 管理（GetAccessTokens/BlockToken/UnblockToken/RevokeTokenById）
-		// 是**写操作**（POST）——授权归一化把 POST 映射为 "post"（DefaultHTTPAction）。
-		// 此前 admin 只有 {auth, get}，故 token 管理路由全部 403（实测）。
+		// token 管理（GetAccessTokens/BlockToken/UnblockToken/RevokeTokenById）
+		// 是**写操作**（POST）——授权归一化把 POST 映射为 "post"（DefaultHTTPAction），
+		// 故需 {auth, post}（仅 {auth, get} 会 403）。
 		{Role: "admin", Object: "auth", Action: "post"},
 		// MFA 域。
 		// **admin 与 viewer 都需 {mfa, get/post}**——MFA 是用户对**自己账号**的
-		// 安全设置，任何登录用户都应能绑定/解绑自己的因子（源的 MFA 管理面
+		// 安全设置，任何登录用户都应能绑定/解绑自己的因子（MFA 管理面
 		// 从 auth.FromContext 取 operator，强制只能操作本人）。
 		// 越权面（操作**他人**因子）由 biz 层的归属校验兜底，不靠权限点区分。
 		{Role: "admin", Object: "mfa", Action: "get"},
@@ -679,8 +674,8 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		// 动作**六元组**（对齐 dict 域先例，见下方 dict_type/dict_entry）：REST 归一化
 		// 为 HTTP 动词小写（DefaultHTTPAction → get/post/put/delete），gRPC 归一化为
 		// get/list/write（DefaultGRPCAction：Create/Update/BatchCreate→write，List→list）。
-		// 此前只有 get/post/put/delete 四条——补 gRPC 面时 ListOrgUnits(→list) 与
-		// CreateOrgUnit(→write) 会因无策略行而 403（实测复现）。
+		// REST 只需 get/post/put/delete；gRPC 面另需 list/write，否则
+		// ListOrgUnits(→list) 与 CreateOrgUnit(→write) 会因无策略行而 403。
 		{Role: "admin", Object: "org-units", Action: "get"},
 		{Role: "admin", Object: "org-units", Action: "post"},
 		{Role: "admin", Object: "org-units", Action: "put"},
@@ -704,7 +699,7 @@ func seedPolicies(ctx context.Context, repos *Repositories) error {
 		{Role: "admin", Object: "tasks", Action: "delete"},
 		// 站内消息。
 		// 管理面（消息/分类 CRUD、发送、撤销）→ 仅 admin；
-		// **收件箱 → 任何登录用户**（操作自己的收件箱，源同此语义）。
+		// **收件箱 → 任何登录用户**（操作自己的收件箱）。
 		{Role: "admin", Object: "messages", Action: "get"},
 		{Role: "admin", Object: "messages", Action: "post"},
 		{Role: "admin", Object: "messages", Action: "put"},
@@ -905,8 +900,8 @@ func resolveRedis() (addr, password string, db int) {
 // （env BALD_ADMIN_REDIS_ADDR > 契约段 cache.redis），避免两条链各读一处。
 //
 // 时序约束：须在 Configure（注入契约段）之后调用。构造期调用会因
-// depsBootstrap 尚未注入而只看到 env 通道——这正是 asynq 此前「配置文件里
-// 配了 cache.redis 也不生效」的根因（见 cmd/bald-admin/app/asynq.go 注释）。
+// depsBootstrap 尚未注入而只看到 env 通道——这正是 asynq 构造期读取
+// cache.redis 不生效的根因（见 cmd/bald-admin/app/asynq.go 注释）。
 func ResolveRedisAddr() string {
 	addr, _, _ := resolveRedis()
 	return addr

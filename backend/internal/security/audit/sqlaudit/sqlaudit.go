@@ -1,29 +1,23 @@
 // Package sqlaudit 提供 data_access 类审计的 gorm 采集插件。
 //
-// ## 源语义与移植差异（关键，必须记录）
+// ## 实现机制（关键，必须记录）
 //
-// 源 go-wind-admin 的 `audit_driver_wrapper.go` 包装的是 **ent 的
-// `dialect.Driver`**（ent 框架的驱动接口），在 Exec/Query 前后采集 SQL 事件，
-// 写 `DataAccessAuditLog`（table_name / sql_text / db_user / affected_rows）。
-//
-// **bald-admin 用 gorm 而非 ent**——不能照搬 driver 包装。gorm 生态的正确姿势是
-// **Callback 机制**（`db.Callback().Query()/Create()/Update()/Delete()` 注册
-// 处理器），在 SQL 执行前后采集。这是「同一能力轴、不同 ORM 的正确实现」，
-// 本身是一次有价值的框架/生态验证。
+// gorm 生态用 **Callback 机制**（`db.Callback().Query()/Create()/Update()/Delete()`
+// 注册处理器）在 SQL 执行前后采集事件，写入 audit_records 的
+// table_name / sql_text / data_source / affected_rows 列。
 //
 // ## 防重入（最关键的约束）
 //
 // Callback 会拦截**所有** DB 操作——包括审计表自身写入。若不防重入，写审计
 // 记录 → 触发 callback → 再写审计记录 → 无限递归。
 //
-// 源用 `audit.IsSinking(ctx)` 标记「正在落库审计」的上下文。本实现用同样的
-// context 标记法：审计落库期间在 ctx 上打标，callback 见到标记即跳过。
+// 本实现用 context 标记法：审计落库期间在 ctx 上打标
+// （WithSinking），callback 见到标记即跳过。
 //
-// ## 采集范围（称量）
+// ## 采集范围
 //
-// 只采集**写操作**（Create/Update/Delete）与**显式查询**（Query）——与源
-// `collectMasked` 的 isWrite 区分一致。SQL 文本**脱敏**（字面量替换为 ?），
-// 避免把敏感数据写进审计表。
+// 只采集**写操作**（Create/Update/Delete）与**显式查询**（Query），并按 isWrite
+// 区分。SQL 文本**脱敏**（字面量替换为 ?），避免把敏感数据写进审计表。
 package sqlaudit
 
 import (
@@ -129,8 +123,7 @@ func recordSafely(ctx context.Context, ev audit.AuditEvent) {
 }
 
 // MaskSQL 对 SQL 文本做字面量脱敏（单引号字符串 → 单个 ?），避免把敏感
-// 数据写进审计表。与源 `audit.MaskSQL` 同目的（本实现为简化版：仅处理
-// 单引号字符串字面量）。
+// 数据写进审计表。本实现为简化版：仅处理单引号字符串字面量。
 //
 // 语义：一对引号（含内容）整体替换为**一个** `?`——`'alice'` → `?`。
 func MaskSQL(sql string) string {

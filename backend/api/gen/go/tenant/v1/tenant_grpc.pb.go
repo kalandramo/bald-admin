@@ -30,12 +30,12 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// TenantService 租户管理服务（自 go-wind-admin identity/tenant.proto 精简搬运）。
+// TenantService 租户管理服务。
 //
 // 双层语义：
-//  1. 业务层——本服务管理租户本身（租户即业务实体，对应源 sys_tenants；
-//     platform 为平台租户，对应源 PlatformTenantID=0）；
-//  2. 框架层——bald P8 pkg/store 对其他业务表（users/secrets/…）自动注入
+//  1. 业务层——本服务管理租户本身（租户即业务实体；
+//     platform 为平台租户，ID=0 等价物）；
+//  2. 框架层——pkg/store 对其他业务表（users/secrets/…）自动注入
 //     tenant_id 读过滤与写注入，与本服务无关。
 //
 // 租户管理是平台侧操作：REST/gRPC 路由仅授予 platform:admin 角色（casbin 策略）。
@@ -43,7 +43,7 @@ type TenantServiceClient interface {
 	// GetTenant 取租户。
 	//   REST: GET /v1/tenant/{id}
 	// 注意 REST 用单数段：DefaultHTTPObject 取首资源段（"tenant"），与 gRPC
-	// DefaultGRPCObject("TenantService/...")="tenant" 同源（P9 归一化，策略单写）。
+	// DefaultGRPCObject("TenantService/...")="tenant" 同源（归一化，策略单写）。
 	GetTenant(ctx context.Context, in *GetTenantRequest, opts ...grpc.CallOption) (*GetTenantResponse, error)
 	// ListTenants 列出租户（平台上下文，跨租户全量）。
 	//   REST: GET /v1/tenant
@@ -121,12 +121,12 @@ func (c *tenantServiceClient) DeleteTenant(ctx context.Context, in *DeleteTenant
 // All implementations must embed UnimplementedTenantServiceServer
 // for forward compatibility.
 //
-// TenantService 租户管理服务（自 go-wind-admin identity/tenant.proto 精简搬运）。
+// TenantService 租户管理服务。
 //
 // 双层语义：
-//  1. 业务层——本服务管理租户本身（租户即业务实体，对应源 sys_tenants；
-//     platform 为平台租户，对应源 PlatformTenantID=0）；
-//  2. 框架层——bald P8 pkg/store 对其他业务表（users/secrets/…）自动注入
+//  1. 业务层——本服务管理租户本身（租户即业务实体；
+//     platform 为平台租户，ID=0 等价物）；
+//  2. 框架层——pkg/store 对其他业务表（users/secrets/…）自动注入
 //     tenant_id 读过滤与写注入，与本服务无关。
 //
 // 租户管理是平台侧操作：REST/gRPC 路由仅授予 platform:admin 角色（casbin 策略）。
@@ -134,7 +134,7 @@ type TenantServiceServer interface {
 	// GetTenant 取租户。
 	//   REST: GET /v1/tenant/{id}
 	// 注意 REST 用单数段：DefaultHTTPObject 取首资源段（"tenant"），与 gRPC
-	// DefaultGRPCObject("TenantService/...")="tenant" 同源（P9 归一化，策略单写）。
+	// DefaultGRPCObject("TenantService/...")="tenant" 同源（归一化，策略单写）。
 	GetTenant(context.Context, *GetTenantRequest) (*GetTenantResponse, error)
 	// ListTenants 列出租户（平台上下文，跨租户全量）。
 	//   REST: GET /v1/tenant

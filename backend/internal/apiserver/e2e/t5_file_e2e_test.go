@@ -17,7 +17,7 @@ package e2e
 //  1. 上传 → 下载内容一致（真实 MinIO 往返；PNG 魔术头嗅探 → images 桶）
 //  2. 非白名单 MIME 拒绝（exe 魔术头）、目录穿越拒绝、超 50MiB 拒绝
 //  3. 对象落桶可查（SDK StatObject）；删除后对象与元数据一并消失
-//  4. P8 隔离：t-other 上传的文件 t-default 不可见
+//  4. 租户隔离：t-other 上传的文件 t-default 不可见
 //  5. 授权：viewer 下载 200 / 上传 403（file 策略数据化）
 
 import (
@@ -167,7 +167,7 @@ func TestFileREST_UploadDownloadLifecycle(t *testing.T) {
 		t.Fatalf("size=%d, want %d", f.GetSize(), len(png1x1))
 	}
 	if !strings.HasSuffix(f.GetSaveFileName(), ".png") || len(f.GetSaveFileName()) != 36 {
-		// 保存名 = 32 位去横线 uuid + ".png"（源语义：Id 为带横线独立 uuid）。
+		// 保存名 = 32 位去横线 uuid + ".png"（Id 为带横线的独立 uuid）。
 		t.Fatalf("save_file_name=%s not <uuid32>.png", f.GetSaveFileName())
 	}
 
@@ -237,7 +237,7 @@ func TestFileREST_MimeWhitelistAndLimits(t *testing.T) {
 	}
 }
 
-// TestFileREST_TenantIsolation P8 隔离：t-default 上传的文件对 t-other 不可见
+// TestFileREST_TenantIsolation 租户隔离：t-default 上传的文件对 t-other 不可见
 // （t-other 种子用户为 u-bob/viewer——tenantToken 直接签 claims，casbin subject
 // 是 userID 且分组来自 seed users，故必须用真实种子用户）。
 func TestFileREST_TenantIsolation(t *testing.T) {

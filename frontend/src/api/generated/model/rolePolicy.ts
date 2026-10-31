@@ -5,8 +5,8 @@
  */
 
 /**
- * RolePolicy 角色策略行（casbin p 行的数据化形态，源 sys_role_permissions 的
- *  精简等价物——bald 用 P9 归一化 object:action 而非源 path/method/domain）。
+ * RolePolicy 角色策略行（casbin p 行的数据化形态——
+ *  用归一化 object:action 而非 path/method/domain）。
  */
 export interface RolePolicy {
   id?: string;

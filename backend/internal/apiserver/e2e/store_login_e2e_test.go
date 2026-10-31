@@ -18,7 +18,7 @@ func mustWhere(field, value string) *store.Where {
 	return &store.Where{Filters: []*storev1.FilterCondition{store.Eq(field, value)}}
 }
 
-// TestStoreLogin_M2 验证 M2 数据化：Login 走 bald-store-gorm（SQLite 内存库）。
+// TestStoreLogin_M2 验证登录走真实 DAL：Login 经 bald-store-gorm（SQLite 内存库）。
 func TestStoreLogin_M2(t *testing.T) {
 	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
@@ -76,7 +76,7 @@ func TestStoreSeed_UsersAndRoles(t *testing.T) {
 	}
 }
 
-// TestStoreSeed_BcryptHash 验证 M3：seed 密码以 bcrypt 哈希存储，非明文。
+// TestStoreSeed_BcryptHash 验证 seed 密码以 bcrypt 哈希存储，非明文。
 func TestStoreSeed_BcryptHash(t *testing.T) {
 	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
 		t.Fatalf("InitBridges: %v", err)
@@ -100,7 +100,7 @@ func TestStoreSeed_BcryptHash(t *testing.T) {
 	}
 }
 
-// TestStoreWrite_TenantInjection M4：写路径多租户自动注入（与读路径 mergeTenant 对称）。
+// TestStoreWrite_TenantInjection 验证写路径多租户自动注入（与读路径 mergeTenant 对称）。
 // Create 经 ctx 中的 TenantID 自动写入实体 tenant_id 列，业务无需手写；且越权设置的
 // 租户值会被 ctx 真实租户覆盖，防止误建到他租户归属。
 func TestStoreWrite_TenantInjection(t *testing.T) {

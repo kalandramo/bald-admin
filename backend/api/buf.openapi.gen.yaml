@@ -1,16 +1,15 @@
-# OpenAPI 面（按消费者扇出的第二份配置，契约同步设计 §2）
+# OpenAPI 面（按消费者扇出的第二份配置）
 #
 # 输出 OpenAPI v3 单文件（gnostic protoc-gen-openapi），直出到服务内嵌资产
-# 目录 internal/apiserver/assets/（go-wind-admin 同款模式）——openapi.yaml
-# 入库并由 //go:embed 编译进二进制，文档与代码版本零漂移；运行期经
-# GET /openapi.yaml 端点 serve（联调用 Apifox/Swagger UI 在线工具消费）。
-# orval（前端 TS 生成）也直接读该文件。
+# 目录 internal/apiserver/assets/——openapi.yaml 入库并由 //go:embed 编译进
+# 二进制，文档与代码版本零漂移；运行期经 GET /openapi.yaml 端点 serve
+# （联调用 Apifox/Swagger UI 在线工具消费）。orval（前端 TS 生成）也直接读该文件。
 #
-# 参数与线上行为逐项对齐（与 go-wind-admin 的差异有意为之）：
+# 参数与线上行为逐项对齐：
 # - naming=proto：schema 字段名用 proto 原名（snake_case），与后端 writePB
 #   （protojson UseProtoNames）输出一致——orval 生成的 TS 类型字段名与线上
-#   响应逐字段对齐，不引入 camelCase 静默错位（go-wind-admin 后端输出
-#   camelCase 故用 naming=json，本项目不可照抄）。
+#   响应逐字段对齐，不引入 camelCase 静默错位（本项目响应即 snake_case，
+#   不可改用 naming=json）。
 # - enum_type=string：枚举按名序列化（"STATUS_ON"），与 protojson 输出
 #   一致，orval 生成枚举常量供前端比对。
 # - fq_schema_naming=false：schema 名不带包名前缀。

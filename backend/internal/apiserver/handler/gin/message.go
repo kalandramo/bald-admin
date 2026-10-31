@@ -16,12 +16,12 @@ import (
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
 )
 
-// RegisterMessage 挂载站内消息路由（，源 24 rpc）。
+// RegisterMessage 挂载站内消息路由。
 //
 // 权限设计：
 //   - 管理面（消息/分类的 CRUD、发送、撤销）→ 仅 admin；
 //   - **收件箱相关（列表/已读/删除）→ 任何登录用户**（操作的是自己的收件箱）。
-//     这一点与源一致：源从 auth.FromContext 取 operator，只能操作本人收件箱。
+//     实现上从 auth.FromContext 取 operator，只能操作本人收件箱。
 func RegisterMessage(
 	e *gingonic.Engine,
 	authenticator authn.Authenticator,
@@ -96,7 +96,7 @@ func RegisterMessage(
 		c.JSON(http.StatusOK, res)
 	})
 
-	// 撤销（源 RevokeMessage，按 message_id + 可选 user_id）。
+	// 撤销（按 message_id + 可选 user_id）。
 	authed.POST("/messages/:id/revoke", authzMW, func(c *gingonic.Context) {
 		var req struct {
 			UserID string `json:"user_id"`
@@ -209,7 +209,7 @@ func RegisterMessage(
 	// ---- 收件箱（**任何登录用户操作自己的**）----
 
 	// 收件箱列表：从认证上下文取当前用户，不接受 user_id 参数——
-	// 避免越权读他人收件箱（源同此：operator 从 ctx 取）。
+	// 避免越权读他人收件箱：operator 从 ctx 取。
 	authed.GET("/inbox", authzMW, func(c *gingonic.Context) {
 		_, uid, _ := op(c)
 		items, err := biz.ListUserInbox(c.Request.Context(), uid)
@@ -271,7 +271,7 @@ func RegisterMessage(
 		c.JSON(http.StatusOK, gingonic.H{"total": n})
 	})
 
-	// 按 id 批量查询（源 GetInternalMessageRecipientsByIds）。
+	// 按 id 批量查询。
 	authed.POST("/recipients/by-ids", authzMW, func(c *gingonic.Context) {
 		var req struct {
 			IDs []string `json:"ids"`

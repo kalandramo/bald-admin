@@ -29,8 +29,8 @@ type OrgUnit_Status int32
 
 const (
 	OrgUnit_STATUS_UNSPECIFIED OrgUnit_Status = 0 // 未指定
-	OrgUnit_STATUS_ON          OrgUnit_Status = 1 // 启用（源 Status.ON）
-	OrgUnit_STATUS_OFF         OrgUnit_Status = 2 // 禁用（源 Status.OFF）
+	OrgUnit_STATUS_ON          OrgUnit_Status = 1 // 启用
+	OrgUnit_STATUS_OFF         OrgUnit_Status = 2 // 禁用
 )
 
 // Enum value maps for OrgUnit_Status.
@@ -78,16 +78,16 @@ type OrgUnit_Type int32
 
 const (
 	OrgUnit_TYPE_UNSPECIFIED OrgUnit_Type = 0   // 未指定
-	OrgUnit_TYPE_COMPANY     OrgUnit_Type = 1   // 公司（源 COMPANY）
-	OrgUnit_TYPE_DIVISION    OrgUnit_Type = 2   // 分部（源 DIVISION）
-	OrgUnit_TYPE_DEPARTMENT  OrgUnit_Type = 3   // 部门（源 DEPARTMENT）
-	OrgUnit_TYPE_TEAM        OrgUnit_Type = 4   // 团队（源 TEAM）
-	OrgUnit_TYPE_PROJECT     OrgUnit_Type = 5   // 项目（源 PROJECT）
-	OrgUnit_TYPE_COMMITTEE   OrgUnit_Type = 6   // 委员会（源 COMMITTEE）
-	OrgUnit_TYPE_REGION      OrgUnit_Type = 7   // 区域（源 REGION）
-	OrgUnit_TYPE_SUBSIDIARY  OrgUnit_Type = 8   // 子公司（源 SUBSIDIARY）
-	OrgUnit_TYPE_BRANCH      OrgUnit_Type = 9   // 分支机构（源 BRANCH）
-	OrgUnit_TYPE_OTHER       OrgUnit_Type = 100 // 其他（源 OTHER）
+	OrgUnit_TYPE_COMPANY     OrgUnit_Type = 1   // 公司
+	OrgUnit_TYPE_DIVISION    OrgUnit_Type = 2   // 分部
+	OrgUnit_TYPE_DEPARTMENT  OrgUnit_Type = 3   // 部门
+	OrgUnit_TYPE_TEAM        OrgUnit_Type = 4   // 团队
+	OrgUnit_TYPE_PROJECT     OrgUnit_Type = 5   // 项目
+	OrgUnit_TYPE_COMMITTEE   OrgUnit_Type = 6   // 委员会
+	OrgUnit_TYPE_REGION      OrgUnit_Type = 7   // 区域
+	OrgUnit_TYPE_SUBSIDIARY  OrgUnit_Type = 8   // 子公司
+	OrgUnit_TYPE_BRANCH      OrgUnit_Type = 9   // 分支机构
+	OrgUnit_TYPE_OTHER       OrgUnit_Type = 100 // 其他
 )
 
 // Enum value maps for OrgUnit_Type.
@@ -151,7 +151,7 @@ func (OrgUnit_Type) EnumDescriptor() ([]byte, []int) {
 type OrgUnit struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                        // 完整主键 "<tenant>:<code>"（**只读**，供前端判断编辑态）
-	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`                                                    // 唯一编码（业务键，源 code；如 "FIN-LEADER-001"）
+	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`                                                    // 唯一编码（业务键；如 "FIN-LEADER-001"）
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`                                                    // 组织单元名称
 	Type          OrgUnit_Type           `protobuf:"varint,4,opt,name=type,proto3,enum=go.bald.admin.identity.v1.OrgUnit_Type" json:"type,omitempty"`       // 组织类型
 	ParentId      string                 `protobuf:"bytes,5,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`                            // 父节点 **code**（空 = 根节点）
@@ -681,7 +681,7 @@ func (x *GetOrgUnitResponse) GetOrgUnit() *OrgUnit {
 
 // CreateOrgUnitRequest 创建组织单元入参。
 //
-// **字段校验（Wave 校验层契约化）**：code/name 的必填与长度以 buf.validate
+// **字段校验**：code/name 的必填与长度以 buf.validate
 // 注解表达，运行时由 protovalidate 读取执行（gRPC 面经 ValidatorInterceptor、
 // gin 面经 handler 显式校验，两处共用同一份规则）。业务不变量（parent 存在性、
 // 防环）注解表达不了，仍归 biz——见 biz/v1/org/org.go。

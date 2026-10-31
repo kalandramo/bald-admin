@@ -1,13 +1,12 @@
 package e2e
 
-// t_w4_1_permgroup_e2e_test.go —— ：权限组 + 策略评估日志（源 7 rpc）。
+// t_w4_1_permgroup_e2e_test.go —— 权限组 + 策略评估日志（7 rpc）。
 //
-// 源：`i_permission_group.proto`（5 rpc）+ `i_policy_evaluation_log.proto`（2 rpc）。
+// 权限组 5 rpc + 策略评估日志 2 rpc。
 //
 // ## 核心语义
 //
-// **权限组的物化路径格式**——源 description 原文
-// （`permission_group.proto:53-56`）：「树形路径，格式：/1/10/101/
+// **权限组的物化路径格式**：「树形路径，格式：/1/10/101/
 // （**包含自身且首尾带/**）」。
 //
 // 本测试专门锁住该格式（含自身、首尾带 `/`、父段续接），
@@ -53,7 +52,7 @@ func pgSuffix() string { return "pg" + time.Now().Format("150405.000000") }
 
 // TestWave4_1_GroupTreePathFormat —— **核心验证点**。
 //
-// 锁住源语义：path 格式 `/父段/自身段/`——**含自身、首尾带 `/`**。
+// 锁住语义：path 格式 `/父段/自身段/`——**含自身、首尾带 `/`**。
 func TestWave4_1_GroupTreePathFormat(t *testing.T) {
 	base := startPermGroupREST(t)
 	admin := loginAs(t, base, "admin", "admin123")

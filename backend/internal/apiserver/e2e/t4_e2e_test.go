@@ -8,7 +8,7 @@ package e2e
 //  2. Cache-Aside 命中可观测：读后缓存键真实存在（miniredis）；
 //     写穿透失效：Update/Delete 后键消失、再读重载新值
 //  3. 授权：viewer 读 200 / 写 403（dict_type/dict_entry 策略数据化）
-//  4. P8 隔离：t-other 用户看不到 t-default 的字典种子（缓存键亦含租户维度）
+//  4. 租户隔离：t-other 用户看不到 t-default 的字典种子（缓存键亦含租户维度）
 //  5. Redis 停机降级直连 loader 由 cache/loadable 单测覆盖（WithDegradeOnError）
 //
 // 缓存实现走 cache/redis + cache/loadable；测试断言用 cache.Cache 接口的
@@ -200,7 +200,7 @@ func TestDictREST_EntryLifecycleAndCache(t *testing.T) {
 	}
 }
 
-// TestDictAuthz_DictPoliciesAndTenantIsolation 授权 + 租户隔离（P9/P8 同源验证）：
+// TestDictAuthz_DictPoliciesAndTenantIsolation 授权 + 租户隔离（归一化同源验证）：
 //   - viewer 读 dict_type/dict_entry 200（p 行 viewer 只读）；
 //   - viewer 写 403（写策略行仅授予 admin）；
 //   - t-other 用户看不到 t-default 的字典种子（隔离；缓存键含租户维度）。
@@ -224,10 +224,10 @@ func TestDictAuthz_DictPoliciesAndTenantIsolation(t *testing.T) {
 	if code, _ := callDictEntry(t, base, viewer, http.MethodDelete, "/v1/dict_entry/gender:male", nil); code != http.StatusForbidden {
 		t.Fatalf("viewer delete entry status=%d, want 403", code)
 	}
-	// t-other 租户：P8 隔离——字典种子全在 t-default，其他租户不可见。
+	// t-other 租户：租户隔离——字典种子全在 t-default，其他租户不可见。
 	code, list := callDictType(t, base, other, http.MethodGet, "/v1/dict_type", nil)
 	if code != http.StatusOK || list.GetTotal() != 0 {
-		t.Fatalf("cross-tenant list status=%d total=%d, want 200/0 (P8 isolation)", code, list.GetTotal())
+		t.Fatalf("cross-tenant list status=%d total=%d, want 200/0 (tenant isolation)", code, list.GetTotal())
 	}
 }
 

@@ -1,14 +1,13 @@
-// Package task 实现任务调度域（，源 655 行，最大业务域）。
+// Package task 实现任务调度域。
 //
-// 复刻范围（源 11 rpc）：List/Count/Get/Create/Update/Delete/ListTaskTypeName/
+// 覆盖接口：List/Count/Get/Create/Update/Delete/ListTaskTypeName/
 // RestartAllTask/StartAllTask/StopAllTask/ControlTask。
 //
-// ## 核心设计（对齐源）
+// ## 核心设计
 //
-// 源用 **TaskScheduler 接口 + hasScheduler() nil 检查**：asynq 未配置时
+// 用 **TaskScheduler 接口 + hasScheduler() nil 检查**：asynq 未配置时
 // taskScheduler 为 nil，**每个调用点前置检查并返回明确错误**，而非 nil 解引用
-// panic（源 `task_service.go:100-104` 注释原话「避免 nil 解引用 panic」）。
-// 本实现逐条对齐——这是「外部依赖可选」的正确姿势。
+// panic（避免 nil 解引用 panic）——这是「外部依赖可选」的正确姿势。
 package task
 
 import (
@@ -38,14 +37,14 @@ var ErrConflict = store.ErrConflict
 // **这是显式错误而非静默降级**——调用方必须知道任务不会被调度。
 var ErrNoScheduler = errors.New("task: scheduler is not configured")
 
-// 任务类型常量（对齐源 task.proto 的 Task.Type）。
+// 任务类型常量。
 const (
 	TypePeriodic   = "PERIODIC"
 	TypeDelay      = "DELAY"
 	TypeWaitResult = "WAIT_RESULT"
 )
 
-// Scheduler 是任务调度抽象（对齐源的 TaskScheduler 接口）。
+// Scheduler 是任务调度抽象。
 //
 // 由 main 装配时注入（asynq server 适配）；未注入时 nil——
 // 所有调用点经 hasScheduler() 前置检查。
@@ -85,7 +84,7 @@ func (b *Biz) SetScheduler(s Scheduler) {
 	}
 }
 
-// hasScheduler 检查调度器是否可用（对齐源的 nil 防护）。
+// hasScheduler 检查调度器是否可用（nil 防护）。
 func (b *Biz) hasScheduler() bool { return b.scheduler != nil }
 
 // Task 是对外的任务结构。
@@ -120,7 +119,7 @@ func validateCronSpec(spec string) error {
 	return nil
 }
 
-// CreateTask 创建任务定义（源 Create）。校验类型与周期表达式。
+// CreateTask 创建任务定义。校验类型与周期表达式。
 func (b *Biz) CreateTask(ctx context.Context, tenantID string, t Task) (*Task, error) {
 	if t.TypeName == "" {
 		return nil, fmt.Errorf("%w: type_name required", ErrValidation)
@@ -152,7 +151,7 @@ func (b *Biz) CreateTask(ctx context.Context, tenantID string, t Task) (*Task, e
 	return toTask(m), nil
 }
 
-// GetTask 查询（源 Get）。
+// GetTask 查询。
 func (b *Biz) GetTask(ctx context.Context, typeName string) (*Task, error) {
 	m, err := b.store.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", typeName)},
@@ -165,7 +164,7 @@ func (b *Biz) GetTask(ctx context.Context, typeName string) (*Task, error) {
 	return t, nil
 }
 
-// ListTasks 列出（源 List）。
+// ListTasks 列出。
 func (b *Biz) ListTasks(ctx context.Context, tenantID string) ([]Task, error) {
 	w := &store.Where{}
 	if tenantID != "" {
@@ -184,7 +183,7 @@ func (b *Biz) ListTasks(ctx context.Context, tenantID string) ([]Task, error) {
 	return out, nil
 }
 
-// CountTasks 统计（源 Count）。
+// CountTasks 统计。
 func (b *Biz) CountTasks(ctx context.Context, tenantID string) (int64, error) {
 	w := &store.Where{}
 	if tenantID != "" {
@@ -197,7 +196,7 @@ func (b *Biz) CountTasks(ctx context.Context, tenantID string) (int64, error) {
 	return n, nil
 }
 
-// UpdateTask 更新（源 Update）。
+// UpdateTask 更新。
 func (b *Biz) UpdateTask(ctx context.Context, typeName string, t Task) error {
 	m, err := b.store.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", typeName)},
@@ -221,7 +220,7 @@ func (b *Biz) UpdateTask(ctx context.Context, typeName string, t Task) error {
 	return nil
 }
 
-// DeleteTask 删除（源 Delete）。运行中先停止。
+// DeleteTask 删除。运行中先停止。
 func (b *Biz) DeleteTask(ctx context.Context, typeName string) error {
 	if b.isRunning(typeName) {
 		_ = b.StopTask(ctx, typeName)
@@ -234,7 +233,7 @@ func (b *Biz) DeleteTask(ctx context.Context, typeName string) error {
 	return nil
 }
 
-// ListTaskTypeNames 列出**已注册的处理器类型**（源 ListTaskTypeName）。
+// ListTaskTypeNames 列出**已注册的处理器类型**。
 //
 // 语义：返回 asynq 已注册 handler 的 taskType 列表——调用方据此知道
 // 「哪些任务类型真的有处理器」。无调度器时返回空（而非报错）——
@@ -246,7 +245,7 @@ func (b *Biz) ListTaskTypeNames(ctx context.Context) []string {
 	return b.scheduler.RegisteredTypes()
 }
 
-// StartTask 启动单个任务（源 startTask 的对外入口，经 ControlTask 调用）。
+// StartTask 启动单个任务（经 ControlTask 调用）。
 func (b *Biz) StartTask(ctx context.Context, typeName string) error {
 	if !b.hasScheduler() {
 		return ErrNoScheduler
@@ -293,7 +292,7 @@ func (b *Biz) StopTask(ctx context.Context, typeName string) error {
 		return ErrNoScheduler
 	}
 	if _, ok := b.running[typeName]; !ok {
-		return nil // 未运行：幂等成功（源同此语义）
+		return nil // 未运行：幂等成功
 	}
 	// 传 typeName（taskId）而非 entryID——见接口注释。
 	if err := b.scheduler.RemovePeriodicTask(typeName); err != nil {
@@ -303,7 +302,7 @@ func (b *Biz) StopTask(ctx context.Context, typeName string) error {
 	return nil
 }
 
-// StartAllTasks 启动全部启用任务（源 StartAllTask）。
+// StartAllTasks 启动全部启用任务。
 // 返回成功启动的数量。
 func (b *Biz) StartAllTasks(ctx context.Context) (int, error) {
 	if !b.hasScheduler() {
@@ -319,7 +318,7 @@ func (b *Biz) StartAllTasks(ctx context.Context) (int, error) {
 			continue
 		}
 		if err := b.StartTask(ctx, m.TypeName); err != nil {
-			// 单个失败不阻断其余（源同此：记录并继续）。
+			// 单个失败不阻断其余：记录并继续。
 			continue
 		}
 		n++
@@ -327,20 +326,20 @@ func (b *Biz) StartAllTasks(ctx context.Context) (int, error) {
 	return n, nil
 }
 
-// StopAllTasks 停止全部运行中任务（源 StopAllTask）。
+// StopAllTasks 停止全部运行中任务。
 func (b *Biz) StopAllTasks(ctx context.Context) {
 	for typeName := range b.running {
 		_ = b.StopTask(ctx, typeName)
 	}
 }
 
-// RestartAllTasks 重启全部（源 RestartAllTask）：先停后启。
+// RestartAllTasks 重启全部：先停后启。
 func (b *Biz) RestartAllTasks(ctx context.Context) (int, error) {
 	b.StopAllTasks(ctx)
 	return b.StartAllTasks(ctx)
 }
 
-// ControlTask 控制单个任务启停（源 ControlTask）。
+// ControlTask 控制单个任务启停。
 func (b *Biz) ControlTask(ctx context.Context, typeName string, start bool) error {
 	if start {
 		return b.StartTask(ctx, typeName)

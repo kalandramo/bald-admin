@@ -1,24 +1,21 @@
-// Package message 实现站内消息域（，源 24 rpc，701 行）。
-//
-// 复刻范围（三表）：
+// Package message 实现站内消息域（24 个 rpc，三张表）：
 //   - message（7 rpc）：List/Get/Create/Update/Delete/Send/Revoke
 //   - category（6 rpc）：List/Count/Get/Create/Update/Delete
 //   - recipient（11 rpc）：List/Count/Get/Create/Update/Delete/GetByIds/
 //     ListUserInbox/DeleteFromInbox/MarkAsRead/MarkStatus
 //
-// ## 核心语义（对齐源）
+// ## 核心语义
 //
-//  1. **一条消息发给 N 人 = 1 条 message + N 条 recipient**（源同此分层）；
-//  2. **投递幂等靠 (message_id, recipient_user_id) 唯一约束**——源注释原话
-//     「重试幂等性由 (message_id, recipient_user_id) 唯一约束 + CreateBulk 的
-//     ON CONFLICT DO NOTHING 保证」。本实现用业务键主键表达该约束；
-//  3. **撤销在同一事务**（源 `RevokeMessageWithMessage`）——避免半成功留下
-//     「幽灵收件记录」（消息本体已删但收件记录还在）；
-//  4. **SendMessage 三模式**：全员广播（源走 asynq，进程重启后自动重试）/
-//     单收件人 / 多收件人（同步，上报失败数而非静默丢弃）。
+//  1. **一条消息发给 N 人 = 1 条 message + N 条 recipient**；
+//  2. **投递幂等靠 (message_id, recipient_user_id) 唯一约束**——重试
+//     幂等性由该唯一约束 + 批量创建的 ON CONFLICT DO NOTHING 保证。本实现用
+//     业务键主键表达该约束；
+//  3. **撤销在同一事务**——避免半成功留下「幽灵收件记录」（消息本体已删但
+//     收件记录还在）；
+//  4. **SendMessage 三模式**：全员广播（异步扇出，进程重启后未完成投递自动
+//     重试）/ 单收件人 / 多收件人（同步，上报失败数而非静默丢弃）。
 //
-// **SSE 实时推送不在本域**（源的 publishNotification 属传输轴职责），
-// 本域只做「落库 + 收件箱读取」。
+// **SSE 实时推送不在本域**（属传输轴职责），本域只做「落库 + 收件箱读取」。
 package message
 
 import (
@@ -45,14 +42,14 @@ var ErrNotFound = store.ErrNotFound
 // ErrConflict 资源已存在。
 var ErrConflict = store.ErrConflict
 
-// 消息状态常量（对齐源 InternalMessage.Status）。
+// 消息状态常量。
 const (
 	StatusDraft     = "DRAFT"
 	StatusPublished = "PUBLISHED"
 	StatusRevoked   = "REVOKED"
 )
 
-// 收件状态常量（对齐源 InternalMessageRecipient.Status）。
+// 收件状态常量。
 const (
 	RecipientUnread  = "UNREAD"
 	RecipientRead    = "READ"
@@ -60,11 +57,10 @@ const (
 	RecipientRevoked = "REVOKED"
 )
 
-// Publisher 是 SSE 推送能力的最小接口（对齐源 `InternalMessagePublisher`）。
+// Publisher 是 SSE 推送能力的最小接口。
 //
-// **为何用接口而非直接依赖 `*sse.Server`**：与源同款解耦——源定义
-// `InternalMessagePublisher` 接口并以 `RegisterInternalMessagePublisher` 注入，
-// 使 message 域不强绑定具体传输实现（源注释：「sse 未配置时降级为 no-op」）。
+// **为何用接口而非直接依赖 `*sse.Server`**：解耦传输实现，使 message 域
+// 不强绑定具体推送方案；未注入 publisher 时降级为「只落库、不推送」。
 type Publisher interface {
 	// TryPublish 非阻塞推送；流不存在或缓冲满时返回 false（不阻塞发送方）。
 	TryPublish(streamID string, eventName string, payload any) bool
@@ -88,7 +84,7 @@ func New(ms *store.Store[authmodel.InternalMessage], cs *store.Store[authmodel.I
 	return &Biz{messageStore: ms, categoryStore: cs, recipientStore: rs, userStore: us}
 }
 
-// SetPublisher 注入/替换推送能力（源用同名注册方法）。
+// SetPublisher 注入/替换推送能力。
 func (b *Biz) SetPublisher(p Publisher) { b.publisher = p }
 
 // ---- message ----
@@ -111,12 +107,12 @@ type Message struct {
 // 用 uuid 而非 `UnixNano()`：Windows 的 `time.Now().UnixNano()` 实际分辨率约
 // 0.5–1ms（实测连续两次调用 99999/100000 返回同值），纳秒作唯一键会连续撞键
 // （同租户下快速连发消息 → 主键冲突 → 创建失败）。与 file 域同款模式
-// （`biz/v1/file/file.go:104`）。
+// （见 `biz/v1/file/file.go`）。
 func msgID(tenantID string) string {
 	return tenantID + ":msg:" + uuid.NewString()
 }
 
-// CreateMessage 创建消息本体（源 CreateMessage）。
+// CreateMessage 创建消息本体。
 func (b *Biz) CreateMessage(ctx context.Context, tenantID, senderID, senderName string, m Message) (*Message, error) {
 	if m.Title == "" {
 		return nil, fmt.Errorf("%w: title required", ErrValidation)
@@ -136,7 +132,7 @@ func (b *Biz) CreateMessage(ctx context.Context, tenantID, senderID, senderName 
 	return toMessage(model), nil
 }
 
-// GetMessage 查询（源 GetMessage）。
+// GetMessage 查询。
 func (b *Biz) GetMessage(ctx context.Context, id string) (*Message, error) {
 	m, err := b.messageStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -147,7 +143,7 @@ func (b *Biz) GetMessage(ctx context.Context, id string) (*Message, error) {
 	return toMessage(m), nil
 }
 
-// ListMessages 列出（源 ListMessage）。
+// ListMessages 列出。
 func (b *Biz) ListMessages(ctx context.Context, tenantID string) ([]Message, error) {
 	w := &store.Where{}
 	if tenantID != "" {
@@ -164,7 +160,7 @@ func (b *Biz) ListMessages(ctx context.Context, tenantID string) ([]Message, err
 	return out, nil
 }
 
-// UpdateMessage 更新（源 UpdateMessage）。
+// UpdateMessage 更新。
 func (b *Biz) UpdateMessage(ctx context.Context, id string, m Message) error {
 	model, err := b.messageStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -187,8 +183,8 @@ func (b *Biz) UpdateMessage(ctx context.Context, id string, m Message) error {
 	return nil
 }
 
-// DeleteMessage 删除消息本体（源 DeleteMessage）。
-// 同时删除其全部收件记录（避免悬挂——源用事务保证）。
+// DeleteMessage 删除消息本体。
+// 同时删除其全部收件记录（避免悬挂）。
 //
 // 级联删除是**集合删除**（按 message_id 匹配）。`Store.Delete` 现为幂等语义
 // （0 行返回 (0, nil)）——无收件记录的消息（如草稿）
@@ -208,7 +204,7 @@ func (b *Biz) DeleteMessage(ctx context.Context, id string) error {
 	return nil
 }
 
-// SendRequest 是发送入参（源 SendMessageRequest 的三模式）。
+// SendRequest 是发送入参（支持三模式）。
 type SendRequest struct {
 	Title      string
 	Content    string
@@ -228,18 +224,17 @@ type SendResult struct {
 	Broadcast bool   `json:"broadcast"`
 }
 
-// SendMessage 发送消息（源 SendMessage）——**三模式**。
+// SendMessage 发送消息——**三模式**。
 //
 //  1. **全员广播**（TargetAll）：消息本体落库后，为**全部活跃用户**建收件记录。
-//     源走 asynq 异步扇出（进程重启后未完成投递自动重试）；本实现**同步**执行
-//     （本项目当前用户量小，同步更简单且可立即验证）——**这是一个设计偏差**，
-//     已在注释与提交信息中记录：若用户量大应改为 asynq 任务。
+//     本实现**同步**执行（本项目当前用户量小，同步更简单且可立即验证）——
+//     **这是一个已知的设计取舍**：若用户量大应改为异步任务扇出，以获得
+//     进程重启后的自动重试。
 //  2. **单收件人**（RecipientUserID）：直接投递。
-//  3. **多收件人**（TargetUserIDs）：逐个投递，**上报失败数而非静默丢弃**
-//     （源注释：「同样上报错误而非全部丢弃」）。
+//  3. **多收件人**（TargetUserIDs）：逐个投递，**上报失败数而非静默丢弃**。
 //
 // 幂等：`(message_id, recipient_user_id)` 主键冲突即「已投递」——重复调用
-// 不会产生重复收件记录（源用唯一约束 + ON CONFLICT DO NOTHING）。
+// 不会产生重复收件记录（唯一约束 + ON CONFLICT DO NOTHING 语义）。
 func (b *Biz) SendMessage(ctx context.Context, tenantID, senderID, senderName string, req SendRequest) (*SendResult, error) {
 	// 1) 消息本体落库（状态 PUBLISHED）。
 	msg, err := b.CreateMessage(ctx, tenantID, senderID, senderName, Message{
@@ -256,7 +251,7 @@ func (b *Biz) SendMessage(ctx context.Context, tenantID, senderID, senderName st
 	switch {
 	case req.TargetAll:
 		res.Broadcast = true
-		// 取全部用户（源按页拉取；本实现一次取全——量小）。
+		// 取全部用户（一次取全——当前用户量小，无需分页）。
 		users, _, uerr := b.userStore.List(ctx, &store.Where{})
 		if uerr != nil {
 			return nil, fmt.Errorf("message: list users for broadcast: %w", uerr)
@@ -288,7 +283,7 @@ func (b *Biz) SendMessage(ctx context.Context, tenantID, senderID, senderName st
 
 // Deliver 投递一条收件记录（幂等：主键冲突视为「已投递」成功）。
 //
-// 导出理由：**重试投递**是真实场景（源注释即讨论 asynq 重试的幂等性）。
+// 导出理由：**重试投递**是真实场景，调用方需要能对单个收件人补投。
 // 同一 (message_id, recipient_user_id) 重复投递被唯一约束吸收，不产生重复记录。
 func (b *Biz) Deliver(ctx context.Context, tenantID string, msg *Message, recipientUserID, senderID string) error {
 	r := &authmodel.InternalMessageRecipient{
@@ -309,17 +304,16 @@ func (b *Biz) Deliver(ctx context.Context, tenantID string, msg *Message, recipi
 	}
 
 	// **落库成功后才推送**（顺序重要：先持久化，再实时通知）。
-	// 推送失败不影响投递结果——收件箱仍可拉取（源同此：`publishNotification`
-	// 只记 Debug 日志，不返回 error）。
+	// 推送失败不影响投递结果——收件箱仍可拉取（推送失败只记 Debug 日志，
+	// 不返回 error）。
 	b.publish(r)
 	return nil
 }
 
-// publish 把收件记录推给该用户的 SSE 流（源 `publishNotification`）。
+// publish 把收件记录推给该用户的 SSE 流。
 //
-// **streamID 用 recipientUserID**：源注释原话——「同一用户的所有在线设备
-// 订阅同一条流，库的 stream fan-out 会把该事件投递给该流的全部 subscriber，
-// 因此只需单次 publish」。
+// **streamID 用 recipientUserID**：同一用户的所有在线设备订阅同一条流，
+// 流的 fan-out 会把事件投递给该流的全部 subscriber，因此只需单次 publish。
 //
 // publisher 为 nil（SSE 未装配）时静默跳过——**降级语义**：
 // 站内信仍落库、收件箱可拉取，只是没有实时推送。
@@ -340,11 +334,12 @@ func (b *Biz) publish(r *authmodel.InternalMessageRecipient) {
 	b.publisher.TryPublish(r.RecipientUserID, "notification", payload)
 }
 
-// RevokeMessage 撤销消息（源 RevokeMessage）。
+// RevokeMessage 撤销消息。
 //
-// 语义：**撤销是「按收件人」的**——源签名含 UserId。消息本体删除与收件人撤销
-// 应在同一事务（源 `RevokeMessageWithMessage`）；本实现无事务封装，
-// 故采用「先删本体、再标收件记录为 REVOKED」的顺序，并在注释记录该局限。
+// 语义：**撤销是「按收件人」的**——可选 userID 只撤该用户的收件记录。
+// 消息本体标记与收件人撤销**应在一个事务里完成**；本实现无事务封装，
+// 故采用「先标收件记录、再标本体」的顺序，中间失败会留下部分撤销状态
+// （这是已知局限）。
 func (b *Biz) RevokeMessage(ctx context.Context, messageID, userID string) error {
 	if messageID == "" {
 		return fmt.Errorf("%w: message_id required", ErrValidation)
@@ -405,7 +400,7 @@ type Category struct {
 
 func catID(tenantID, code string) string { return tenantID + ":cat:" + code }
 
-// CreateCategory 创建分类（源 Create）。
+// CreateCategory 创建分类。
 func (b *Biz) CreateCategory(ctx context.Context, tenantID string, c Category) (*Category, error) {
 	if c.Name == "" || c.Code == "" {
 		return nil, fmt.Errorf("%w: name and code required", ErrValidation)
@@ -424,7 +419,7 @@ func (b *Biz) CreateCategory(ctx context.Context, tenantID string, c Category) (
 	return toCategory(m), nil
 }
 
-// ListCategories 列出（源 List）。
+// ListCategories 列出。
 func (b *Biz) ListCategories(ctx context.Context, tenantID string) ([]Category, error) {
 	w := &store.Where{}
 	if tenantID != "" {
@@ -441,7 +436,7 @@ func (b *Biz) ListCategories(ctx context.Context, tenantID string) ([]Category, 
 	return out, nil
 }
 
-// CountCategories 统计（源 Count）。
+// CountCategories 统计。
 func (b *Biz) CountCategories(ctx context.Context, tenantID string) (int64, error) {
 	w := &store.Where{}
 	if tenantID != "" {
@@ -454,7 +449,7 @@ func (b *Biz) CountCategories(ctx context.Context, tenantID string) (int64, erro
 	return n, nil
 }
 
-// GetCategory 按 id 查询（源 Get）。
+// GetCategory 按 id 查询。
 func (b *Biz) GetCategory(ctx context.Context, id string) (*Category, error) {
 	m, err := b.categoryStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -465,7 +460,7 @@ func (b *Biz) GetCategory(ctx context.Context, id string) (*Category, error) {
 	return toCategory(m), nil
 }
 
-// UpdateCategory 更新（源 Update）。
+// UpdateCategory 更新。
 func (b *Biz) UpdateCategory(ctx context.Context, id string, c Category) error {
 	m, err := b.categoryStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -483,7 +478,7 @@ func (b *Biz) UpdateCategory(ctx context.Context, id string, c Category) error {
 	return nil
 }
 
-// DeleteCategory 删除（源 Delete）。
+// DeleteCategory 删除。
 func (b *Biz) DeleteCategory(ctx context.Context, id string) error {
 	if _, err := b.categoryStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -515,7 +510,7 @@ type Recipient struct {
 	CreatedAt       int64  `json:"created_at,omitempty"`
 }
 
-// ListUserInbox 用户收件箱（源 ListUserInbox）——**只返回未删除的**。
+// ListUserInbox 用户收件箱——**只返回未删除的**。
 //
 // 语义：DELETED 的记录是「用户从收件箱移除」，不应出现在列表里。
 func (b *Biz) ListUserInbox(ctx context.Context, userID string) ([]Recipient, error) {
@@ -535,7 +530,7 @@ func (b *Biz) ListUserInbox(ctx context.Context, userID string) ([]Recipient, er
 	return out, nil
 }
 
-// GetRecipient 按 id 查询（源 Get）。
+// GetRecipient 按 id 查询。
 func (b *Biz) GetRecipient(ctx context.Context, id string) (*Recipient, error) {
 	m, err := b.recipientStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -546,7 +541,7 @@ func (b *Biz) GetRecipient(ctx context.Context, id string) (*Recipient, error) {
 	return toRecipient(m), nil
 }
 
-// GetRecipientsByIDs 按 id 批量查询（源 GetInternalMessageRecipientsByIds）。
+// GetRecipientsByIDs 按 id 批量查询。
 func (b *Biz) GetRecipientsByIDs(ctx context.Context, ids []string) ([]Recipient, error) {
 	out := make([]Recipient, 0, len(ids))
 	for _, id := range ids {
@@ -561,7 +556,7 @@ func (b *Biz) GetRecipientsByIDs(ctx context.Context, ids []string) ([]Recipient
 	return out, nil
 }
 
-// MarkAsRead 标记已读（源 MarkNotificationAsRead）。
+// MarkAsRead 标记已读。
 // **幂等**：已读的再标仍返回成功（不重复更新 ReadAt）。
 func (b *Biz) MarkAsRead(ctx context.Context, id string) error {
 	m, err := b.recipientStore.Get(ctx, &store.Where{
@@ -582,7 +577,7 @@ func (b *Biz) MarkAsRead(ctx context.Context, id string) error {
 	return nil
 }
 
-// MarkStatus 批量标记状态（源 MarkNotificationsStatus）。
+// MarkStatus 批量标记状态。
 func (b *Biz) MarkStatus(ctx context.Context, ids []string, status string) error {
 	if status == "" {
 		return fmt.Errorf("%w: status required", ErrValidation)
@@ -606,7 +601,7 @@ func (b *Biz) MarkStatus(ctx context.Context, ids []string, status string) error
 	return nil
 }
 
-// DeleteFromInbox 从收件箱删除（源 DeleteNotificationFromInbox）。
+// DeleteFromInbox 从收件箱删除。
 // **软删除**（标 DELETED 而非物理删）——保留投递审计痕迹。
 func (b *Biz) DeleteFromInbox(ctx context.Context, id string) error {
 	m, err := b.recipientStore.Get(ctx, &store.Where{
@@ -622,7 +617,7 @@ func (b *Biz) DeleteFromInbox(ctx context.Context, id string) error {
 	return nil
 }
 
-// CountRecipients 统计（源 Count）。
+// CountRecipients 统计。
 func (b *Biz) CountRecipients(ctx context.Context, tenantID string) (int64, error) {
 	w := &store.Where{}
 	if tenantID != "" {

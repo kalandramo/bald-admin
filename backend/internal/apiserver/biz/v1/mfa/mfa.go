@@ -1,8 +1,8 @@
-// Package mfa 实现 MFA 业务逻辑（，biz 层）。
+// Package mfa 实现 MFA 业务逻辑（biz 层）。
 //
-// 复刻范围严格对齐源 `mfa_service.go`：实现 TOTP 的 7 条 rpc；
-// StartMFAChallenge / GenerateBackupCodes / ListBackupCodes 返回 ErrUnimplemented
-// （源明确未实现——不自创 SMS/WebAuthn/备份码）。
+// 实现 TOTP 的 7 条 rpc；StartMFAChallenge / GenerateBackupCodes /
+// ListBackupCodes 返回 ErrUnimplemented——SMS/WebAuthn/备份码不在本期范围，
+// 不自创无消费方的能力。
 package mfa
 
 import (
@@ -18,7 +18,7 @@ import (
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
 )
 
-// ErrUnimplemented 该能力源项目未实现（对齐源行为，不自创）。
+// ErrUnimplemented 表示该能力未实现（handler 映射 501）。
 var ErrUnimplemented = errors.New("mfa: not implemented in source project")
 
 // ErrTooFrequent 注册发起过频（冷却中，handler 归 429 而非 500）。
@@ -32,7 +32,7 @@ type Biz struct {
 }
 
 // New 构造 MFA Biz。st 是 MFA 因子仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，MFAFactorStore 已就绪）；challenges 为挑战存储
-//（nil=无 Redis 禁用态，biz 判 nil fail-closed）。
+// （nil=无 Redis 禁用态，biz 判 nil fail-closed）。
 func New(st *store.Store[authmodel.UserMFAFactor], challenges mfa.ChallengeStore) *Biz {
 	return &Biz{factorStore: st, challenges: challenges}
 }
@@ -74,10 +74,10 @@ func (b *Biz) listFactors(ctx context.Context, tenantID, userID string) ([]*auth
 	return items, nil
 }
 
-// GetStatus 查询 MFA 总览（源 GetMFAStatus）。
+// GetStatus 查询 MFA 总览。
 //
-// 语义对齐源：只要有 enabled 的 TOTP 因子，就报 enabled=true 且
-// enforcement=REQUIRED（源 `mfa_service.go:99-113`）。
+// 语义：只要有 enabled 的 TOTP 因子，就报 enabled=true 且
+// enforcement=REQUIRED。
 func (b *Biz) GetStatus(ctx context.Context, tenantID, userID string) (*Status, error) {
 	factors, err := b.listFactors(ctx, tenantID, userID)
 	if err != nil {
@@ -98,7 +98,7 @@ func (b *Biz) GetStatus(ctx context.Context, tenantID, userID string) (*Status, 
 	return res, nil
 }
 
-// ListEnrolled 列出已注册因子（源 ListEnrolledMethods）。
+// ListEnrolled 列出已注册因子。
 func (b *Biz) ListEnrolled(ctx context.Context, tenantID, userID string) ([]EnrolledMethod, error) {
 	factors, err := b.listFactors(ctx, tenantID, userID)
 	if err != nil {
@@ -132,11 +132,11 @@ type StartEnrollResult struct {
 	ExpiresAt   int64  `json:"expires_at"`
 }
 
-// StartEnroll 开始注册 TOTP（源 StartEnrollMethod）。
+// StartEnroll 开始注册 TOTP。
 //
-// 三条预检（对齐源）：
+// 三条预检：
 //  1. 冷却（30s，防循环 Start 塞 Redis）；
-//  2. 已绑定则拒绝（需先 Disable——源 `mfa_service.go:140-148`）；
+//  2. 已绑定则拒绝（需先 Disable）；
 //  3. 生成密钥并存入挑战（TTL 10 分钟）。
 func (b *Biz) StartEnroll(ctx context.Context, tenantID, userID string) (*StartEnrollResult, error) {
 	if b.challenges == nil {
@@ -173,13 +173,13 @@ func (b *Biz) StartEnroll(ctx context.Context, tenantID, userID string) (*StartE
 	}, nil
 }
 
-// ConfirmEnroll 确认注册（源 ConfirmEnrollMethod）。
+// ConfirmEnroll 确认注册。
 //
-// 与登录挑战的**关键差异**：此处用 Peek（**不消耗**）——允许首码输错重试
-// （源 `mfa_service.go:190-193` 注释：登录挑战失败必须作废防暴破，注册有登录态
-// 且重试面由 operation TTL + 已绑定预检 + 唯一索引共同约束）。
+// 与登录挑战的**关键差异**：此处用 Peek（**不消耗**）——允许首码输错重试。
+// 登录挑战失败必须作废以防暴破，而注册已有登录态，且重试面由 operation TTL
+// + 已绑定预检 + 唯一索引共同约束。
 //
-// 跨用户劫持防护：挑战上下文绑定的人必须等于当前操作者（源同此）。
+// 跨用户劫持防护：挑战上下文绑定的人必须等于当前操作者。
 func (b *Biz) ConfirmEnroll(ctx context.Context, tenantID, userID, opID, code, display string) (string, error) {
 	if b.challenges == nil {
 		return "", ErrUnimplemented
@@ -213,8 +213,8 @@ func (b *Biz) ConfirmEnroll(ctx context.Context, tenantID, userID, opID, code, d
 	return f.ID, nil
 }
 
-// Disable 禁用/移除因子（源 DisableMFA）。
-// 不传 credentialID 时按 method 清空该用户全部该方法因子（源语义）。
+// Disable 禁用/移除因子。
+// 不传 credentialID 时按 method 清空该用户全部该方法因子。
 func (b *Biz) Disable(ctx context.Context, tenantID, userID, credentialID string) error {
 	w := &store.Where{Filters: []*storev1.FilterCondition{
 		store.Eq("tenant_id", tenantID),
@@ -232,7 +232,7 @@ func (b *Biz) Disable(ctx context.Context, tenantID, userID, credentialID string
 	return nil
 }
 
-// RevokeDevice 按凭证 id 撤销（源 RevokeMFADevice）。
+// RevokeDevice 按凭证 id 撤销。
 func (b *Biz) RevokeDevice(ctx context.Context, tenantID, userID, credentialID string) error {
 	if credentialID == "" {
 		return fmt.Errorf("mfa: credential_id required")
@@ -250,13 +250,13 @@ func (b *Biz) RevokeDevice(ctx context.Context, tenantID, userID, credentialID s
 
 // StartChallenge 发起登录 MFA 挑战。
 //
-// **源未实现**（`mfa_service.go` 文件头：StartMFAChallenge 返回 UNIMPLEMENTED）。
-// TOTP 本就无需服务端 challenge（前端直接提示输入），源故未实现。
+// **未实现**，恒返回 ErrUnimplemented：TOTP 本就无需服务端 challenge
+// （前端直接提示输入验证码）。
 func (b *Biz) StartChallenge(ctx context.Context, tenantID, userID string) (string, error) {
 	return "", ErrUnimplemented
 }
 
-// VerifyChallenge 验证登录 MFA 挑战（源 VerifyMFAChallenge）。
+// VerifyChallenge 验证登录 MFA 挑战。
 //
 // 语义：Peek 不消耗（允许失败重试）→ 校验 → 通过则**原子 Take**（防双花）
 // → 更新 last_used_at。失败达上限则作废挑战。

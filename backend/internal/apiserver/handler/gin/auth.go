@@ -1,6 +1,6 @@
 // Package gin 提供 bald-admin 的 HTTP handler 装配（协议层）。
 //
-// 本文件演示 M1 认证授权范式：用 bald 的 gin 中间件
+// 本文件演示认证授权范式：用 bald 的 gin 中间件
 // （middleware/gin.AuthnMiddleware / AuthzMiddleware）保护路由。业务经由 biz 层
 // 调用，handler 仅做协议转换与中间件接线，不写入认证/授权策略。
 package gin
@@ -96,7 +96,6 @@ func RegisterAuth(
 	})
 
 	// -2：验证码（公开端点——登录前获取，此时必然未认证）。
-	// 对齐源 authentication.proto L58/L61。
 	e.GET("/v1/auth/captcha", func(c *gingonic.Context) {
 		res, err := biz.GenerateCaptcha(c.Request.Context())
 		if err != nil {
@@ -134,7 +133,6 @@ func RegisterAuth(
 	})
 
 	// -3：用户注册（公开端点——注册时必然未认证）。
-	// 对齐源 authentication.proto L31。
 	e.POST("/v1/auth/register", func(c *gingonic.Context) {
 		var req struct {
 			Username   string `json:"username"`
@@ -183,7 +181,7 @@ func RegisterAuth(
 
 	// Logout 在需认证组内——它需要从 ctx 取当前 token 才能拉黑。
 	// 跳过 authzMW：登出是「对自己 token 的操作」，不属于任何业务资源权限点
-	//（源项目同样不为其定义 RBAC 权限）。认证是唯一门槛。
+	//（也不为其定义 RBAC 权限）。认证是唯一门槛。
 	authed.POST("/auth/logout", func(c *gingonic.Context) {
 		if err := biz.Logout(c.Request.Context()); err != nil {
 			writeBizErr(c, err)
@@ -208,7 +206,7 @@ func RegisterAuth(
 		c.JSON(http.StatusOK, biz.ValidateToken(c.Request.Context(), req.Token))
 	})
 
-	// -4：token 管理（源 authentication.proto L41/L44/L47/L50）。
+	// -4：token 管理。
 	//
 	// 全部经 authzMW 保护——token 是敏感资源，只有管理员能操作**他人**的 token。
 	// 权限点 (auth, post)：授权归一化把 POST 映射为 "post"（DefaultHTTPAction

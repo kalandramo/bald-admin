@@ -1,6 +1,6 @@
 package e2e
 
-// t_w1_7_object_naming_invariant_test.go —— P9 归一化 × 策略 object 命名的**不变量**测试。
+// t_w1_7_object_naming_invariant_test.go —— 传输中立归一化 × 策略 object 命名的**不变量**测试。
 //
 // 背景：gRPC 面授权 object 由 authz.DefaultGRPCObject 从 Service 名推导
 //（压成无分隔小写，如 OrgUnitService→"orgunit"），而 casbin 策略的 object 沿用

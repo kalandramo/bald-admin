@@ -1,7 +1,7 @@
 package gin
 
-// admin_portal.go 管理面聚合 REST handler。路径前缀 /admin/v1/*，
-// 对齐源的 admin 域约定。分组级 Authn（/admin/v1 需登录）+ 路由级 Authz
+// admin_portal.go 管理面聚合 REST handler。路径前缀 /admin/v1/*。
+// 分组级 Authn（/admin/v1 需登录）+ 路由级 Authz
 // （归一化权限点 "admin_portal"）。
 
 import (

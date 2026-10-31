@@ -19,7 +19,7 @@ import { request } from '../../http/axios.ts';
 
 
   /**
- * ListUsers 列出当前租户用户（M3 多租户隔离验证点，对象列表版本）。
+ * ListUsers 列出当前租户用户（多租户隔离验证点，对象列表版本）。
  *    REST: GET /v1/user
  */
 export const userServiceListUsers = (
@@ -47,7 +47,7 @@ export const userServiceCreateUser = (
   /**
  * GetUser 取用户。
  *    REST: GET /v1/user/{id}
- *  REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源（P9）。
+ *  REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源。
  */
 export const userServiceGetUser = (
     id: string,

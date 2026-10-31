@@ -1,7 +1,6 @@
 package e2e
 
-// t_w1d_captcha_e2e_test.go —— -2：GenerateCaptcha / VerifyCaptcha
-// （源 authentication.proto L58/L61）。
+// t_w1d_captcha_e2e_test.go —— GenerateCaptcha / VerifyCaptcha。
 //
 // 验收：
 //   - GenerateCaptcha 返回 captcha_id + image_base64（可解码为 PNG）；

@@ -1,4 +1,4 @@
-// Package serviceinfo 是 M0 最小业务域，演示 biz 层（use case）分层：
+// Package serviceinfo 是最小业务域，演示 biz 层（use case）分层：
 // 业务函数与传输层解耦，gin handler 与后续 gRPC handler 共用同一份 biz。
 //
 // 命名说明：本域提供**服务自述**端点（/v1/ping、/v1/info），与框架的

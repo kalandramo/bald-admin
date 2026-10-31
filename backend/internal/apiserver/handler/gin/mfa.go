@@ -1,4 +1,4 @@
-// Package gin 提供 MFA 的 HTTP handler 装配（，协议层）。
+// Package gin 提供 MFA 的 HTTP handler 装配。
 package gin
 
 import (
@@ -17,14 +17,14 @@ import (
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
 )
 
-// RegisterMFA 挂载 MFA 路由（源 mfa.proto 的 10 个 rpc）。
+// RegisterMFA 挂载 MFA 路由。
 //
 // 全部需认证（MFA 是用户对自己账号的安全设置）。
 // authorization 用 (mfa, get/post) 权限点——admin 种子策略需含之（见 seedPolicies）。
 //
-// **源未实现的 3 条**（StartMFAChallenge/GenerateBackupCodes/ListBackupCodes）
-// 也挂路由但返回 501，理由：显式标注「源未实现」比 404 更诚实——调用方能区分
-// 「本服务没有这个能力」与「这个能力源项目就没做」。
+// **尚未实现的 3 条**（StartMFAChallenge/GenerateBackupCodes/ListBackupCodes）
+// 也挂路由但返回 501，理由：显式标注「未实现」比 404 更诚实——调用方能区分
+// 「本服务没有这个能力」与「这个能力尚未落地」。
 func RegisterMFA(
 	e *gingonic.Engine,
 	authenticator authn.Authenticator,
@@ -105,7 +105,7 @@ func RegisterMFA(
 		tid, uid := op(c)
 		var req struct {
 			CredentialID string `json:"credential_id"`
-			UserID       string `json:"user_id"` // 管理端指定他人（源语义）
+			UserID       string `json:"user_id"` // 管理端指定他人
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			bindErr(c, err)
@@ -113,7 +113,7 @@ func RegisterMFA(
 		}
 		target := uid
 		if req.UserID != "" {
-			target = req.UserID // 管理端重置（源允许，权限由 authz 挡）
+			target = req.UserID // 管理端重置（权限由 authz 挡）
 		}
 		if err := biz.Disable(c.Request.Context(), tid, target, req.CredentialID); err != nil {
 			writeMFAErr(c, err)
@@ -144,7 +144,7 @@ func RegisterMFA(
 		c.JSON(http.StatusOK, gingonic.H{"message": "revoked"})
 	})
 
-	// ---- 源未实现的 3 条：显式 501（对齐源行为，不自创）----
+	// ---- 未实现的 3 条：显式 501（不自创行为）----
 	unimpl := func(name string) gingonic.HandlerFunc {
 		return func(c *gingonic.Context) {
 			web.ErrorResponse(c, berrors.Unimplemented("mfa/not_implemented").
@@ -156,9 +156,9 @@ func RegisterMFA(
 	authed.GET("/backup-codes", authzMW, unimpl("ListBackupCodes"))
 	authed.POST("/backup-codes", authzMW, unimpl("ListBackupCodes"))
 
-	// POST /v1/mfa/challenge/verify —— 登录挑战验证（源真实现）。
+	// POST /v1/mfa/challenge/verify —— 登录挑战验证。
 	// **公开端点**：登录流程中密码校验通过后、尚未持有效会话时调用。
-	// 故不挂 authnMiddleware——凭 operation_id 单次有效 + 归属校验兜底（源同此）。
+	// 故不挂 authnMiddleware——凭 operation_id 单次有效 + 归属校验兜底。
 	e.POST("/v1/mfa/challenge/verify", func(c *gingonic.Context) {
 		var req struct {
 			OperationID string `json:"operation_id"`

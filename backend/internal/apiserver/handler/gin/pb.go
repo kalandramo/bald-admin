@@ -4,7 +4,7 @@
 // 规范（protojson）编解码——枚举输出符号名（"FREEZE"）、Timestamp 输出 RFC3339、
 // int64/uint64 输出字符串；encoding/json 会把枚举输出数字、Timestamp 输出内部字段、
 // 且对 int64 输出裸数字。同一路由经 gateway（:8081）与直连 gin（:8080）会得到不同
-// JSON——违反「REST 与 gRPC 同源」的 P9 语义。本文件强制两侧统一 protojson。
+// JSON——违反「REST 与 gRPC 同源」语义。本文件强制两侧统一 protojson。
 //
 // 错误出口统一走框架 web.ErrorResponse（决策⑧）：错误体与 grpc-gateway 转码的
 // google.rpc.Status JSON 结构同形（{"code","message","details":[{"@type",reason,

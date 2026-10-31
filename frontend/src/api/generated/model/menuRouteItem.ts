@@ -5,7 +5,7 @@
  */
 
 /**
- * MenuRouteItem 前端路由项（扁平结构，见 service 头注的差异说明）。
+ * MenuRouteItem 前端路由项（扁平结构，见 service 头注的设计说明）。
  */
 export interface MenuRouteItem {
   path?: string;

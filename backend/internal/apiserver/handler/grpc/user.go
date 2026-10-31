@@ -1,7 +1,8 @@
 package grpc
 
 // user.go 用户管理 gRPC service。租户内读写：读过滤（Where.T）与写注入
-// （injectWriteTenant）由 P8 自动完成；P9 归一化 FullMethod → "user" + 动作。
+// （injectWriteTenant）由 store 层自动完成；传输中立归一化把 FullMethod 映射为
+// "user" + 动作。
 
 import (
 	"context"

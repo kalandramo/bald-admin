@@ -1,14 +1,14 @@
 // Package org 实现组织架构域：
 // org_unit（7 rpc，树形）+ position（7 rpc，关联回填）。
 //
-// 复刻范围对齐源：两者都是标准 CRUD + **树构建** + **关联字段回填**。
+// 两者都是标准 CRUD + **树构建** + **关联字段回填**。
 //
-// 源的回填是三步式（`org_unit_service.go:49-117`）：
+// 回填采用三步式：
 //  1. extractRelationIDs：递归收集所有节点引用的用户 ID；
 //  2. fetchRelationInfo：**批量**查询（避免 N+1）；
 //  3. bindRelations：递归回填到每个节点（含 children）。
 //
-// 本实现逐条对齐——批量查询是源的精髓，逐个查会退化成 N+1。
+// 批量查询是关键：逐个查会退化成 N+1。
 package org
 
 import (
@@ -121,7 +121,7 @@ func withParentFilter(req *storev1.PagingRequest, parentKey string) *storev1.Pag
 	return req
 }
 
-// CreateOrgUnit 创建组织单元（源 Create）。Path 由 ParentID 自动推导。
+// CreateOrgUnit 创建组织单元。Path 由 ParentID 自动推导。
 func (b *Biz) CreateOrgUnit(ctx context.Context, tenantID string, u OrgUnit) (*OrgUnit, error) {
 	if u.Name == "" || u.Code == "" {
 		return nil, badRequest("org/invalid_request", "name and code required")
@@ -147,7 +147,7 @@ func (b *Biz) CreateOrgUnit(ctx context.Context, tenantID string, u OrgUnit) (*O
 		}
 		return nil, fmt.Errorf("org: create org unit: %w", err)
 	}
-	// Path 需要自己的 ID，创建后回填（源的 path 含自身）。
+	// Path 需要自己的 ID，创建后回填（path 含自身）。
 	m.Path = path + "/" + m.ID
 	_, _ = b.orgUnitStore.Update(ctx, m) // best-effort（v0.11.0 起返回 (rows, error)）
 	return toOrgUnit(m), nil
@@ -178,7 +178,7 @@ func parentKey(tenantID, parentCode string) string {
 	return orgID(tenantID, parentCode)
 }
 
-// GetOrgUnit 按 code 查询（源 Get）。
+// GetOrgUnit 按 code 查询。
 func (b *Biz) GetOrgUnit(ctx context.Context, tenantID, code string) (*OrgUnit, error) {
 	m, err := b.orgUnitStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", orgID(tenantID, code))},
@@ -236,7 +236,7 @@ func (b *Biz) ListOrgUnitChildren(ctx context.Context, tenantID, parentCode stri
 	return out, result.Meta, nil
 }
 
-// UpdateOrgUnit 更新（源 Update）。**防环**：不能把自己挂到自己的子孙下。
+// UpdateOrgUnit 更新。**防环**：不能把自己挂到自己的子孙下。
 func (b *Biz) UpdateOrgUnit(ctx context.Context, tenantID, code string, u OrgUnit) error {
 	m, err := b.orgUnitStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", orgID(tenantID, code))},
@@ -261,7 +261,7 @@ func (b *Biz) UpdateOrgUnit(ctx context.Context, tenantID, code string, u OrgUni
 	}
 	// ParentID 变更：需防环（把节点挂到自己的子孙下会形成环）。
 	//
-	// **空 = 不改**（与其余字段的「非空即更新」语义对齐）。此前用
+	// **空 = 不改**（与其余字段的「非空即更新」语义一致）。此前用
 	// `u.ParentID != m.ParentID` 比较——两侧语义不同（code vs 完整主键）恒不等，
 	// 导致每次更新都进此分支；若前端未传 parent_id 会**清空父节点**（数据损坏）。
 	// 代价：不支持「把节点移为根节点」（需显式清空）。
@@ -311,7 +311,7 @@ func (b *Biz) isDescendant(ctx context.Context, candidate, ancestor string) (boo
 	return false, nil
 }
 
-// DeleteOrgUnit 删除（源 Delete）。**有子节点时拒绝**——否则产生悬挂引用。
+// DeleteOrgUnit 删除。**有子节点时拒绝**——否则产生悬挂引用。
 func (b *Biz) DeleteOrgUnit(ctx context.Context, tenantID, code string) error {
 	id := orgID(tenantID, code)
 	children, _, err := b.orgUnitStore.List(ctx, &store.Where{
@@ -331,8 +331,8 @@ func (b *Biz) DeleteOrgUnit(ctx context.Context, tenantID, code string) error {
 	return nil
 }
 
-// BatchCreateOrgUnits 批量创建（源 BatchCreate）——逐条创建，**部分失败不回滚**
-// （对齐源语义：返回每条的结果，调用方据 failed 列表决定重试）。
+// BatchCreateOrgUnits 批量创建——逐条创建，**部分失败不回滚**
+// （返回每条的结果，调用方据 failed 列表决定重试）。
 func (b *Biz) BatchCreateOrgUnits(ctx context.Context, tenantID string, items []OrgUnit) (created []*OrgUnit, failed []string) {
 	for _, u := range items {
 		res, err := b.CreateOrgUnit(ctx, tenantID, u)
@@ -345,7 +345,7 @@ func (b *Biz) BatchCreateOrgUnits(ctx context.Context, tenantID string, items []
 	return created, failed
 }
 
-// CountOrgUnits 统计（源 Count）。
+// CountOrgUnits 统计。
 func (b *Biz) CountOrgUnits(ctx context.Context, tenantID string) (int64, error) {
 	n, err := b.orgUnitStore.Count(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("tenant_id", tenantID)},
@@ -356,7 +356,7 @@ func (b *Biz) CountOrgUnits(ctx context.Context, tenantID string) (int64, error)
 	return n, nil
 }
 
-// enrichOrgUnits 批量回填 leader_name（源三步式回填的等价实现）。
+// enrichOrgUnits 批量回填 leader_name（三步式回填的等价实现）。
 func (b *Biz) enrichOrgUnits(ctx context.Context, units []*OrgUnit) {
 	ids := map[string]bool{}
 	for _, u := range units {
@@ -367,7 +367,7 @@ func (b *Biz) enrichOrgUnits(ctx context.Context, units []*OrgUnit) {
 	if len(ids) == 0 {
 		return
 	}
-	// **一次批量查询**（源的 fetchRelationInfo 语义；逐个查会 N+1）。
+	// **一次批量查询**（逐个查会 N+1）。
 	names := make(map[string]string, len(ids))
 	for id := range ids {
 		u, err := b.userStore.Get(ctx, &store.Where{
@@ -386,7 +386,7 @@ func (b *Biz) enrichOrgUnits(ctx context.Context, units []*OrgUnit) {
 
 // toOrgUnit 模型 → DTO。
 //
-// ParentID 语义统一（源缺陷修复）：model 存**完整主键** `"<tenant>:<code>"`，
+// ParentID 语义统一：model 存**完整主键** `"<tenant>:<code>"`，
 // 但对外契约（proto）用 **code**——此前直接输出主键导致「输入 code、输出主键」
 // 的语义不对称（前端表单填 code，回显却是主键）。
 func toOrgUnit(m *authmodel.OrgUnit) *OrgUnit {
@@ -438,7 +438,7 @@ type Position struct {
 
 func posID(tenantID, code string) string { return tenantID + ":pos:" + code }
 
-// CreatePosition 创建职位（源 Create）。校验所属组织单元存在。
+// CreatePosition 创建职位。校验所属组织单元存在。
 func (b *Biz) CreatePosition(ctx context.Context, tenantID string, p Position) (*Position, error) {
 	if p.Name == "" || p.Code == "" {
 		return nil, badRequest("org/invalid_request", "name and code required")
@@ -480,7 +480,7 @@ func (b *Biz) CreatePosition(ctx context.Context, tenantID string, p Position) (
 	return res, nil
 }
 
-// GetPosition 按 code 查询（源 Get）。
+// GetPosition 按 code 查询。
 func (b *Biz) GetPosition(ctx context.Context, tenantID, code string) (*Position, error) {
 	m, err := b.positionStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", posID(tenantID, code))},
@@ -493,7 +493,7 @@ func (b *Biz) GetPosition(ctx context.Context, tenantID, code string) (*Position
 	return p, nil
 }
 
-// ListPositions 列出（源 List），回填 org_unit_name / reports_to_position_name。
+// ListPositions 列出，回填 org_unit_name / reports_to_position_name。
 //
 // O3 修复：返回 `[]*Position`（此前是 `[]Position` 值切片，与 ListOrgUnits 的
 // `[]*OrgUnit` 不对称，且需手工把回填结果同步回值切片——纯属冗余）。
@@ -512,7 +512,7 @@ func (b *Biz) ListPositions(ctx context.Context, tenantID string) ([]*Position, 
 	return out, nil
 }
 
-// enrichPositions 批量回填（源 position_service 的关联回填语义）。
+// enrichPositions 批量回填（关联字段回填语义）。
 //
 // **注意**：DTO 的 OrgUnitID / ReportsToPositionID 是 **code**（对外契约），
 // 而 store 的主键是完整键 `"<tenant>:<code>"`——此处需转换后再查。
@@ -553,7 +553,7 @@ func (b *Biz) enrichPositions(ctx context.Context, tenantID string, ps []*Positi
 	}
 }
 
-// UpdatePosition 更新（源 Update）。「非空即更新」语义（同 UpdateOrgUnit）。
+// UpdatePosition 更新。「非空即更新」语义（同 UpdateOrgUnit）。
 func (b *Biz) UpdatePosition(ctx context.Context, tenantID, code string, p Position) error {
 	m, err := b.positionStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", posID(tenantID, code))},
@@ -603,7 +603,7 @@ func (b *Biz) UpdatePosition(ctx context.Context, tenantID, code string, p Posit
 	return nil
 }
 
-// DeletePosition 删除（源 Delete）。
+// DeletePosition 删除。
 func (b *Biz) DeletePosition(ctx context.Context, tenantID, code string) error {
 	if _, err := b.positionStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", posID(tenantID, code))},
@@ -613,7 +613,7 @@ func (b *Biz) DeletePosition(ctx context.Context, tenantID, code string) error {
 	return nil
 }
 
-// BatchCreatePositions 批量创建（源 BatchCreate）。
+// BatchCreatePositions 批量创建。
 func (b *Biz) BatchCreatePositions(ctx context.Context, tenantID string, items []Position) (created []*Position, failed []string) {
 	for _, p := range items {
 		res, err := b.CreatePosition(ctx, tenantID, p)
@@ -626,7 +626,7 @@ func (b *Biz) BatchCreatePositions(ctx context.Context, tenantID string, items [
 	return created, failed
 }
 
-// CountPositions 统计（源 Count）。
+// CountPositions 统计。
 func (b *Biz) CountPositions(ctx context.Context, tenantID string) (int64, error) {
 	n, err := b.positionStore.Count(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("tenant_id", tenantID)},

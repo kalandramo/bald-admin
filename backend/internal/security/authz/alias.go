@@ -2,7 +2,7 @@
 //
 // 解决的问题（本会话实测复现）：
 //
-//	P9 传输中立归一化用 authz.DefaultGRPCObject 把 gRPC FullMethod 的 Service 段
+//	传输中立归一化用 authz.DefaultGRPCObject 把 gRPC FullMethod 的 Service 段
 //	压成小写资源名（取最后一段、去 "Service" 后缀、转小写），**不插入任何分隔符**：
 //	    OrgUnitService   -> "orgunit"     DictTypeService -> "dicttype"
 //	    PositionService  -> "position"    DictEntryService -> "dictentry"

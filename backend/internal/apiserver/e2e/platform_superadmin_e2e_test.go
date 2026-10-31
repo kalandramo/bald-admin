@@ -41,7 +41,7 @@ import (
 //
 // 为什么不复用 startAuditREST：它构造 Biz 后**未调 SetPlatformResolver**
 // （那是对的——它锁定的是框架能力，不需要业务判据）。本文件要测接线，
-// 故必须复刻 main.go 的注入。
+// 故必须按 main.go 的方式注入。
 func startPlatformREST(t *testing.T) string {
 	t.Helper()
 	if _, err := bootstrappkg.InitBridges(context.Background()); err != nil {
@@ -200,7 +200,7 @@ func TestPlatform_ResolverIsInjectedInProduction(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"return authmodel.IsPlatformUser",              // 装配层 getter（cmd/）返回生产判据
+		"return authmodel.IsPlatformUser",               // 装配层 getter（cmd/）返回生产判据
 		"biz.SetPlatformResolver(d.PlatformResolver())", // authd 域 Wire 注入产物
 	} {
 		if !strings.Contains(src.String(), want) {

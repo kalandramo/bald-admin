@@ -15,7 +15,7 @@
 //     会固化 nil。不经 App.Resource：仓储非阶段 B Provider 产物，且 App 无
 //     运行期资源写入 API（setResources 未导出）；
 //   - 域间不互相 import：user 不消费 tenant 的 store/biz（租户隔离在 store 层
-//     P8 全局注册 bootstrap.store.RegisterTenant，与 tenant 域无关，租户内
+//     全局注册 bootstrap.store.RegisterTenant，与 tenant 域无关，租户内
 //     读写由 Where.T 自动完成）。若未来 X 域需要 Y 域的业务能力，经 Y 域包
 //     导出的访问器 + X 的 Deps getter 注入（域声明序保证 Y 的 Wire 先行），
 //     不 import 对方 biz 包构造第二份。

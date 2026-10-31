@@ -5,9 +5,9 @@
  */
 
 /**
- * Permission 权限点（注册表）。ID 即权限码（P9 归一化的 "object:action"，如
+ * Permission 权限点（注册表）。ID 即权限码（归一化的 "object:action"，如
  *  "tenant:list"），与 Role.Perms（CSV 角色权限绑定）同命名空间；MenuIDs 是该
- *  权限点对应的可见菜单（源 sys_permission_menus 关联表的内联精简）。
+ *  权限点对应的可见菜单（关联关系内联）。
  */
 export interface Permission {
   id?: string;

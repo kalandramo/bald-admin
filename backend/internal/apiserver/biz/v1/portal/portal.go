@@ -1,26 +1,24 @@
-// Package portal 是管理面聚合业务（，自 go-wind-admin admin 域
-// i_admin_portal.proto 精简移植，3 rpc）。
+// Package portal 是管理面聚合业务（3 个 rpc：路由表 / 权限码 / 初始化上下文）。
 //
 // ## 跨域聚合（本包存在的理由）
 //
 // 三个 rpc 都是**聚合视图**：把 user/role/permission/menu 四域数据拼成前端
-// 初始化所需的结构，无单一对标 biz。聚合链：
+// 初始化所需的结构，无单一对应 biz。聚合链：
 //
 //	User.Roles(角色名) → Role.Perms(权限码) → Permission.MenuIDs(菜单ID) → Menu 树
 //
-// ## 关键语义（对齐源 admin_portal_service.go）
+// ## 关键语义
 //
 //   - GetNavigation：当前用户可见的菜单树——**去 BUTTON 类型**、**只留 ON 状态**、
-//     按 Order 升序、ParentID 组树（源的 fillRouteItem 同语义）；
-//   - GetMyPermissionCode：当前用户的权限码列表（源同）；
-//   - GetInitialContext：两者合并（源同）。
+//     按 Order 升序、ParentID 组树；
+//   - GetMyPermissionCode：当前用户的权限码列表；
+//   - GetInitialContext：两者合并。
 //
-// ## 未移植项（称量）
+// ## 未实现项
 //
-// 源的 `filterMenusByPlanWhitelist`（按租户套餐白名单过滤菜单）**未移植**：
-// 本项目 plan_module 的 module 字段语义未对齐（源用枚举，本项目未落该字段），
-// 强行实现会造「无数据来源」的逻辑——违背「不造无消费者」原则。已在 proto
-// 头注记录。
+// 按租户套餐白名单过滤菜单**未实现**：本项目 plan_module 的 module 字段
+// 未落地，强行实现会造「无数据来源」的逻辑——违背「不造无消费者」原则。
+// 已在 proto 头注记录。
 package portal
 
 import (
@@ -79,7 +77,7 @@ func (b *Biz) permissionCodes(ctx context.Context, userID string) ([]string, err
 	for _, roleName := range u.RolesList() {
 		r, err := b.getRole(ctx, roleName)
 		if err != nil {
-			// 角色不存在不报错（用户可能引用了已删角色）——跳过，与源宽容语义一致。
+			// 角色不存在不报错（用户可能引用了已删角色）——跳过。
 			continue
 		}
 		for _, c := range r.PermsList() {

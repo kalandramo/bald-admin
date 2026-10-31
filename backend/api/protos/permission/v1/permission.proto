@@ -7,18 +7,18 @@ option go_package = "github.com/kalandramo/bald-admin/api/gen/go/permission/v1;p
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// PermissionService 权限管理服务（自 go-wind-admin permission 域精简移植）。
+// PermissionService 权限管理服务。
 //
 // 两块职责：
 //   1. 权限点注册表（Permission）：权限码 → 名称/菜单可见性关联
-//      （源 sys_permissions + sys_permission_menus 精简——关联内联为 MenuIDs CSV）；
+//      （关联内联为 MenuIDs CSV）；
 //   2. 角色策略（RolePolicy）：casbin p 行（role,object,action）的数据化持久层，
 //      重启生效（策略装载自本表）。
 // 管理面操作仅授予 admin 角色（策略本身也数据化于 RolePolicy 表）。
 service PermissionService {
   // GetPermission 取权限点。
   //   REST: GET /v1/permission/{id}
-  // 单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源（P9）。
+  // 单数路径段与 DefaultGRPCObject("PermissionService/...")="permission" 同源。
   rpc GetPermission(GetPermissionRequest) returns (GetPermissionResponse) {
     option (google.api.http) = {
       get: "/v1/permission/{id}"
@@ -85,13 +85,13 @@ service PermissionService {
   }
 }
 
-// Permission 权限点（注册表）。ID 即权限码（P9 归一化的 "object:action"，如
+// Permission 权限点（注册表）。ID 即权限码（归一化的 "object:action"，如
 // "tenant:list"），与 Role.Perms（CSV 角色权限绑定）同命名空间；MenuIDs 是该
-// 权限点对应的可见菜单（源 sys_permission_menus 关联表的内联精简）。
+// 权限点对应的可见菜单（关联关系内联）。
 message Permission {
   string id = 1;        // 权限码（主键，如 "tenant:list"）
   string name = 2;      // 权限名称（如 "列出租户"）
-  repeated string menu_ids = 3; // 可见菜单 ID（源 permission_menu 关联）
+  repeated string menu_ids = 3; // 可见菜单 ID
   string remark = 4;
 
   google.protobuf.Timestamp created_at = 100; // 创建时间
@@ -146,12 +146,12 @@ message DeletePermissionResponse {
   string deleted = 1; // 被删除的权限码
 }
 
-// RolePolicy 角色策略行（casbin p 行的数据化形态，源 sys_role_permissions 的
-// 精简等价物——bald 用 P9 归一化 object:action 而非源 path/method/domain）。
+// RolePolicy 角色策略行（casbin p 行的数据化形态——
+// 用归一化 object:action 而非 path/method/domain）。
 message RolePolicy {
   string id = 1;     // 行 ID（业务键 "role:object:action"）
   string role = 2;   // 角色（casbin subject，如 "admin"）
-  string object = 3; // 资源对象（P9 归一化，如 "tenant"）
+  string object = 3; // 资源对象（归一化，如 "tenant"）
   string action = 4; // 动作（get/list/write/delete）
 }
 

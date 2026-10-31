@@ -1,23 +1,18 @@
-// Package plan 实现套餐三件套域（，源 14 rpc）。
-//
-// 源：
-//   - `i_plan.proto`（5 rpc：List/Get/Create/Update/Delete）
-//   - `i_plan_module.proto`（5 rpc：List/Get/Create/Update/Delete）
-//   - `i_plan_quota.proto`（4 rpc：List/Create/Update/Delete，**无 Get**）
+// Package plan 实现套餐三件套域（14 个 rpc，分三个子资源）：
+//   - Plan（5 rpc：List/Get/Create/Update/Delete）
+//   - PlanModule（5 rpc：List/Get/Create/Update/Delete）
+//   - PlanQuota（4 rpc：List/Create/Update/Delete，**无 Get**）
 //
 // ## 级联语义（本域核心）
 //
 // 关系：`Plan` 1:N `PlanModule` / `PlanQuota`。
-// 源用 ent Edge + `OnDelete: entsql.Cascade`（`plan.go:93,100`）——
-// **删套餐时 DB 层自动级联删子表**（源 repo 的 `Delete` 只调
-// `DeleteOneID`，级联由 DB 完成，见 `plan_repo.go`）。
+// **删套餐时连带删除子表**：模块/配额行离开套餐后没有独立意义。
 //
 // 本项目无 ent，故在 biz 层**手工级联**：删 Plan 时先删其 modules/quotas
 // 再删自身（顺序重要：先子后父）——与 message 域 `DeleteMessage` 同款。
 //
 // **注意与 org/permgroup 的差异**：那两个域「有子节点时拒绝删除」，
-// 本域**级联删除**——因为源对 Plan 配的是 Cascade 而非 Restrict。
-// 语义不同是**源的差异**，不是实现随意。
+// 本域**级联删除**——子行是父行的强从属数据，不是可独立存在的实体。
 package plan
 
 import (
@@ -85,7 +80,7 @@ func planID(tenantID, code string) string { return tenantID + ":plan:" + code }
 
 // ---- Plan ----
 
-// CreatePlan 创建套餐（源 Create）。
+// CreatePlan 创建套餐。
 func (b *Biz) CreatePlan(ctx context.Context, tenantID, code string, p Plan) (*Plan, error) {
 	if p.Name == "" {
 		return nil, fmt.Errorf("%w: name required", ErrValidation)
@@ -111,7 +106,7 @@ func (b *Biz) CreatePlan(ctx context.Context, tenantID, code string, p Plan) (*P
 	return toPlan(m), nil
 }
 
-// GetPlan 按 id 查询（源 Get）。
+// GetPlan 按 id 查询。
 func (b *Biz) GetPlan(ctx context.Context, id string) (*Plan, error) {
 	m, err := b.planStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -122,7 +117,7 @@ func (b *Biz) GetPlan(ctx context.Context, id string) (*Plan, error) {
 	return toPlan(m), nil
 }
 
-// ListPlans 列出（源 List）。
+// ListPlans 列出。
 func (b *Biz) ListPlans(ctx context.Context, tenantID string) ([]Plan, error) {
 	w := &store.Where{}
 	if tenantID != "" {
@@ -139,7 +134,7 @@ func (b *Biz) ListPlans(ctx context.Context, tenantID string) ([]Plan, error) {
 	return out, nil
 }
 
-// UpdatePlan 更新（源 Update）。
+// UpdatePlan 更新。
 func (b *Biz) UpdatePlan(ctx context.Context, id string, p Plan) error {
 	m, err := b.planStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -171,11 +166,9 @@ func (b *Biz) UpdatePlan(ctx context.Context, id string, p Plan) error {
 	return nil
 }
 
-// DeletePlan 删除套餐（源 Delete）——**级联删子表**。
+// DeletePlan 删除套餐——**级联删子表**。
 //
-// 源语义：ent Edge 配 `OnDelete: entsql.Cascade`（`plan.go:93,100`），
-// 删 Plan 时 DB 自动删其 modules/quotas。
-// 本项目手工实现：**先删子（modules/quotas）、再删父**——顺序重要，
+// 级联在 biz 层手工实现：**先删子（modules/quotas）、再删父**——顺序重要，
 // 否则父删成功而子删除失败会留下悬挂引用。
 func (b *Biz) DeletePlan(ctx context.Context, id string) error {
 	// 1) 级联删 modules（集合删除：0 行是合法结果，Delete 现为幂等语义）。
@@ -209,7 +202,7 @@ func toPlan(m *authmodel.Plan) *Plan {
 
 // ---- PlanModule ----
 
-// CreateModule 给套餐加模块（源 Create）。
+// CreateModule 给套餐加模块。
 //
 // **父套餐必须存在**（避免悬挂引用）。
 func (b *Biz) CreateModule(ctx context.Context, tenantID, planID, module string) (*Module, error) {
@@ -236,7 +229,7 @@ func (b *Biz) CreateModule(ctx context.Context, tenantID, planID, module string)
 	return &Module{ID: m.ID, PlanID: m.PlanID, Module: m.Module}, nil
 }
 
-// ListModules 列出某套餐的模块（源 List）。
+// ListModules 列出某套餐的模块。
 func (b *Biz) ListModules(ctx context.Context, planID string) ([]Module, error) {
 	items, _, err := b.moduleStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("plan_id", planID)},
@@ -251,7 +244,7 @@ func (b *Biz) ListModules(ctx context.Context, planID string) ([]Module, error) 
 	return out, nil
 }
 
-// GetModule 按 id 查询（源 Get）。
+// GetModule 按 id 查询。
 func (b *Biz) GetModule(ctx context.Context, id string) (*Module, error) {
 	m, err := b.moduleStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -262,7 +255,7 @@ func (b *Biz) GetModule(ctx context.Context, id string) (*Module, error) {
 	return &Module{ID: m.ID, PlanID: m.PlanID, Module: m.Module}, nil
 }
 
-// UpdateModule 更新（源 Update）——模块标识可改。
+// UpdateModule 更新——模块标识可改。
 func (b *Biz) UpdateModule(ctx context.Context, id, module string) error {
 	if module == "" {
 		return fmt.Errorf("%w: module required", ErrValidation)
@@ -280,7 +273,7 @@ func (b *Biz) UpdateModule(ctx context.Context, id, module string) error {
 	return nil
 }
 
-// DeleteModule 删除模块（源 Delete）。
+// DeleteModule 删除模块。
 func (b *Biz) DeleteModule(ctx context.Context, id string) error {
 	if _, err := b.moduleStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -292,7 +285,7 @@ func (b *Biz) DeleteModule(ctx context.Context, id string) error {
 
 // ---- PlanQuota ----
 
-// CreateQuota 给套餐加配额（源 Create）。
+// CreateQuota 给套餐加配额。
 func (b *Biz) CreateQuota(ctx context.Context, tenantID, planID, quotaType string, value uint64) (*Quota, error) {
 	if planID == "" || quotaType == "" {
 		return nil, fmt.Errorf("%w: plan_id and quota_type required", ErrValidation)
@@ -317,7 +310,7 @@ func (b *Biz) CreateQuota(ctx context.Context, tenantID, planID, quotaType strin
 	return &Quota{ID: m.ID, PlanID: m.PlanID, QuotaType: m.QuotaType, QuotaValue: m.QuotaValue}, nil
 }
 
-// ListQuotas 列出某套餐的配额（源 List）。
+// ListQuotas 列出某套餐的配额。
 func (b *Biz) ListQuotas(ctx context.Context, planID string) ([]Quota, error) {
 	items, _, err := b.quotaStore.List(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("plan_id", planID)},
@@ -332,7 +325,7 @@ func (b *Biz) ListQuotas(ctx context.Context, planID string) ([]Quota, error) {
 	return out, nil
 }
 
-// UpdateQuota 更新配额值（源 Update）。
+// UpdateQuota 更新配额值。
 func (b *Biz) UpdateQuota(ctx context.Context, id string, value uint64) error {
 	m, err := b.quotaStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},
@@ -347,7 +340,7 @@ func (b *Biz) UpdateQuota(ctx context.Context, id string, value uint64) error {
 	return nil
 }
 
-// DeleteQuota 删除配额（源 Delete）。
+// DeleteQuota 删除配额。
 func (b *Biz) DeleteQuota(ctx context.Context, id string) error {
 	if _, err := b.quotaStore.Delete(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", id)},

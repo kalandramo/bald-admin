@@ -1,6 +1,6 @@
 package e2e
 
-// repos_test.go —— ：本包共享的仓储聚合句柄。
+// repos_test.go —— 本包共享的仓储聚合句柄。
 //
 // 背景：把 internal/bootstrap 的 26 个包级 store 变量收进 Repositories
 // 聚合，InitBridges 改签名返回 *Repositories。本包内 20+ 个测试 helper 都要

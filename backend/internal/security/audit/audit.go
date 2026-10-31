@@ -13,15 +13,15 @@ import (
 	"github.com/kalandramo/bald/pkg/audit"
 )
 
-// ---- 当前生效审计器（B8 适配：框架全局 audit.SetAuditor/GetAuditor 已删除） ----
+// ---- 当前生效审计器（生效集由本包自持） ----
 //
 // 原「契约轨 SetAuditor + R1-2 协调轨热切 + 中间件动态转发」的进程级全局由
 // 本应用自持（API 形状与原全局一致：Set/Current）。GlobalAuditor 每次转发
 // Current()，「中间件构造时刻」与「后端装配时刻」的解耦语义不变。
 
 var (
-	currentMu   sync.RWMutex
-	currentAud  audit.Auditor = audit.NopAuditor()
+	currentMu  sync.RWMutex
+	currentAud audit.Auditor = audit.NopAuditor()
 )
 
 // SetCurrent 注入当前生效审计器（传 nil 回退 nop）。

@@ -1,8 +1,8 @@
 package e2e
 
-// t_w6_2_cache_monitor_e2e_test.go —— ：Redis 缓存监控（1 rpc）。
+// t_w6_2_cache_monitor_e2e_test.go —— Redis 缓存监控（1 rpc）。
 //
-// ## fail-soft 语义（对齐源 redis_cache_monitor_repo.go）
+// ## fail-soft 语义
 //
 // 三个只读命令（INFO/DBSIZE/SLOWLOG GET）**任一失败不阻断其余**；Redis 不可用
 // 返回**空视图**（非错误）——避免单点故障导致整个监控页不可用。

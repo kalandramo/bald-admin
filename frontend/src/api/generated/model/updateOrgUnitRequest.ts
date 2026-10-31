@@ -6,6 +6,14 @@
 import type { UpdateOrgUnitRequestStatus } from './updateOrgUnitRequestStatus.ts';
 import type { UpdateOrgUnitRequestType } from './updateOrgUnitRequestType.ts';
 
+/**
+ * UpdateOrgUnitRequest 更新组织单元入参。
+ *
+ *  **校验语义与 Create 的关键差异**：更新采用「非空字段即更新」语义，name 为空
+ *  表示「不改」——故 name **只加 max_len、不加 min_len**（加 min_len 会把
+ *  「只改其他字段、不传 name」这种正常操作误判为非法）。code 是路径参数定位，
+ *  同样不强制非空（路由保证非空段）。
+ */
 export interface UpdateOrgUnitRequest {
   code?: string;
   name?: string;

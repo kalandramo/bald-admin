@@ -8,9 +8,9 @@
 # 业务段（本文件的 file / login / gateway）与框架段共存。代价是无法区分
 # 「合法业务段」与「拼错的契约字段」——两者都被丢弃。
 #
-# 已有真实案例：本文件原先写作 `log: { level, format }`，而契约字段名是
-# `logger`，且 level/format 属于 `logger.backends[].slog`。整段被丢弃，
-# 日志实际一直用契约默认 `format=console`，配置看起来生效实则从未生效。
+# 典型错误：写作 `log: { level, format }`——契约字段名是 `logger`，且
+# level/format 属于 `logger.backends[].slog`；整段会被静默丢弃，日志回退
+# 契约默认 `format=console`。
 #
 # 改动配置前，请对照契约顶层字段名（共 15 个，缺一即拼错）：
 #   app  server  config  registry  logger  tracer  metrics  broker  storage
@@ -21,12 +21,11 @@
 # =============================================================================
 
 # ---- 应用元数据（契约 app 段）----
-# 这些值原写在代码里（cmd/bald-admin/app/assembly.go），现由本段驱动。
-# 缺省时回退契约内置值（app.name="bald-app" / version="v0.0.0" /
+# app 段驱动服务元数据。缺省时回退契约内置值（app.name="bald-app" / version="v0.0.0" /
 # stop_timeout=30s），故**建议显式声明**以免服务身份与预期不符。
 #
 # 注意 app.name 是**服务身份**（日志 attrs / 注册中心实例名），
-# 决定 env 前缀（BALD_ADMIN_*）——B6 起 env 前缀由本字段派生（两遍合并，缺失启动 fail-fast）。
+# 决定 env 前缀（BALD_ADMIN_*）——env 前缀由本字段派生（两遍合并，缺失启动 fail-fast）。
 app:
   name: "bald-admin"
   version: "v0.1.0"
@@ -40,7 +39,7 @@ server:
     addr: ":8080"
     # ---- 中间件段（契约 server.http.middleware.*）----
     # 由 bundle.FromMiddleware 翻译为 gin 中间件链（见 cmd/bald-admin/app/assembly.go）。
-    # 该段此前**零消费者**（配置写了不生效），现已在生产装配路径接通。
+    # 该段在生产装配路径生效（改动即生效）。
     #
     # 缺省语义（不写本段时的行为）：
     #   - recovery / request_id / logging：**本就默认开启**（bundle 链无条件挂载），
@@ -76,11 +75,10 @@ server:
   grpc:
     addr: ":9090"
 
-  # ---- Wave 4：协议服务器的契约装配（asynq / cron / gateway）----
+  # ---- 协议服务器的契约装配（asynq / cron / gateway）----
   #
-  # 三者原本走 appkit.WithExtraServers / WithExtraServerFunc 逃生舱；
-  # Wave 4 起由本仓注册的 provider 覆盖（见 cmd/bald-admin/app/registries.go
-  # 的 serverRegistry），改由契约段驱动。
+  # 三者由本仓注册的 provider 提供（见 cmd/bald-admin/app/registries.go
+  # 的 serverRegistry），契约段驱动。
   #
   # gateway：grpc-gateway REST 转码面（独立端口）。backend_grpc_addr 留空时
   # 回退 server.grpc.addr。
@@ -90,8 +88,7 @@ server:
 
   # asynq：任务队列（需 Redis）。redis_address 留空时回退
   #   env BALD_ADMIN_REDIS_ADDR > 契约段 cache.redis（保既有部署兼容）。
-  # concurrency 缺省时用 asynq 实现默认（20）——此前硬编码为 4，故此处显式
-  # 写 4 以保持行为等价（迁移不引入并发度变更）。
+  # concurrency 缺省时用 asynq 实现默认（20）；本示例显式设为 4。
   asynq:
     concurrency: 4
     # codec: "json"                # 留空回退 env BALD_ADMIN_ASYNQ_CODEC
@@ -105,9 +102,9 @@ server:
 
 # 日志（契约字段名是 `logger`，非 `log`）
 #
-# ⚠️ 本段原先写作 `log: { level, format }` —— **双重错误**：键名应为 `logger`，
-# 且 level/format 属于 backends[].slog 而非顶层。该写法下整段被 DiscardUnknown
-# 丢弃，日志实际一直用契约默认（format=console），配置看起来生效实则无声失效。
+# ⚠️ 段名必须是 `logger`；level/format 属于 `backends[].slog` 而非顶层。写成
+# `log` 或把 level/format 放在顶层时，整段会被 DiscardUnknown 丢弃，日志回退
+# 契约默认（format=console）。
 logger:
   # 全局脱敏 key 清单：命中 key 的属性值统一替换为 ***（属性保留不丢弃）。
   # 覆盖**位置参数对**（Info(ctx, "password", v)）与 **ctx 属性流**两类来源，
@@ -140,7 +137,7 @@ audit:
     stream: "audit.events"
     buffer: 1024
 
-# ---- T0 新增：真实服务依赖（云端地址由用户填写）----
+# ---- 真实服务依赖（云端地址由用户填写）----
 # 注：本段与 cache 段的 env 用的是**短名**（BALD_ADMIN_DB_DSN /
 # BALD_ADMIN_REDIS_ADDR），与 metrics/tracer 的路径名（BALD_ADMIN_METRICS_*）
 # 不同。这是框架既有设计：短名由 `contrib/store-gorm` 的 `WithEnv` 与
@@ -204,7 +201,7 @@ config:
     username: "<NACOS_USERNAME>"   # 服务端开启鉴权时必填
     password: "<NACOS_PASSWORD>"
 
-# ---- T9 新增：可观测性（tracer/metrics 契约段）----
+# ---- 可观测性（tracer/metrics 契约段）----
 # ⚠️ **热更新支持矩阵**（列举即全，其余契约段均支持热更新）：
 #   registry / tracer / metrics —— 本段**不支持热更新**，改动需重启进程生效。
 #   原因：registry 客户端重建侵入性大；tracer/metrics 的导出器已持有连接与
@@ -235,10 +232,10 @@ metrics:
   # 优先级：**env 路径名 > 本文件 > 内置缺省**。env 层在合并时最后叠加，
   # 故「环境变量说开了」胜过「配置文件说没开」。
   #
-  # ⚠️ 历史短名 BALD_ADMIN_METRICS_ADDR / BALD_ADMIN_OTLP_ADDR **已退役**——
-  # 它们被 env 层截获成 `metrics.addr`/`metrics.otlp`（契约无此键，被
+  # ⚠️ 短名 BALD_ADMIN_METRICS_ADDR / BALD_ADMIN_OTLP_ADDR **不可用**——
+  # 它们会被 env 层截获成 `metrics.addr`/`metrics.otlp`（契约无此键，被
   # DiscardUnknown 丢弃），且应用层注入发生在契约装载之前、必被本文件覆盖，
-  # 净效果是「配了本段则 env 静默失效」且无提示。请改用上面的路径名。
+  # 净效果是「配了本段则 env 静默失效」且无提示。请使用上面的路径名。
   #
   # 本段**整段缺省**时合成 type: prometheus（仅本地抓取，addr 走框架缺省
   # :9091，零配置可运行）。
@@ -258,14 +255,14 @@ biz:
   audit:
     fallback_tenant: "t-default"
 
-  # ---- Wave 1a：登录限流（业务自持段）----
+  # ---- 登录限流（业务自持段）----
   # 与框架契约的 server.http.middleware.rate_limit 是**两个层次**：
   #   - 契约段（server.http.middleware.rate_limit）是**中间件级**限流，现已实现并
   #     接通（按 IP/全局维度拦流量，见上）；
   #   - 本段是**业务级**限流，作用于「登录尝试」这一具体业务动作（可按用户名等
   #     业务维度计数），故仍由业务自持配置。
-  # 未配置（或 rate/burst 非正）→ 禁用态：不阻断登录（fail-open，对齐源项目
-  # LoginRateLimiter 的语义——限流是防御性增强，不应因组件故障导致登录不可用）。
+  # 未配置（或 rate/burst 非正）→ 禁用态：不阻断登录（fail-open——
+  # 限流是防御性增强，不应因组件故障导致登录不可用）。
   # 限流在凭据校验**之前**生效（先拦流量再做昂贵 bcrypt 比较）。
   # 超限返回 HTTP 429 + reason="auth/rate_limited"。
   #
@@ -277,7 +274,7 @@ biz:
     rate_limit:
       rate: 1      # 每秒补充令牌数（rate=1 → 约每秒放行 1 次尝试）
       burst: 5     # 突发容量（首次可连续尝试次数）
-    # Wave 1b：登录 DB 查询熔断（可选，整段缺省即禁用）。
+    # 登录 DB 查询熔断（可选，整段缺省即禁用）。
     # 意义：DB 故障时快速失败（HTTP 503），避免所有登录请求都卡在超时上（雪崩）。
     # 用 hystrix（阈值式）：默认 Closed 全放行，达阈值才 Open；Open 后 sleep_window
     # 过则转半开放一个探针请求。**只对真故障计数**——用户不存在（NotFound）是正常
@@ -286,7 +283,7 @@ biz:
     #   error_threshold: 0.5        # 错误率阈值（0-1），default 0.5
     #   request_volume: 20          # 最小请求量（低于此不评估），default 20
     #   sleep_window_seconds: 5     # Open 后多久转半开（秒），default 5
-    # Wave 1c：登录 DB 查询重试（可选，整段缺省即禁用 = 单次查询）。
+    # 登录 DB 查询重试（可选，整段缺省即禁用 = 单次查询）。
     # 与熔断组合：retry 处理偶发抖动（重试可恢复），熔断处理持续故障（快速失败）。
     # 分类器固定为「只重试瞬时故障」——不重试 ErrNotFound（确定性业务结果，
     # 重试只是浪费 DB 往返并拖慢响应）。
@@ -295,7 +292,7 @@ biz:
     #   initial_backoff_ms: 200     # 首次退避（毫秒），default 200
     #   max_backoff_ms: 10000       # 退避上限（毫秒），default 10000
 
-  # ---- Wave 1d：认证令牌生命周期（业务自持段）----
+  # ---- 认证令牌生命周期（业务自持段）----
   # Logout 吊销名单与 RefreshToken 刷新令牌存储在 Redis（复用 cache.redis 连接）。
   # **Redis 不可用时自动降级**（不是 fail-fast，因为核心登录仍可用）：
   #   - Logout 记日志不吊销（JWT 无状态，无存储则无法收回）；

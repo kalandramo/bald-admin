@@ -1,7 +1,7 @@
-// Package menu 是菜单管理业务（自 go-wind-admin permission 域 sys_menus 精简移植）。
+// Package menu 是菜单管理业务。
 //
 // 平台侧管理面：本表（model.Menu）无 TenantID 字段，查询不调 Where.T——
-// P8 隔离对菜单管理面天然不生效，全量读写即平台语义（同 Tenant Biz）。
+// 租户隔离对菜单管理面天然不生效，全量读写即平台语义（同 Tenant Biz）。
 // 授权约束（仅 admin 可操作）在中间件层经 casbin 策略完成，biz 不感知角色。
 package menu
 
@@ -36,8 +36,8 @@ func (b *Biz) Get(ctx context.Context, id string) (*authmodel.Menu, error) {
 	return m, nil
 }
 
-// ListTree 返回菜单树：全表读出后内存组树（源 pagination.BuildTree 同语义：
-// 根 = ParentID 空，孤儿节点跳过），各层按 Order 升序稳定排序，返回根数组。
+// ListTree 返回菜单树：全表读出后内存组树（根 = ParentID 空，孤儿节点跳过），
+// 各层按 Order 升序稳定排序，返回根数组。
 // total 为全部节点数（含子孙）。
 func (b *Biz) ListTree(ctx context.Context) ([]*authmodel.Menu, int, error) {
 	ms, _, err := b.store.List(ctx, &store.Where{})
@@ -157,8 +157,8 @@ func (b *Biz) Update(ctx context.Context, id, parentID, typ, name, path, compone
 	return m, nil
 }
 
-// Delete 删除菜单节点（级联删子树——源 QueryAllChildrenIds 语义：全表读出后
-// BFS 收集子孙 ID 逐个删除）。返回实际删除数。
+// Delete 删除菜单节点（级联删子树：全表读出后 BFS 收集子孙 ID 逐个删除）。
+// 返回实际删除数。
 func (b *Biz) Delete(ctx context.Context, id string) (int, error) {
 	all, _, err := b.store.List(ctx, &store.Where{})
 	if err != nil {
@@ -187,8 +187,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (int, error) {
 }
 
 // buildTree 两遍 O(n) 组树：map 索引 → 挂父子；孤儿节点跳过（父不存在不进结果）；
-// 各层按 Order 升序稳定排序（源项目展示顺序由 meta.order 控制，BuildTree 不排序、
-// 本实现在内存统一排，输出确定）。
+// 各层按 Order 升序稳定排序（组树本身不排序，本实现在内存统一排，输出确定）。
 func buildTree(ms []*authmodel.Menu) []*authmodel.Menu {
 	byID := make(map[string]*authmodel.Menu, len(ms))
 	for _, m := range ms {
@@ -203,7 +202,7 @@ func buildTree(ms []*authmodel.Menu) []*authmodel.Menu {
 		if p, ok := byID[m.ParentID]; ok {
 			p.Children = append(p.Children, m)
 		}
-		// 孤儿（父不在表中）跳过——源 BuildTree 同语义。
+		// 孤儿（父不在表中）跳过。
 	}
 	var sortLevel func(nodes []*authmodel.Menu)
 	sortLevel = func(nodes []*authmodel.Menu) {

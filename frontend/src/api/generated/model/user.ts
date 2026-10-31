@@ -6,7 +6,7 @@
 
 /**
  * User 用户。ID 为业务编码（如 "u-admin"）；tenant_id 不在此消息中——
- *  由 bald P8 从上下文注入（写）与过滤（读），客户端不可指定。
+ *  由 store 层从上下文注入（写）与过滤（读），客户端不可指定。
  */
 export interface User {
   id?: string;

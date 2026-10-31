@@ -11,8 +11,8 @@ package permgroup
 // 后果：连续两次 RecordEvaluation 落在同一时钟粒度内 → 主键相同 →
 // `store: unique constraint conflict` → 审计日志丢失（生产环境为静默丢日志）。
 //
-// macOS 的时钟粒度更细，故该缺陷在上一台设备（macOS + Docker）被掩盖，
-// 在 Windows 上才暴露（e2e `TestWave4_1_EvalLogRead` FAIL）。
+// macOS 的时钟粒度更细，故该缺陷在 macOS + Docker 环境下会被掩盖，
+// 在 Windows 上才暴露。
 //
 // ## 不变量
 //

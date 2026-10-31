@@ -6,7 +6,7 @@ import "time"
 type User struct {
 	ID           string `gorm:"primaryKey"`  // 用户 ID（如 u-admin）
 	Username     string `gorm:"uniqueIndex"` // 登录名
-	PasswordHash string // bcrypt 哈希（M3 起，MVP 明文阶段已废弃）
+	PasswordHash string // bcrypt 密码哈希
 	TenantID     string `gorm:"index"`
 	Roles        string // 逗号分隔角色名，如 "admin" 或 "viewer"
 	// 时间戳由 GORM 约定自动维护（CreatedAt 插入、UpdatedAt 每次更新）；对外暴露。

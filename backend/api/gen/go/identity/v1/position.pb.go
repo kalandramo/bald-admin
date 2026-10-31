@@ -28,8 +28,8 @@ type Position_Status int32
 
 const (
 	Position_STATUS_UNSPECIFIED Position_Status = 0 // 未指定
-	Position_STATUS_ON          Position_Status = 1 // 启用（源 Status.ON）
-	Position_STATUS_OFF         Position_Status = 2 // 禁用（源 Status.OFF）
+	Position_STATUS_ON          Position_Status = 1 // 启用
+	Position_STATUS_OFF         Position_Status = 2 // 禁用
 )
 
 // Enum value maps for Position_Status.
@@ -77,12 +77,12 @@ type Position_Type int32
 
 const (
 	Position_TYPE_UNSPECIFIED Position_Type = 0   // 未指定
-	Position_TYPE_REGULAR     Position_Type = 1   // 普通职位（源 REGULAR）
-	Position_TYPE_LEADER      Position_Type = 2   // 领导职位（源 LEADER）
-	Position_TYPE_MANAGER     Position_Type = 3   // 管理职位（源 MANAGER）
-	Position_TYPE_INTERN      Position_Type = 4   // 实习职位（源 INTERN）
-	Position_TYPE_CONTRACT    Position_Type = 5   // 合同职位（源 CONTRACT）
-	Position_TYPE_OTHER       Position_Type = 100 // 其他职位（源 OTHER）
+	Position_TYPE_REGULAR     Position_Type = 1   // 普通职位
+	Position_TYPE_LEADER      Position_Type = 2   // 领导职位
+	Position_TYPE_MANAGER     Position_Type = 3   // 管理职位
+	Position_TYPE_INTERN      Position_Type = 4   // 实习职位
+	Position_TYPE_CONTRACT    Position_Type = 5   // 合同职位
+	Position_TYPE_OTHER       Position_Type = 100 // 其他职位
 )
 
 // Enum value maps for Position_Type.
@@ -138,7 +138,7 @@ func (Position_Type) EnumDescriptor() ([]byte, []int) {
 type Position struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	Id                    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                                         // 完整主键 "<tenant>:pos:<code>"（**只读**）
-	Code                  string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`                                                                     // 唯一编码（业务键，源 code）
+	Code                  string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`                                                                     // 唯一编码（业务键）
 	Name                  string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`                                                                     // 职位名称
 	Headcount             int32                  `protobuf:"varint,4,opt,name=headcount,proto3" json:"headcount,omitempty"`                                                          // 编制人数（0 = 无限制）
 	SortOrder             int32                  `protobuf:"varint,5,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`                                         // 排序（值越小越靠前）

@@ -19,8 +19,7 @@ import { request } from '../../http/axios.ts';
 
 
   /**
- * ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过——
- *  源项目 pagination.BuildTree 同语义）。
+ * ListMenus 列出菜单树（根节点数组，children 递归嵌套；孤儿节点跳过）。
  *    REST: GET /v1/menu
  */
 export const menuServiceListMenus = (
@@ -32,7 +31,7 @@ export const menuServiceListMenus = (
       );
     }
   /**
- * CreateMenu 创建菜单节点（parent_id 空 = 根节点；源 parent_id=0 语义）。
+ * CreateMenu 创建菜单节点（parent_id 空 = 根节点）。
  *    REST: POST /v1/menu
  */
 export const menuServiceCreateMenu = (
@@ -48,7 +47,7 @@ export const menuServiceCreateMenu = (
   /**
  * GetMenu 取菜单节点。
  *    REST: GET /v1/menu/{id}
- *  单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（P9 策略单写）。
+ *  单数路径段与 DefaultGRPCObject("MenuService/...")="menu" 同源（策略单写）。
  */
 export const menuServiceGetMenu = (
     id: string,
@@ -74,7 +73,7 @@ export const menuServiceUpdateMenu = (
       );
     }
   /**
- * DeleteMenu 删除菜单节点（递归级联删除子树——源 QueryAllChildrenIds 语义）。
+ * DeleteMenu 删除菜单节点（递归级联删除子树）。
  *    REST: DELETE /v1/menu/{id}
  */
 export const menuServiceDeleteMenu = (

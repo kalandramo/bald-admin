@@ -1,7 +1,4 @@
-// Package dashboard 实现后台首页分析域的只读聚合统计（，源 4 rpc）。
-//
-// 源实现：`go-wind-admin/backend/app/admin/service/internal/service/dashboard_service.go`
-// + `data/dashboard_repo.go`。4 条 rpc：
+// Package dashboard 实现后台首页分析域的只读聚合统计（4 个 rpc）：
 //
 //   - GetOverview                  四张概览卡计数（用户/角色/今日登录/今日操作）
 //   - GetLoginTrend                近 N 天每日登录次数（**按日期升序、缺日补零**）
@@ -11,9 +8,8 @@
 // ## 数据来源（**不新建表**）
 //
 // 本项目已有 `AuditRecord`（`model/audit.go`），其 `Category` 字段区分
-// `"login"`（登录动作）与 `"operation"`（拦截器链）——**恰好覆盖源的
-// LoginAuditLog / OperationAuditLog 双表语义**（源用双表，本项目单表 + Category）。
-// 故本域是**纯读聚合**，零新增存储。
+// `"login"`（登录动作）与 `"operation"`（拦截器链）——一张表覆盖登录审计与
+// 操作审计两类数据。故本域是**纯读聚合**，零新增存储。
 //
 // ## 多租户语义（**注意差异**）
 //
@@ -49,7 +45,7 @@ func New(as *store.Store[authmodel.AuditRecord], rs *store.Store[authmodel.Role]
 	return &Biz{auditStore: as, roleStore: rs, userStore: us}
 }
 
-// Overview 是概览卡数据（源 DashboardOverviewResponse）。
+// Overview 是概览卡数据。
 type Overview struct {
 	UserCount           int64 `json:"user_count"`
 	RoleCount           int64 `json:"role_count"`
@@ -57,13 +53,13 @@ type Overview struct {
 	TodayOperationCount int64 `json:"today_operation_count"`
 }
 
-// TrendPoint 是趋势图上的一个点（源 TrendPoint）。
+// TrendPoint 是趋势图上的一个点。
 type TrendPoint struct {
 	Date  string `json:"date"` // "2006-01-02"
 	Count int64  `json:"count"`
 }
 
-// DistributionItem 是分布图的一项（源 DistributionItem）。
+// DistributionItem 是分布图的一项。
 type DistributionItem struct {
 	Label string `json:"label"`
 	Count int64  `json:"count"`
@@ -71,16 +67,15 @@ type DistributionItem struct {
 
 // dayStart 返回 t 所在自然日的 0 点（本地时区）。
 //
-// 源用 `time.Local`（`dashboard_repo.go` 的 `loc := time.Local`）——
 // 「今日」按服务器本地时区切分，而非 UTC。
 func dayStart(t time.Time) time.Time {
 	y, m, d := t.Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
 }
 
-// GetOverview 返回四张概览卡的计数（源 GetOverview）。
+// GetOverview 返回四张概览卡的计数。
 func (b *Biz) GetOverview(ctx context.Context, tenantID string) (*Overview, error) {
-	// 1) 活跃用户数（源 CountActiveUsers）。
+	// 1) 活跃用户数。
 	userWhere := &store.Where{}
 	if tenantID != "" {
 		userWhere.Filters = append(userWhere.Filters, store.Eq("tenant_id", tenantID))
@@ -90,7 +85,7 @@ func (b *Biz) GetOverview(ctx context.Context, tenantID string) (*Overview, erro
 		return nil, fmt.Errorf("dashboard: count users: %w", err)
 	}
 
-	// 2) 角色数（源 CountRoles）。角色是全局的（无 TenantID 字段）。
+	// 2) 角色数。角色是全局的（无 TenantID 字段）。
 	roleCount, err := b.roleStore.Count(ctx, &store.Where{})
 	if err != nil {
 		return nil, fmt.Errorf("dashboard: count roles: %w", err)
@@ -134,14 +129,14 @@ func (b *Biz) countTodayByCategory(ctx context.Context, tenantID string, start, 
 	return login, operation, nil
 }
 
-// GetLoginTrend 返回近 days 天每日登录次数（源 GetLoginTrend）。
+// GetLoginTrend 返回近 days 天每日登录次数。
 //
-// **核心语义（源注释原话）**：「按日期升序、**缺日补零**」——
+// **核心语义**：按日期升序、**缺日补零**——
 // 没有任何登录的日子也必须出现在结果里（count=0），否则前端趋势图会断线。
 // 这是本域最容易漏的细节，e2e 专门锁住。
 func (b *Biz) GetLoginTrend(ctx context.Context, tenantID string, days int) ([]TrendPoint, error) {
 	if days <= 0 {
-		days = 7 // 源默认 7 天
+		days = 7 // 默认 7 天
 	}
 
 	records, err := b.auditRecords(ctx, tenantID)

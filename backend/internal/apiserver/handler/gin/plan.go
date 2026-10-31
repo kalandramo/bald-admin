@@ -1,4 +1,4 @@
-// Package gin 提供套餐三件套的 HTTP handler（，源 14 rpc）。
+// Package gin 提供套餐三件套的 HTTP handler。
 package gin
 
 import (
@@ -86,7 +86,7 @@ func RegisterPlan(
 		c.JSON(http.StatusOK, gingonic.H{"message": "updated"})
 	})
 
-	// 删除套餐 —— **级联删其 modules/quotas**（源 ent Cascade 语义）。
+	// 删除套餐 —— **级联删其 modules/quotas**。
 	authed.DELETE("/plans/:id", authzMW, func(c *gingonic.Context) {
 		if err := biz.DeletePlan(c.Request.Context(), c.Param("id")); err != nil {
 			writePlanErr(c, err)
@@ -114,7 +114,7 @@ func RegisterPlan(
 		c.JSON(http.StatusCreated, res)
 	})
 
-	// 列表按 plan_id 过滤（源 List 同语义）。
+	// 列表按 plan_id 过滤。
 	authed.GET("/plan-modules", authzMW, func(c *gingonic.Context) {
 		items, err := biz.ListModules(c.Request.Context(), c.Query("plan_id"))
 		if err != nil {
@@ -156,7 +156,7 @@ func RegisterPlan(
 		c.JSON(http.StatusOK, gingonic.H{"message": "deleted"})
 	})
 
-	// ---- PlanQuota（源无 Get，只有 List/Create/Update/Delete）----
+	// ---- PlanQuota（无 Get，只有 List/Create/Update/Delete）----
 
 	authed.POST("/plan-quotas", authzMW, func(c *gingonic.Context) {
 		var req struct {

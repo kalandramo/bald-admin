@@ -1,12 +1,10 @@
 package model
 
-// PermissionGroup 权限组（，自源 permission_group.proto 精简移植）。
+// PermissionGroup 权限组。
 //
-// **树形结构**：源用物化路径（materialized path）——`Path` 格式
-// `/1/10/101/`（**含自身、首尾带 `/`**，见 `permission_group.proto:53-56`
-// 的 description 原文）。本项目 org 域已有同构实现（`model/org.go` 的
-// `Path`），此处**对齐源的格式**（首尾带 `/`），而非照搬 org 的无尾形式——
-// 复刻任务以源为准。
+// **树形结构**：用物化路径（materialized path）——`Path` 格式
+// `/1/10/101/`（**含自身、首尾带 `/`**）。org 域的 `Path`（`model/org.go`）
+// 同为物化路径但无尾斜杠；本模型统一用首尾带 `/` 的格式。
 type PermissionGroup struct {
 	ID       string `gorm:"primaryKey"` // "<tenant>:pg:<code>"
 	TenantID string `gorm:"index"`
@@ -18,19 +16,19 @@ type PermissionGroup struct {
 	Module string `gorm:"index"`
 	// ParentID 父节点 ID（空 = 根节点）。
 	ParentID string `gorm:"index"`
-	// Status ON / OFF（源枚举 Status: OFF=0, ON=1）。
+	// Status ON / OFF。
 	Status string
-	// SortOrder 排序（源 sort_order）。
+	// SortOrder 排序。
 	SortOrder int32
 	// Remark 备注。
 	Remark string
 }
 
-// PolicyEvaluationLog 策略评估日志（，自源 policy_evaluation_log.proto 精简）。
+// PolicyEvaluationLog 策略评估日志。
 //
 // 语义：每次权限判定（casbin 评估）落一条——记录「谁、对什么、请求哪个 API、
-// 结果如何、为何拒绝」。源的字段已精简为项目实际可得的数据
-// （本项目 ID 用字符串业务键，源用 uint32 自增）。
+// 结果如何、为何拒绝」。字段只保留项目实际可得的数据
+// （ID 用字符串业务键）。
 type PolicyEvaluationLog struct {
 	ID       string `gorm:"primaryKey"` // "<tenant>:pel:<seq>"
 	TenantID string `gorm:"index"`
@@ -44,11 +42,11 @@ type PolicyEvaluationLog struct {
 	RequestPath string
 	// RequestMethod 请求 HTTP 方法。
 	RequestMethod string
-	// Result 是否通过（源 bool result）。
+	// Result 是否通过。
 	Result bool `gorm:"index"`
 	// EffectDetails 评估详情 / 拒绝原因。
 	EffectDetails string
-	// ScopeSQL 生成的 SQL 条件（源的 scope_sql，本项目保留字段）。
+	// ScopeSQL 生成的 SQL 条件。
 	ScopeSQL string
 	// CreatedAt 评估时刻（UnixNano）。
 	CreatedAt int64 `gorm:"index"`

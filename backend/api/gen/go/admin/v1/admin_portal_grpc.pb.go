@@ -28,28 +28,22 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AdminPortalService 后台前端初始化数据与配置服务（自 go-wind-admin
-// admin 域 i_admin_portal.proto 精简移植，3 rpc）。
+// AdminPortalService 后台前端初始化数据与配置服务（3 个 rpc）。
 //
-// ## 为何是真新增
+// 本 service **不 import** 其他业务域的消息类型——三个 rpc 全是**跨域聚合**：
+// 把 user/role/permission/menu 四域的数据拼成前端初始化所需的视图，无单一对标 biz。
 //
-// 本 service **不 import** 其他业务域的消息类型（源仅 import menu.proto 作
-// MenuRouteItem 复用）——三个 rpc 全是**跨域聚合**：把 user/role/permission/menu
-// 四域的数据拼成前端初始化所需的视图，无单一对标 biz。
-//
-// ## 聚合链（源 admin_portal_service.go 实测）
+// ## 聚合链
 //
 //	User.Roles(角色名) → Role.Perms(权限码) → Permission.MenuIDs(菜单ID) → Menu 树
 //
 // 即「当前登录用户 → 其角色 → 角色权限码 → 权限点关联的菜单 → 过滤出路由」。
 //
-// ## 与源的差异
+// ## 设计说明
 //
-// 源的 `MenuRouteItem` 复用 permission 域消息（含 meta 嵌套对象）；本项目 Menu
-// model 已内联 Title/Icon/Order（见 model/menu.go），故 MenuRouteItem 在本域
-// 重新定义为扁平结构。源的套餐模块白名单过滤（filterMenusByPlanWhitelist）
-// 未移植——本项目 plan_module 的 module 字段语义未对齐（源用枚举，本项目
-// 未落该字段），强行实现会造无数据来源的逻辑。
+// `MenuRouteItem` 在本域重新定义为扁平结构（不复用 permission 域消息）：本项目
+// Menu model 已内联 Title/Icon/Order（见 model/menu.go）。套餐白名单过滤未实现
+// ——plan_module 的 module 字段语义未落，强行实现会造无数据来源的逻辑。
 type AdminPortalServiceClient interface {
 	// GetNavigation 查询前端路由表（当前用户可见的菜单树，去 BUTTON 类型）。
 	//   REST: GET /admin/v1/routes
@@ -104,28 +98,22 @@ func (c *adminPortalServiceClient) GetInitialContext(ctx context.Context, in *Ge
 // All implementations must embed UnimplementedAdminPortalServiceServer
 // for forward compatibility.
 //
-// AdminPortalService 后台前端初始化数据与配置服务（自 go-wind-admin
-// admin 域 i_admin_portal.proto 精简移植，3 rpc）。
+// AdminPortalService 后台前端初始化数据与配置服务（3 个 rpc）。
 //
-// ## 为何是真新增
+// 本 service **不 import** 其他业务域的消息类型——三个 rpc 全是**跨域聚合**：
+// 把 user/role/permission/menu 四域的数据拼成前端初始化所需的视图，无单一对标 biz。
 //
-// 本 service **不 import** 其他业务域的消息类型（源仅 import menu.proto 作
-// MenuRouteItem 复用）——三个 rpc 全是**跨域聚合**：把 user/role/permission/menu
-// 四域的数据拼成前端初始化所需的视图，无单一对标 biz。
-//
-// ## 聚合链（源 admin_portal_service.go 实测）
+// ## 聚合链
 //
 //	User.Roles(角色名) → Role.Perms(权限码) → Permission.MenuIDs(菜单ID) → Menu 树
 //
 // 即「当前登录用户 → 其角色 → 角色权限码 → 权限点关联的菜单 → 过滤出路由」。
 //
-// ## 与源的差异
+// ## 设计说明
 //
-// 源的 `MenuRouteItem` 复用 permission 域消息（含 meta 嵌套对象）；本项目 Menu
-// model 已内联 Title/Icon/Order（见 model/menu.go），故 MenuRouteItem 在本域
-// 重新定义为扁平结构。源的套餐模块白名单过滤（filterMenusByPlanWhitelist）
-// 未移植——本项目 plan_module 的 module 字段语义未对齐（源用枚举，本项目
-// 未落该字段），强行实现会造无数据来源的逻辑。
+// `MenuRouteItem` 在本域重新定义为扁平结构（不复用 permission 域消息）：本项目
+// Menu model 已内联 Title/Icon/Order（见 model/menu.go）。套餐白名单过滤未实现
+// ——plan_module 的 module 字段语义未落，强行实现会造无数据来源的逻辑。
 type AdminPortalServiceServer interface {
 	// GetNavigation 查询前端路由表（当前用户可见的菜单树，去 BUTTON 类型）。
 	//   REST: GET /admin/v1/routes

@@ -8,13 +8,13 @@ type Role struct {
 	Perms string // 逗号分隔权限点，如 "secret:get,secret:delete"
 }
 
-// Permission 权限点注册表（源 sys_permissions + sys_permission_menus 精简）。
+// Permission 权限点注册表。
 // ID 即权限码（归一化 "object:action"，与 Role.Perms 同命名空间）；MenuIDs
-// 内联权限点→菜单可见性关联（源独立关联表，CSV 精简——同 User.Roles 简化范式）。
+// 内联权限点→菜单可见性关联（CSV，同 User.Roles 简化范式）。
 type Permission struct {
 	ID        string `gorm:"primaryKey"` // 权限码（如 "tenant:list"）
 	Name      string // 权限名称
-	MenuIDs   string // 逗号分隔菜单 ID（源 permission_menu 关联内联）
+	MenuIDs   string // 逗号分隔菜单 ID
 	Remark    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -23,12 +23,12 @@ type Permission struct {
 // RolePolicy 角色策略行（casbin p 行的数据化持久层）：装载时全表读出拼 csv 注入 contrib
 // casbin，行格式 `p, <role>, <object>, <action>`；g 行（subject→角色）由
 // User.Roles 装载，不落本表。主键 = "role:object:action" 业务键（仓库统一
-// string 主键范式，Create 冲突即重复策略天然防重）。源 sys_role_permissions
-// 的 effect/priority 未消费（源项目同样未用），精简掉。
+// string 主键范式，Create 冲突即重复策略天然防重）。effect/priority 未被消费，
+// 故不落表。
 type RolePolicy struct {
 	ID     string `gorm:"primaryKey"` // 业务键 "role:object:action"
 	Role   string `gorm:"index"`      // 角色（casbin subject）
-	Object string // P9 归一化资源名（如 "tenant"）
+	Object string // 归一化资源名（如 "tenant"）
 	Action string // 动作（get/list/write/delete）
 }
 

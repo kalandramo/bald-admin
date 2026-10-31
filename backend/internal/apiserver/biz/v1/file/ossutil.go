@@ -1,11 +1,10 @@
-// Package file 文件模块业务层（自 go-wind-admin storage 域精简移植）。
+// Package file 文件模块业务层。
 //
-// ossutil.go 自源项目 go-wind-admin/backend/pkg/oss 精简移植：只保留上传链路
-// 用到的常量与工具，语义对齐源 constants.go / utils.go。差异点：
-//   - 文件名生成只保留 UUID 策略（源 GenerateFileNameType 多态裁剪）；
+// ossutil.go 汇集上传链路用到的常量与工具。设计取舍：
+//   - 文件名生成只有 UUID 一种策略；
 //   - UUID 用 google/uuid（bald 生态不依赖 tx7do/go-utils）；
 //   - URL 类工具（JoinObjectUrl/ReplaceEndpointHost）与 SetDownloadRange
-//     随预签名功能后续迭代再移植。
+//     留给预签名功能后续迭代实现。
 package file
 
 import (
@@ -18,10 +17,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// MaxUploadSize 单次直传文件最大字节数（源 MaxUploadSize）。
+// MaxUploadSize 单次直传文件最大字节数。
 const MaxUploadSize int64 = 50 << 20 // 50 MiB
 
-// 按内容类型分桶名（源 Bucket* 常量）。file.bucket 配置可覆盖 files 兜底桶。
+// 按内容类型分桶名。file.bucket 配置可覆盖 files 兜底桶。
 const (
 	BucketImages = "images"
 	BucketVideos = "videos"
@@ -30,9 +29,9 @@ const (
 	BucketFiles  = "files"
 )
 
-// allowedMimePrefixes / allowedExactMimeTypes：源 AllowedMimePrefixes /
-// AllowedExactMimeTypes。嗅探真实文件内容得到 MIME 后，需命中其中之一才允许
-// 上传（防扩展名伪装；可执行/HTML 等危险类型天然被排除在外）。
+// allowedMimePrefixes / allowedExactMimeTypes：嗅探真实文件内容得到 MIME
+// 后，需命中其中之一才允许上传（防扩展名伪装；可执行/HTML 等危险类型
+// 天然被排除在外）。
 var allowedMimePrefixes = []string{
 	"image/", // png / jpg / gif / webp / bmp ...
 	"video/", // mp4 / webm / quicktime ...
@@ -61,7 +60,7 @@ var allowedExactMimeTypes = map[string]struct{}{
 	"application/vnd.openxmlformats-officedocument.presentationml.presentation": {},
 }
 
-// isAllowedMimeType 判断某 MIME 类型是否在上传白名单内（源同名函数）。
+// isAllowedMimeType 判断某 MIME 类型是否在上传白名单内。
 // 同时支持前缀（image/* 等）与精确匹配（pdf/zip 等）。
 func isAllowedMimeType(mimeType string) bool {
 	if mimeType == "" {
@@ -84,7 +83,7 @@ func isAllowedMimeType(mimeType string) bool {
 	return false
 }
 
-// isFileDirectorySafe 校验客户端传入的 FileDirectory 是否安全（源同名函数）。
+// isFileDirectorySafe 校验客户端传入的 FileDirectory 是否安全。
 // 仅允许字母、数字、下划线、连字符与斜杠；拒绝 ..、绝对路径等穿越/注入手法。
 func isFileDirectorySafe(dir string) bool {
 	if dir == "" {
@@ -110,7 +109,7 @@ func isFileDirectorySafe(dir string) bool {
 	return true
 }
 
-// contentTypeToBucketName 根据内容类型获取存储桶名称（源同名函数）：
+// contentTypeToBucketName 根据内容类型获取存储桶名称：
 // image/video/audio → 同名桶；text 与常见文档 → docs；其余 → files。
 func contentTypeToBucketName(contentType string) string {
 	if strings.TrimSpace(contentType) == "" {
@@ -161,7 +160,7 @@ func contentTypeToBucketName(contentType string) string {
 }
 
 // contentTypeToFileExtension 根据内容类型获取文件后缀（含前导点，小写）。
-// 精简自源同名函数：常用映射 + 标准库回退。
+// 常见类型走映射表，其余回退标准库 mime.ExtensionsByType。
 func contentTypeToFileExtension(contentType string) string {
 	if strings.TrimSpace(contentType) == "" {
 		return ""
@@ -259,7 +258,7 @@ func contentTypeToFileExtension(contentType string) string {
 	return "" // 未知类型返回空串，调用方兜底 "bin"
 }
 
-// detectFileType 根据文件内容推断 MIME 类型和扩展名（源同名函数）：
+// detectFileType 根据文件内容推断 MIME 类型和扩展名：
 // 前 512 字节 http.DetectContentType + 常见魔术头优先判定。
 // 输出 mimeType（如 "image/png"）和 ext（如 ".png"，未知则为空）。
 func detectFileType(fileContent []byte) (mimeType, ext string) {
@@ -308,8 +307,8 @@ func detectFileType(fileContent []byte) (mimeType, ext string) {
 	return mimeType, ""
 }
 
-// generaUUIDFileName 生成基于 UUID 的文件名（源 generaUUIDFileName，语义保持；
-// google/uuid 替代 tx7do id.NewGUIDv4(false)）：去横线 UUID + 清理后的扩展名。
+// generaUUIDFileName 生成基于 UUID 的文件名：去横线 UUID + 清理后的扩展名
+// （google/uuid 生成，替代 tx7do id.NewGUIDv4(false)）。
 func generaUUIDFileName(fileExt string) string {
 	name := strings.ReplaceAll(uuid.NewString(), "-", "")
 	cleanExt := strings.TrimPrefix(fileExt, ".")
@@ -319,7 +318,7 @@ func generaUUIDFileName(fileExt string) string {
 	return fmt.Sprintf("%s.%s", name, cleanExt)
 }
 
-// generateObjectName 生成对象键（源同名函数 UUID 策略）：dir + uuid.ext。
+// generateObjectName 生成对象键（UUID 策略）：dir + uuid.ext。
 // 清理首尾斜杠，避免双斜杠或以斜杠开头的对象名。
 func generateObjectName(fileDirectory, fileExt string) string {
 	name := generaUUIDFileName(fileExt)
@@ -330,7 +329,7 @@ func generateObjectName(fileDirectory, fileExt string) string {
 	return dir + "/" + name
 }
 
-// extractFileExtension 从文件名提取扩展名（不含点，小写；源同名函数）。
+// extractFileExtension 从文件名提取扩展名（不含点，小写）。
 // 查找最后一个点作为扩展名分隔（点在开头不算）。
 func extractFileExtension(fileName string) string {
 	idx := strings.LastIndex(fileName, ".")
@@ -340,7 +339,7 @@ func extractFileExtension(fileName string) string {
 	return strings.ToLower(fileName[idx+1:])
 }
 
-// ensureFileExtension 确保文件后缀存在（源同名函数，返回值统一含前导点）：
+// ensureFileExtension 确保文件后缀存在（返回值统一含前导点）：
 // 按顺序从文件名、内容类型、文件内容检测；最终兜底 ".bin"。
 func ensureFileExtension(fileName, contentType string, fileContent []byte) string {
 	if ext := extractFileExtension(fileName); ext != "" {

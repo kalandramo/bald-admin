@@ -1,7 +1,6 @@
-// Package dict 是字典管理业务（自 go-wind-admin dict 域 sys_dict_types/
-// sys_dict_entries 精简移植）。
+// Package dict 是字典管理业务。
 //
-// 字典是租户级业务数据：查询自动经 store 的 P8 隔离（Where.T 注入 TenantID），
+// 字典是租户级业务数据：查询自动经 store 的租户隔离（Where.T 注入 TenantID），
 // Cache-Aside 键含租户维度（dict:entries:<tenant>:<typeCode>）防跨租户缓存泄漏。
 // 写穿透失效：条目/类型写操作后 Delete 对应缓存键；Redis 故障由 rediscache 的
 // 降级语义兜底（直连 loader，缓存故障不放大为业务故障）。
@@ -158,7 +157,7 @@ func (b *Biz) DeleteType(ctx context.Context, id string) (int, error) {
 	if _, err := b.GetType(ctx, id); err != nil {
 		return 0, err // 类型不存在（404）
 	}
-	// 级联删条目（源 entsql OnDelete: Cascade 语义的显式实现）。
+	// 级联删条目（biz 层显式实现，不依赖 DB 外键级联）。
 	entries, err := b.listEntriesDirect(ctx, id)
 	if err != nil {
 		return 0, err

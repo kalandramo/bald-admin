@@ -1,4 +1,4 @@
-// Package auth 实现 M1 认证授权范本的业务逻辑（biz 层）。
+// Package auth 实现认证授权的业务逻辑（biz 层）。
 //
 // 本层不依赖 gin/grpc：业务函数以纯 Go 入参/出参呈现，由 handler 层负责协议
 // 转换（HTTP/gRPC transcoding）。这是 osbuilder/bald 推荐的分层：
@@ -35,8 +35,7 @@ import (
 // ErrBadCredential 凭据错误。
 var ErrBadCredential = errors.New("auth: invalid username or password")
 
-// ErrRateLimited 登录被限流（handler 层映射为 429）。
-// 对齐源项目 LoginRateLimiter 的语义——「登录尝试过于频繁」，
+// ErrRateLimited 登录被限流（handler 层映射为 429）：语义是「登录尝试过于频繁」，
 // 与凭据错误（401）区分，便于前端提示「稍后重试」而非「密码错」。
 var ErrRateLimited = errors.New("auth: too many login attempts")
 
@@ -64,7 +63,7 @@ type TokenPair struct {
 	// RefreshToken 刷新令牌。仅在令牌存储可用时签发——空串表示
 	// 无刷新能力（禁用态），客户端应降级为「过期后重新登录」。
 	RefreshToken string `json:"refresh_token,omitempty"`
-	// TokenType 令牌类型（对齐源 LoginResponse.token_type，恒为 "Bearer"）。
+	// TokenType 令牌类型（恒为 "Bearer"）。
 	TokenType string `json:"token_type,omitempty"`
 }
 
@@ -244,7 +243,7 @@ func (b *Biz) SetTokenStore(s token.Store) {
 	}
 }
 
-// SetAuthenticator 运行期注入令牌校验器（，ValidateToken 用）。
+// SetAuthenticator 运行期注入令牌校验器（ValidateToken 用）。
 // nil 不覆盖——ValidateToken 将退化为「无法校验」错误。
 func (b *Biz) SetAuthenticator(a authn.Authenticator) {
 	if a != nil {
@@ -269,13 +268,13 @@ func (b *Biz) SetCaptchaStore(s captcha.Store) {
 	}
 }
 
-// CaptchaResult 是 GenerateCaptcha 的返回（对齐源 GenerateCaptchaResponse）。
+// CaptchaResult 是 GenerateCaptcha 的返回。
 type CaptchaResult struct {
 	CaptchaID   string `json:"captcha_id"`
 	ImageBase64 string `json:"image_base64"`
 }
 
-// GenerateCaptcha 生成图片验证码（对应源 L58）。
+// GenerateCaptcha 生成图片验证码。
 // 无存储时返回错误（验证码无处保存 = 无法校验，生成无意义）。
 func (b *Biz) GenerateCaptcha(ctx context.Context) (*CaptchaResult, error) {
 	if b.captchaStore == nil {
@@ -303,7 +302,7 @@ func stripDataURI(s string) string {
 	return s
 }
 
-// VerifyCaptcha 校验验证码（对应源 L61）。
+// VerifyCaptcha 校验验证码。
 //
 // 返回 bool 而非 error——「验证码错」是**业务结果**，不是故障。
 // 但存储故障（Redis 不可用）必须区分：返回 error，由 handler 归 503。
@@ -323,19 +322,18 @@ func (b *Biz) VerifyCaptcha(ctx context.Context, id, input string) (bool, error)
 // ErrCaptchaUnavailable 验证码功能不可用（无存储 / 存储故障）。
 var ErrCaptchaUnavailable = errors.New("auth: captcha service unavailable")
 
-// RegisterInput 是注册入参（对齐源 RegisterUserRequest 的字段与校验约束）。
+// RegisterInput 是注册入参（长度约束见下方常量）。
 type RegisterInput struct {
-	Username   string // min_len 3, max_len 64（源 validate.rules）
-	Password   string // min_len 8, max_len 128
-	TenantCode string // 租户编码（源 tenant_code）
-	Email      string // 可选（源 optional）
+	Username   string // 长度 3-64
+	Password   string // 长度 8-128
+	TenantCode string // 租户编码
+	Email      string // 可选
 }
 
 // RegisterResult 是注册返回。
 //
-// **契约偏差（显式记录）**：源 RegisterUserResponse.user_id 是 uint32，而
-// bald-admin 的 User.ID 是 string（如 "u-admin"）。ID 体系不同，无法用 uint32 承载。
-// 此处 user_id 字段承载**字符串 ID**（HTTP JSON 无类型约束），并额外提供 id 字段
+// **契约说明**：User.ID 是 string（如 "u-admin"），故 user_id 字段承载
+// **字符串 ID**（HTTP JSON 无类型约束），并额外提供 id 字段
 // 便于客户端明确语义。gRPC 侧若将来引入 proto，需在契约层重新裁定。
 type RegisterResult struct {
 	UserID string `json:"user_id"`
@@ -351,7 +349,7 @@ var ErrInvalidTenant = errors.New("auth: invalid tenant")
 // ErrRegisterValidation 注册入参校验失败。
 var ErrRegisterValidation = errors.New("auth: invalid registration input")
 
-// 校验约束（对齐源 proto 的 validate.rules）。
+// 校验约束。
 const (
 	minUsernameLen = 3
 	maxUsernameLen = 64
@@ -359,17 +357,17 @@ const (
 	maxPasswordLen = 128
 )
 
-// RegisterUser 注册新用户（对应源 L31）。
+// RegisterUser 注册新用户。
 //
 // 为什么不复用 userbiz.Create：
 //  1. userbiz.Create 依赖 **ctx 租户注入**（injectWriteTenant 从 ctx 取租户）——
 //     但注册是**未认证请求**，ctx 无租户，必须显式指定；
 //  2. userbiz.Create 的用户名规则是 3-32，而契约是 3-64——复用会拒绝契约允许的输入。
 //
-// 租户处理：注册必须归属**有效租户**（源项目同款语义——租户模式下无 tenant_code
-// 会撞外键报 500，故提前以明确错误拒绝）。校验租户存在性后显式写入 TenantID。
+// 租户处理：注册必须归属**有效租户**（租户模式下缺少 tenant_code 或租户不存在，
+// 落库时会撞外键报 500，故提前以明确错误拒绝）。校验租户存在性后显式写入 TenantID。
 func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResult, error) {
-	// 1) 入参校验（对齐契约 validate.rules）。
+	// 1) 入参校验（长度约束见上方常量）。
 	if l := len(in.Username); l < minUsernameLen || l > maxUsernameLen {
 		return nil, fmt.Errorf("%w: username length must be %d-%d", ErrRegisterValidation, minUsernameLen, maxUsernameLen)
 	}
@@ -381,7 +379,7 @@ func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResu
 	}
 
 	// 2) 租户校验：必须存在且启用。租户读不经租户隔离（Tenant 实体无 TenantID 字段，
-	//    P8 隔离对其天然不作用——见 model/tenant.go 注释），故此处可直接查。
+	//    租户隔离对其天然不作用——见 model/tenant.go 注释），故此处可直接查。
 	if _, err := b.tenantStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", in.TenantCode)},
 	}); err != nil {
@@ -401,8 +399,8 @@ func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResu
 		return nil, fmt.Errorf("auth: check username: %w", err)
 	}
 
-	// 4) 密码哈希：**基于明文**（源项目的经典 bug 教训——曾把 AES 密文直接
-	//    bcrypt，导致登录校验对象不一致，注册用户永远无法登录）。
+	// 4) 密码哈希：**基于明文**（切勿对已加密的密文再哈希——那样注册与登录
+	//    的校验对象不一致，用户将永远无法登录）。
 	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("auth: hash password: %w", err)
@@ -459,11 +457,10 @@ func auditRegister(ctx context.Context, u *authmodel.User) {
 // ErrTokenStoreUnavailable 令牌管理需要存储（无 Redis 时禁用）。
 var ErrTokenStoreUnavailable = errors.New("auth: token management unavailable (no token store)")
 
-// ListAccessTokens 列出某用户的活跃访问令牌（源 L41 GetAccessTokens）。
+// ListAccessTokens 列出某用户的活跃访问令牌。
 //
 // 用途：管理员查看某用户当前有哪些活跃会话，以便定向封禁。
-// 返回**明文 token**（对齐契约 GetAccessTokensResponse.access_tokens）——
-// 这是契约约束的必然（客户端需用该 token 值去 BlockToken）。
+// 返回**明文 token**（契约如此：客户端需用该 token 值去 BlockToken）。
 func (b *Biz) ListAccessTokens(ctx context.Context, userID string) ([]string, error) {
 	if b.tokenStore == nil {
 		return nil, ErrTokenStoreUnavailable
@@ -475,7 +472,7 @@ func (b *Biz) ListAccessTokens(ctx context.Context, userID string) ([]string, er
 	return toks, nil
 }
 
-// BlockToken 封禁令牌（源 L47）。
+// BlockToken 封禁令牌。
 //
 // 语义：管理员定向封禁某 token + 记录原因（可带时长，缺省永久）。
 // 与 Logout 的差异见 token.Store.Block 注释（Logout 是自助登出、Block 是管理封禁）。
@@ -510,7 +507,7 @@ func (b *Biz) BlockToken(ctx context.Context, userID, token, jti, reason string,
 	return until, nil
 }
 
-// UnblockToken 解除封禁（源 L50）。
+// UnblockToken 解除封禁。
 func (b *Biz) UnblockToken(ctx context.Context, userID, token, jti string) error {
 	if b.tokenStore == nil {
 		return ErrTokenStoreUnavailable
@@ -529,7 +526,7 @@ func (b *Biz) UnblockToken(ctx context.Context, userID, token, jti string) error
 	return nil
 }
 
-// RevokeTokenById 按标识撤销令牌（源 L44）。
+// RevokeTokenById 按标识撤销令牌。
 //
 // 与 BlockToken 的关系：两者都让 token 立即失效（都写吊销键）。差异在**语义**——
 // Revoke 是「撤销」（不带原因/时长，管理动作），Block 是「封禁」（带原因、可查详情）。
@@ -573,8 +570,8 @@ func safelyAuditToken(ctx context.Context, action, target, reason string) {
 }
 
 // accessTokenTTL / refreshTokenTTL 返回生效的 TTL（未设置用默认）。
-// 默认 access 2h（与 之前的硬编码一致，行为零回归）；
-// refresh 7d（源 go-wind-admin 的刷新令牌为长有效期）。
+// 默认 access 2h（与此前硬编码一致，行为零回归）；
+// refresh 7d（刷新令牌需要长有效期）。
 func (b *Biz) accessTokenTTL() time.Duration {
 	if b.accessTTL > 0 {
 		return b.accessTTL
@@ -596,13 +593,13 @@ var ErrRefreshInvalid = errors.New("auth: invalid refresh token")
 var ErrTokenInvalid = errors.New("auth: invalid token")
 
 // Login 校验凭据（查 store）并签发 JWT。
-// 登录审计：成功/失败/内部错误均记一条 category=login 审计事件（源
-// login_audit_log 语义精简：IP/UA/结果/失败原因；风险评分/MFA/设备指纹后续迭代）。
+// 登录审计：成功/失败/内部错误均记一条 category=login 审计事件
+// （记录 IP/UA/结果/失败原因；风险评分/MFA/设备指纹后续迭代）。
 // 经当前生效审计器（securityaudit.Current，bootstrap audit.backends 热切换同一入口），旁路不阻断。
 func (b *Biz) Login(ctx context.Context, c Credential) (*TokenPair, error) {
 	// 限流在凭据校验之前——先拦流量再做昂贵的 bcrypt 比较，
 	// 否则限流形同虚设（攻击者仍能消耗 CPU）。限流器为 nil 时直接放行
-	//（禁用态，对齐源项目 LoginRateLimiter 的 fail-open）。
+	//（禁用态：限流器未配置时 fail-open，不阻断登录）。
 	if g := b.loginGuards.Load(); g != nil && g.limiter != nil {
 		allowed, lerr := g.limiter.Allow()
 		switch {
@@ -706,7 +703,7 @@ func (b *Biz) issueRefresh(ctx context.Context, subject string) (string, error) 
 	return rt, nil
 }
 
-// Logout 登出（，对应源 authentication.proto L28）。
+// Logout 登出。
 //
 // 难点：JWT 无状态——签发后服务端不再持有它，无法「收回」。唯一的办法是把
 // token 加入**吊销名单**，并让认证链路查名单（由 token.RevocationChecker
@@ -754,7 +751,7 @@ func remainingTTL(claims *authn.AuthClaims) time.Duration {
 	return d
 }
 
-// RefreshToken 用刷新令牌换发新令牌对（，对应源 L35）。
+// RefreshToken 用刷新令牌换发新令牌对。
 //
 // **一次性语义**：ConsumeRefresh 读取即删除——旧刷新令牌立即作废，防止同一
 // refresh_token 被重放（若可重复使用，它就成了永久凭证，刷新机制形同虚设）。
@@ -812,7 +809,7 @@ func (b *Biz) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair
 	}, nil
 }
 
-// ValidateToken 校验令牌有效性（，对应源 L38）。
+// ValidateToken 校验令牌有效性。
 //
 // 语义是「询问」而非「准入」：无效令牌返回 Valid=false，**不是错误码**。
 // 调用方（如网关）需要区分「令牌无效」（业务结果）与「校验服务故障」——
@@ -960,7 +957,7 @@ func (b *Biz) queryWithRetry(ctx context.Context,
 	return u, nil
 }
 
-// auditLogin 记录登录审计事件（category=login，Object/Action 用 P9 归一化
+// auditLogin 记录登录审计事件（category=login，Object/Action 用传输中立归一化
 // "auth"/"login"；IP/UA 经 Meta 传递由落库后端提取为独立列）。
 //
 // 登录失败路径（用户不存在/限流/熔断）传空 tenantID——用户所属租户未知。

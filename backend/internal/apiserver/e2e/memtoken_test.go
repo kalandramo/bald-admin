@@ -1,13 +1,13 @@
 package e2e
 
-// memtoken_test.go —— 内存版 token.Store 测试替身（补）。
+// memtoken_test.go —— 内存版 token.Store 测试替身。
 //
 // ## 为什么需要它
 //
 // 吊销路径的 e2e（TestWave1d_ProductionWiring_RevocationActive 等）依赖真实
 // Redis（127.0.0.1:6379）。本机/CI 无 Redis 时它们**整体 SKIP**——于是「吊销
 // 检查是否真的接入中间件」这条安全不变量，在无 Redis 环境下**从未被执行**。
-// 这是本轮实测踩到的坑：把 SKIP 当成了 PASS 上报。
+// 这是需要警惕的坑：SKIP 容易被误认为 PASS。
 //
 // token.Store 是接口（见 internal/security/token/token.go），故可注入内存实现，
 // 让吊销路径在**任意环境**都被真正执行。内存实现只服务测试语义（正确性优先于

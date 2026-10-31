@@ -1,6 +1,6 @@
 package e2e
 
-// t_w3_1_sse_e2e_test.go —— ：SSE 传输轴装配。
+// t_w3_1_sse_e2e_test.go —— SSE 传输轴装配。
 //
 // ## 装配路径（与 asynq/cron 同为逃生舱，但原因不同）
 //

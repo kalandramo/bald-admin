@@ -30,7 +30,7 @@ func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Au
 	// gRPC 无公开方法（全部需认证），整条链切 bundle——
 	// Error→RequestID→Observability→Authn→Audit→Authz 链序由 bundle 固化，
 	// 替代此前手写的 7 段拦截器组装（authnInterceptor/authzInterceptor 闭包删除）。
-	// P9 归一化经 bundle.Normalized() 内置于 Authz 与 Audit 两层。
+	// 传输中立归一化经 bundle.Normalized() 内置于 Authz 与 Audit 两层。
 	// Audit 层注入动态转发器（同 gin 侧 ginBundle）——未注入时
 	// bundle 显式接 Nop，请求审计与认证失败审计（bundle 会把 auditor 注入
 	// AuthnInterceptor）均静默失效。
@@ -43,7 +43,7 @@ func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Au
 		bundle.Authz(authorizer),
 		bundle.Audit(securityaudit.Global()), // 动态转发：契约轨装配/热切轨切换即时生效
 		bundle.Metrics(obmetrics.Recorder("bald/example")),
-		bundle.Normalized(), // P9：FullMethod → 与 HTTP 同源的权限点
+		bundle.Normalized(), // FullMethod → 与 HTTP 同源的权限点
 	)
 	// 把 protovalidate 校验追加到链**尾**（Authz 之后）。
 	//

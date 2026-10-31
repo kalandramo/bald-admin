@@ -47,7 +47,7 @@ export const dictTypeServiceCreateDictType = (
   /**
  * GetDictType 取字典类型。
  *    REST: GET /v1/dict_type/{id}
- *  单数路径段与 DefaultGRPCObject("DictTypeService/...")="dict_type" 同源（P9）。
+ *  单数路径段与 DefaultGRPCObject("DictTypeService/...")="dict_type" 同源。
  */
 export const dictTypeServiceGetDictType = (
     id: string,

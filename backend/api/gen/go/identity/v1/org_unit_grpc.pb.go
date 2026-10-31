@@ -33,31 +33,25 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// OrgUnitService 组织单元管理（自 go-wind-admin identity 域
-// org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
+// OrgUnitService 组织单元管理（7 个 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
-// 本实现**对齐项目既有惯例**（与 dict/menu/tenant 一致），与源有多处显式偏差：
+// 设计约定（与 dict/menu/tenant 一致）：
 //
-//  1. **主键用 string 业务键**（`code`，如 "FIN-LEADER-001"）而非源 `uint32 id`
-//     ——源 ID 由 DB 自增生成；本项目 model.OrgUnit 主键即 `"<tenant>:<code>"`
-//     （见 internal/apiserver/model/org.go），code 是跨系统同步的稳定标识。
-//     proto 的 `id` 字段保留为**只读输出**（完整主键），供前端判断编辑态。
-//  2. **请求体简化**：源的 `oneof query_by` / `FieldMask view_mask` /
-//     `update_mask` / `allow_missing` 未移植——本项目 handler 用「非空字段即更新」
-//     语义，并用 `*_set` 显式位区分「未设置」与「设为零值」（见 UpdateOrgUnitRequest）。
-//  3. **枚举加前缀 + 补 0 值**：源 `Status{OFF=0,ON=1}` 的 0 值语义为「禁用」，
-//     但 proto3 的 0 值必须是默认值——本实现改 `STATUS_UNSPECIFIED=0`（同 menu/tenant）。
-//  4. **`parent_id` 语义统一为「父节点 code」**：源 model 存完整主键、对外暴露
-//     也是完整主键（输入 code 输出主键，语义不对称）；本实现输入输出统一为 code。
-//  5. **分页用框架自有 `bald.store.v1.PagingRequest`**：源用第三方
-//     `pagination.PagingRequest`（且源实现收了参数却全量返回，是「假分页」）。
-//     本实现改为**真分页**——用框架自有 `bald-bconf` 契约（与源字段结构逐项一致，
-//     见 buf.yaml），且因树形与分页语义冲突（分页会截断 children），采用
-//     **根节点分页 + 子节点懒加载**：ListOrgUnits 只返回根节点分页，
-//     展开节点时调 ListOrgUnitChildren 拉取直接子节点。
-//  6. **不移植** gnostic 注解 / `attributes` map / `business_scopes` /
-//     `permission_tags` / 法务与地理字段（源 40 字段 → 本实现 14 字段）：
-//     以本项目 model.OrgUnit 的实际字段集为准（用户要求「对齐本项目字段」）。
+//  1. **主键用 string 业务键**（`code`，如 "FIN-LEADER-001"）而非 DB 自增 ID；
+//     model.OrgUnit 主键即 `"<tenant>:<code>"`（见 internal/apiserver/model/org.go），
+//     code 是跨系统同步的稳定标识。proto 的 `id` 字段保留为**只读输出**（完整主键），
+//     供前端判断编辑态。
+//  2. **请求体简化**：不使用 `oneof query_by` / `FieldMask view_mask` /
+//     `update_mask` / `allow_missing`——handler 用「非空字段即更新」语义，
+//     并用 `*_set` 显式位区分「未设置」与「设为零值」（见 UpdateOrgUnitRequest）。
+//  3. **枚举加前缀 + 补 0 值**：proto3 的 0 值必须是默认值，故
+//     `STATUS_UNSPECIFIED=0`（同 menu/tenant）。
+//  4. **`parent_id` 语义统一为「父节点 code」**：输入输出都是 code，不混用主键与编码。
+//  5. **分页用框架自有 `bald.store.v1.PagingRequest`**（见 buf.yaml）。树形与分页语义
+//     冲突（分页会截断 children），故采用**根节点分页 + 子节点懒加载**：
+//     ListOrgUnits 只返回根节点分页，展开节点时调 ListOrgUnitChildren 拉取直接子节点。
+//  6. **字段集以 model.OrgUnit 实际字段为准**（14 字段）：不含 `attributes` map /
+//     `business_scopes` / `permission_tags` / 法务与地理字段。
 type OrgUnitServiceClient interface {
 	// ListOrgUnits 列出**根节点**（分页，children 不预填）。
 	// 子节点经 ListOrgUnitChildren 懒加载（树形展开用）。
@@ -79,13 +73,13 @@ type OrgUnitServiceClient interface {
 	//   REST: POST /v1/org-units
 	CreateOrgUnit(ctx context.Context, in *CreateOrgUnitRequest, opts ...grpc.CallOption) (*CreateOrgUnitResponse, error)
 	// UpdateOrgUnit 更新组织单元（非空字段即更新；code 不可变）。
-	// **防环**：不能把节点挂到自己的子孙下（源无此校验，是本项目的正确性增强）。
+	// **防环**：不能把节点挂到自己的子孙下。
 	//   REST: PUT /v1/org-units/{code}
 	UpdateOrgUnit(ctx context.Context, in *UpdateOrgUnitRequest, opts ...grpc.CallOption) (*UpdateOrgUnitResponse, error)
 	// DeleteOrgUnit 删除组织单元。**有子节点时拒绝**（否则产生悬挂引用）。
 	//   REST: DELETE /v1/org-units/{code}
 	DeleteOrgUnit(ctx context.Context, in *DeleteOrgUnitRequest, opts ...grpc.CallOption) (*DeleteOrgUnitResponse, error)
-	// BatchCreateOrgUnits 批量创建（逐条创建，**部分失败不回滚**——对齐源语义）。
+	// BatchCreateOrgUnits 批量创建（逐条创建，**部分失败不回滚**）。
 	//   REST: POST /v1/org-units/batch
 	BatchCreateOrgUnits(ctx context.Context, in *BatchCreateOrgUnitsRequest, opts ...grpc.CallOption) (*BatchCreateOrgUnitsResponse, error)
 }
@@ -182,31 +176,25 @@ func (c *orgUnitServiceClient) BatchCreateOrgUnits(ctx context.Context, in *Batc
 // All implementations must embed UnimplementedOrgUnitServiceServer
 // for forward compatibility.
 //
-// OrgUnitService 组织单元管理（自 go-wind-admin identity 域
-// org_unit.proto 精简移植，源 7 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
+// OrgUnitService 组织单元管理（7 个 rpc：List/Count/Get/Create/Update/Delete/BatchCreate）。
 //
-// 本实现**对齐项目既有惯例**（与 dict/menu/tenant 一致），与源有多处显式偏差：
+// 设计约定（与 dict/menu/tenant 一致）：
 //
-//  1. **主键用 string 业务键**（`code`，如 "FIN-LEADER-001"）而非源 `uint32 id`
-//     ——源 ID 由 DB 自增生成；本项目 model.OrgUnit 主键即 `"<tenant>:<code>"`
-//     （见 internal/apiserver/model/org.go），code 是跨系统同步的稳定标识。
-//     proto 的 `id` 字段保留为**只读输出**（完整主键），供前端判断编辑态。
-//  2. **请求体简化**：源的 `oneof query_by` / `FieldMask view_mask` /
-//     `update_mask` / `allow_missing` 未移植——本项目 handler 用「非空字段即更新」
-//     语义，并用 `*_set` 显式位区分「未设置」与「设为零值」（见 UpdateOrgUnitRequest）。
-//  3. **枚举加前缀 + 补 0 值**：源 `Status{OFF=0,ON=1}` 的 0 值语义为「禁用」，
-//     但 proto3 的 0 值必须是默认值——本实现改 `STATUS_UNSPECIFIED=0`（同 menu/tenant）。
-//  4. **`parent_id` 语义统一为「父节点 code」**：源 model 存完整主键、对外暴露
-//     也是完整主键（输入 code 输出主键，语义不对称）；本实现输入输出统一为 code。
-//  5. **分页用框架自有 `bald.store.v1.PagingRequest`**：源用第三方
-//     `pagination.PagingRequest`（且源实现收了参数却全量返回，是「假分页」）。
-//     本实现改为**真分页**——用框架自有 `bald-bconf` 契约（与源字段结构逐项一致，
-//     见 buf.yaml），且因树形与分页语义冲突（分页会截断 children），采用
-//     **根节点分页 + 子节点懒加载**：ListOrgUnits 只返回根节点分页，
-//     展开节点时调 ListOrgUnitChildren 拉取直接子节点。
-//  6. **不移植** gnostic 注解 / `attributes` map / `business_scopes` /
-//     `permission_tags` / 法务与地理字段（源 40 字段 → 本实现 14 字段）：
-//     以本项目 model.OrgUnit 的实际字段集为准（用户要求「对齐本项目字段」）。
+//  1. **主键用 string 业务键**（`code`，如 "FIN-LEADER-001"）而非 DB 自增 ID；
+//     model.OrgUnit 主键即 `"<tenant>:<code>"`（见 internal/apiserver/model/org.go），
+//     code 是跨系统同步的稳定标识。proto 的 `id` 字段保留为**只读输出**（完整主键），
+//     供前端判断编辑态。
+//  2. **请求体简化**：不使用 `oneof query_by` / `FieldMask view_mask` /
+//     `update_mask` / `allow_missing`——handler 用「非空字段即更新」语义，
+//     并用 `*_set` 显式位区分「未设置」与「设为零值」（见 UpdateOrgUnitRequest）。
+//  3. **枚举加前缀 + 补 0 值**：proto3 的 0 值必须是默认值，故
+//     `STATUS_UNSPECIFIED=0`（同 menu/tenant）。
+//  4. **`parent_id` 语义统一为「父节点 code」**：输入输出都是 code，不混用主键与编码。
+//  5. **分页用框架自有 `bald.store.v1.PagingRequest`**（见 buf.yaml）。树形与分页语义
+//     冲突（分页会截断 children），故采用**根节点分页 + 子节点懒加载**：
+//     ListOrgUnits 只返回根节点分页，展开节点时调 ListOrgUnitChildren 拉取直接子节点。
+//  6. **字段集以 model.OrgUnit 实际字段为准**（14 字段）：不含 `attributes` map /
+//     `business_scopes` / `permission_tags` / 法务与地理字段。
 type OrgUnitServiceServer interface {
 	// ListOrgUnits 列出**根节点**（分页，children 不预填）。
 	// 子节点经 ListOrgUnitChildren 懒加载（树形展开用）。
@@ -228,13 +216,13 @@ type OrgUnitServiceServer interface {
 	//   REST: POST /v1/org-units
 	CreateOrgUnit(context.Context, *CreateOrgUnitRequest) (*CreateOrgUnitResponse, error)
 	// UpdateOrgUnit 更新组织单元（非空字段即更新；code 不可变）。
-	// **防环**：不能把节点挂到自己的子孙下（源无此校验，是本项目的正确性增强）。
+	// **防环**：不能把节点挂到自己的子孙下。
 	//   REST: PUT /v1/org-units/{code}
 	UpdateOrgUnit(context.Context, *UpdateOrgUnitRequest) (*UpdateOrgUnitResponse, error)
 	// DeleteOrgUnit 删除组织单元。**有子节点时拒绝**（否则产生悬挂引用）。
 	//   REST: DELETE /v1/org-units/{code}
 	DeleteOrgUnit(context.Context, *DeleteOrgUnitRequest) (*DeleteOrgUnitResponse, error)
-	// BatchCreateOrgUnits 批量创建（逐条创建，**部分失败不回滚**——对齐源语义）。
+	// BatchCreateOrgUnits 批量创建（逐条创建，**部分失败不回滚**）。
 	//   REST: POST /v1/org-units/batch
 	BatchCreateOrgUnits(context.Context, *BatchCreateOrgUnitsRequest) (*BatchCreateOrgUnitsResponse, error)
 	mustEmbedUnimplementedOrgUnitServiceServer()

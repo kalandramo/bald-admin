@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// SecretService 受限资源服务（M5：经 grpc-gateway 同时暴露 gRPC 与 REST）。
+// SecretService 受限资源服务（经 grpc-gateway 同时暴露 gRPC 与 REST）。
 //
 // proto 全部收敛到 api/ 目录（buf 模块根=api/）；本文件的 ListUsers 演示 RPC
 // 已由 UserService.ListUsers（api/user/v1）接管 GET /v1/users（对象列表版本）。
@@ -72,7 +72,7 @@ func (c *secretServiceClient) DeleteSecret(ctx context.Context, in *DeleteSecret
 // All implementations must embed UnimplementedSecretServiceServer
 // for forward compatibility.
 //
-// SecretService 受限资源服务（M5：经 grpc-gateway 同时暴露 gRPC 与 REST）。
+// SecretService 受限资源服务（经 grpc-gateway 同时暴露 gRPC 与 REST）。
 //
 // proto 全部收敛到 api/ 目录（buf 模块根=api/）；本文件的 ListUsers 演示 RPC
 // 已由 UserService.ListUsers（api/user/v1）接管 GET /v1/users（对象列表版本）。

@@ -48,7 +48,7 @@ export const tenantServiceCreateTenant = (
  * GetTenant 取租户。
  *    REST: GET /v1/tenant/{id}
  *  注意 REST 用单数段：DefaultHTTPObject 取首资源段（"tenant"），与 gRPC
- *  DefaultGRPCObject("TenantService/...")="tenant" 同源（P9 归一化，策略单写）。
+ *  DefaultGRPCObject("TenantService/...")="tenant" 同源（归一化，策略单写）。
  */
 export const tenantServiceGetTenant = (
     id: string,

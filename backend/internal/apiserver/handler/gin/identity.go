@@ -1,4 +1,4 @@
-// Package gin 提供 identity 扩展域的 HTTP handler（，协议层）。
+// Package gin 提供 identity 扩展域的 HTTP handler。
 package gin
 
 import (
@@ -18,7 +18,7 @@ import (
 
 // RegisterIdentity 挂载 identity 扩展域路由。
 //
-// 覆盖源 user_credential（10 rpc）+ login_policy（6 rpc）+ user_profile（2 rpc 源空实现）。
+// 覆盖 user_credential（10 rpc）+ login_policy（6 rpc）+ user_profile（2 rpc 空实现）。
 // 全部经 authzMW 保护——凭证与登录策略是**安全敏感**资源，仅管理员可操作。
 func RegisterIdentity(
 	e *gingonic.Engine,
@@ -103,7 +103,7 @@ func RegisterIdentity(
 		c.JSON(http.StatusOK, gingonic.H{"message": "deleted"})
 	})
 
-	// 凭证校验（源 VerifyCredential）——**公开端点**：登录流程用，此时无会话。
+	// 凭证校验——**公开端点**：登录流程用，此时无会话。
 	e.POST("/v1/credentials/verify", func(c *gingonic.Context) {
 		var req struct {
 			IdentityType string `json:"identity_type"`
@@ -226,7 +226,7 @@ func RegisterIdentity(
 		c.JSON(http.StatusOK, gingonic.H{"message": "deleted"})
 	})
 
-	// ---- user_profile（源空实现 → 501）----
+	// ---- user_profile（空实现 → 501）----
 	unimpl := func(name string) gingonic.HandlerFunc {
 		return func(c *gingonic.Context) {
 			web.ErrorResponse(c, berrors.Unimplemented("identity/not_implemented").

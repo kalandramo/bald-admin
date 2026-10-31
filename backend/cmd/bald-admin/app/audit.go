@@ -28,8 +28,8 @@ var reconAuditors = struct {
 }{set: make(map[string]audit.Auditor)}
 
 // applyAuditors 根据当前后端表重建当前生效 MultiAuditor（按后端名排序，顺序
-// 确定、便于测试与排查；空则退化为 Nop，绝不阻断审计旁路。B8：框架全局
-// audit.SetAuditor 已删除，生效集由本应用经 securityaudit.SetCurrent 自持）。
+// 确定、便于测试与排查；空则退化为 Nop，绝不阻断审计旁路。生效集由本应用
+// 经 securityaudit.SetCurrent 自持）。
 
 func applyAuditors() {
 	reconAuditors.mu.Lock()

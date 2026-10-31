@@ -1,14 +1,13 @@
 package e2e
 
-// t_w1_5_mfa_e2e_test.go —— ：MFA 域（源 mfa.proto，10 rpc）。
+// t_w1_5_mfa_e2e_test.go —— MFA 域。
 //
-// **复刻范围严格对齐源**：源 `mfa_service.go` 文件头注释载明「本轮仅落地 TOTP；
-// 非 TOTP 方法、StartMFAChallenge、备份码相关 RPC 本轮返回 UNIMPLEMENTED」。
-// 故本测试同样断言：
+// **实现范围**：本轮仅落地 TOTP；非 TOTP 方法、StartMFAChallenge、
+// 备份码相关 RPC 本轮返回 UNIMPLEMENTED。故本测试断言：
 //   - TOTP 七条（Status/List/StartEnroll/ConfirmEnroll/Disable/RevokeDevice/VerifyChallenge）真实现；
 //   - StartChallenge / GenerateBackupCodes / ListBackupCodes 返回 UNIMPLEMENTED。
 //
-// 核心安全语义（源实现的精髓，必须锁住）：
+// 核心安全语义（必须锁住）：
 //   - **±1 窗口**：当前码通过，超出窗口的码失败；
 //   - **注册挑战 peek 不消耗**：首码输错可重试；
 //   - **登录挑战取出即删**：通过后同 opID 不可复用（防双花）；
@@ -29,8 +28,8 @@ import (
 
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
-	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
+	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
 )
@@ -302,7 +301,7 @@ func TestWave1_5_UserMismatchRejected(t *testing.T) {
 	t.Logf("跨用户劫持被拒 ✅")
 }
 
-// TestWave1_5_UnimplementedRPCs 源未实现的 rpc 必须返回 UNIMPLEMENTED。
+// TestWave1_5_UnimplementedRPCs 未实现的 rpc 必须返回 UNIMPLEMENTED。
 func TestWave1_5_UnimplementedRPCs(t *testing.T) {
 	cs := newTestMFAStore(t)
 	base := startMFAREST(t, cs)
@@ -322,7 +321,7 @@ func TestWave1_5_UnimplementedRPCs(t *testing.T) {
 			t.Fatalf("%s: status=%d body=%s, want 501（源未实现，应显式标注）", tc.name, code, raw)
 		}
 	}
-	t.Logf("3 条源未实现的 rpc 返回 501 ✅（对齐源行为，不自创）")
+	t.Logf("3 条未实现的 rpc 返回 501 ✅（不臆造成功语义）")
 }
 
 // TestWave1_5_EnrollConflict 重复绑定必须被拒（需先解绑）。
@@ -384,7 +383,7 @@ func TestWave1_5_DisableAndRevoke(t *testing.T) {
 // TestWave1_5_DisableIdempotent —— 回归测试（发现同不变量违反点）。
 //
 // **不变量的违反点**：`biz.Disable` 在 credentialID 为空时按 (tenant,user)
-// 删**集合**（源语义：「不传 credentialID 时清空该用户全部该方法因子」）。
+// 删**集合**（「不传 credentialID 时清空该用户全部该方法因子」）。
 // 旧 `Store.Delete` 对 0 行匹配返回 ErrNotFound——用户禁用**本就未启用**的
 // 方法时，删 0 行是合法结果，却被误报为 not found。
 //

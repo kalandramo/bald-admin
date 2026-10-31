@@ -1,18 +1,16 @@
 package e2e
 
-// t_w1_ratelimit_e2e_test.go —— 登录限流 e2e（RED 起点）。
+// t_w1_ratelimit_e2e_test.go —— 登录限流 e2e。
 //
-// 验收（对齐源项目 LoginRateLimiter 的 fail-open 语义）：
+// 验收（fail-open 语义）：
 //  1. 连续错误凭据触发限流 → 后续请求 429（而非继续 401）
 //  2. 限流是**按客户端维度**的：另一 IP/用户名不受影响
 //  3. 限流器未配置（nil）时不阻断登录（禁用态）
 //  4. Redis/后端不可用时 fail-open（不阻断登录）——由单元测试覆盖，
 //     此处覆盖「limiter 为 nil」的降级路径
 //
-// 与源项目的语义对齐：源用 Redis 计数（LoginRateLimiter.CheckAndIncr），
-// 本实现用 bald 的 ratelimit/tokenbucket（进程内），故 fail-open 的触发条件
-// 从「Redis 不可用」变为「限流器未注入」——这是能力轴替换带来的语义映射，
-// 已在 交付报告记录。
+// 语义映射：本实现用 bald 的 ratelimit/tokenbucket（进程内），故 fail-open 的
+// 触发条件是「限流器未注入」，而非「Redis 不可用」。
 
 import (
 	"context"

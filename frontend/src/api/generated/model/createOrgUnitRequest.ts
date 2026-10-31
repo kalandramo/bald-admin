@@ -6,6 +6,17 @@
 import type { CreateOrgUnitRequestStatus } from './createOrgUnitRequestStatus.ts';
 import type { CreateOrgUnitRequestType } from './createOrgUnitRequestType.ts';
 
+/**
+ * CreateOrgUnitRequest 创建组织单元入参。
+ *
+ *  **字段校验**：code/name 的必填与长度以 buf.validate
+ *  注解表达，运行时由 protovalidate 读取执行（gRPC 面经 ValidatorInterceptor、
+ *  gin 面经 handler 显式校验，两处共用同一份规则）。业务不变量（parent 存在性、
+ *  防环）注解表达不了，仍归 biz——见 biz/v1/org/org.go。
+ *
+ *  注：**注解只加在本专用输入消息上**，不加在共享的 OrgUnit（它同时用于响应与
+ *  BatchCreateOrgUnitsRequest.items——加注解会让历史数据的列表接口全线报错）。
+ */
 export interface CreateOrgUnitRequest {
   code?: string;
   name?: string;

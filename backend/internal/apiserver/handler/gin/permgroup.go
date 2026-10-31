@@ -1,4 +1,4 @@
-// Package gin 提供权限组与策略评估日志的 HTTP handler（，源 7 rpc）。
+// Package gin 提供权限组与策略评估日志的 HTTP handler。
 package gin
 
 import (
@@ -18,8 +18,8 @@ import (
 
 // RegisterPermGroup 挂载权限组与策略评估日志路由（仅 admin）。
 //
-// 路径对齐源的 HTTP 注解（`/admin/v1/permission-groups` 等），
-// 但本项目统一用 `/v1/*` 前缀（与其余域一致，不引入第二前缀）。
+// 路由路径统一用 `/v1/*` 前缀（与其余域一致），
+// 不采用权限组惯用的 `/admin/v1/permission-groups` 风格。
 func RegisterPermGroup(
 	e *gingonic.Engine,
 	authenticator authn.Authenticator,

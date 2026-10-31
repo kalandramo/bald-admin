@@ -1,18 +1,17 @@
 package e2e
 
-// t_w5_3_language_e2e_test.go —— ：语言管理域（源 7 rpc）。
+// t_w5_3_language_e2e_test.go —— 语言管理域（7 rpc）。
 //
-// 源 `dict/service/v1/language.proto` 7 rpc：List/Count/Get/Create/
-// BatchCreate/Update/Delete。复刻范围严格对齐源：
+// 7 rpc：List/Count/Get/Create/BatchCreate/Update/Delete。实现范围：
 //   - 6 条真实现（List/Count/Get/Create/Update/Delete）；
-//   - BatchCreate **源 service 层未实现**（proto 有、language_service.go 无该方法）
-//     → 本实现同样返回 UNIMPLEMENTED（对齐源，不自创）。
+//   - BatchCreate **未实现**（规范有、biz 无该方法）
+//     → 返回 UNIMPLEMENTED（不擅自扩展）。
 //
 // 验收点：
-//  1. 种子语言 7 条（对齐源 constants.DefaultLanguages），sort_order 升序；
+//  1. 种子语言 7 条，sort_order 升序；
 //  2. CRUD 全链路（创建→重复 409→更新→删除→404）；
 //  3. Count 与 List 一致；
-//  4. BatchCreate → 501（对齐源未实现）；
+//  4. BatchCreate → 501（未实现）；
 //  5. 授权：viewer 读 200 / 写 403（language 策略：admin 写、viewer 读）。
 
 import (
@@ -50,7 +49,7 @@ func startLanguageREST(t *testing.T) string {
 	return srv.URL
 }
 
-// TestWave5_3_SeedAndList 种子语言 + List 排序（对齐源 7 条默认语言）。
+// TestWave5_3_SeedAndList 种子语言 + List 排序（7 条默认语言）。
 func TestWave5_3_SeedAndList(t *testing.T) {
 	base := startLanguageREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
@@ -142,7 +141,7 @@ func TestWave5_3_CRUD(t *testing.T) {
 	}
 }
 
-// TestWave5_3_BatchCreateUnimplemented BatchCreate → 501（对齐源未实现）。
+// TestWave5_3_BatchCreateUnimplemented BatchCreate → 501（未实现）。
 func TestWave5_3_BatchCreateUnimplemented(t *testing.T) {
 	base := startLanguageREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
@@ -154,7 +153,7 @@ func TestWave5_3_BatchCreateUnimplemented(t *testing.T) {
 	if code != http.StatusNotImplemented {
 		t.Fatalf("batch create 应 501（源未实现），got %d body=%s", code, raw)
 	}
-	t.Logf("BatchCreate 返回 501（对齐源未实现）")
+	t.Logf("BatchCreate 返回 501（未实现）")
 }
 
 // TestWave5_3_ViewerPermission 授权：viewer 读 200 / 写 403。

@@ -6,6 +6,10 @@
 import type { UpdatePositionRequestStatus } from './updatePositionRequestStatus.ts';
 import type { UpdatePositionRequestType } from './updatePositionRequestType.ts';
 
+/**
+ * UpdatePositionRequest 更新职位入参。
+ *  **校验语义同 UpdateOrgUnitRequest**：name 为空 = 不改，故只加 max_len 不加 min_len。
+ */
 export interface UpdatePositionRequest {
   code?: string;
   name?: string;

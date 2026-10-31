@@ -30,18 +30,16 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// UserService 用户管理服务（自 go-wind-admin identity/user.proto + user_profile.proto
-// 精简搬运）。列表/读写天然按当前租户过滤（bald P8 pkg/store 自动注入 tenant_id），
-// 跨租户用户不可见（隔离验证点）。
+// UserService 用户管理服务。列表/读写天然按当前租户过滤
+// （pkg/store 自动注入 tenant_id），跨租户用户不可见。
 //
-// 注意：原 SecretService.ListUsers（string 列表演示 RPC，M3）自本版本起由本服务
-// ListUsers 接管 GET /v1/users（对象列表，语义延续且增强），避免 gateway 路由重复注册。
+// ListUsers 接管 GET /v1/users（对象列表），避免 gateway 路由重复注册。
 type UserServiceClient interface {
 	// GetUser 取用户。
 	//   REST: GET /v1/user/{id}
-	// REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源（P9）。
+	// REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源。
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
-	// ListUsers 列出当前租户用户（M3 多租户隔离验证点，对象列表版本）。
+	// ListUsers 列出当前租户用户（多租户隔离验证点，对象列表版本）。
 	//   REST: GET /v1/user
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	// CreateUser 创建用户（租户内）。
@@ -117,18 +115,16 @@ func (c *userServiceClient) DeleteUser(ctx context.Context, in *DeleteUserReques
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
 //
-// UserService 用户管理服务（自 go-wind-admin identity/user.proto + user_profile.proto
-// 精简搬运）。列表/读写天然按当前租户过滤（bald P8 pkg/store 自动注入 tenant_id），
-// 跨租户用户不可见（隔离验证点）。
+// UserService 用户管理服务。列表/读写天然按当前租户过滤
+// （pkg/store 自动注入 tenant_id），跨租户用户不可见。
 //
-// 注意：原 SecretService.ListUsers（string 列表演示 RPC，M3）自本版本起由本服务
-// ListUsers 接管 GET /v1/users（对象列表，语义延续且增强），避免 gateway 路由重复注册。
+// ListUsers 接管 GET /v1/users（对象列表），避免 gateway 路由重复注册。
 type UserServiceServer interface {
 	// GetUser 取用户。
 	//   REST: GET /v1/user/{id}
-	// REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源（P9）。
+	// REST 单数段与 gRPC DefaultGRPCObject("UserService/...")="user" 同源。
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
-	// ListUsers 列出当前租户用户（M3 多租户隔离验证点，对象列表版本）。
+	// ListUsers 列出当前租户用户（多租户隔离验证点，对象列表版本）。
 	//   REST: GET /v1/user
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	// CreateUser 创建用户（租户内）。

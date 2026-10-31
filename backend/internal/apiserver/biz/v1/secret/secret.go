@@ -95,7 +95,7 @@ type Item struct {
 	TenantID string `json:"tenant_id"`
 }
 
-// Get 按 ID 取 Secret，自动受调用方 ctx 中的租户隔离约束（M3/M4 多租户）。
+// Get 按 ID 取 Secret，自动受调用方 ctx 中的租户隔离约束。
 // 经 Cache-Aside 读 Redis（命中返缓存，未命中加载并回填）；cache 禁用时直连 store。
 // cache 为 loadable 组合器，未命中经 loadSecret 回填（键由本方法构造）。
 func (b *SecretBiz) Get(ctx context.Context, id string) (*Item, error) {
