@@ -39,6 +39,24 @@ tasks:
     cmds:
       - go mod tidy
 
+  gen:domain:
+    desc: 按 appspec.json 重写域清单（改 domains[] 后执行；CLI 版本随 go.mod 的 bald）
+    dir: "{{.MOD}}"
+    cmds:
+      - >-
+        go run github.com/kalandramo/bald/cmd/bald gen domain
+        --spec appspec.json --manifest internal/domainset/domains.gen.go
+        --apiserver-dir - --no-bind --adopt
+
+  gen:check:
+    desc: 校验域清单与 appspec.json 一致（零写入，CI 门禁）
+    dir: "{{.MOD}}"
+    cmds:
+      - >-
+        go run github.com/kalandramo/bald/cmd/bald gen domain
+        --spec appspec.json --manifest internal/domainset/domains.gen.go
+        --apiserver-dir - --no-bind --check
+
   test:
     desc: 跑全部测试（随机顺序，检测全局态耦合）
     dir: "{{.MOD}}"
@@ -87,9 +105,10 @@ tasks:
       - go run ./cmd/bald-admin --config=configs/bald-admin.yaml
 
   verify:
-    desc: CI 式全量校验（build + vet + test）
+    desc: CI 式全量校验（域清单 + build + vet + test）
     dir: "{{.MOD}}"
     cmds:
+      - task: gen:check
       - go build ./...
       - go vet ./...
       - go test {{.TEST_FLAGS}} ./...

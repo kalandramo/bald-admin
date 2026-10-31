@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "name": "bald-admin",
+    "module": "github.com/kalandramo/bald-admin",
+    "desc": "后台管理服务（用户/租户/权限/审计/字典/组织）"
+  },
+  "domains": [
+    {
+      "name": "tenant",
+      "protoPackage": "go.bald.admin.tenant.v1",
+      "service": "go.bald.admin.tenant.v1.TenantService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/tenantd"
+    },
+    {
+      "name": "user",
+      "protoPackage": "go.bald.admin.user.v1",
+      "service": "go.bald.admin.user.v1.UserService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/userd"
+    },
+    {
+      "name": "secret",
+      "protoPackage": "go.bald.admin.v1",
+      "service": "go.bald.admin.v1.SecretService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/secretd"
+    },
+    {
+      "name": "menu",
+      "protoPackage": "go.bald.admin.menu.v1",
+      "service": "go.bald.admin.menu.v1.MenuService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/menud"
+    },
+    {
+      "name": "permission",
+      "protoPackage": "go.bald.admin.permission.v1",
+      "service": "go.bald.admin.permission.v1.PermissionService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/permissiond"
+    },
+    {
+      "name": "dict",
+      "protoPackage": "go.bald.admin.dict.v1",
+      "service": "go.bald.admin.dict.v1.DictTypeService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/dictd"
+    },
+    {
+      "name": "file",
+      "protoPackage": "go.bald.admin.file.v1",
+      "service": "go.bald.admin.file.v1.FileService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/filed"
+    },
+    {
+      "name": "auditlog",
+      "protoPackage": "go.bald.admin.audit.v1",
+      "service": "go.bald.admin.audit.v1.AuditService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/auditlogd"
+    },
+    {
+      "name": "org",
+      "protoPackage": "go.bald.admin.identity.v1",
+      "service": "go.bald.admin.identity.v1.OrgUnitService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/orgd"
+    },
+    {
+      "name": "language",
+      "protoPackage": "go.bald.admin.dict.v1",
+      "service": "go.bald.admin.dict.v1.LanguageService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/languaged"
+    },
+    {
+      "name": "portal",
+      "protoPackage": "go.bald.admin.admin.v1",
+      "service": "go.bald.admin.admin.v1.AdminPortalService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/portald"
+    },
+    {
+      "name": "cachemonitor",
+      "protoPackage": "go.bald.admin.admin.v1",
+      "service": "go.bald.admin.admin.v1.RedisCacheMonitorService",
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/cachemonitord"
+    }
+  ]
+}

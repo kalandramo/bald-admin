@@ -73,6 +73,14 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # 域清单是 appspec.json 的投影：改了 domains[] 却忘跑 task gen:domain，
+      # 或生成物被手改，都在这里失败。
+      - name: Domain manifest in sync
+        run: >-
+          go run github.com/kalandramo/bald/cmd/bald gen domain
+          --spec appspec.json --manifest internal/domainset/domains.gen.go
+          --apiserver-dir - --no-bind --check
+
       - name: Test
         env:
           MINIO_TEST_ENDPOINT: localhost:9000

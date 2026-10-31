@@ -8,11 +8,32 @@ bald 中间件/桥接实现，业务不直连引擎。
 > 设计见 [`docs/设计文档.md`](docs/设计文档.md)；需求见 [`docs/需求文档.md`](docs/需求文档.md)。
 > 实现契约（外部依赖禁止 fake/mock/stub）见设计文档 §0。
 >
-> **与 bald codegen 的关系**：本应用的框架装配骨架（servers / capability / 审计协调 /
-> 配置 flag 覆盖）可由 `bald gen app --spec <AppSpec>` 起步生成同形骨架（样本见
-> `bald` 仓库的 `_example/bald/appspec.json`）；业务层（`internal/` 分层、业务对象
-> 装配、组件工厂、管理面）为手写扩展——生成器只做装配不做业务。
-> 安装生成工具：`go install github.com/kalandramo/bald/cmd/bald@latest`
+> **与 bald codegen 的关系**：`appspec.json` 是本应用的 AppSpec 声明——
+> 12 个有 proto service 的域在此登记，域清单 `internal/domainset/domains.gen.go`
+> 由它派生（`task gen:domain`；CI 用 `task gen:check` 守一致性）。装配骨架
+> （servers / capability / 审计协调 / 配置 flag）与业务层为手写：本应用的装配面
+> 承载了生成器不产出的业务钩子（BeforeStart 桥接、组件工厂、管理面），故未整体
+> 套用 `gen app` 脚手架。
+
+## 域声明（appspec.json）
+
+域清单的唯一真相源。新增/删除域：
+
+1. 写 proto（`api/protos/<域>/v1/`，含 `service`）与域声明包
+   `internal/apiserver/domains/<域>d`（导出 `var Domain` 与 `Setup(Deps)`）；
+2. 在 `appspec.json` 的 `domains[]` 登记 name / protoPackage / service / goPackage；
+3. `task gen:domain` 重写 `internal/domainset/domains.gen.go`，并在
+   `cmd/bald-admin/app/assembly.go` 的 Setup 段注入该域依赖（生成物只列清单，
+   依赖接线仍是显式的）。
+
+没有 gRPC service 的纯 gin 域（auth / mfa / identity / task / message /
+dashboard / permgroup / plan）不纳入 AppSpec——`gen domain` 的 Gate1 要求
+`domains.service` 与 proto 匹配，这些域继续在 `appOptions` 手写声明。
+
+```bash
+task gen:domain   # 按 appspec.json 重写域清单（跑在仓库内固定的 bald 版本上）
+task gen:check    # 零写入校验清单与声明一致（CI 门禁）
+```
 
 ## 架构
 
@@ -154,6 +175,7 @@ Redis 测试按 **DB 12-15** 隔离（各测试用不同 DB，互不污染）。
 
 ```
 backend/                                (独立 go module)
+├── appspec.json                    AppSpec 声明：12 个 proto 支持域的清单真相源
 ├── cmd/bald-admin/main.go          入口：appkit.Run + 拦截器链序 + metrics/audit/nacos 接线
 ├── cmd/bald-admin/app/             装配层：assembly/servers/providers/audit/后端子模块
 ├── configs/bald-admin.yaml.example 契约驱动配置模板（bconf proto 为唯一真相源）
@@ -166,11 +188,12 @@ backend/                                (独立 go module)
 │   │   ├── biz/v1/<域>/            业务逻辑
 │   │   ├── handler/gin/ + grpc/    协议接入层（HTTP 路由 / gRPC service）
 │   │   ├── handler/convert/        proto ↔ 内部类型
-│   │   ├── domains/                每域的装配声明（Routes/Services）
+│   │   ├── domains/                每域的装配声明（Domain 值 + Deps）
 │   │   ├── model/                  gorm 模型
 │   │   ├── assets/                 内嵌 openapi.yaml
 │   │   └── e2e/                    端到端测试（真实 gin+store+拦截器链）
 │   ├── bootstrap/                  InitBridges + Configure（PG/Redis/MinIO/策略装载）
+│   ├── domainset/                  appspec.json 派生的域清单（生成物 + Declared 访问器）
 │   └── security/{casbin,audit}/    授权（策略数据化）/审计后端桥接
 └── docs/                           设计/需求文档
 ```

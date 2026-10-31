@@ -36,6 +36,7 @@ import (
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald-admin/internal/domainset"
 	appauthz "github.com/kalandramo/bald-admin/internal/security/authz"
 	"github.com/kalandramo/bald-admin/internal/security/captcha"
 	"github.com/kalandramo/bald-admin/internal/security/mfa"
@@ -163,6 +164,83 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// 而域有 Services」合成纯域回调，std server Provider 据此照常构建 gRPC 面，
 	// 拦截器链经 WithGRPCOptions（下方，业务声明保留）照常生效。gateway 转码
 	//（registerGateway）是独立声明，不受影响。
+	// AppSpec 声明的 12 个域的依赖登记：Domain 是包级声明值（生成物
+	// internal/bootstrap/domains.gen.go 直接引用），依赖经 getter 迟到取用本函数
+	// 作用域变量（repos/authenticator/authorizer/bizCache 的赋值点见下方
+	// BeforeStart）；先登记再收集选项，域 Wire 晚于 BeforeStart，届时读到已就绪实例。
+	tenantd.Setup(tenantd.Deps{
+		Store: func() *store.Store[authmodel.Tenant] { return repos.Tenant },
+		Authn: func() authn.Authenticator { return authenticator },
+		Authz: func() authz.Authorizer { return authorizer },
+	})
+	userd.Setup(userd.Deps{
+		Store: func() *store.Store[authmodel.User] { return repos.User },
+		Authn: func() authn.Authenticator { return authenticator },
+		Authz: func() authz.Authorizer { return authorizer },
+	})
+	secretd.Setup(secretd.Deps{
+		Store: func() *store.Store[authmodel.Secret] { return repos.Secret },
+		Cache: func() cache.Cache { return bizCache },
+		Authn: func() authn.Authenticator { return authenticator },
+		Authz: func() authz.Authorizer { return authorizer },
+	})
+	menud.Setup(menud.Deps{
+		Store: func() *store.Store[authmodel.Menu] { return repos.Menu },
+		Authn: func() authn.Authenticator { return authenticator },
+		Authz: func() authz.Authorizer { return authorizer },
+	})
+	permissiond.Setup(permissiond.Deps{
+		Store:       func() *store.Store[authmodel.Permission] { return repos.Permission },
+		PolicyStore: func() *store.Store[authmodel.RolePolicy] { return repos.RolePolicy },
+		Authn:       func() authn.Authenticator { return authenticator },
+		Authz:       func() authz.Authorizer { return authorizer },
+	})
+	dictd.Setup(dictd.Deps{
+		TypeStore:  func() *store.Store[authmodel.DictType] { return repos.DictType },
+		EntryStore: func() *store.Store[authmodel.DictEntry] { return repos.DictEntry },
+		Cache:      func() cache.Cache { return bizCache },
+		Authn:      func() authn.Authenticator { return authenticator },
+		Authz:      func() authz.Authorizer { return authorizer },
+	})
+	filed.Setup(filed.Deps{
+		Store:         func() *store.Store[authmodel.File] { return repos.File },
+		ObjectStorage: func() filestore.ObjectStorage { return bootstrappkg.ObjectStorageBridge },
+		Minio:         func() *miniooss.Storage { return bootstrappkg.MinioStorage },
+		Bucket:        func() string { return bootstrappkg.FileBucket },
+		Authn:         func() authn.Authenticator { return authenticator },
+		Authz:         func() authz.Authorizer { return authorizer },
+	})
+	auditlogd.Setup(auditlogd.Deps{
+		Store: func() *store.Store[authmodel.AuditRecord] { return repos.Audit },
+		Authn: func() authn.Authenticator { return authenticator },
+		Authz: func() authz.Authorizer { return authorizer },
+	})
+	orgd.Setup(orgd.Deps{
+		OrgUnitStore:  func() *store.Store[authmodel.OrgUnit] { return repos.OrgUnit },
+		PositionStore: func() *store.Store[authmodel.Position] { return repos.Position },
+		UserStore:     func() *store.Store[authmodel.User] { return repos.User },
+		Authn:         func() authn.Authenticator { return authenticator },
+		Authz:         func() authz.Authorizer { return authorizer },
+	})
+	languaged.Setup(languaged.Deps{
+		Store: func() *store.Store[authmodel.Language] { return repos.Language },
+		Authn: func() authn.Authenticator { return authenticator },
+		Authz: func() authz.Authorizer { return authorizer },
+	})
+	portald.Setup(portald.Deps{
+		UserStore:       func() *store.Store[authmodel.User] { return repos.User },
+		RoleStore:       func() *store.Store[authmodel.Role] { return repos.Role },
+		PermissionStore: func() *store.Store[authmodel.Permission] { return repos.Permission },
+		MenuStore:       func() *store.Store[authmodel.Menu] { return repos.Menu },
+		Authn:           func() authn.Authenticator { return authenticator },
+		Authz:           func() authz.Authorizer { return authorizer },
+	})
+	cachemonitord.Setup(cachemonitord.Deps{
+		RDB:   func() goredis.UniversalClient { return bootstrappkg.RedisClient },
+		Authn: func() authn.Authenticator { return authenticator },
+		Authz: func() authz.Authorizer { return authorizer },
+	})
+
 	opts := []appkit.Option{
 		// --- 框架自有后端 + 第三方 Provider ---
 		// std.Standard()：框架自有后端的段驱动 Provider 集合（http/grpc 服务器
@@ -225,77 +303,10 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 「不启用」= 移除 sse 段。
 		sseServerProvider(func() authn.Authenticator { return authenticator }),
 
-		// --- 业务域声明（20 域全量在册）---
-		// 手写域清单（bald-admin 无 domains.gen.go，与上方 Provider 清单并列——
-		// Domain 实现 Option，变参直传 MustServe）。
-		// 基础设施取用约定：store/authn/authz 住装配层（InitBridges 与 BeforeStart
-		// 构造），域经 Deps getter 迟到取用——getter 读本函数作用域变量（闭包内
-		// `=` 赋值纪律）；域 Wire 晚于业务 BeforeStart 执行（bald/pkg/
-		// appkit/domain.go 时序窗口），getter 届时返回已就绪实例。
-		tenantd.Domain(tenantd.Deps{
-			Store: func() *store.Store[authmodel.Tenant] { return repos.Tenant },
-			Authn: func() authn.Authenticator { return authenticator },
-			Authz: func() authz.Authorizer { return authorizer },
-		}),
-		userd.Domain(userd.Deps{
-			Store: func() *store.Store[authmodel.User] { return repos.User },
-			Authn: func() authn.Authenticator { return authenticator },
-			Authz: func() authz.Authorizer { return authorizer },
-		}),
-		// --- 机械域：secret/menu/permission/dict/file/
-		// auditlog/org/language）---getter 形态同上：store 读 repos（InitBridges
-		// 产物），authn/authz 读 BeforeStart 构造的函数作用域变量；secret/dict
-		// 另读 bizCache（下方 BeforeStart 抉择），file 另读 bootstrap 的存储
-		// 桥接三件（WireStorage/Configure 产物）。
-		secretd.Domain(secretd.Deps{
-			Store: func() *store.Store[authmodel.Secret] { return repos.Secret },
-			Cache: func() cache.Cache { return bizCache },
-			Authn: func() authn.Authenticator { return authenticator },
-			Authz: func() authz.Authorizer { return authorizer },
-		}),
-		menud.Domain(menud.Deps{
-			Store: func() *store.Store[authmodel.Menu] { return repos.Menu },
-			Authn: func() authn.Authenticator { return authenticator },
-			Authz: func() authz.Authorizer { return authorizer },
-		}),
-		permissiond.Domain(permissiond.Deps{
-			Store:       func() *store.Store[authmodel.Permission] { return repos.Permission },
-			PolicyStore: func() *store.Store[authmodel.RolePolicy] { return repos.RolePolicy },
-			Authn:       func() authn.Authenticator { return authenticator },
-			Authz:       func() authz.Authorizer { return authorizer },
-		}),
-		dictd.Domain(dictd.Deps{
-			TypeStore:  func() *store.Store[authmodel.DictType] { return repos.DictType },
-			EntryStore: func() *store.Store[authmodel.DictEntry] { return repos.DictEntry },
-			Cache:      func() cache.Cache { return bizCache },
-			Authn:      func() authn.Authenticator { return authenticator },
-			Authz:      func() authz.Authorizer { return authorizer },
-		}),
-		filed.Domain(filed.Deps{
-			Store:         func() *store.Store[authmodel.File] { return repos.File },
-			ObjectStorage: func() filestore.ObjectStorage { return bootstrappkg.ObjectStorageBridge },
-			Minio:         func() *miniooss.Storage { return bootstrappkg.MinioStorage },
-			Bucket:        func() string { return bootstrappkg.FileBucket },
-			Authn:         func() authn.Authenticator { return authenticator },
-			Authz:         func() authz.Authorizer { return authorizer },
-		}),
-		auditlogd.Domain(auditlogd.Deps{
-			Store: func() *store.Store[authmodel.AuditRecord] { return repos.Audit },
-			Authn: func() authn.Authenticator { return authenticator },
-			Authz: func() authz.Authorizer { return authorizer },
-		}),
-		orgd.Domain(orgd.Deps{
-			OrgUnitStore:  func() *store.Store[authmodel.OrgUnit] { return repos.OrgUnit },
-			PositionStore: func() *store.Store[authmodel.Position] { return repos.Position },
-			UserStore:     func() *store.Store[authmodel.User] { return repos.User },
-			Authn:         func() authn.Authenticator { return authenticator },
-			Authz:         func() authz.Authorizer { return authorizer },
-		}),
-		languaged.Domain(languaged.Deps{
-			Store: func() *store.Store[authmodel.Language] { return repos.Language },
-			Authn: func() authn.Authenticator { return authenticator },
-			Authz: func() authz.Authorizer { return authorizer },
-		}),
+		// --- 手写域 ---
+		// 没有 proto service 的域（gen domain 的 Gate1 要求 domains.service 与
+		// proto 匹配），故不纳入 appspec.json；AppSpec 声明的 12 域见末尾
+		// DeclaredDomains 追加。Domain 实现 Option，变参直传 MustServe。
 
 		// --- 重域：auth ---
 		// 登录防护三件（限流/熔断/重试）构造器住 authd 域（
@@ -327,11 +338,10 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			Authz: func() authz.Authorizer { return authorizer },
 		}),
 
-		// --- 机械域：mfa/identity/task/message/dashboard/
-		// permgroup/plan/portal/cachemonitor——biz 构造在各域
-		// Wire（无 proto 纯 gin 面，Services 不声明合法；cachemonitor 无仓储，
-		// Redis 客户端经 getter 透传，nil=监控降级合法）。getter 形态同上：
-		// store 读 repos，authn/authz 读 BeforeStart 构造的函数作用域变量。
+		// --- 机械域：mfa/identity/task/message/dashboard/permgroup/plan ---
+		// biz 构造在各域 Wire（无 proto 纯 gin 面，Services 不声明合法）。
+		// getter 形态同上：store 读 repos，authn/authz 读 BeforeStart 构造的
+		// 函数作用域变量。
 		mfad.Domain(mfad.Deps{
 			FactorStore: func() *store.Store[authmodel.UserMFAFactor] { return repos.MFAFactor },
 			Challenges:  func() mfa.ChallengeStore { return mfaChallenges },
@@ -378,19 +388,6 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			QuotaStore:  func() *store.Store[authmodel.PlanQuota] { return repos.PlanQuota },
 			Authn:       func() authn.Authenticator { return authenticator },
 			Authz:       func() authz.Authorizer { return authorizer },
-		}),
-		portald.Domain(portald.Deps{
-			UserStore:       func() *store.Store[authmodel.User] { return repos.User },
-			RoleStore:       func() *store.Store[authmodel.Role] { return repos.Role },
-			PermissionStore: func() *store.Store[authmodel.Permission] { return repos.Permission },
-			MenuStore:       func() *store.Store[authmodel.Menu] { return repos.Menu },
-			Authn:           func() authn.Authenticator { return authenticator },
-			Authz:           func() authz.Authorizer { return authorizer },
-		}),
-		cachemonitord.Domain(cachemonitord.Deps{
-			RDB:   func() goredis.UniversalClient { return bootstrappkg.RedisClient },
-			Authn: func() authn.Authenticator { return authenticator },
-			Authz: func() authz.Authorizer { return authorizer },
 		}),
 
 		// --- 配置命名空间与本地文件 ---
@@ -630,6 +627,11 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 靠预算守住，不靠人记。
 		appkit.WithOpaqueBudget(1),
 	}
+
+	// --- AppSpec 声明的域（生成物 domains.gen.go 是 appspec.json 的投影，
+	// `bald gen domain --check` 守一致性）---
+	// 依赖已在上方经各域 Setup 登记；清单序 = appspec.json 的 domains 声明序。
+	opts = append(opts, domainset.Declared()...)
 
 	return opts
 }

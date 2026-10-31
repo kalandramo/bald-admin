@@ -35,10 +35,21 @@ type Deps struct {
 	Authz func() authz.Authorizer
 }
 
-// Domain 返回 cachemonitor 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// deps 是装配层经 Setup 注入的依赖。Domain 是包级声明值（AppSpec 生成物
+// internal/domainset/domains.gen.go 直接引用它）；内部闭包在 Wire 时才取用
+// deps，故 Setup 必须先于装配选项收集调用。
+var deps Deps
+
+// Setup 登记装配层依赖。
+func Setup(d Deps) { deps = d }
+
+// Domain 是 cachemonitor 域的装配声明值（biz+routes 声明节点，通用拓扑见
 // domains.StandardDomain）：routes 委托 hgin.RegisterRedisCacheMonitor——传输
 // 适配不搬家；无 gRPC 面，Services 不声明。
-func Domain(d Deps) appkit.Domain {
+var Domain = buildDomain()
+
+func buildDomain() appkit.Domain {
+	d := &deps // 指针：闭包在 Setup 之后读到注入值（getter 迟到取用）
 	var biz *cmbiz.Biz
 	return domains.StandardDomain("cachemonitor", "cachemonitord",
 		func(context.Context, *appkit.App) error {

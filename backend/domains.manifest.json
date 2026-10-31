@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "tool": "bald gen domain",
+  "spec": "102811f89035f33867eab0ed68b4f1b9f04a9a00e501a34083787f2a59e268a6",
+  "files": [
+    {
+      "path": "internal/domainset/domains.gen.go",
+      "ownership": "owned",
+      "hash": "9b1b9dd25e04d8cdf192dbe3bbbcd62086811570e95861cffac6f10faaa1bf1a"
+    }
+  ]
+}
