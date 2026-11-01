@@ -50,6 +50,7 @@ require (
 	github.com/kalandramo/bald/contrib/audit-stream v0.4.1
 	github.com/kalandramo/bald/contrib/authn-jwt v0.3.0
 	github.com/kalandramo/bald/contrib/authz-casbin v0.2.2
+	github.com/kalandramo/bald/contrib/config-nacos v0.1.0
 	github.com/kalandramo/bald/contrib/observability-otlp v0.4.0
 	github.com/kalandramo/bald/contrib/store-gorm v0.3.0
 	github.com/kalandramo/bald/encoding v0.1.0
@@ -216,7 +217,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.3.0 // indirect
 	github.com/kalandramo/bald/bconfig v0.2.1 // indirect
-	github.com/kalandramo/bald/contrib/config-nacos v0.1.0 // indirect
 	github.com/kalandramo/bald/transport/http v0.1.3 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
