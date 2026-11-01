@@ -16,8 +16,8 @@ import (
 
 	gingonic "github.com/gin-gonic/gin"
 
-	"github.com/kalandramo/bald/pkg/audit"
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
+	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
 )
 
