@@ -9,11 +9,11 @@ bald 中间件/桥接实现，业务不直连引擎。
 > 实现契约（外部依赖禁止 fake/mock/stub）见设计文档 §0。
 >
 > **与 bald codegen 的关系**：`appspec.json` 是本应用的 AppSpec 声明——
-> 12 个有 proto service 的域在此登记，域清单 `internal/domainset/domains.gen.go`
-> 由它派生（`task gen:domain`；CI 用 `task gen:check` 守一致性）。装配骨架
-> （servers / capability / 审计协调 / 配置 flag）与业务层为手写：本应用的装配面
-> 承载了生成器不产出的业务钩子（BeforeStart 桥接、组件工厂、管理面），故未整体
-> 套用 `gen app` 脚手架。
+> 19 个业务域在此登记（12 个 proto 域 + 7 个 `httpOnly` 域），域清单
+> `internal/domainset/domains.gen.go` 由它派生（`task gen:domain`；CI 用
+> `task gen:check` 守一致性）。装配骨架（servers / capability / 审计协调 /
+> 配置 flag）与业务层为手写：本应用的装配面承载了生成器不产出的业务钩子
+> （BeforeStart 桥接、组件工厂、管理面），故未整体套用 `gen app` 脚手架。
 
 ## 域声明（appspec.json）
 
@@ -21,14 +21,16 @@ bald 中间件/桥接实现，业务不直连引擎。
 
 1. 写 proto（`api/protos/<域>/v1/`，含 `service`）与域声明包
    `internal/apiserver/domains/<域>d`（导出 `var Domain` 与 `Setup(Deps)`）；
-2. 在 `appspec.json` 的 `domains[]` 登记 name / protoPackage / service / goPackage；
+2. 在 `appspec.json` 的 `domains[]` 登记 name / goPackage，并按域形态三选一：
+   `service`（单 proto service）、`services[]`（多 service 聚合，如 dict/org）、
+   `httpOnly: true`（无 proto 产物）；
 3. `task gen:domain` 重写 `internal/domainset/domains.gen.go`，并在
    `cmd/bald-admin/app/assembly.go` 的 Setup 段注入该域依赖（生成物只列清单，
    依赖接线仍是显式的）。
 
-没有 gRPC service 的纯 gin 域（auth / mfa / identity / task / message /
-dashboard / permgroup / plan）不纳入 AppSpec——`gen domain` 的 Gate1 要求
-`domains.service` 与 proto 匹配，这些域继续在 `appOptions` 手写声明。
+没有 proto service 的域以 `httpOnly` 声明（mfa / identity / task / message /
+dashboard / permgroup / plan）。唯一例外是 authd：它不在 `appspec.json` 内，
+仍在 `appOptions` 手写声明域与依赖。
 
 ```bash
 task gen:domain   # 按 appspec.json 重写域清单（跑在仓库内固定的 bald 版本上）
@@ -175,7 +177,7 @@ Redis 测试按 **DB 12-15** 隔离（各测试用不同 DB，互不污染）。
 
 ```
 backend/                                (独立 go module)
-├── appspec.json                    AppSpec 声明：12 个 proto 支持域的清单真相源
+├── appspec.json                    AppSpec 声明：19 个业务域的清单真相源
 ├── cmd/bald-admin/main.go          入口：appkit.Run + 拦截器链序 + metrics/audit/nacos 接线
 ├── cmd/bald-admin/app/             装配层：assembly/servers/providers/audit/后端子模块
 ├── configs/bald-admin.yaml.example 契约驱动配置模板（bconf proto 为唯一真相源）

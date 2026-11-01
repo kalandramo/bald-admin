@@ -164,14 +164,14 @@ func TestFlagOptions_AddFlags(t *testing.T) {
 	f.AddFlags(fs)
 
 	wantDefaults := map[string]string{
-		"biz.login.rate_limit.rate":                   "0",
-		"biz.login.rate_limit.burst":                  "0",
-		"biz.login.breaker.error_threshold":           "0.5",
-		"biz.login.breaker.request_volume":            "20",
-		"biz.login.breaker.sleep_window_seconds":      "5",
-		"biz.login.retry.max_attempts":                "3",
-		"biz.login.retry.initial_backoff_ms":          "200",
-		"biz.login.retry.max_backoff_ms":              "10000",
+		"biz.login.rate_limit.rate":              "0",
+		"biz.login.rate_limit.burst":             "0",
+		"biz.login.breaker.error_threshold":      "0.5",
+		"biz.login.breaker.request_volume":       "20",
+		"biz.login.breaker.sleep_window_seconds": "5",
+		"biz.login.retry.max_attempts":           "3",
+		"biz.login.retry.initial_backoff_ms":     "200",
+		"biz.login.retry.max_backoff_ms":         "10000",
 	}
 	for name, def := range wantDefaults {
 		fl := fs.Lookup(name)

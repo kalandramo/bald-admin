@@ -38,7 +38,10 @@
     {
       "name": "dict",
       "protoPackage": "go.bald.admin.dict.v1",
-      "service": "go.bald.admin.dict.v1.DictTypeService",
+      "services": [
+        "go.bald.admin.dict.v1.DictTypeService",
+        "go.bald.admin.dict.v1.DictEntryService"
+      ],
       "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/dictd"
     },
     {
@@ -56,7 +59,10 @@
     {
       "name": "org",
       "protoPackage": "go.bald.admin.identity.v1",
-      "service": "go.bald.admin.identity.v1.OrgUnitService",
+      "services": [
+        "go.bald.admin.identity.v1.OrgUnitService",
+        "go.bald.admin.identity.v1.PositionService"
+      ],
       "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/orgd"
     },
     {
@@ -76,6 +82,41 @@
       "protoPackage": "go.bald.admin.admin.v1",
       "service": "go.bald.admin.admin.v1.RedisCacheMonitorService",
       "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/cachemonitord"
+    },
+    {
+      "name": "identity",
+      "httpOnly": true,
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/identityd"
+    },
+    {
+      "name": "dashboard",
+      "httpOnly": true,
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/dashboardd"
+    },
+    {
+      "name": "message",
+      "httpOnly": true,
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/messaged"
+    },
+    {
+      "name": "mfa",
+      "httpOnly": true,
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/mfad"
+    },
+    {
+      "name": "permgroup",
+      "httpOnly": true,
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/permgroupd"
+    },
+    {
+      "name": "plan",
+      "httpOnly": true,
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/pland"
+    },
+    {
+      "name": "task",
+      "httpOnly": true,
+      "goPackage": "github.com/kalandramo/bald-admin/internal/apiserver/domains/taskd"
     }
   ]
 }

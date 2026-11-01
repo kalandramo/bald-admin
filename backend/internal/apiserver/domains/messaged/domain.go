@@ -1,7 +1,7 @@
 // Package messaged 是 message 域的装配声明包。
 // 包定位、依赖取用约定与跨域规则见同目录 tenantd 的 domain.go 头注。
 //
-// 特殊点：无 proto 纯 gin 面。SSE 实时推送在 SSE server 构建点经装配回调 SetPublisher 注入——域经 Biz() 访问器被装配层迟到读取（见下方 wired 注释）。
+// 特殊点：无 proto 纯 gin 面（AppSpec 以 httpOnly 声明）。SSE 实时推送在 SSE server 构建点经装配回调 SetPublisher 注入——域经 Biz() 访问器被装配层迟到读取（见下方 wired 注释）。
 package messaged
 
 import (
@@ -43,10 +43,21 @@ var wired *msgbiz.Biz
 // Biz 返回 message 域的 biz 端口（未 Wire 时 nil——SSE 回调判空即跳过接线）。
 func Biz() *msgbiz.Biz { return wired }
 
-// Domain 返回 message 域的装配声明值（biz+routes 声明节点，通用拓扑见
+// deps 是装配层经 Setup 注入的依赖。Domain 是包级声明值（AppSpec 生成物
+// internal/domainset/domains.gen.go 直接引用它）；内部闭包在 Wire 时才取用
+// deps，故 Setup 必须先于装配选项收集调用。
+var deps Deps
+
+// Setup 登记装配层依赖。
+func Setup(d Deps) { deps = d }
+
+// Domain 是 message 域的装配声明值（biz+routes 声明节点，通用拓扑见
 // domains.StandardDomain）：routes 委托 hgin.RegisterMessage——传输适配
 // 不搬家；无 gRPC 面，Services 不声明。
-func Domain(d Deps) appkit.Domain {
+var Domain = buildDomain()
+
+func buildDomain() appkit.Domain {
+	d := &deps
 	var biz *msgbiz.Biz
 	return domains.StandardDomain("message", "messaged",
 		func(context.Context, *appkit.App) error {

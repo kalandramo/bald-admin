@@ -45,12 +45,12 @@ import (
 //	sse:     {addr: ":8090", path: "/events"}
 //	gateway: {addr: ":8081"}
 type ServerOptions struct {
-	File    fileOptions    `mapstructure:"file"`
-	Audit   auditOptions   `mapstructure:"audit"`
-	Auth    authOptions    `mapstructure:"auth"`
-	Asynq   asynqOptions   `mapstructure:"asynq"`
-	Redis   redisOptions   `mapstructure:"redis"`
-	SSE     sseOptions     `mapstructure:"sse"`
+	File  fileOptions  `mapstructure:"file"`
+	Audit auditOptions `mapstructure:"audit"`
+	Auth  authOptions  `mapstructure:"auth"`
+	Asynq asynqOptions `mapstructure:"asynq"`
+	Redis redisOptions `mapstructure:"redis"`
+	SSE   sseOptions   `mapstructure:"sse"`
 
 	// flagShadow 是 AddFlags 的绑定目标（pflag 需要一个可写地址）。
 	//
@@ -184,9 +184,9 @@ func NewServerOptions() *ServerOptions {
 		// 会被配置段覆盖。改用框架路径名后优先级与其余字段一致。
 		// SSE 例外：契约 `server.sse` 段无 provider（registered=false），
 		// 用路径名会 fail-fast，故保留短名通道（见 sse.go 文件头）。
-		Asynq:   asynqOptions{Codec: envDefault("BALD_ADMIN_ASYNQ_CODEC", "json")},
-		Redis:   redisOptions{Addr: os.Getenv("BALD_ADMIN_REDIS_ADDR")},
-		SSE:     sseOptions{Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"), Path: os.Getenv("BALD_ADMIN_SSE_PATH")},
+		Asynq: asynqOptions{Codec: envDefault("BALD_ADMIN_ASYNQ_CODEC", "json")},
+		Redis: redisOptions{Addr: os.Getenv("BALD_ADMIN_REDIS_ADDR")},
+		SSE:   sseOptions{Addr: os.Getenv("BALD_ADMIN_SSE_ADDR"), Path: os.Getenv("BALD_ADMIN_SSE_PATH")},
 	}
 }
 

@@ -198,7 +198,7 @@ func TestAssemblyPath_MiddlewareOnBusinessRoute(t *testing.T) {
 }
 
 // TestAssemblyPath_InvalidMiddlewareFailsFast 显式声明非法中间件值 → 启动期报错
-//（BeforeStart 内 fail-fast，先于监听——而非静默忽略配置）。
+// （BeforeStart 内 fail-fast，先于监听——而非静默忽略配置）。
 func TestAssemblyPath_InvalidMiddlewareFailsFast(t *testing.T) {
 	const badCfg = `app:
   name: "bald-admin"

@@ -37,6 +37,20 @@ import (
 	portald "github.com/kalandramo/bald-admin/internal/apiserver/domains/portald"
 
 	cachemonitord "github.com/kalandramo/bald-admin/internal/apiserver/domains/cachemonitord"
+
+	identityd "github.com/kalandramo/bald-admin/internal/apiserver/domains/identityd"
+
+	dashboardd "github.com/kalandramo/bald-admin/internal/apiserver/domains/dashboardd"
+
+	messaged "github.com/kalandramo/bald-admin/internal/apiserver/domains/messaged"
+
+	mfad "github.com/kalandramo/bald-admin/internal/apiserver/domains/mfad"
+
+	permgroupd "github.com/kalandramo/bald-admin/internal/apiserver/domains/permgroupd"
+
+	pland "github.com/kalandramo/bald-admin/internal/apiserver/domains/pland"
+
+	taskd "github.com/kalandramo/bald-admin/internal/apiserver/domains/taskd"
 )
 
 // domainOptions 是本应用全部业务域的声明值（变参直传 appkit.MustServe；
@@ -54,4 +68,11 @@ var domainOptions = []appkit.Option{
 	languaged.Domain,
 	portald.Domain,
 	cachemonitord.Domain,
+	identityd.Domain,
+	dashboardd.Domain,
+	messaged.Domain,
+	mfad.Domain,
+	permgroupd.Domain,
+	pland.Domain,
+	taskd.Domain,
 }

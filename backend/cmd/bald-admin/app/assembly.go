@@ -49,6 +49,8 @@ import (
 	baldconfig "github.com/kalandramo/bald/bootstrap/config"
 	"github.com/kalandramo/bald/cache"
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
+	confignacos "github.com/kalandramo/bald/contrib/config-nacos"
+	otlpcontract "github.com/kalandramo/bald/contrib/observability-otlp/contract"
 	obmetrics "github.com/kalandramo/bald/contrib/observability-otlp/metrics"
 	storegorm "github.com/kalandramo/bald/contrib/store-gorm"
 	"github.com/kalandramo/bald/health"
@@ -164,8 +166,8 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 	// 而域有 Services」合成纯域回调，std server Provider 据此照常构建 gRPC 面，
 	// 拦截器链经 WithGRPCOptions（下方，业务声明保留）照常生效。gateway 转码
 	//（registerGateway）是独立声明，不受影响。
-	// AppSpec 声明的 12 个域的依赖登记：Domain 是包级声明值（生成物
-	// internal/bootstrap/domains.gen.go 直接引用），依赖经 getter 迟到取用本函数
+	// AppSpec 声明的域的依赖登记：Domain 是包级声明值（生成物
+	// internal/domainset/domains.gen.go 直接引用），依赖经 getter 迟到取用本函数
 	// 作用域变量（repos/authenticator/authorizer/bizCache 的赋值点见下方
 	// BeforeStart）；先登记再收集选项，域 Wire 晚于 BeforeStart，届时读到已就绪实例。
 	tenantd.Setup(tenantd.Deps{
@@ -240,6 +242,55 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		Authn: func() authn.Authenticator { return authenticator },
 		Authz: func() authz.Authorizer { return authorizer },
 	})
+	// 纯 HTTP 域（AppSpec 声明 httpOnly：无 proto 产物，biz/routes 仍走
+	// domain 节点；Services 不声明）。
+	mfad.Setup(mfad.Deps{
+		FactorStore: func() *store.Store[authmodel.UserMFAFactor] { return repos.MFAFactor },
+		Challenges:  func() mfa.ChallengeStore { return mfaChallenges },
+		Authn:       func() authn.Authenticator { return authenticator },
+		Authz:       func() authz.Authorizer { return authorizer },
+	})
+	identityd.Setup(identityd.Deps{
+		CredentialStore:  func() *store.Store[authmodel.UserCredential] { return repos.Credential },
+		LoginPolicyStore: func() *store.Store[authmodel.LoginPolicy] { return repos.LoginPolicy },
+		Authn:            func() authn.Authenticator { return authenticator },
+		Authz:            func() authz.Authorizer { return authorizer },
+	})
+	taskd.Setup(taskd.Deps{
+		TaskStore: func() *store.Store[authmodel.Task] { return repos.Task },
+		Authn:     func() authn.Authenticator { return authenticator },
+		Authz:     func() authz.Authorizer { return authorizer },
+	})
+	messaged.Setup(messaged.Deps{
+		MessageStore:  func() *store.Store[authmodel.InternalMessage] { return repos.Message },
+		CategoryStore: func() *store.Store[authmodel.InternalMessageCategory] { return repos.MessageCategory },
+		RecipientStore: func() *store.Store[authmodel.InternalMessageRecipient] {
+			return repos.Recipient
+		},
+		UserStore: func() *store.Store[authmodel.User] { return repos.User },
+		Authn:     func() authn.Authenticator { return authenticator },
+		Authz:     func() authz.Authorizer { return authorizer },
+	})
+	dashboardd.Setup(dashboardd.Deps{
+		AuditStore: func() *store.Store[authmodel.AuditRecord] { return repos.Audit },
+		RoleStore:  func() *store.Store[authmodel.Role] { return repos.Role },
+		UserStore:  func() *store.Store[authmodel.User] { return repos.User },
+		Authn:      func() authn.Authenticator { return authenticator },
+		Authz:      func() authz.Authorizer { return authorizer },
+	})
+	permgroupd.Setup(permgroupd.Deps{
+		GroupStore:   func() *store.Store[authmodel.PermissionGroup] { return repos.PermGroup },
+		EvalLogStore: func() *store.Store[authmodel.PolicyEvaluationLog] { return repos.PolicyEvalLog },
+		Authn:        func() authn.Authenticator { return authenticator },
+		Authz:        func() authz.Authorizer { return authorizer },
+	})
+	pland.Setup(pland.Deps{
+		PlanStore:   func() *store.Store[authmodel.Plan] { return repos.Plan },
+		ModuleStore: func() *store.Store[authmodel.PlanModule] { return repos.PlanModule },
+		QuotaStore:  func() *store.Store[authmodel.PlanQuota] { return repos.PlanQuota },
+		Authn:       func() authn.Authenticator { return authenticator },
+		Authz:       func() authz.Authorizer { return authorizer },
+	})
 
 	opts := []appkit.Option{
 		// --- 框架自有后端 + 第三方 Provider ---
@@ -253,7 +304,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// storegorm.SQL.Resource(app) 取用，停机自动释放连接池。
 		storegorm.AppProvider(),
 		// 配置源（config 段：nacos 远程层）与注册中心（registry.nacos 段）。
-		configSourceProvider{},
+		confignacos.AppProvider(),
 		nacoscontract.AppProvider(),
 		// cache.redis 段：业务桥接 Provider（env/降级/RedisClient 语义，见
 		// providers.go 的取舍说明）。cache 段未配置时引擎跳过（合法）。
@@ -261,10 +312,9 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 对象存储两后端（storage.minio / storage.s3 段，互斥择一）。
 		miniocontract.AppProvider(),
 		s3contract.AppProvider(),
-		// 可观测性：tracer/metrics 段经 observability-otlp 函数契约缝分派
-		// （原 Tracer/MetricsRegistry 注册表形态删除，type 分派收敛到 Provider）。
-		tracerProvider{},
-		metricsProvider{},
+		// 可观测性：tracer/metrics 段由 observability-otlp 官方 Provider 分派，
+		// serviceName 绑定 OTLP resource。
+		otlpcontract.AppProviders(configNamespace),
 		// 审计段：业务 Provider 接管 std 默认（末者胜），装配 log/store/stream
 		// 三后端——见 audit_wiring.go。
 		auditProvider{},
@@ -303,12 +353,9 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 「不启用」= 移除 sse 段。
 		sseServerProvider(func() authn.Authenticator { return authenticator }),
 
-		// --- 手写域 ---
-		// 没有 proto service 的域（gen domain 的 Gate1 要求 domains.service 与
-		// proto 匹配），故不纳入 appspec.json；AppSpec 声明的 12 域见末尾
-		// DeclaredDomains 追加。Domain 实现 Option，变参直传 MustServe。
-
-		// --- 重域：auth ---
+		// --- 手写域：auth ---
+		// auth 不在 appspec.json 的 domains 内（gen domain 要求 proto service
+		// 对齐），声明与依赖注入在同一处；其余 19 域见末尾 domainset.Declared()。
 		// 登录防护三件（限流/熔断/重试）构造器住 authd 域（
 		// config.go）：域 Wire 自读 Settings 快照的 biz.login.* 段并自行构造，装配层
 		// 不再出现业务阈值；flag 通道经 authd.FlagOptions 声明（下方 Bind）。其余
@@ -336,58 +383,6 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 				return time.Duration(svrOpts.Auth.AccessTTLMinutes) * time.Minute, refresh
 			},
 			Authz: func() authz.Authorizer { return authorizer },
-		}),
-
-		// --- 机械域：mfa/identity/task/message/dashboard/permgroup/plan ---
-		// biz 构造在各域 Wire（无 proto 纯 gin 面，Services 不声明合法）。
-		// getter 形态同上：store 读 repos，authn/authz 读 BeforeStart 构造的
-		// 函数作用域变量。
-		mfad.Domain(mfad.Deps{
-			FactorStore: func() *store.Store[authmodel.UserMFAFactor] { return repos.MFAFactor },
-			Challenges:  func() mfa.ChallengeStore { return mfaChallenges },
-			Authn:       func() authn.Authenticator { return authenticator },
-			Authz:       func() authz.Authorizer { return authorizer },
-		}),
-		identityd.Domain(identityd.Deps{
-			CredentialStore:  func() *store.Store[authmodel.UserCredential] { return repos.Credential },
-			LoginPolicyStore: func() *store.Store[authmodel.LoginPolicy] { return repos.LoginPolicy },
-			Authn:            func() authn.Authenticator { return authenticator },
-			Authz:            func() authz.Authorizer { return authorizer },
-		}),
-		taskd.Domain(taskd.Deps{
-			TaskStore: func() *store.Store[authmodel.Task] { return repos.Task },
-			Authn:     func() authn.Authenticator { return authenticator },
-			Authz:     func() authz.Authorizer { return authorizer },
-		}),
-		messaged.Domain(messaged.Deps{
-			MessageStore:  func() *store.Store[authmodel.InternalMessage] { return repos.Message },
-			CategoryStore: func() *store.Store[authmodel.InternalMessageCategory] { return repos.MessageCategory },
-			RecipientStore: func() *store.Store[authmodel.InternalMessageRecipient] {
-				return repos.Recipient
-			},
-			UserStore: func() *store.Store[authmodel.User] { return repos.User },
-			Authn:     func() authn.Authenticator { return authenticator },
-			Authz:     func() authz.Authorizer { return authorizer },
-		}),
-		dashboardd.Domain(dashboardd.Deps{
-			AuditStore: func() *store.Store[authmodel.AuditRecord] { return repos.Audit },
-			RoleStore:  func() *store.Store[authmodel.Role] { return repos.Role },
-			UserStore:  func() *store.Store[authmodel.User] { return repos.User },
-			Authn:      func() authn.Authenticator { return authenticator },
-			Authz:      func() authz.Authorizer { return authorizer },
-		}),
-		permgroupd.Domain(permgroupd.Deps{
-			GroupStore:   func() *store.Store[authmodel.PermissionGroup] { return repos.PermGroup },
-			EvalLogStore: func() *store.Store[authmodel.PolicyEvaluationLog] { return repos.PolicyEvalLog },
-			Authn:        func() authn.Authenticator { return authenticator },
-			Authz:        func() authz.Authorizer { return authorizer },
-		}),
-		pland.Domain(pland.Deps{
-			PlanStore:   func() *store.Store[authmodel.Plan] { return repos.Plan },
-			ModuleStore: func() *store.Store[authmodel.PlanModule] { return repos.PlanModule },
-			QuotaStore:  func() *store.Store[authmodel.PlanQuota] { return repos.PlanQuota },
-			Authn:       func() authn.Authenticator { return authenticator },
-			Authz:       func() authz.Authorizer { return authorizer },
 		}),
 
 		// --- 配置命名空间与本地文件 ---
@@ -420,19 +415,19 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 		// 健康检查默认装配：HTTP 双探针 + gRPC health 状态联动。
 		appkit.WithHealth(healthChecker),
 
-		// 日志装饰（装饰归 provider 自持，见 loggerProvider）：
-		// 经本应用的 loggerProvider（覆盖 std 默认）注入。两套脱敏机制
+		// 日志装饰（装饰钩子由框架内置 Provider 的构造器承接，后声明覆盖
+		// std.Standard() 的同段默认——段路径末者胜）。两套脱敏机制
 		// **互补，不是重复**（实测验证）：
 		//   - 契约 `logger.filter_keys` 包在 MultiLogger 外层，覆盖**位置参数对**
 		//     （"password", v）与 **ctx 属性流**；
 		//   - bslog.WithFilter 是 slog handler 层装饰器，覆盖 **slog.Attr** 形式
 		//     （slog.String("password", v)）。契约版不处理 Attr——会被漏过。
 		// 二者缺一即有来源未被掩码，故并存。
-		loggerProvider{deco: []bslog.Option{
+		appkit.StandardLoggerProvider(
 			bslog.WithFilter(bslog.FilterKey("password")),
 			bslog.WithFilter(bslog.FilterKey("token")),
 			bslog.WithAttrs(slog.String("service.name", "bald-admin")),
-		}},
+		),
 
 		// --- 机制层（mech 子包）---
 		// 能力声明（启动期 fail-fast）：BeforeStart 的 InitBridges 将建立真实 DB
