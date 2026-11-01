@@ -2,18 +2,19 @@
 // store/stream 后端经「用户声明自己的 audit 段 Provider」接入——段路径末者胜
 // 覆盖 std 默认的 log-only Provider，因此本 Provider 须接管全部三种后端
 // log/store/stream。
-
-// ## 双轨说明（为何两处都有后端构造）
 //
-//   - **契约轨**（本文件）：audit 段在阶段 B（BeforeStart 装载链后）经本
-//     Provider 装配，产物 audit.Auditor 由引擎全局注入（SetAuditor）并在
-//     停机恢复装配前全局；
+// ## 产物去向与双轨分工
+//
+//   - **契约轨**（本文件）：audit 段在阶段 B 经本 Provider 装配，产物
+//     audit.Auditor 落资源面并作 appkit 自身审计事件的兜底 sink；请求级
+//     审计不经框架全局句柄——业务经 bundle.Audit(securityaudit.Global())
+//     转发到应用自持的当前审计器。
 //   - **协调轨**（audit.go 的 reconcileAudit）：audit.backends 期望态经
-//     R1-2 协调器在 AfterStart 前收敛（支持运行期热切换）。
+//     协调器在 AfterStart 前收敛（支持运行期热切换），生效集经
+//     securityaudit.SetCurrent 由应用自持。
 //
-// 二者都 SetAuditor 全局，协调轨在其后执行故最终生效；业务中间件经
-// bundle.Audit(securityaudit.Global()) 动态转发，切换即时可见。契约轨在
-// 「无协调器配置」或消费方未接协调轨时独立生效——故它自身不能有时序缺陷。
+// 两轨互补：协调轨负责请求级热切换，契约轨保证「无协调器配置」时 appkit
+// 自身审计事件仍有 sink——故它自身不能有时序缺陷。
 
 package app
 
@@ -24,7 +25,7 @@ import (
 
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	auditgorm "github.com/kalandramo/bald/contrib/audit-gorm"
-	auditstream "github.com/kalandramo/bald/contrib/audit-stream"
+	auditstreamcontract "github.com/kalandramo/bald/contrib/audit-stream/contract"
 	storegorm "github.com/kalandramo/bald/contrib/store-gorm"
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/audit"
@@ -86,8 +87,17 @@ func (auditProvider) Build(ctx context.Context, s appkit.ApplyScope, _ appkit.No
 				return buildStoreAuditor(db, acfg)
 			}})
 		case appkit.AuditTypeStream:
-			backs = append(backs, audit.NamedBackend{Name: typ, New: func(context.Context) (audit.Auditor, func(context.Context) error, error) {
-				return buildStreamAuditor(acfg)
+			// Redis 客户端取自包级 RedisClient（cacheRedisProvider 在 cache 槽位
+			// 填充，audit 槽位排在其后）。配置声明了 stream 却无 Redis 可用属
+			// 配置意图无法兑现——fail-fast 比静默降级可操作。
+			rdb := resolveAuditRedis()
+			if rdb == nil {
+				return nil, nil, errors.New(
+					"audit-stream: no redis client (configure cache.redis, or drop \"stream\" from audit.backends)")
+			}
+			p := auditstreamcontract.NewStreamProvider(rdb)
+			backs = append(backs, audit.NamedBackend{Name: typ, New: func(ctx context.Context) (audit.Auditor, func(context.Context) error, error) {
+				return p(ctx, acfg, s.App)
 			}})
 		default:
 			return nil, nil, fmt.Errorf("audit: unknown backend %q (expect %q, %q or %q)",
@@ -116,33 +126,6 @@ func buildStoreAuditor(db *gormpkg.DB, acfg *bootstrapv1.Audit) (audit.Auditor, 
 		}
 	}
 	return securityaudit.NewStore(db), nil, nil
-}
-
-// buildStreamAuditor 构造 stream（Redis Stream 异步）后端。
-//
-// redis 客户端取自包级 RedisClient——cacheRedisProvider（cache 槽位，排在
-// audit 之前）经 BuildRedisCache→UseRedisClient 填充；未配置 cache.redis 段
-// 时为 nil，此时返回错误（fail-fast：配置声明了 stream 却无 Redis 可用，属
-// 配置意图无法兑现，比静默降级可操作——原契约轨语义保留）。
-//
-// Resource("cache.redis") 不是候选：cache.Cache 适配器**刻意不暴露底层
-// client**（见 cache/redis 包注释），而 stream 后端需原生 Redis 命令（XADD）。
-func buildStreamAuditor(acfg *bootstrapv1.Audit) (audit.Auditor, func(context.Context) error, error) {
-	rdb := resolveAuditRedis()
-	if rdb == nil {
-		return nil, nil, errors.New(
-			"audit-stream: no redis client (configure cache.redis, or drop \"stream\" from audit.backends)")
-	}
-	s := acfg.GetStream()
-	srv := auditstream.New(rdb,
-		auditstream.WithStream(s.GetStream()),
-		auditstream.WithBuffer(int(s.GetBuffer())),
-	)
-	if srv == nil {
-		return nil, nil, errors.New("audit-stream: nil redis client")
-	}
-	// cleanup 即 StreamAuditor.Close（停后台 goroutine + drain 尾批缓冲）。
-	return srv, func(context.Context) error { return srv.Close() }, nil
 }
 
 // resolveAuditRedis 返回审计 stream 后端用的 Redis 客户端（消费时点求值）。

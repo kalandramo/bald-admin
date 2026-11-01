@@ -1,24 +1,18 @@
 // Package authz 提供授权器的**应用层装饰器**。
 //
-// 框架能力缺口（实测，待上游确认）：
-// bald 的 authz.Authorizer 接口只有 Authorize 一个方法（pkg/authz/authz.go:15-20），
-// contrib/authz-casbin 的实现也只暴露 New/NewWithModel/Authorize
-// （contrib/authz-casbin/casbin.go:48/55/80）——**没有任何热重载策略的入口**。
-//
-// 后果（本会话端到端实测）：casbin 的 g 行（subject→角色绑定）在启动时经
-// bootstrap.loadPolicyCSV 从 UserStore 一次性装载。**运行期新增的用户不在其中**——
-// 注册后立即登录，其权限直到**重启进程**才生效（实测：新注册用户访问 /v1/auth/whoami
-// 返回 403 "access denied: subject=u-xxx, object=auth, action=get"，而同样的
-// 请求在重启后通过）。这对「注册即用」是硬伤。
-//
-// 应用层绕行：ReloadableAuthorizer 装饰器——持有一个可整体替换的内层授权器，
-// 业务在用户/角色变更后调用 Reload 重建策略快照。**框架零改动**（装饰器是
-// authz.Authorizer 的合法实现，与 token.RevocationChecker 同款手法）。
+// ReloadableAuthorizer 持有一个可整体替换的内层授权器：casbin 的 g 行
+// （subject→角色绑定）在构造期经 bootstrap.loadPolicyCSV 从 UserStore 一次性
+// 装载，运行期新增用户不在其中——注册后立即登录会 403 直到重启进程。业务在
+// 用户/角色变更后调用 Reload 重建策略快照即可让变更即时生效。
 //
 // 为什么用「整体替换」而非「增量添加策略」：
-//   - 增量需要框架暴露 AddPolicy 等 API（当前没有）；
+//   - 增量需要底层暴露 AddPolicy 等 API；
 //   - 整体替换的语义更简单可靠（策略真源是 DB，重建即与 DB 一致）；
 //   - 重建成本 = 一次全表读 + casbin 装载，对低频的注册/改角色操作可接受。
+//
+// 与 bald 的 authz.ReloadableAuthorizer 的关系：框架接口只定义能力契约；
+// contrib/authz-casbin 的 Reload 重载构造期注入的同一策略源，而本应用的真源
+// 是 DB，故仍需本装饰器承担「重建」语义，并实现该接口供能力发现。
 package authz
 
 import (
@@ -73,3 +67,9 @@ func (r *ReloadableAuthorizer) Reload() error {
 	r.mu.Unlock()
 	return nil
 }
+
+// 编译期契约：装饰器是合法 Authorizer，且可被 authz.Reload 能力发现。
+var (
+	_ authz.Authorizer           = (*ReloadableAuthorizer)(nil)
+	_ authz.ReloadableAuthorizer = (*ReloadableAuthorizer)(nil)
+)

@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
+	authzcasbin "github.com/kalandramo/bald/contrib/authz-casbin"
 	baldgorm "github.com/kalandramo/bald/contrib/store-gorm"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/authn"
@@ -85,10 +86,9 @@ var TokenStore token.Store
 
 // policyReloader 是 casbin 策略热重载钩子。
 //
-// 背景（框架能力缺口）：authz.Authorizer 接口只有 Authorize（pkg/authz/authz.go:15），
-// contrib/authz-casbin 也无热重载入口——运行期新增用户/改角色后，权限必须重启
-// 进程才生效（端到端实测：新注册用户 whoami 403）。应用层用
-// security/authz.ReloadableAuthorizer 装饰器绕行。
+// 策略快照在构造期一次性装载，运行期新增用户/改角色须重建才能生效（否则
+// 新注册用户 whoami 恒 403）。重建由 security/authz.ReloadableAuthorizer
+// 装饰器承担（重读 DB 后整体替换内层授权器）。
 //
 // 为什么经包级变量而非直接依赖：authbiz 已 import bootstrap，若再让 bootstrap
 // 依赖 authbiz 会成环；而注册流程（在 authbiz）需要触发重载。包级函数钩子是
@@ -454,12 +454,12 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	reloadable := appauthz.NewReloadable(az, func() (authz.Authorizer, error) {
 		return buildAuthorizer(context.Background(), repos)
 	})
-	// 再包一层 object 别名装饰器。传输中立归一化把 gRPC Service 名压成
-	// 无分隔小写（OrgUnitService→"orgunit"），而策略 object 沿用 HTTP 路径段
-	// 命名（"org-units"）；casbin 精确匹配下 gRPC 面恒 403（实测复现）。
-	// 装饰器在内层**明确拒绝**后按别名重试一次，不放宽任何语义边界。
-	// 详见 internal/security/authz/alias.go 头注与 grpcObjectAliases 的对应说明。
-	alias := appauthz.NewObjectAlias(reloadable, grpcObjectAliases)
+	// 再包一层 object 别名装饰器（bald 的 contrib/authz-casbin 实现）：传输中立
+	// 归一化把 gRPC Service 名压成无分隔小写（OrgUnitService→"orgunit"），而策略
+	// object 沿用 HTTP 路径段命名（"org-units"）；casbin 精确匹配下 gRPC 面恒 403。
+	// 装饰器在内层**明确拒绝**后按等价名重试，不放宽任何语义边界；它同时转发
+	// Reload，故包在可重载装饰器外不改变热重载行为。
+	alias := authzcasbin.NewAlias(reloadable, grpcObjectAliases)
 	// 最外层再包一层判定记录装饰器：每次授权判定（allow 与 deny 都记）落一条
 	// 策略评估日志，GET /v1/policy-evaluation-logs 从此有真实数据。
 	// 写入面经闭包在**请求期**读包级钩子（装配期 permgroup 域尚未 Wire，且

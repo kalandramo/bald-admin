@@ -31,7 +31,7 @@ func TestAuthnMiddleware_AuditFollowsLateGlobalSwap(t *testing.T) {
 	authed := e.Group("/v1", authnMiddleware(stubAuthn{}))
 	authed.GET("/probe", func(c *gingonic.Context) { c.Status(http.StatusOK) })
 
-	// 2. 构造之后才装配后端（模拟契约轨 BeforeStart SetAuditor / 协调器热切）。
+	// 2. 构造之后才装配后端（模拟审计后端运行期装配 / 协调器热切）。
 	mem := &memAuditor{}
 	securityaudit.SetCurrent(mem)
 

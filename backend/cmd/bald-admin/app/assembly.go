@@ -490,7 +490,7 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 			mwClose = close
 			ginBundle := bundle.New(append([]bundle.Option{
 				bundle.Audit(securityaudit.Global()), // 动态转发：装配/热切对已挂中间件即时生效
-				bundle.Metrics(obmetrics.Recorder("bald/example")),
+				bundle.Metrics(obmetrics.Recorder("bald/gin")),
 				bundle.Normalized(), // 归一化：审计 object/action 与 gRPC 同源
 			}, mwOpts...)...)
 			router.Use(ginBundle.Gin()...)

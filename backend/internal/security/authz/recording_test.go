@@ -1,18 +1,34 @@
 package authz
 
 // recording_test.go —— 判定记录装饰器的契约：判定结果零改变 + 写入 best-effort。
-//
-// 复用同包 alias_test.go 的 fakeAuthorizer（按「subject|object|action」集合判定，
-// 记录调用序），不另造平行替身。
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	authzcasbin "github.com/kalandramo/bald/contrib/authz-casbin"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 )
+
+// fakeAuthorizer 记录被调用的 object 序列，并按「subject|object|action」集合判定。
+type fakeAuthorizer struct {
+	// allow 是「subject|object|action」的放行集合。
+	allow map[string]bool
+	// calls 记录每次 Authorize 的 object 参数（按调用序）。
+	calls []string
+	// err 非 nil 时直接返回该错误（模拟引擎故障）。
+	err error
+}
+
+func (f *fakeAuthorizer) Authorize(_ context.Context, subject, object, action string) (bool, error) {
+	f.calls = append(f.calls, object)
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.allow[subject+"|"+object+"|"+action], nil
+}
 
 // evalRecord 是一次 RecordEvaluation 调用的入参快照。
 type evalRecord struct {
@@ -204,7 +220,7 @@ func TestRecording_NilInnerFailClosed(t *testing.T) {
 func TestRecording_AliasRetryYieldsOneRow(t *testing.T) {
 	inner := &fakeAuthorizer{allow: map[string]bool{"u1|org-units|list": true}}
 	rec := &fakeRecorder{}
-	a := NewRecording(NewObjectAlias(inner, map[string]string{"orgunit": "org-units"}),
+	a := NewRecording(authzcasbin.NewAlias(inner, map[string]string{"orgunit": "org-units"}),
 		func() EvaluationRecorder { return rec })
 
 	ok, err := a.Authorize(context.Background(), "u1", "orgunit", "list")

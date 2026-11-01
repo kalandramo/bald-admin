@@ -5,18 +5,9 @@
 //	registries.go → sr.MustRegister(asynqcontract.Type, asynqcontract.Provider(...))
 //	assembly.go   → asynqcontract.AppProvider(...)（段驱动 Provider）
 //
-// 取代原因（框架侧两轮变更）：
-//  1. `bald/transport/asynq/contract` 子包**已建立**（契约→Option 映射 + Provider）；
-//  2. 契约 Asynq 段字段由 3 个扩到 **10 个**（redis_address/password/db、concurrency、
-//     queues、codec、strict_priority、shutdown_timeout_ms、gracefully_shutdown、
-//     scheduler_enabled）——足以驱动常用装配；其余 Option 经
-//     `asynqcontract.WithServerOptions` 补齐；
-//  3. `bootstrap.validateServerSections` 已支持「段已注册 provider 即放行」
-//     （签名含 registered map）——使 implemented=false 的段也能走契约装配。
-//
-// 逃生舱本身仍是框架**明确提供**的合法扩展点
-// （`appkit.WithExtraServerFunc`，见 pkg/appkit/bootstrap.go），
-// 只是 asynq 不再需要它。
+// 契约 Asynq 段的常用字段（redis 连接、并发、队列、codec、strict_priority、
+// 停机超时与优雅关闭、调度器开关）驱动装配；其余 Option 经
+// asynqcontract.WithServerOptions 补齐。
 //
 // 本文件保留的实装：codec 注册（`registerAsynqCodecs`）与 handler 注册
 // （`registerAsynqHandlers`）——两者的**调用点**已移入 assembly.go 的 asynq AppProvider 回调。

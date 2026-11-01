@@ -11,7 +11,7 @@ package e2e
 //  4. 授权：audit 查询 admin 专属，viewer 403
 //
 // 数据隔离：各用例用唯一 username/过滤条件，规避全局 SQLite 与全局 auditor
-// 的跨用例累计（SetAuditor 为进程级全局，与生产 audit.backends 热切换同源）。
+// 的跨用例累计（securityaudit.SetCurrent 为进程级生效点）。
 
 import (
 	"bytes"

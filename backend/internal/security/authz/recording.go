@@ -6,9 +6,8 @@
 // authz 中间件里接线」）——端点恒返回空 items。本装饰器就是那个缺失的生产写入方。
 //
 // 为什么做成装饰器而不是改中间件：authz.Authorizer 只有 Authorize 一个方法
-// （bald pkg/authz/authz.go:15-20），contrib/authz-casbin 亦无评估回调；
-// bald 是零 replace 的外部 module，框架侧不可改。旁路记录只能在应用层包一层
-// ——与同目录 ReloadableAuthorizer / ObjectAliasAuthorizer 同款手法。
+// （bald pkg/authz/authz.go:15-20），contrib/authz-casbin 亦无评估回调——
+// 旁路记录只能在应用层包一层（与同目录 ReloadableAuthorizer 同款手法）。
 //
 // ## 字段取法（ctx 里到底有什么）
 //
@@ -39,8 +38,8 @@
 //     recordSafely 同纪律，pkg/middleware/gin/audit.go:219-230），绝不改变判定
 //     结果——授权是安全边界，日志是观测数据，二者不可互害。
 //   - 引擎错误（err != nil）不记：那是 500 路径，不是一次策略评估结论。
-//   - 装饰器装在最外层（casbin → reloadable → alias → recording），别名重试
-//     发生在内层 ⇒ 一次请求只产生一条日志。
+//   - 装饰器装在最外层（casbin → reloadable → authzcasbin.NewAlias → recording），
+//     别名重试发生在内层 ⇒ 一次请求只产生一条日志。
 package authz
 
 import (
@@ -63,7 +62,7 @@ type EvaluationRecorder interface {
 
 // RecordingAuthorizer 是把授权判定写入策略评估日志的装饰器。
 //
-// 并发安全：只读字段，构造后不可变，与 Reloadable/ObjectAlias 同形态。
+// 并发安全：只读字段，构造后不可变，与 Reloadable/AliasAuthorizer 同形态。
 type RecordingAuthorizer struct {
 	inner authz.Authorizer
 	// recorder 迟到取用：授权器在 InitBridges 构造，permgroup 域 biz 要到域
@@ -81,7 +80,7 @@ func NewRecording(inner authz.Authorizer, recorder func() EvaluationRecorder) *R
 // 只在判定成功（无引擎错误）时补记一条评估日志。
 func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject, object, action string) (bool, error) {
 	if r.inner == nil {
-		// 无内层授权器：fail-closed（与 Reloadable/ObjectAlias 同语义——授权是
+		// 无内层授权器：fail-closed（与 Reloadable/AliasAuthorizer 同语义——授权是
 		// 安全边界，缺失时不能放行）。
 		return false, nil
 	}

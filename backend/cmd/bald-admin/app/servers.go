@@ -42,7 +42,7 @@ func newGRPCServerOptions(authenticator authn.Authenticator, authorizer authz.Au
 		bundle.Authn(authenticator),
 		bundle.Authz(authorizer),
 		bundle.Audit(securityaudit.Global()), // 动态转发：契约轨装配/热切轨切换即时生效
-		bundle.Metrics(obmetrics.Recorder("bald/example")),
+		bundle.Metrics(obmetrics.Recorder("bald/grpc")),
 		bundle.Normalized(), // FullMethod → 与 HTTP 同源的权限点
 	)
 	// 把 protovalidate 校验追加到链**尾**（Authz 之后）。
