@@ -14,7 +14,7 @@ import (
 //
 //   - build 在 domain.<name>.biz（wire 相）执行——构造领域能力；
 //   - mount 在 domain.<name>.routes（serve 相，依赖 biz 节点）执行——仅当声明了
-//     HTTP 面（WithHTTP/WithGatewayRegister 的业务 handler）时投影该节点。
+//     HTTP 面（WithHTTP 的业务 handler）时投影该节点。
 //
 // Services 不在本函数内：gRPC 注册是 server 构建时的延迟回调（grpc.Server 在
 // 域窗口里不存在），调用方在自己的 Domain.Services 上挂接。
