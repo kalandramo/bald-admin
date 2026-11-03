@@ -19,10 +19,17 @@ package app
 // 服务监听发生在 beforeStart 链**之后**（链内依次：InitBridges → 业务装配
 // → 路由/服务注册 → server 构造/监听）。故「端口可连」是「完整装配链已跑完」
 // 的确定性信号——比轮询某个包的变量（会因部分赋值而假早）可靠。
+//
+// **每个已声明的 server 都要各连一次**：只连 HTTP 时判据弱于「装配完成」——
+// gRPC 的 `Endpoint()` 在 `net.Listen` 完成前返回空串，appkit 的端点等待
+// 因此仍未结束，此时 `cancel()` 落在启动窗口内。本仓库当前消费的 `bald/pkg v0.2.1`
+// 把这种取消当装配错误返回（该分类已于 2026-11-04 在框架侧修好，见 bald
+// 风险评审 §4.4，但尚未发 tag），故这里不依赖框架行为：等**全部**端口就绪再停机。
+// 共享 runner 上实测红过一次：`Serve` 返回
+// `appkit: wait for endpoints canceled: context canceled`，本地 `-count=30` 复现不了。
 
 import (
 	"context"
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -99,15 +106,11 @@ func TestAssemblyPath_ReadyAfterStart(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() { runErr <- appkit.Serve(ctx, appOptions(svrOpts)...) }()
 
-	// 就绪判据：端口可连（监听发生在整条装配链之后）。
+	// 就绪判据：HTTP 与 gRPC **两个**端口都可连（监听发生在整条装配链之后，
+	// 且端点等待要等每个 server 的端口都定型——见文件头）。
 	// 端口为本次运行专属的空闲端口——不会被残留进程冒名顶替（见 testaddr_test.go）。
 	require.Eventually(t, func() bool {
-		c, derr := net.DialTimeout("tcp", httpAddr, 200*time.Millisecond)
-		if derr != nil {
-			return false
-		}
-		_ = c.Close()
-		return true
+		return canDialTCP(httpAddr) && canDialTCP(grpcAddr)
 	}, 30*time.Second, 200*time.Millisecond, "服务未在超时内监听（装配链可能失败）")
 
 	// —— 装配不变量断言（此刻完整装配链已跑完）——

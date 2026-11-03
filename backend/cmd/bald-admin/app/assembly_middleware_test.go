@@ -22,7 +22,6 @@ package app
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -97,18 +96,20 @@ func setupAssemblyWithConfig(t *testing.T, cfgYAML string) []appkit.Option {
 	return appOptions(options.NewServerOptions())
 }
 
-// serveUntilReady 启动 Serve 并等待端口可连；返回停机函数与错误通道。
-func serveUntilReady(t *testing.T, opts []appkit.Option, httpAddr string) (func(), <-chan error) {
+// serveUntilReady 启动 Serve 并等待**每个**已声明的 server 端口可连（判据为何
+// 不能只连 HTTP 见 assembly_e2e_test.go 文件头）；返回停机函数与错误通道。
+func serveUntilReady(t *testing.T, opts []appkit.Option, addrs ...string) (func(), <-chan error) {
 	t.Helper()
+	require.NotEmpty(t, addrs, "至少要有一个待判定的 server 端口")
 	ctx, cancel := context.WithCancel(context.Background())
 	runErr := make(chan error, 1)
 	go func() { runErr <- appkit.Serve(ctx, opts...) }()
 	require.Eventually(t, func() bool {
-		c, derr := net.DialTimeout("tcp", httpAddr, 200*time.Millisecond)
-		if derr != nil {
-			return false
+		for _, addr := range addrs {
+			if !canDialTCP(addr) {
+				return false
+			}
 		}
-		_ = c.Close()
 		return true
 	}, 30*time.Second, 200*time.Millisecond, "服务未在超时内监听（装配链可能失败）")
 	stop := func() {
@@ -130,10 +131,10 @@ func serveUntilReady(t *testing.T, opts []appkit.Option, httpAddr string) (func(
 //   - cors 各字段 → 响应带对应 Access-Control-* 头（含 exposed_headers/max_age）。
 func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
 	httpAddr := mustPort(t, freeTCPAddr(t))
-	opts := setupAssemblyWithConfig(t,
-		middlewareTestConfigFor(httpAddr, mustPort(t, freeTCPAddr(t))))
+	grpcAddr := mustPort(t, freeTCPAddr(t))
+	opts := setupAssemblyWithConfig(t, middlewareTestConfigFor(httpAddr, grpcAddr))
 
-	stop, _ := serveUntilReady(t, opts, httpAddr)
+	stop, _ := serveUntilReady(t, opts, httpAddr, grpcAddr)
 
 	// 请求**必须由 gin 处理**才能观察到全局中间件：
 	//   - /healthz 由 appkit 的探针 ServeMux 在 gin 之外直接响应（withProbes），
@@ -176,10 +177,10 @@ func TestAssemblyPath_MiddlewareFromConfig(t *testing.T) {
 // 移除组内 CORS、统一走全局链的目的。
 func TestAssemblyPath_MiddlewareOnBusinessRoute(t *testing.T) {
 	httpAddr := mustPort(t, freeTCPAddr(t))
-	opts := setupAssemblyWithConfig(t,
-		middlewareTestConfigFor(httpAddr, mustPort(t, freeTCPAddr(t))))
+	grpcAddr := mustPort(t, freeTCPAddr(t))
+	opts := setupAssemblyWithConfig(t, middlewareTestConfigFor(httpAddr, grpcAddr))
 
-	stop, _ := serveUntilReady(t, opts, httpAddr)
+	stop, _ := serveUntilReady(t, opts, httpAddr, grpcAddr)
 
 	// /v1/ping 是真实业务路由（此前该组自带 CORS，是覆盖点）。
 	req, rerr := http.NewRequest(http.MethodGet, "http://localhost"+httpAddr+"/v1/ping", nil)

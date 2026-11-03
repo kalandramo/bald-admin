@@ -13,8 +13,12 @@ package app
 //     → 测试误判就绪 → 继续断言装配不变量 → 观察到全 nil（如 4 处
 //     `Expected value not to be nil`）。**这是假绿/假红**，不只是 flaky。
 //  2. **绑定冲突与 TIME_WAIT 累积**：反复运行会留下 TIME_WAIT，后续运行偶发
-//     连不上或绑定失败（表现为 `appkit: wait for endpoints canceled: context canceled`
-//     ——上层 `cancel()` 打断了 `waitForEndpoints` 的轮询）。
+//     连不上或绑定失败（表现为 `appkit: wait for endpoints canceled: context canceled`）。
+//     这句文案后来被查明有两面（bald 风险评审 §4.4）：server 绑定失败经 errgroup
+//     取消 `gctx` 后被它整条掩盖，测试自己的 `cancel()` 落在启动窗口内也是它。
+//     框架侧的分级在**尚未发出的 `pkg` 新 tag** 里，本仓库当前消费的 `pkg v0.2.1`
+//     仍是旧行为——故本仓库靠两件事站稳：动态端口（不与残留进程冲突）+
+//     **每个已声明的 server 端口都判就绪**（不在启动窗口内取消）。
 //
 // 复现方式（已验证）：外部进程占住 :18099 后运行测试 → 稳定失败（非偶发）。
 //
@@ -34,7 +38,20 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 )
+
+// canDialTCP 报告 addr 上是否已有进程在监听——装配类测试的就绪判据用它，
+// 且必须对**每个已声明的 server 端口**各问一次（少一个就弱于「装配完成」，
+// 理由见 assembly_e2e_test.go 文件头）。
+func canDialTCP(addr string) bool {
+	c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
+}
 
 // freeTCPAddr 向内核申请一个空闲 TCP 端口并立即释放，返回形如 "127.0.0.1:54321" 的地址。
 //
