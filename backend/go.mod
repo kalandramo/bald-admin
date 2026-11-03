@@ -7,12 +7,21 @@
 // 依赖 bald 与各子模块 tag（bconf/transport/contrib 等，均经
 // github.com/kalandramo/bald 仓库 submodule tag 发布）——零 replace，
 // clone 本仓库即可独立构建。若需联调本地 bald 改动，临时加
-// `go mod edit -replace=github.com/kalandramo/bald=../../bald` 即可。
+// `go mod edit -replace=github.com/kalandramo/bald/pkg=../../bald/pkg` 即可
+// （按要联调的那个子模块加，根模块 replace 不再覆盖它们）。
+//
+// 根模块 `github.com/kalandramo/bald` 已不在 require 里（2026-11-04 实测）：
+// appkit 等在 bald/pkg、CLI 在 bald/cli，本仓库 import 的全是子模块路径，
+// `go mod tidy` 判根模块不需要。而 **bald/cli 靠 tools/tools.go（build tag
+// tools 的 blank import）钉住**——task `gen:domain`/`gen:check` 跑的是
+// `go run github.com/kalandramo/bald/cli/cmd/bald`，版本取本文件的 require；
+// 没有那条 blank import，tidy 会删掉它、`go run` 当场断（实测 `go mod why`
+// 报「main module does not need package」）。
 //
 // 升级注意（2026-09 实测）：
-//  1. bald 与 bootstrap 是**两个独立 module**（tag 命名空间分别为 vX.Y.Z 与
-//     bootstrap/vX.Y.Z）。跨子模块新增 API 时须**同时**发子模块 tag 并升本文件
-//     对应 require，否则 root 新版仍拿不到子模块新符号（消费方构建失败）。
+//  1. bald 与各子模块是**各自独立的 module**（tag 命名空间分别为 vX.Y.Z、
+//     bootstrap/vX.Y.Z、pkg/vX.Y.Z……）。跨子模块新增 API 时须**同时**发子模块
+//     tag 并升本文件对应 require，否则 root 新版仍拿不到子模块新符号（消费方构建失败）。
 //  2. 发布后**不可依赖改写 tag**：Go module 代理把已缓存版本视为不可变快照，
 //     删 tag 重推不会传播（goproxy.cn/goproxy.io 均实测复现）。修正只能递增
 //     版本号重发（即 v0.16.0 的构建缺陷由 v0.16.1 修正，而非重推 v0.16.0）。
@@ -35,43 +44,44 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald v0.34.0
-	github.com/kalandramo/bald/bconf v0.15.2
-	github.com/kalandramo/bald/berrors v0.1.1
-	github.com/kalandramo/bald/bootstrap v0.13.3
+	github.com/kalandramo/bald/bconf v0.17.0
+	github.com/kalandramo/bald/berrors v0.1.2
+	github.com/kalandramo/bald/bootstrap v0.13.6
 	github.com/kalandramo/bald/broker v0.3.0
-	github.com/kalandramo/bald/broker/redis v0.4.1
+	github.com/kalandramo/bald/broker/redis v0.4.2
 	github.com/kalandramo/bald/cache v0.3.0
 	github.com/kalandramo/bald/cache/loadable v0.2.0
-	github.com/kalandramo/bald/cache/redis v0.4.0
-	github.com/kalandramo/bald/circuitbreaker v0.1.0
+	github.com/kalandramo/bald/cache/redis v0.4.1
+	github.com/kalandramo/bald/circuitbreaker v0.2.0
 	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0
-	github.com/kalandramo/bald/contrib/audit-gorm v0.2.2
-	github.com/kalandramo/bald/contrib/audit-stream v0.4.1
-	github.com/kalandramo/bald/contrib/authn-jwt v0.3.0
-	github.com/kalandramo/bald/contrib/authz-casbin v0.2.2
-	github.com/kalandramo/bald/contrib/config-nacos v0.1.0
-	github.com/kalandramo/bald/contrib/observability-otlp v0.4.0
-	github.com/kalandramo/bald/contrib/store-gorm v0.4.0
-	github.com/kalandramo/bald/encoding v0.1.0
+	github.com/kalandramo/bald/cli v0.1.0
+	github.com/kalandramo/bald/contrib/audit-gorm v0.2.3
+	github.com/kalandramo/bald/contrib/audit-stream v0.4.2
+	github.com/kalandramo/bald/contrib/authn-jwt v0.3.1
+	github.com/kalandramo/bald/contrib/authz-casbin v0.2.3
+	github.com/kalandramo/bald/contrib/config-nacos v0.1.1
+	github.com/kalandramo/bald/contrib/observability-otlp v0.4.1
+	github.com/kalandramo/bald/contrib/store-gorm v0.4.1
+	github.com/kalandramo/bald/encoding v0.2.0
 	github.com/kalandramo/bald/encoding/json v0.1.1
 	github.com/kalandramo/bald/encoding/msgpack v0.1.0
 	github.com/kalandramo/bald/health v0.1.1
 	github.com/kalandramo/bald/log v0.5.4
-	github.com/kalandramo/bald/oss/minio v0.3.1
-	github.com/kalandramo/bald/oss/s3 v0.3.1
+	github.com/kalandramo/bald/oss/minio v0.3.2
+	github.com/kalandramo/bald/oss/s3 v0.3.2
+	github.com/kalandramo/bald/pkg v0.2.1
 	github.com/kalandramo/bald/ratelimit v0.2.0
-	github.com/kalandramo/bald/ratelimit/tokenbucket v0.1.0
-	github.com/kalandramo/bald/registry v0.3.1
-	github.com/kalandramo/bald/registry/etcd v0.3.2
-	github.com/kalandramo/bald/registry/nacos v0.3.1
+	github.com/kalandramo/bald/ratelimit/tokenbucket v0.2.0
+	github.com/kalandramo/bald/registry v0.4.0
+	github.com/kalandramo/bald/registry/etcd v0.3.3
+	github.com/kalandramo/bald/registry/nacos v0.3.2
 	github.com/kalandramo/bald/retry v0.2.0
 	github.com/kalandramo/bald/transport v0.4.0
-	github.com/kalandramo/bald/transport/asynq v0.6.0
-	github.com/kalandramo/bald/transport/cron v0.6.2
-	github.com/kalandramo/bald/transport/gateway v0.4.1
-	github.com/kalandramo/bald/transport/grpc v0.1.1
-	github.com/kalandramo/bald/transport/sse v0.5.0
+	github.com/kalandramo/bald/transport/asynq v0.6.1
+	github.com/kalandramo/bald/transport/cron v0.6.3
+	github.com/kalandramo/bald/transport/gateway v0.5.0
+	github.com/kalandramo/bald/transport/grpc v0.1.3
+	github.com/kalandramo/bald/transport/sse v0.5.1
 	github.com/kalandramo/bald/transport/web v0.2.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/mojocn/base64Captcha v1.3.8
@@ -216,8 +226,8 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.3.0 // indirect
-	github.com/kalandramo/bald/bconfig v0.2.1 // indirect
-	github.com/kalandramo/bald/transport/http v0.1.3 // indirect
+	github.com/kalandramo/bald/bconfig v0.2.2 // indirect
+	github.com/kalandramo/bald/transport/http v0.1.4 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect

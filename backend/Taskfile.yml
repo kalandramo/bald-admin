@@ -40,11 +40,11 @@ tasks:
       - go mod tidy
 
   gen:domain:
-    desc: 按 appspec.json 重写域清单（改 domains[] 后执行；CLI 版本随 go.mod 的 bald）
+    desc: 按 appspec.json 重写域清单（改 domains[] 后执行；CLI 版本随 go.mod 的 bald/cli）
     dir: "{{.MOD}}"
     cmds:
       - >-
-        go run github.com/kalandramo/bald/cmd/bald gen domain
+        go run github.com/kalandramo/bald/cli/cmd/bald gen domain
         --spec appspec.json --manifest internal/domainset/domains.gen.go
         --apiserver-dir - --no-bind --adopt
 
@@ -53,7 +53,7 @@ tasks:
     dir: "{{.MOD}}"
     cmds:
       - >-
-        go run github.com/kalandramo/bald/cmd/bald gen domain
+        go run github.com/kalandramo/bald/cli/cmd/bald gen domain
         --spec appspec.json --manifest internal/domainset/domains.gen.go
         --apiserver-dir - --no-bind --check
 

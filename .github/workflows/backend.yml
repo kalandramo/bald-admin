@@ -77,7 +77,7 @@ jobs:
       # 或生成物被手改，都在这里失败。
       - name: Domain manifest in sync
         run: >-
-          go run github.com/kalandramo/bald/cmd/bald gen domain
+          go run github.com/kalandramo/bald/cli/cmd/bald gen domain
           --spec appspec.json --manifest internal/domainset/domains.gen.go
           --apiserver-dir - --no-bind --check
 
