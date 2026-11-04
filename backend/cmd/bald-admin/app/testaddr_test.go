@@ -16,9 +16,10 @@ package app
 //     连不上或绑定失败（表现为 `appkit: wait for endpoints canceled: context canceled`）。
 //     这句文案后来被查明有两面（bald 风险评审 §4.4）：server 绑定失败经 errgroup
 //     取消 `gctx` 后被它整条掩盖，测试自己的 `cancel()` 落在启动窗口内也是它。
-//     框架侧的分级在**尚未发出的 `pkg` 新 tag** 里，本仓库当前消费的 `pkg v0.2.1`
-//     仍是旧行为——故本仓库靠两件事站稳：动态端口（不与残留进程冲突）+
-//     **每个已声明的 server 端口都判就绪**（不在启动窗口内取消）。
+//     框架侧的分级已发 `pkg v0.2.2`（一条 `startupOutcome` 判据挂到五处启动分支），
+//     本仓库现在消费的就是它。即便如此就绪判据仍不依赖取消时序——见下面
+//     `withBootSignal`：真判据是框架的 `AfterStart` 运行态信号，端口可连只是它的
+//     事后确认。
 //
 // 复现方式（已验证）：外部进程占住 :18099 后运行测试 → 稳定失败（非偶发）。
 //
@@ -35,11 +36,54 @@ package app
 // 任意进程长期占用」的问题，风险已下降数个量级。
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/kalandramo/bald/pkg/appkit"
+	"github.com/stretchr/testify/require"
 )
+
+// withBootSignal 给 opts 追加一个 AfterStart 钩子，返回「装配链已跑到运行态」的
+// 通道。框架在**每个 server 端点定型且注册完成之后**才跑这个钩子，所以它是确定性
+// 的就绪判据；用轮询端口能不能连来猜「装配有没有跑完」是它的近似物，近似物会把
+// 「还没监听」误读成「还没就绪」——那正是 bald 风险登记册 §4.4 撞过的形状。
+//
+// 钩子只加在测试里，不进 appOptions（生产装配声明不含测试信令）。
+func withBootSignal(opts []appkit.Option) ([]appkit.Option, <-chan struct{}) {
+	booted := make(chan struct{})
+	return append(opts, appkit.AfterStart(func(context.Context) error {
+		close(booted)
+		return nil
+	})), booted
+}
+
+// awaitBoot 等运行态信号。装配链若在信号之前就退出，直接把 Serve 的错误报出来
+// ——30s 超时那种「什么都没发生」的失败信息对接手者没有用。
+func awaitBoot(t *testing.T, booted <-chan struct{}, runErr <-chan error) {
+	t.Helper()
+	select {
+	case <-booted:
+	case err := <-runErr:
+		t.Fatalf("装配链在进入运行态前就退出了，err=%v", err)
+	case <-time.After(60 * time.Second):
+		t.Fatal("60s 内没有收到 AfterStart 运行态信号")
+	}
+}
+
+// requireDialable 断言每个已声明的 server 端口都能连上。运行态信号之后监听早已
+// 建立，这里只留 2s 容差——真连不上就是缺陷，不该靠放宽超时消红。
+func requireDialable(t *testing.T, addrs ...string) {
+	t.Helper()
+	require.NotEmpty(t, addrs, "至少要有一个待判定的 server 端口")
+	for _, addr := range addrs {
+		require.Eventually(t, func() bool { return canDialTCP(addr) },
+			2*time.Second, 100*time.Millisecond,
+			"运行态信号之后端口 %s 仍不可连（监听未建立）", addr)
+	}
+}
 
 // canDialTCP 报告 addr 上是否已有进程在监听——装配类测试的就绪判据用它，
 // 且必须对**每个已声明的 server 端口**各问一次（少一个就弱于「装配完成」，

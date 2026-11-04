@@ -575,8 +575,8 @@ github.com/kalandramo/bald/oss/minio v0.3.2 h1:kvC85LtzPnMJvNKWPzuF8XYGAelP8Taai
 github.com/kalandramo/bald/oss/minio v0.3.2/go.mod h1:ET8D/jOCcedKAQdAHOj+DykaB1Y+NX/wrsC9NRR66zM=
 github.com/kalandramo/bald/oss/s3 v0.3.2 h1:k7UejoVAw7//QzC37IuxLArGLCCIEamZCCUTK/eyQYg=
 github.com/kalandramo/bald/oss/s3 v0.3.2/go.mod h1:R30sLyRVLOs0G+gxcy5TS+KQrG/vSXYDQSgLw6ukXtg=
-github.com/kalandramo/bald/pkg v0.2.1 h1:ok0Ysu70hAphssN5kwkTUadjF5MSc3GfsOWey04IoTY=
-github.com/kalandramo/bald/pkg v0.2.1/go.mod h1:HGHhj2GF2PbWPmq5HU/FmSGtmsSQif19tZX+8/d4eaE=
+github.com/kalandramo/bald/pkg v0.2.2 h1:takKF1SVzcmcJZpJxtZTLASi4gb2SnCmR+wvE6a4JfE=
+github.com/kalandramo/bald/pkg v0.2.2/go.mod h1:HGHhj2GF2PbWPmq5HU/FmSGtmsSQif19tZX+8/d4eaE=
 github.com/kalandramo/bald/ratelimit v0.2.0 h1:rMJ8L5TsGe09gbhOhebhTqGOFWf+F1dliTNhImlmvfc=
 github.com/kalandramo/bald/ratelimit v0.2.0/go.mod h1:f6OdCLURzCq332om3MKvHTE0Q5/5I+pK1c5WFzMGRk8=
 github.com/kalandramo/bald/ratelimit/tokenbucket v0.2.0 h1:8xaxiCadNUC0oyF2HWZrR4XKs4mTRE9E7S2o/Paik3Q=

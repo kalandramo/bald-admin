@@ -100,18 +100,12 @@ func setupAssemblyWithConfig(t *testing.T, cfgYAML string) []appkit.Option {
 // 不能只连 HTTP 见 assembly_e2e_test.go 文件头）；返回停机函数与错误通道。
 func serveUntilReady(t *testing.T, opts []appkit.Option, addrs ...string) (func(), <-chan error) {
 	t.Helper()
-	require.NotEmpty(t, addrs, "至少要有一个待判定的 server 端口")
 	ctx, cancel := context.WithCancel(context.Background())
+	opts, booted := withBootSignal(opts)
 	runErr := make(chan error, 1)
 	go func() { runErr <- appkit.Serve(ctx, opts...) }()
-	require.Eventually(t, func() bool {
-		for _, addr := range addrs {
-			if !canDialTCP(addr) {
-				return false
-			}
-		}
-		return true
-	}, 30*time.Second, 200*time.Millisecond, "服务未在超时内监听（装配链可能失败）")
+	awaitBoot(t, booted, runErr)
+	requireDialable(t, addrs...)
 	stop := func() {
 		cancel()
 		select {

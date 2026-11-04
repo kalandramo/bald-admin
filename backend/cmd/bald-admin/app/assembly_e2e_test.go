@@ -14,19 +14,21 @@ package app
 // 认证器/授权器/仓储均已就绪且非 nil」——若装配顺序回退（如又把 biz 构造挪回
 // 构造期、或路由注册早于 TokenStore 构造），这里会红。
 //
-// ## 就绪判据为什么用「端口可连」
+// ## 就绪判据为什么用 AfterStart 运行态信号
 //
 // 服务监听发生在 beforeStart 链**之后**（链内依次：InitBridges → 业务装配
-// → 路由/服务注册 → server 构造/监听）。故「端口可连」是「完整装配链已跑完」
-// 的确定性信号——比轮询某个包的变量（会因部分赋值而假早）可靠。
+// → 路由/服务注册 → server 构造/监听）。框架在「每个 server 的端点定型且注册
+// 完成」之后才跑 AfterStart 钩子，所以那个信令本身就是「完整装配链已跑完」的
+// 确定性判据；端口可连退成后续断言（只回答「监听确实建立了」），不再用来猜就绪。
 //
-// **每个已声明的 server 都要各连一次**：只连 HTTP 时判据弱于「装配完成」——
-// gRPC 的 `Endpoint()` 在 `net.Listen` 完成前返回空串，appkit 的端点等待
-// 因此仍未结束，此时 `cancel()` 落在启动窗口内。本仓库当前消费的 `bald/pkg v0.2.1`
-// 把这种取消当装配错误返回（该分类已于 2026-11-04 在框架侧修好，见 bald
-// 风险评审 §4.4，但尚未发 tag），故这里不依赖框架行为：等**全部**端口就绪再停机。
-// 共享 runner 上实测红过一次：`Serve` 返回
-// `appkit: wait for endpoints canceled: context canceled`，本地 `-count=30` 复现不了。
+// 曾经的形状：只轮询 HTTP 端口时判据弱于「装配完成」——gRPC 的 `Endpoint()`
+// 在 `net.Listen` 完成前返回空串，appkit 的端点等待因此仍未结束，此时 `cancel()`
+// 落在启动窗口内；本仓库当时消费的 `bald/pkg v0.2.1` 把这种取消当装配错误返回，
+// 共享 runner 上实测红过一次（`Serve` 返回
+// `appkit: wait for endpoints canceled: context canceled`，本地 `-count=30`
+// 复现不了）。框架侧自 `pkg v0.2.2` 起按正常停机退出（bald 风险评审 §4.4），
+// 本仓库已升到该版本；但判据也不依赖「取消恰好没事」——先拿运行态信号再停机，
+// 那个窗口根本不参与。
 
 import (
 	"context"
@@ -102,16 +104,17 @@ func TestAssemblyPath_ReadyAfterStart(t *testing.T) {
 
 	// 启动：Serve = --config 解析 + 契约预装载 + 段驱动装配 + Run
 	//（beforeStart 链：InitBridges → 业务装配 → 路由/服务注册 → 监听）。
+	// 运行态信令只加在测试的 opts 上，不进 appOptions（生产装配声明不含测试信令）。
 	ctx, cancel := context.WithCancel(context.Background())
+	opts, booted := withBootSignal(appOptions(svrOpts))
 	runErr := make(chan error, 1)
-	go func() { runErr <- appkit.Serve(ctx, appOptions(svrOpts)...) }()
+	go func() { runErr <- appkit.Serve(ctx, opts...) }()
 
-	// 就绪判据：HTTP 与 gRPC **两个**端口都可连（监听发生在整条装配链之后，
-	// 且端点等待要等每个 server 的端口都定型——见文件头）。
-	// 端口为本次运行专属的空闲端口——不会被残留进程冒名顶替（见 testaddr_test.go）。
-	require.Eventually(t, func() bool {
-		return canDialTCP(httpAddr) && canDialTCP(grpcAddr)
-	}, 30*time.Second, 200*time.Millisecond, "服务未在超时内监听（装配链可能失败）")
+	// 就绪：先等 AfterStart 运行态信号（装配链真的跑完了），再确认 HTTP 与 gRPC
+	// 两个端口都可连（监听确实建立）。端口为本次运行专属的空闲端口——不会被残留
+	// 进程冒名顶替（见 testaddr_test.go）。
+	awaitBoot(t, booted, runErr)
+	requireDialable(t, httpAddr, grpcAddr)
 
 	// —— 装配不变量断言（此刻完整装配链已跑完）——
 	assert.NotNil(t, bootstrap.Authenticator, "认证器应已构造（InitBridges 在装配链内执行）")

@@ -69,7 +69,7 @@ require (
 	github.com/kalandramo/bald/log v0.5.4
 	github.com/kalandramo/bald/oss/minio v0.3.2
 	github.com/kalandramo/bald/oss/s3 v0.3.2
-	github.com/kalandramo/bald/pkg v0.2.1
+	github.com/kalandramo/bald/pkg v0.2.2
 	github.com/kalandramo/bald/ratelimit v0.2.0
 	github.com/kalandramo/bald/ratelimit/tokenbucket v0.2.0
 	github.com/kalandramo/bald/registry v0.4.0
