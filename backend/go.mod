@@ -44,16 +44,16 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald/bconf v0.17.0
+	github.com/kalandramo/bald/bconf v0.22.0
 	github.com/kalandramo/bald/berrors v0.1.2
-	github.com/kalandramo/bald/bootstrap v0.13.6
+	github.com/kalandramo/bald/bootstrap v0.13.7
 	github.com/kalandramo/bald/broker v0.3.0
 	github.com/kalandramo/bald/broker/redis v0.4.2
 	github.com/kalandramo/bald/cache v0.3.0
 	github.com/kalandramo/bald/cache/loadable v0.2.0
 	github.com/kalandramo/bald/cache/redis v0.4.1
 	github.com/kalandramo/bald/circuitbreaker v0.2.0
-	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.0
+	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.1
 	github.com/kalandramo/bald/cli v0.1.0
 	github.com/kalandramo/bald/contrib/audit-gorm v0.2.3
 	github.com/kalandramo/bald/contrib/audit-stream v0.4.2
@@ -69,7 +69,7 @@ require (
 	github.com/kalandramo/bald/log v0.5.4
 	github.com/kalandramo/bald/oss/minio v0.3.2
 	github.com/kalandramo/bald/oss/s3 v0.3.2
-	github.com/kalandramo/bald/pkg v0.2.2
+	github.com/kalandramo/bald/pkg v0.5.0
 	github.com/kalandramo/bald/ratelimit v0.2.0
 	github.com/kalandramo/bald/ratelimit/tokenbucket v0.2.0
 	github.com/kalandramo/bald/registry v0.4.0
@@ -80,8 +80,8 @@ require (
 	github.com/kalandramo/bald/transport/asynq v0.6.1
 	github.com/kalandramo/bald/transport/cron v0.6.3
 	github.com/kalandramo/bald/transport/gateway v0.5.0
-	github.com/kalandramo/bald/transport/grpc v0.1.3
-	github.com/kalandramo/bald/transport/sse v0.5.1
+	github.com/kalandramo/bald/transport/grpc v0.2.0
+	github.com/kalandramo/bald/transport/sse v0.6.0
 	github.com/kalandramo/bald/transport/web v0.2.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/mojocn/base64Captcha v1.3.8
@@ -226,8 +226,8 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.3.0 // indirect
-	github.com/kalandramo/bald/bconfig v0.2.2 // indirect
-	github.com/kalandramo/bald/transport/http v0.1.4 // indirect
+	github.com/kalandramo/bald/bconfig v0.2.3 // indirect
+	github.com/kalandramo/bald/transport/http v0.2.0 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect

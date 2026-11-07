@@ -100,6 +100,19 @@ server:
     # seconds: true                # 未设置 → 实现默认（启用）
     # location: "Asia/Shanghai"    # 留空用本地时区
 
+  # sse：Server-Sent Events 推送面（message 域实时推送）。整段缺省即不启用；
+  # 启用时取消注释并填实际监听地址。授权钩子由代码注入（见 app/sse.go）。
+  #
+  # ⚠️ auto_stream 必须显式写 true：实现默认 false，未知流首次订阅会返回
+  # 500 "Stream not found!"——bald-admin 的订阅流按用户动态创建，依赖自动建流。
+  # auto_stream / auto_replay 是 optional bool（presence 语义）：不写＝沿用实现
+  # 默认（auto_stream=false / auto_replay=true），显式 false 才真正关闭。
+  # sse:
+  #   addr: ":8090"
+  #   path: "/events"
+  #   auto_stream: true
+  #   auto_replay: true
+
 # 日志（契约字段名是 `logger`，非 `log`）
 #
 # ⚠️ 段名必须是 `logger`；level/format 属于 `backends[].slog` 而非顶层。写成

@@ -12,8 +12,9 @@
 //
 // ## 接线形态
 //
-// 三处对接：授权钩子（`WithAuthorizeFunc`）、自动建流与断线补发
-// （`WithAutoStream` / `WithAutoReplay`）、推送发布（`biz.SetPublisher`）。
+// 三处对接：授权钩子（`WithAuthorizeFunc`，函数注入）、自动建流与断线补发
+// （契约 `server.sse.auto_stream` / `auto_replay` 段字段，非代码硬编）、推送发布
+// （`biz.SetPublisher`）。
 package app
 
 import (
@@ -76,15 +77,15 @@ func sseServerProvider(authnGetter func() authn.Authenticator) appkit.Provider {
 // 用延迟而非 provider 构造期取值的理由：WithServerOptions 在构造 provider 时
 // 即求值（sseServerOptions(authn) 会立刻展开），而此处调用点在 newApp 构造期，
 // authenticator 尚为 nil。包一层闭包把取值推迟到请求发生。
+//
+// auto_stream / auto_replay **不在此硬编**：二者已是契约 server.sse 段字段
+// （optional bool，presence 语义），由 ssecontract 在构造期映射。业务 Option 追加
+// 在契约字段**之后**（可覆盖契约值），若仍在此写死 true 会把契约表达的值盖掉——
+// 故只留授权钩子这类契约表达不了的函数注入。启用 SSE 的配置须显式写
+// `auto_stream: true`（实现默认 false，未知流首连会 500），见 yaml.example。
 func sseServerOptionsDeferred(authnGetter func() authn.Authenticator) []baldsse.Option {
 	ensureJSONCodec()
 	return []baldsse.Option{
-		// **关键约束（探针实测）**：`autoStream` 默认 false，而 `ServeHTTP`
-		// 在「流不存在 && autoStream=false」时返回 500 "Stream not found!"
-		// （`http.go:79-83`）。开启后首次订阅自动建流。
-		baldsse.WithAutoStream(true),
-		// 断线重连补发（SSE 协议标准语义）。
-		baldsse.WithAutoReplay(true),
 		// 授权钩子：校验 token 且**绑定 stream 到 token 所属用户**
 		// （防跨用户订阅）。
 		baldsse.WithAuthorizeFunc(func(r *http.Request, token string) error {
