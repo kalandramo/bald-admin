@@ -75,6 +75,34 @@ server:
   grpc:
     addr: ":9090"
 
+  # ---- 统一中间件段（契约 server.unified_middleware）----
+  #
+  # 协议无关的中间件规则：经 matcher（selector 精确/前缀/通配三层）在 gin 与
+  # gRPC 两面链头生效——先于上面 middleware 段的老链。段缺省零影响；
+  # 规则非法在链构建期 fail-fast（启动期错误）。
+  #
+  # 策略面（oneof）：recovery / request_id / rate_limit / timeout / validate。
+  # validate 需装配代码注入校验回调（bald-admin 未注入，勿声明——启动即
+  # fail-fast UNIFIED_VALIDATOR_MISSING）。
+  #
+  #   selector 语义：
+  #     "*"             全部请求
+  #     "POST /v1/*"    方法 + 路径前缀（HTTP 面）
+  #     "/pkg.Svc/M"    gRPC FullMethod（gRPC 面）
+  unified_middleware:
+    rules:
+      # 全局背压：令牌桶 100 QPS（burst 200 吸收突发）。触顶返回 429，
+      # 后续 handler 不执行（统一桥短路 + Abort）。
+      - selector: "*"
+        rate_limit:
+          rate: 100
+          burst: 200
+      # 管理写接口单独收紧（示例：按需取消注释改值）。
+      # - selector: "POST /v1/admin/*"
+      #   rate_limit:
+      #     rate: 20
+      #     burst: 10
+
   # ---- 协议服务器的契约装配（asynq / cron / gateway）----
   #
   # 三者由本仓注册的 provider 提供（见 cmd/bald-admin/app/registries.go

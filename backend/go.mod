@@ -69,10 +69,10 @@ require (
 	github.com/kalandramo/bald/log v0.6.0
 	github.com/kalandramo/bald/oss/minio v0.3.2
 	github.com/kalandramo/bald/oss/s3 v0.3.2
-	github.com/kalandramo/bald/pkg v0.5.0
+	github.com/kalandramo/bald/pkg v0.10.0
 	github.com/kalandramo/bald/ratelimit v0.2.0
 	github.com/kalandramo/bald/ratelimit/tokenbucket v0.2.0
-	github.com/kalandramo/bald/registry v0.4.0
+	github.com/kalandramo/bald/registry v0.5.0
 	github.com/kalandramo/bald/registry/etcd v0.3.3
 	github.com/kalandramo/bald/registry/nacos v0.3.2
 	github.com/kalandramo/bald/retry v0.2.0
@@ -303,7 +303,7 @@ require (
 	golang.org/x/image v0.23.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect

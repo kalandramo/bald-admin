@@ -487,6 +487,10 @@ func appOptions(svrOpts *options.ServerOptions) []appkit.Option {
 				bundle.Audit(securityaudit.Global()), // 动态转发：装配/热切对已挂中间件即时生效
 				bundle.Metrics(obmetrics.Recorder("bald/gin")),
 				bundle.Normalized(), // 归一化：审计 object/action 与 gRPC 同源
+				// 统一中间件段（server.unified_middleware）：协议无关规则经
+				// matcher 在双面链头生效（先于面段老链）。段缺省零影响；
+				// 规则声明非法在 Gin() 构建期 fail-fast（启动期错误）。
+				bundle.WithUnifiedMiddleware(loadedContract.GetServer().GetUnifiedMiddleware()),
 			}, mwOpts...)...)
 			router.Use(ginBundle.Gin()...)
 
