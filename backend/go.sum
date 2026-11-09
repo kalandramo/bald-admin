@@ -229,6 +229,8 @@ github.com/deckarep/golang-set v1.7.1 h1:SCQV0S6gTtp6itiFrTqI+pfmJ4LN85S1YzhDf9r
 github.com/deckarep/golang-set v1.7.1/go.mod h1:93vsz/8Wt4joVM7c2AVqh+YRMiUSc14yDtF28KmMOgQ=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
+github.com/dlclark/regexp2 v1.12.0 h1:0j4c5qQmnC6XOWNjP3PIXURXN2gWx76rd3KvgdPkCz8=
+github.com/dlclark/regexp2 v1.12.0/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/emicklei/go-restful/v3 v3.13.0 h1:C4Bl2xDndpU6nJ4bc1jXd+uTmYPVUwkD6bFY/oTyCes=
@@ -395,6 +397,8 @@ github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeN
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
+github.com/google/jsonschema-go v0.4.2 h1:tmrUohrwoLZZS/P3x7ex0WAVknEkBZM46iALbcqoRA8=
+github.com/google/jsonschema-go v0.4.2/go.mod h1:r5quNTdLOYEz95Ru18zA0ydNbBuYoo9tgaYcxEYhJVE=
 github.com/google/martian v2.1.0+incompatible/go.mod h1:9I4somxYTbIHy5NJKHRl3wXiIaQGbYVAs8BPL6v8lEs=
 github.com/google/martian/v3 v3.0.0/go.mod h1:y5Zk1BBys9G+gd6Jrk0W3cC1+ELVxBWuIGO+w/tUAp0=
 github.com/google/martian/v3 v3.1.0/go.mod h1:y5Zk1BBys9G+gd6Jrk0W3cC1+ELVxBWuIGO+w/tUAp0=
@@ -523,8 +527,8 @@ github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfV
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/kalandramo/bald-crud/viewer v0.3.0 h1:qzFgCqZxxYks6qmtpTnTNYZ0+yM+AvQsnMVdZB+j55g=
 github.com/kalandramo/bald-crud/viewer v0.3.0/go.mod h1:GOiEuYYRKRgOr4bp4Oww+1d6A9n4McTq9ObPTNjBe5g=
-github.com/kalandramo/bald/bconf v0.22.0 h1:LdABnVWx0QQqSWegKHZeyocVIdhoeO5EZGJOgIirpL0=
-github.com/kalandramo/bald/bconf v0.22.0/go.mod h1:OBeqyaAMWhms2rRXXwnsjNfjUzEhw7OfxbFngTe+H1Q=
+github.com/kalandramo/bald/bconf v0.25.0 h1:ucySZlzuvgWSLAk6tqZYUDnB91AjYYwZDOipDh4Jbx4=
+github.com/kalandramo/bald/bconf v0.25.0/go.mod h1:OBeqyaAMWhms2rRXXwnsjNfjUzEhw7OfxbFngTe+H1Q=
 github.com/kalandramo/bald/bconfig v0.2.3 h1:4DSOSDAvmKSAQimaW35PS0Zlyz6/shMITFS4Vzz9p5c=
 github.com/kalandramo/bald/bconfig v0.2.3/go.mod h1:JnyYHH31P6YaQPaqkCnJKM6rn5D8XLGumsEfhDEvgxY=
 github.com/kalandramo/bald/berrors v0.1.2 h1:uAf6so1zMSNO56U2RyaRwlArQ98s9z3aqR7xsldnY9w=
@@ -545,8 +549,10 @@ github.com/kalandramo/bald/circuitbreaker v0.2.0 h1:No1MQad6xlSEoLk3ZyzSMBan1J1m
 github.com/kalandramo/bald/circuitbreaker v0.2.0/go.mod h1:Ewecj3esrO6ZIM+UCrWib/JgIR84K3ltqJ7ROqZKNaQ=
 github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.1 h1:L/c1EAxjDCVOmONnm3tSnbyUh5P1MhZXHIOFnixtung=
 github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.1/go.mod h1:goiDBDW18JkLe8ESnTGnDGAQUtsUs7DJmuUc9gxce0I=
-github.com/kalandramo/bald/cli v0.1.0 h1:4wIAOq+MDgHqrFG23c5vzX67OM2f+GMSU2HmgOMlRaY=
-github.com/kalandramo/bald/cli v0.1.0/go.mod h1:cvWBZdg9pkCwhSR02SkI3Sy+5shrFFDSHdQTqqhFGMA=
+github.com/kalandramo/bald/cli v0.6.0 h1:Etj5Mx4MWOvwrmYoSrOS97oI5+AIrJnuDyF7WmzVqAM=
+github.com/kalandramo/bald/cli v0.6.0/go.mod h1:3gT4xX4Jhwoq8qf0V/veSZ9xCjUR4/VlTQ3U4yA3BdM=
+github.com/kalandramo/bald/cobramcp v0.3.2 h1:+bZ8sAjXVu8ACD/itfL90t0kvOv1jfTp8ERR7kAHgDc=
+github.com/kalandramo/bald/cobramcp v0.3.2/go.mod h1:9Xmx8dh+ew1UVLlNEYSU/OBlgKOx+cfNkewgJaK1Gq8=
 github.com/kalandramo/bald/contrib/audit-gorm v0.2.3 h1:t8ZdyCExOtQdVtAHm6X/TFH2IUxRuVA4Y2WUk5q5WeE=
 github.com/kalandramo/bald/contrib/audit-gorm v0.2.3/go.mod h1:Ci5Z1Iefl4cDkh4LnqPS30xL6k5RPM8WyBSUxKFlHuM=
 github.com/kalandramo/bald/contrib/audit-stream v0.4.2 h1:gSWS3V87fMaLN76yZ1z6l60JWbfo3BK9a5TagSdnvR4=
@@ -569,8 +575,8 @@ github.com/kalandramo/bald/encoding/msgpack v0.1.0 h1:kXcSDhwEj4ujAg+rPi4dRW4LZx
 github.com/kalandramo/bald/encoding/msgpack v0.1.0/go.mod h1:cTVgTh4ifVPPqvp2SW3J3sAx89OsuSlDg3n0J7pXxoM=
 github.com/kalandramo/bald/health v0.1.1 h1:Q0sySYkf4XZ6BcSQ3P/Sk1T8FFF3NzKOcu3Q2wsDpUM=
 github.com/kalandramo/bald/health v0.1.1/go.mod h1:+f+lE2uNtgeXlJ6YoqPg7PoDIUZ+VvhJZI9RP+oHNd0=
-github.com/kalandramo/bald/log v0.5.4 h1:LBg6whOZImgTh2M90q6aqmYVX64Nt66ss/veLYYgHrk=
-github.com/kalandramo/bald/log v0.5.4/go.mod h1:xEw5nXpW1rJM1WYKsR78k4v8urd934jc7rTic26f9LI=
+github.com/kalandramo/bald/log v0.6.0 h1:Gr2aKSfIJRHJHDaeowLxhFmft1WDZnWqGPlzeoZgu9k=
+github.com/kalandramo/bald/log v0.6.0/go.mod h1:xEw5nXpW1rJM1WYKsR78k4v8urd934jc7rTic26f9LI=
 github.com/kalandramo/bald/oss/minio v0.3.2 h1:kvC85LtzPnMJvNKWPzuF8XYGAelP8Taai8AZqlbTiBw=
 github.com/kalandramo/bald/oss/minio v0.3.2/go.mod h1:ET8D/jOCcedKAQdAHOj+DykaB1Y+NX/wrsC9NRR66zM=
 github.com/kalandramo/bald/oss/s3 v0.3.2 h1:k7UejoVAw7//QzC37IuxLArGLCCIEamZCCUTK/eyQYg=
@@ -601,6 +607,8 @@ github.com/kalandramo/bald/transport/grpc v0.2.0 h1:jzMQTt8zGgq3QBr4IqtVR04Ux4em
 github.com/kalandramo/bald/transport/grpc v0.2.0/go.mod h1:11iOFg+TPQGoMX3Q/vHf6BNB7M+PC+vbemIM8G7reRo=
 github.com/kalandramo/bald/transport/http v0.2.0 h1:Wx6Bcfmk8+iRf8047b9VnqTMOWhLbv45k1s9ikyuuq8=
 github.com/kalandramo/bald/transport/http v0.2.0/go.mod h1:NsFYa2bgJedTwhnEqVK0BHg8L58oHET48gV7ND/3zmQ=
+github.com/kalandramo/bald/transport/mcp v0.3.0 h1:LswQg1sQjWcepFB0ZInDNgZWMa8DsI/4VhvOdbEjU+g=
+github.com/kalandramo/bald/transport/mcp v0.3.0/go.mod h1:Hw7g5BTBYZigc5K/mKPRdyiJVly2JdgVxj7rI1jSZYM=
 github.com/kalandramo/bald/transport/sse v0.6.0 h1:UalMWbkqa1D9bB89GeXLxyYtLTYYr8xUHcEOE2jwF6Q=
 github.com/kalandramo/bald/transport/sse v0.6.0/go.mod h1:K1O1rjqUqLDyCVu0paBlCUpfRn8Q30P522S9gzsz9j0=
 github.com/kalandramo/bald/transport/web v0.2.0 h1:+uAF1XYiMXHIm/3E7XKLfmXO74bxA50kPP/7mVH/oP4=
@@ -631,6 +639,8 @@ github.com/leodido/go-urn v1.4.0/go.mod h1:bvxc+MVxLKB4z00jd1z+Dvzr47oO32F/QSNjS
 github.com/magiconair/properties v1.8.5/go.mod h1:y3VJvCyxH9uVvJTWEGAELF3aiYNyPKd5NZ3oSwXrF60=
 github.com/magiconair/properties v1.8.6 h1:5ibWZ6iY0NctNGWo87LalDlEZ6R41TqbbDamhfG/Qzo=
 github.com/magiconair/properties v1.8.6/go.mod h1:y3VJvCyxH9uVvJTWEGAELF3aiYNyPKd5NZ3oSwXrF60=
+github.com/mark3labs/mcp-go v1.1.0 h1:9kZwJreq58QIaM+5h+k4JXbG0f0y0j9+DJCV5rGBkJA=
+github.com/mark3labs/mcp-go v1.1.0/go.mod h1:r2fW4o3wsoJ7IMsx1Wuq5xeP8PRGXPDfNveoGAYbb/s=
 github.com/mattn/go-colorable v0.0.9/go.mod h1:9vuHe8Xs5qXnSaW/c/ABM9alt+Vo+STaOChaDxuIBZU=
 github.com/mattn/go-colorable v0.1.9/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-colorable v0.1.12/go.mod h1:u5H1YNBxpqRaxsYJYSkiCWKzEfiAb1Gb520KVy5xxl4=
@@ -749,6 +759,8 @@ github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQD
 github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
 github.com/ryanuber/go-glob v1.0.0 h1:iQh3xXAumdQ+4Ufa5b25cRpC5TYKlno6hsv6Cb3pkBk=
 github.com/ryanuber/go-glob v1.0.0/go.mod h1:807d1WSdnB0XRJzKNil9Om6lcp/3a0v4qIHxIXzX/Yc=
+github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=
+github.com/santhosh-tekuri/jsonschema/v6 v6.0.2/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 h1:nn5Wsu0esKSJiIVhscUtVbo7ada43DJhG55ua/hjS5I=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
@@ -816,6 +828,8 @@ github.com/vmihailenco/tagparser/v2 v2.0.0 h1:y09buUbR+b5aycVFQs/g70pqKVZNBmxwAh
 github.com/vmihailenco/tagparser/v2 v2.0.0/go.mod h1:Wri+At7QHww0WTrCBeu4J6bNtoV6mEfg5OIWRZA9qds=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
 github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
+github.com/yosida95/uritemplate/v3 v3.0.2 h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
+github.com/yosida95/uritemplate/v3 v3.0.2/go.mod h1:ILOh0sOhIJR3+L/8afwt/kE++YT040gmv5BQTMR2HP4=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.30/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

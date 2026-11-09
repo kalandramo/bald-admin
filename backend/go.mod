@@ -44,7 +44,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald/bconf v0.22.0
+	github.com/kalandramo/bald/bconf v0.25.0
 	github.com/kalandramo/bald/berrors v0.1.2
 	github.com/kalandramo/bald/bootstrap v0.13.7
 	github.com/kalandramo/bald/broker v0.3.0
@@ -54,7 +54,7 @@ require (
 	github.com/kalandramo/bald/cache/redis v0.4.1
 	github.com/kalandramo/bald/circuitbreaker v0.2.0
 	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.1
-	github.com/kalandramo/bald/cli v0.1.0
+	github.com/kalandramo/bald/cli v0.6.0
 	github.com/kalandramo/bald/contrib/audit-gorm v0.2.3
 	github.com/kalandramo/bald/contrib/audit-stream v0.4.2
 	github.com/kalandramo/bald/contrib/authn-jwt v0.3.1
@@ -66,7 +66,7 @@ require (
 	github.com/kalandramo/bald/encoding/json v0.1.1
 	github.com/kalandramo/bald/encoding/msgpack v0.1.0
 	github.com/kalandramo/bald/health v0.1.1
-	github.com/kalandramo/bald/log v0.5.4
+	github.com/kalandramo/bald/log v0.6.0
 	github.com/kalandramo/bald/oss/minio v0.3.2
 	github.com/kalandramo/bald/oss/s3 v0.3.2
 	github.com/kalandramo/bald/pkg v0.5.0
@@ -200,6 +200,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gomodule/redigo v1.9.2 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
+	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/hashicorp/consul/api v1.34.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -227,12 +228,15 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.3.0 // indirect
 	github.com/kalandramo/bald/bconfig v0.2.3 // indirect
+	github.com/kalandramo/bald/cobramcp v0.3.2 // indirect
 	github.com/kalandramo/bald/transport/http v0.2.0 // indirect
+	github.com/kalandramo/bald/transport/mcp v0.3.0 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
+	github.com/mark3labs/mcp-go v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
@@ -259,6 +263,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -271,6 +276,7 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.7.1 // indirect
