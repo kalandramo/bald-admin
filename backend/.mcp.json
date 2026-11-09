@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "bald": {
+      "args": [
+        "mcp",
+        "start"
+      ],
+      "command": "bald"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "mcp": {
+    "servers": {
+      "bald": {
+        "args": [
+          "mcp",
+          "start"
+        ],
+        "command": "bald",
+        "type": "stdio"
+      }
+    }
+  }
+}
