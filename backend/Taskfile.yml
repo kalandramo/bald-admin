@@ -1,114 +1,19 @@
-# bald-admin Taskfile（跨平台）
-# 运行：task <task>   （需安装 go-task: https://taskfile.dev）
-#
-# 本目录是独立 go module，所有命令以本目录为工作目录。
-
+# 目标目录树的构建入口（bald gen app 生成）。
 version: "3"
 
-vars:
-  MOD: .
-  TEST_FLAGS: -shuffle=on -count=1
-
 tasks:
-  default:
-    desc: 列出可用任务
+  proto:
+    desc: 生成 protobuf 代码（插件与输出见 api/buf.gen.yaml）
+    dir: api
     cmds:
-      - task --list
-
-  build:
-    desc: 编译全部包
-    dir: "{{.MOD}}"
-    cmds:
-      - go build ./...
-
-  vet:
-    desc: go vet 全部包
-    dir: "{{.MOD}}"
-    cmds:
-      - go vet ./...
-
-  fmt:
-    desc: gofmt 本次改动的 Go 文件
-    dir: "{{.MOD}}"
-    cmds:
-      - gofmt -w $(git diff --name-only -- '*.go' 2>/dev/null || echo '')
-
-  tidy:
-    desc: go mod tidy
-    dir: "{{.MOD}}"
-    cmds:
-      - go mod tidy
-
-  gen:domain:
-    desc: 按 appspec.json 重写域清单（改 domains[] 后执行；CLI 版本随 go.mod 的 bald/cli）
-    dir: "{{.MOD}}"
-    cmds:
-      - >-
-        go run github.com/kalandramo/bald/cli/cmd/bald gen domain
-        --spec appspec.json --manifest internal/domainset/domains.gen.go
-        --apiserver-dir - --no-bind --adopt
-
-  gen:check:
-    desc: 校验域清单与 appspec.json 一致（零写入，CI 门禁）
-    dir: "{{.MOD}}"
-    cmds:
-      - >-
-        go run github.com/kalandramo/bald/cli/cmd/bald gen domain
-        --spec appspec.json --manifest internal/domainset/domains.gen.go
-        --apiserver-dir - --no-bind --check
-
-  test:
-    desc: 跑全部测试（随机顺序，检测全局态耦合）
-    dir: "{{.MOD}}"
-    cmds:
-      - go test {{.TEST_FLAGS}} ./...
-
-  test:audit:
-    desc: 仅跑审计 e2e（Authn+Audit+Authz 串联）
-    dir: "{{.MOD}}"
-    cmds:
-      - go test {{.TEST_FLAGS}} ./internal/apiserver/... -run 'Audit|Auth'
-
-  test:file:
-    desc: 仅跑文件模块 e2e（真实 MinIO；凭证经 MINIO_TEST_* env 注入，缺省自动 Skip）
-    dir: "{{.MOD}}"
-    cmds:
-      - go test {{.TEST_FLAGS}} ./internal/apiserver/... -run 'TestFileREST'
-
-  test:redis:
-    desc: 仅跑需 Redis 的 e2e（token/captcha/MFA/broker；地址经 BALD_E2E_REDIS_* env 注入，缺省回落本地 6379，不可达则自动 Skip）
-    dir: "{{.MOD}}"
-    env:
-      BALD_E2E_REDIS_ADDR: "{{.REDIS_TEST_ADDR}}"
-      BALD_E2E_REDIS_PASSWORD: "{{.REDIS_TEST_PASSWORD}}"
-    cmds:
-      - go test {{.TEST_FLAGS}} ./internal/apiserver/e2e/ -run 'TestWave1d|TestWave1_5|TestWave2_6'
-
+      - buf generate
   run:
-    desc: 本地起服务（默认配置）
-    dir: "{{.MOD}}"
+    desc: 本地运行（默认读 configs/bald-admin.yaml）
     cmds:
-      - go run ./cmd/bald-admin --config=configs/bald-admin.yaml
-
-  run:otlp:
-    desc: 起服务并直推 OTLP 远端（需本地 collector :4318）
-    dir: "{{.MOD}}"
-    env:
-      # 框架路径名（BALD_ADMIN_<点路径>，下划线即分隔符）。
-      # 勿用旧短名 BALD_ADMIN_OTLP_ADDR / BALD_ADMIN_METRICS_ADDR——它们会被
-      # env 层截获成契约不存在的键（metrics.otlp / metrics.addr）而静默丢弃，
-      # 且注定被配置段覆盖（本仓 configs/bald-admin.yaml 已声明 metrics 段）。
-      BALD_ADMIN_METRICS_OTLP_ENDPOINT: http://localhost:4318
-      BALD_ADMIN_TRACER_OTLP_ENDPOINT: http://localhost:4318
-      BALD_ADMIN_METRICS_PROMETHEUS_ADDR: ":9091"
-    cmds:
-      - go run ./cmd/bald-admin --config=configs/bald-admin.yaml
-
+      - go run ./cmd/bald-admin
   verify:
-    desc: CI 式全量校验（域清单 + build + vet + test）
-    dir: "{{.MOD}}"
+    desc: 构建 + vet + 测试（layering 不变量含在内）
     cmds:
-      - task: gen:check
       - go build ./...
       - go vet ./...
-      - go test {{.TEST_FLAGS}} ./...
+      - go test ./...

@@ -74,7 +74,7 @@ func (b *SecretBiz) loadSecret(ctx context.Context, key string) ([]byte, error) 
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	s, err := b.store.Get(ctx, w.T(ctx))
+	s, err := b.store.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("secret.Get(%s): %w", id, err)
 	}
@@ -128,7 +128,7 @@ func (b *SecretBiz) Get(ctx context.Context, id string) (*Item, error) {
 
 // List 列出调用方租户下的全部 Secret。
 func (b *SecretBiz) List(ctx context.Context) ([]*Item, error) {
-	ss, _, err := b.store.List(ctx, (&store.Where{}).T(ctx))
+	ss, _, err := b.store.List(ctx, &store.Where{})
 	if err != nil {
 		return nil, fmt.Errorf("secret.List: %w", err)
 	}
@@ -144,8 +144,6 @@ func (b *SecretBiz) List(ctx context.Context) ([]*Item, error) {
 func (b *SecretBiz) Delete(ctx context.Context, id string) (bool, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	w = w.T(ctx)
-
 	// 先确认存在（命中租户隔离），不存在按 NotFound 处理。
 	if _, err := b.store.Get(ctx, w); err != nil {
 		return false, fmt.Errorf("secret.Delete(%s): %w", id, err)

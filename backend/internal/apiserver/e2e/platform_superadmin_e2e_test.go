@@ -34,7 +34,7 @@ import (
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
 	"github.com/kalandramo/bald/pkg/contextx"
-	ginmw "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 )
 
 // startPlatformREST 起真实 REST 引擎，**并按 main.go 同款注入平台判据**。
@@ -52,10 +52,10 @@ func startPlatformREST(t *testing.T) string {
 	t.Cleanup(func() { securityaudit.SetCurrent(audit.NopAuditor()) })
 
 	e := gingonic.New()
-	e.Use(ginmw.AuditMiddleware(
-		ginmw.AuditWithObjectResolver(authz.DefaultHTTPObject),
-		ginmw.AuditWithActionResolver(authz.DefaultHTTPAction),
-	))
+	e.Use(mw.GinHandler(mw.Audit(
+		mw.AuditWithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.AuditWithActionResolver(authz.DefaultHTTPActionFromOperation),
+	)))
 	auth := authbiz.New(bootstrappkg.Signer, repos.User, repos.Tenant, bootstrappkg.ReloadPolicies)
 	// ← 与 cmd/bald-admin/main.go 的注入**逐字一致**（生产判据）
 	auth.SetPlatformResolver(authmodel.IsPlatformUser)
@@ -177,7 +177,7 @@ func TestPlatform_PlatformFlagIsTheDecidingFactor(t *testing.T) {
 // 注入语句拆成「装配层 getter（cmd/）+ 域 Wire 调用（authd/）」两半——
 // 两半分别断言，任一半被删测试即红。
 func TestPlatform_ResolverIsInjectedInProduction(t *testing.T) {
-	dirs := []string{"../../../cmd/bald-admin", "../../../internal/apiserver/domains/authd"}
+	dirs := []string{"../../../cmd/bald-admin", "../../../internal/bootstrap", "../../../internal/apiserver/domains/authd"}
 	var src strings.Builder
 	for _, dir := range dirs {
 		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {

@@ -10,7 +10,7 @@ import (
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 	web "github.com/kalandramo/bald/transport/web"
 
 	mfabiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/mfa"
@@ -33,10 +33,11 @@ func RegisterMFA(
 ) {
 	authed := e.Group("/v1/mfa")
 	authed.Use(authnMiddleware(authenticator))
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(authz.DefaultHTTPObject),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authed.Use(auditMiddleware())
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 
 	// 当前操作者（tenant + user）从认证上下文取。
 	op := func(c *gingonic.Context) (tenantID, userID string) {

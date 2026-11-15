@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kalandramo/bald/pkg/contextx"
 	baldsse "github.com/kalandramo/bald/transport/sse"
 
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
@@ -53,7 +54,7 @@ func TestWave3_2_DeliverTriggersPush(t *testing.T) {
 	pub := &fakePublisher{}
 	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
 	biz.SetPublisher(pub)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 
 	uid := "u-push-" + time.Now().Format("150405.000000")
 	res, err := biz.SendMessage(ctx, "default", "u-sender", "发送者", msgbiz.SendRequest{
@@ -81,7 +82,7 @@ func TestWave3_2_DeliverTriggersPush(t *testing.T) {
 func TestWave3_2_NilPublisherDegrades(t *testing.T) {
 	initMsgBridges(t)
 	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User) // 无 publisher
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 
 	uid := "u-nopub-" + time.Now().Format("150405.000000")
 	if _, err := biz.SendMessage(ctx, "default", "u-s", "s", msgbiz.SendRequest{
@@ -107,7 +108,7 @@ func TestWave3_2_MultipleRecipientsPushEach(t *testing.T) {
 	pub := &fakePublisher{}
 	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
 	biz.SetPublisher(pub)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 
 	sfx := time.Now().Format("150405.000000")
 	u1, u2, u3 := "u-m1-"+sfx, "u-m2-"+sfx, "u-m3-"+sfx
@@ -141,7 +142,7 @@ func TestWave3_2_IdempotentDeliverDoesNotDoublePush(t *testing.T) {
 	pub := &fakePublisher{}
 	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
 	biz.SetPublisher(pub)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 
 	uid := "u-idem-" + time.Now().Format("150405.000000")
 	res, err := biz.SendMessage(ctx, "default", "u-s", "s", msgbiz.SendRequest{

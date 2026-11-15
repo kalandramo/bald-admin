@@ -4,9 +4,194 @@
   "spec": "7bae80b2ed3111fabfdc7cc7262734228cfc1457064c465294f02e6cf869b2c5",
   "files": [
     {
-      "path": "internal/domainset/domains.gen.go",
+      "path": "internal/apiserver/authz/alias.gen.go",
       "ownership": "owned",
-      "hash": "984a1cae5d3edb9320581a31062ce9fb891129ad350faad9a5b5ece1baf40b86"
+      "hash": "af4460246e54829ea25f3fef800409886890894809d4a7aabd72799b10284624"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/auditlog.gen.go",
+      "ownership": "owned",
+      "hash": "9c08b37a307a052681a77ba22828bc24ae903f665684fa73a811d0381d8d8934"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/cachemonitor.gen.go",
+      "ownership": "owned",
+      "hash": "a38502e723f452641c9e89d0cb52eb2967d20fe6b5e4b0e109b5831a07c8559a"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/dict.gen.go",
+      "ownership": "owned",
+      "hash": "446ca35901f8ebd7f0031a18b2ac3ac9d525df1a17417ab3b24879862a7d554c"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/file.gen.go",
+      "ownership": "owned",
+      "hash": "01323b3023a746b9fdfde4e9f106bb3bab75192fea8d3cd090e601cf7f84d250"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/language.gen.go",
+      "ownership": "owned",
+      "hash": "fe621969c41ba4403ceed2ad9f29c85f9b08e7c0b9390d9d4c2921db35d6c4b8"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/menu.gen.go",
+      "ownership": "owned",
+      "hash": "cf709a4f2b5ca43791376adc952676f049dcc011b05cb5b54b5ce9bba7ee9241"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/org.gen.go",
+      "ownership": "owned",
+      "hash": "46a1f3671841afb9e0c32b1f8f03c82f87fc0a2df164185ad2cbc81ac7a1c2d7"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/permission.gen.go",
+      "ownership": "owned",
+      "hash": "7a449d18e925d74dc1c1622bbb308d344075e914859e73b1de8222d488bbac39"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/portal.gen.go",
+      "ownership": "owned",
+      "hash": "04bc629e50af8915675c17332a9ed85c685ae21bd39dfdfc61e3f6e21f81334b"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/secret.gen.go",
+      "ownership": "owned",
+      "hash": "ebd4d45d0f1eee3a7aef1ee75f886fd8ef316efdce9a0bb947bbdfcef67dc08d"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/tenant.gen.go",
+      "ownership": "owned",
+      "hash": "664e5ab1b8938f753b3d5758b53f9ee84901cf6944c47e2a8f8b11570265e23e"
+    },
+    {
+      "path": "internal/apiserver/handler/convert/user.gen.go",
+      "ownership": "owned",
+      "hash": "73fd0d1dbf88772ec8c7c24c887812cb3ed96fb903b92ba7a680966641f25923"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/auditlog.bind.gen.go",
+      "ownership": "owned",
+      "hash": "4210344b6d39aff237e58378bc1b617efedd8da72bd83200fcb7f6342601bf9c"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/cachemonitor.bind.gen.go",
+      "ownership": "owned",
+      "hash": "31a3589c9d5793835d59a285380bd5c9270cd58bbd804190878dc2c060a4b4b4"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/dict.bind.gen.go",
+      "ownership": "owned",
+      "hash": "9299d2deb5f7d547d50c7c11d7c772fda3377d347045cca300181c41f9247414"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/file.bind.gen.go",
+      "ownership": "owned",
+      "hash": "94d7c0fc24ab31f505f1c8b793e7e73d0535210d3be2e1d91de48f09366d8fd7"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/language.bind.gen.go",
+      "ownership": "owned",
+      "hash": "f259fb110eed7ba67e597e668dddabcaa32de4940c4559f02b04d50e3bb51886"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/menu.bind.gen.go",
+      "ownership": "owned",
+      "hash": "2aae1d0143bdffbaeb375ce1f60b52773fcb88b240191acde9fb0cc19a042632"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/org.bind.gen.go",
+      "ownership": "owned",
+      "hash": "378b1dd6c578e9281fd1f81a03d8ca318dabd7edc00a9eeb3a0465c56a30ba74"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/permission.bind.gen.go",
+      "ownership": "owned",
+      "hash": "ca4e5b4028b37ba64435a2c2bb2fee67ebe6e73742b627e4456ded861e3fdea5"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/portal.bind.gen.go",
+      "ownership": "owned",
+      "hash": "e1f060fd1167b4fb5cf0f7cdf6e531cd30e493f6ed84db61fbeba58bc874f48a"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/secret.bind.gen.go",
+      "ownership": "owned",
+      "hash": "2b85c19aafd29393af26109d32c13d29769c2ac732b8c26ff68b1fb817b23837"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/tenant.bind.gen.go",
+      "ownership": "owned",
+      "hash": "9996409ed541a5f1062dbcd4d091b93f6f9cfee0e7b779eb172e6f46e58334c5"
+    },
+    {
+      "path": "internal/apiserver/handler/gin/user.bind.gen.go",
+      "ownership": "owned",
+      "hash": "3d276cddbe25fb0f2cef9ac88a09551749fdaa80f3256de2c8e72d35e5964595"
+    },
+    {
+      "path": "internal/apiserver/routes/auditlog.gen.go",
+      "ownership": "owned",
+      "hash": "afc9c57dcf06115e5f5fa8a8223d4ceb91a2e0be765b53c2a21d6dce1469c3d3"
+    },
+    {
+      "path": "internal/apiserver/routes/cachemonitor.gen.go",
+      "ownership": "owned",
+      "hash": "475e8c800a5cda040c24aac8a68bb544982fb9d70f7d4907fe3ce5825dfc7894"
+    },
+    {
+      "path": "internal/apiserver/routes/dict.gen.go",
+      "ownership": "owned",
+      "hash": "160ff886c1800ee79484a4104da56fc16fcdf577d3c8c5369cb382eebe71a2c6"
+    },
+    {
+      "path": "internal/apiserver/routes/file.gen.go",
+      "ownership": "owned",
+      "hash": "b8227d981aca486216cb1c8b36047ef5b1cbb8a95b597994fa278c8012310af5"
+    },
+    {
+      "path": "internal/apiserver/routes/language.gen.go",
+      "ownership": "owned",
+      "hash": "6861788ab58bd6084d809bb72a75fc75f9339bece2861eccfb947008294421e6"
+    },
+    {
+      "path": "internal/apiserver/routes/menu.gen.go",
+      "ownership": "owned",
+      "hash": "d00800f387fc4ecdf70c0bedccbd6e1d2dc96e8c536b9a38fa72da9c224ab411"
+    },
+    {
+      "path": "internal/apiserver/routes/org.gen.go",
+      "ownership": "owned",
+      "hash": "817e0082814c5f0240ae6b28cd1b1fe73f7673113054d24a2a10746cb9d02c15"
+    },
+    {
+      "path": "internal/apiserver/routes/permission.gen.go",
+      "ownership": "owned",
+      "hash": "d952343e6479355f671ac29c08d43f9072673e58c5818c4092bbb68567423d60"
+    },
+    {
+      "path": "internal/apiserver/routes/portal.gen.go",
+      "ownership": "owned",
+      "hash": "967e67dfbcb6852738045d9f58c772eb4dca4b40316febcb6cd05aab1ffc333a"
+    },
+    {
+      "path": "internal/apiserver/routes/secret.gen.go",
+      "ownership": "owned",
+      "hash": "77b6d15aad85278892993435593cf85c0c0a125f723c24df5a5c6487931bcba2"
+    },
+    {
+      "path": "internal/apiserver/routes/tenant.gen.go",
+      "ownership": "owned",
+      "hash": "f702dd56e1cd54eff37f664169dc17ffdc4c740c3029284c4e716af58eaf8b2d"
+    },
+    {
+      "path": "internal/apiserver/routes/user.gen.go",
+      "ownership": "owned",
+      "hash": "1e74d41dd3a15e47bf496ccc6c3a64be19cd8871139e41bae031490e216fe275"
+    },
+    {
+      "path": "internal/bootstrap/domains.gen.go",
+      "ownership": "owned",
+      "hash": "d35544e1c3f4291b1ab85c64f8b6bcdbb7761b2ecc8b81f213d6537aa8386c3a"
     }
   ]
 }

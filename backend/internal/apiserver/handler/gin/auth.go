@@ -14,7 +14,7 @@ import (
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 	web "github.com/kalandramo/bald/transport/web"
 
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
@@ -174,10 +174,10 @@ func RegisterAuth(
 	authed.Use(authnMiddleware(authenticator))
 	// Authz 由路由级中间件按 (资源名, 动作) 判定；归一化由核心拦截器完成（反哺）：
 	// HTTP 侧经 DefaultHTTPObject/DefaultHTTPAction 把 path/method 翻译为与 gRPC 同源的权限点。
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(authz.DefaultHTTPObject),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 
 	// Logout 在需认证组内——它需要从 ctx 取当前 token 才能拉黑。
 	// 跳过 authzMW：登出是「对自己 token 的操作」，不属于任何业务资源权限点

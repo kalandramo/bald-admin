@@ -18,10 +18,10 @@ import (
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/circuitbreaker"
-	authnjwt "github.com/kalandramo/bald/contrib/authn-jwt"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authn"
+	"github.com/kalandramo/bald/pkg/contextx"
 	"github.com/kalandramo/bald/pkg/store"
 	"github.com/kalandramo/bald/ratelimit"
 	"github.com/kalandramo/bald/retry"
@@ -104,7 +104,7 @@ type loginGuards struct {
 
 // Biz 认证业务。
 type Biz struct {
-	signer authnjwt.Signer // 私钥签发器（非对称场景只持私钥）
+	signer Signer // 私钥签发器（非对称场景只持私钥）
 	// userStore / tenantStore 是认证所需仓储（构造期注入，替代请求期
 	// 读包级变量）。登录/注册/租户校验均经它们。
 	userStore   *store.Store[authmodel.User]
@@ -163,12 +163,21 @@ func RetryOnTransientDBError(err error) bool {
 	return true
 }
 
+// Signer 是令牌签发的端口接口（方法面对齐 contrib/authn-jwt.Signer——
+// IssueToken(AuthClaims, ttl)）。biz 层自定义端口而不 import contrib：
+// 分层不变量（gen app 生成物 layering_invariant_test.go）规定 biz 只依赖
+// 业务/框架核心包，contrib 实现由 bootstrap 构造期注入（Go 结构化类型
+// 天然满足，无需适配器）。
+type Signer interface {
+	IssueToken(claims authn.AuthClaims, ttl time.Duration) (string, error)
+}
+
 // New 构造认证 Biz。signer 来自 bootstrap（bald-authn-jwt 签发实例）。
 //
 // us/ts 为认证所需仓储、reload 为策略重载回调（均构造期注入——
 // 域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，store 与 ReloadPolicies 均已就绪）。
 // reload 可为 nil（跳过策略热重载）。
-func New(signer authnjwt.Signer, us *store.Store[authmodel.User],
+func New(signer Signer, us *store.Store[authmodel.User],
 	ts *store.Store[authmodel.Tenant], reload func() error) *Biz {
 	return &Biz{signer: signer, userStore: us, tenantStore: ts, reloadPolicies: reload}
 }
@@ -390,8 +399,10 @@ func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResu
 	}
 
 	// 3) 用户名唯一性：显式查重（DB 的 uniqueIndex 是兜底，但显式查能给出
-	//    明确的 409 语义而非 500）。
-	if _, err := b.userStore.Get(ctx, &store.Where{
+	//    明确的 409 语义而非 500）。注册请求未认证，查重是跨租户全局语义，
+	//    显式声明平台视图（v0.16.0 store fail-closed）。
+	regCtx := contextx.WithPlatform(ctx)
+	if _, err := b.userStore.Get(regCtx, &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("username", in.Username)},
 	}); err == nil {
 		return nil, ErrUsernameTaken // 查到 = 已存在
@@ -416,7 +427,10 @@ func (b *Biz) RegisterUser(ctx context.Context, in RegisterInput) (*RegisterResu
 		TenantID:     in.TenantCode, // 显式指定（注册请求无 ctx 租户）
 		Roles:        "viewer",      // 默认最小权限（不默认 admin）
 	}
-	if err := b.userStore.Create(ctx, u); err != nil {
+	// 写路径：injectWriteTenant 不豁免平台视图（防止伪造跨租户写入），
+	// 但注册请求本身就声明了目标租户——以该租户身份写入，租户列由 store
+	// 依 ctx 注入（与显式 TenantID 同值，防篡改闭环）。
+	if err := b.userStore.Create(contextx.WithTenantID(ctx, in.TenantCode), u); err != nil {
 		// 唯一索引冲突（并发注册同名）——DB 兜底路径。
 		if errors.Is(err, store.ErrConflict) {
 			return nil, ErrUsernameTaken
@@ -770,8 +784,10 @@ func (b *Biz) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair
 	}
 
 	// 重新加载用户：刷新时用户可能已被删除/停用/改角色——直接用旧 claims 会
-	// 让权限变更在刷新后仍不生效（刷新本应是最新的权限快照）。
-	u, err := b.userStore.Get(ctx, &store.Where{
+	// 让权限变更在刷新后仍不生效（刷新本应是最新的权限快照）。刷新请求凭
+	// refresh token 认证、无租户身份，按 subject 定位是全局语义——显式声明
+	// 平台视图（v0.16.0 store fail-closed）。
+	u, err := b.userStore.Get(contextx.WithPlatform(ctx), &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", subject)},
 	})
 	if err != nil {
@@ -899,6 +915,10 @@ func tokenFingerprint(tok string) string {
 //
 // 两个组件都为 nil 时直连 store（禁用态）。
 func (b *Biz) queryUser(ctx context.Context, username string) (*authmodel.User, error) {
+	// 登录前查用户：请求尚未认证、无租户身份，而按 username 全局唯一定位
+	// 本就是跨租户语义（旧版 .T(ctx) 无租户值时静默跳过隔离）。v0.16.0 起
+	// store fail-closed，系统查询显式声明平台级豁免。
+	ctx = contextx.WithPlatform(ctx)
 	q := func(ctx context.Context) (*authmodel.User, error) {
 		return b.userStore.Get(ctx, &store.Where{
 			Filters: []*storev1.FilterCondition{store.Eq("username", username)},

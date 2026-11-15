@@ -44,45 +44,45 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/hibiken/asynq v0.26.0
-	github.com/kalandramo/bald/bconf v0.25.0
+	github.com/kalandramo/bald/bconf v0.28.0
 	github.com/kalandramo/bald/berrors v0.1.2
-	github.com/kalandramo/bald/bootstrap v0.13.7
-	github.com/kalandramo/bald/broker v0.3.0
-	github.com/kalandramo/bald/broker/redis v0.4.2
+	github.com/kalandramo/bald/bootstrap v0.13.8
+	github.com/kalandramo/bald/broker v0.4.0
+	github.com/kalandramo/bald/broker/redis v0.5.0
 	github.com/kalandramo/bald/cache v0.3.0
 	github.com/kalandramo/bald/cache/loadable v0.2.0
-	github.com/kalandramo/bald/cache/redis v0.4.1
+	github.com/kalandramo/bald/cache/redis v0.4.2
 	github.com/kalandramo/bald/circuitbreaker v0.2.0
 	github.com/kalandramo/bald/circuitbreaker/hystrix v0.1.1
-	github.com/kalandramo/bald/cli v0.6.0
-	github.com/kalandramo/bald/contrib/audit-gorm v0.2.3
-	github.com/kalandramo/bald/contrib/audit-stream v0.4.2
-	github.com/kalandramo/bald/contrib/authn-jwt v0.3.1
-	github.com/kalandramo/bald/contrib/authz-casbin v0.2.3
-	github.com/kalandramo/bald/contrib/config-nacos v0.1.1
-	github.com/kalandramo/bald/contrib/observability-otlp v0.4.1
-	github.com/kalandramo/bald/contrib/store-gorm v0.4.1
+	github.com/kalandramo/bald/cli v0.13.0
+	github.com/kalandramo/bald/contrib/audit-gorm v0.2.4
+	github.com/kalandramo/bald/contrib/audit-stream v0.4.3
+	github.com/kalandramo/bald/contrib/authn-jwt v0.3.2
+	github.com/kalandramo/bald/contrib/authz-casbin v0.2.4
+	github.com/kalandramo/bald/contrib/config-nacos v0.1.2
+	github.com/kalandramo/bald/contrib/observability-otlp v0.4.3
+	github.com/kalandramo/bald/contrib/store-gorm v0.4.2
 	github.com/kalandramo/bald/encoding v0.2.0
 	github.com/kalandramo/bald/encoding/json v0.1.1
 	github.com/kalandramo/bald/encoding/msgpack v0.1.0
 	github.com/kalandramo/bald/health v0.1.1
 	github.com/kalandramo/bald/log v0.6.0
-	github.com/kalandramo/bald/oss/minio v0.3.2
-	github.com/kalandramo/bald/oss/s3 v0.3.2
-	github.com/kalandramo/bald/pkg v0.10.0
+	github.com/kalandramo/bald/oss/minio v0.3.3
+	github.com/kalandramo/bald/oss/s3 v0.3.3
+	github.com/kalandramo/bald/pkg v0.16.0
 	github.com/kalandramo/bald/ratelimit v0.2.0
 	github.com/kalandramo/bald/ratelimit/tokenbucket v0.2.0
 	github.com/kalandramo/bald/registry v0.5.0
-	github.com/kalandramo/bald/registry/etcd v0.3.3
-	github.com/kalandramo/bald/registry/nacos v0.3.2
-	github.com/kalandramo/bald/retry v0.2.0
-	github.com/kalandramo/bald/transport v0.4.0
-	github.com/kalandramo/bald/transport/asynq v0.6.1
-	github.com/kalandramo/bald/transport/cron v0.6.3
-	github.com/kalandramo/bald/transport/gateway v0.5.0
+	github.com/kalandramo/bald/registry/etcd v0.4.2
+	github.com/kalandramo/bald/registry/nacos v0.3.4
+	github.com/kalandramo/bald/retry v0.3.1
+	github.com/kalandramo/bald/transport v0.5.0
+	github.com/kalandramo/bald/transport/asynq v0.6.4
+	github.com/kalandramo/bald/transport/cron v0.6.4
+	github.com/kalandramo/bald/transport/gateway v0.5.3
 	github.com/kalandramo/bald/transport/grpc v0.2.0
-	github.com/kalandramo/bald/transport/sse v0.6.0
-	github.com/kalandramo/bald/transport/web v0.2.0
+	github.com/kalandramo/bald/transport/sse v0.6.1
+	github.com/kalandramo/bald/transport/web v0.2.2
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/mojocn/base64Captcha v1.3.8
 	github.com/pquerna/otp v1.5.0
@@ -103,6 +103,8 @@ require (
 	cel.dev/cel-go v0.32.0 // indirect
 	cel.dev/expr v0.25.3 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
+	github.com/alibaba/sentinel-golang v1.0.4 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-pop v0.0.6 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
 	github.com/alibabacloud-go/darabonba-array v0.1.0 // indirect
@@ -174,6 +176,7 @@ require (
 	github.com/go-kratos/kratos/v3 v3.0.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
 	github.com/go-openapi/jsonreference v1.0.0 // indirect
 	github.com/go-openapi/swag v0.28.0 // indirect
@@ -227,10 +230,11 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalandramo/bald-crud/viewer v0.3.0 // indirect
-	github.com/kalandramo/bald/bconfig v0.2.3 // indirect
-	github.com/kalandramo/bald/cobramcp v0.3.2 // indirect
+	github.com/kalandramo/bald/bconfig v0.2.4 // indirect
+	github.com/kalandramo/bald/circuitbreaker/sentinel v0.1.0 // indirect
+	github.com/kalandramo/bald/cobramcp v0.4.0 // indirect
 	github.com/kalandramo/bald/transport/http v0.2.0 // indirect
-	github.com/kalandramo/bald/transport/mcp v0.3.0 // indirect
+	github.com/kalandramo/bald/transport/mcp v0.6.0 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
@@ -264,6 +268,7 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
+	github.com/shirou/gopsutil/v3 v3.21.6 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -271,6 +276,8 @@ require (
 	github.com/subosito/gotenv v1.4.1 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
+	github.com/tklauser/go-sysconf v0.3.6 // indirect
+	github.com/tklauser/numcpus v0.2.2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect

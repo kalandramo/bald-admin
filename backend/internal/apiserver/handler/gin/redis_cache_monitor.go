@@ -10,7 +10,7 @@ import (
 
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/admin/v1"
@@ -27,10 +27,11 @@ func RegisterRedisCacheMonitor(
 ) {
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(authz.DefaultHTTPObject),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authed.Use(auditMiddleware())
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 
 	authed.GET("/redis-cache-monitor", authzMW, func(c *gingonic.Context) {
 		res, err := biz.Info(c.Request.Context())

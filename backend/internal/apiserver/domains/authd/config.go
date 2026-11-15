@@ -12,14 +12,19 @@ package authd
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
+	sentinelapi "github.com/alibaba/sentinel-golang/api"
+	scb "github.com/alibaba/sentinel-golang/core/circuitbreaker"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/pflag"
 
 	"github.com/kalandramo/bald/circuitbreaker"
-	"github.com/kalandramo/bald/circuitbreaker/hystrix"
+	"github.com/kalandramo/bald/circuitbreaker/sentinel"
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/ratelimit"
 	"github.com/kalandramo/bald/ratelimit/tokenbucket"
@@ -53,7 +58,7 @@ type rateLimitConfig struct {
 	Burst float64 `mapstructure:"burst"`
 }
 
-// breakerConfig 登录 DB 查询熔断（阈值式 hystrix）。
+// breakerConfig 登录 DB 查询熔断（sentinel 错误比例策略，阈值式）。
 type breakerConfig struct {
 	ErrorThreshold     float64 `mapstructure:"error_threshold"`
 	RequestVolume      int     `mapstructure:"request_volume"`
@@ -239,26 +244,77 @@ func buildLoginLimiter(cfg LoginConfig) ratelimit.Limiter {
 //	    sleep_window_seconds: 5     # Open 后多久转半开（秒），default 5
 //
 // 整段缺省时返回 nil（禁用态）——熔断是防御性增强，未配置则不介入。
-// 用 sres 之外的 **hystrix**（阈值式）：sres 的概率式语义不符合契约对
-// StateClosed 的定义（详见 交付报告与 e2e 测试注释）。
+// 底层是 **sentinel** 错误比例策略（hystrix 退役后 bald 唯一的熔断实现）：
+// error_threshold→Threshold、request_volume→MinRequestAmount、
+// sleep_window_seconds→RetryTimeoutMs，滑窗固定 10s（契约未暴露该旋钮）。
+// sres 的概率式语义不符合契约对 StateClosed 的定义，故同样不采用。
 func buildLoginBreaker(cfg LoginConfig) circuitbreaker.CircuitBreaker {
 	if !cfg.BreakerEnabled() {
 		return nil // 未配置：禁用态
 	}
 	br := cfg.breakerOrDefault()
-	o := []hystrix.Option{}
-	if br.ErrorThreshold > 0 {
-		o = append(o, hystrix.WithErrorThreshold(br.ErrorThreshold))
+	cb, err := NewLoginBreaker(br.ErrorThreshold, br.RequestVolume,
+		time.Duration(br.SleepWindowSeconds)*time.Second)
+	if err != nil {
+		// 与限流器一致：构造失败降级为禁用态（fail-open），不阻断登录。
+		baldlog.Warn(context.Background(), "login breaker disabled: init failed", "error", err)
+		return nil
 	}
-	if br.RequestVolume > 0 {
-		o = append(o, hystrix.WithRequestVolumeThreshold(br.RequestVolume))
-	}
-	if br.SleepWindowSeconds > 0 {
-		o = append(o, hystrix.WithSleepWindow(time.Duration(br.SleepWindowSeconds)*time.Second))
-	}
-	cb := hystrix.New(o...)
-	baldlog.Info(context.Background(), "login breaker enabled")
 	return cb
+}
+
+// loginCBSeq 为每个实例派生独立的 sentinel 资源名：规则表与统计槽按资源名
+// 全局共享，独立资源避免不同实例（含热更重建与测试）的失败率互相喂养。
+var loginCBSeq atomic.Uint32
+
+// sentinelInitOnce 保证 sentinelapi.InitDefault 只跑一次——initSentinel 没有
+// 幂等保护，重复调用会重启 metric 清算等后台组件。失败粘滞。
+var (
+	sentinelInitOnce sync.Once
+	sentinelInitErr  error
+)
+
+func initSentinelRuntime() error {
+	sentinelInitOnce.Do(func() { sentinelInitErr = sentinelapi.InitDefault() })
+	return sentinelInitErr
+}
+
+// NewLoginBreaker 构造登录 DB 查询熔断器（sentinel 错误比例策略）。
+// 供本域配置构造与 e2e 测试共用；每次调用独占一个资源名，参数为零时取
+// 与 biz.login.breaker 契约一致的缺省值（0.5 / 20 / 5s）。
+func NewLoginBreaker(threshold float64, minRequests int, sleepWindow time.Duration) (circuitbreaker.CircuitBreaker, error) {
+	if err := initSentinelRuntime(); err != nil {
+		return nil, fmt.Errorf("authd: init sentinel runtime: %w", err)
+	}
+	if threshold <= 0 {
+		threshold = 0.5
+	}
+	if minRequests <= 0 {
+		minRequests = 20
+	}
+	if sleepWindow <= 0 {
+		sleepWindow = 5 * time.Second
+	}
+	// sentinel 规则字段是毫秒 uint32；越界时显式失败而不是静默截断成 0（开态永不恢复）。
+	if sleepWindow.Milliseconds() > math.MaxUint32 {
+		return nil, fmt.Errorf("authd: sleep window %s exceeds uint32 milliseconds", sleepWindow)
+	}
+	resource := fmt.Sprintf("bald.admin.login.db.%d", loginCBSeq.Add(1))
+	_, err := scb.LoadRulesOfResource(resource, []*scb.Rule{{
+		Resource:         resource,
+		Strategy:         scb.ErrorRatio,
+		Threshold:        threshold,
+		MinRequestAmount: uint64(minRequests),
+		RetryTimeoutMs:   uint32(sleepWindow.Milliseconds()),
+		StatIntervalMs:   10000,
+	}})
+	if err != nil {
+		return nil, fmt.Errorf("authd: load sentinel rule for %s: %w", resource, err)
+	}
+	baldlog.Info(context.Background(), "login breaker enabled",
+		"resource", resource, "error_threshold", threshold,
+		"request_volume", minRequests, "sleep_window_seconds", sleepWindow.Seconds())
+	return sentinel.New(resource), nil
 }
 
 // buildLoginRetrier 从本域自持配置段构造登录 DB 查询重试器。

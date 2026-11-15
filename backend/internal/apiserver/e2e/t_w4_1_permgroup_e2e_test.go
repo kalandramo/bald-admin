@@ -27,6 +27,7 @@ import (
 	pgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald/pkg/contextx"
 )
 
 func startPermGroupREST(t *testing.T) string {
@@ -133,7 +134,7 @@ func TestWave4_1_DeleteWithChildrenRejected(t *testing.T) {
 	base := startPermGroupREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 	biz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 	sfx := pgSuffix()
 
 	root, err := biz.CreateGroup(ctx, "t-default", "dr-"+sfx, pgbiz.Group{Name: "父"})
@@ -204,7 +205,7 @@ func TestWave4_1_EvalLogRead(t *testing.T) {
 	base := startPermGroupREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 	biz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 
 	// 先取基线（同包测试共享 DB，用增量断言）。
 	before, err := biz.ListEvalLogs(ctx, "t-default")
@@ -281,7 +282,7 @@ func TestWave4_1_Update(t *testing.T) {
 	base := startPermGroupREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 	biz := pgbiz.New(repos.PermGroup, repos.PolicyEvalLog)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 	sfx := pgSuffix()
 
 	g, err := biz.CreateGroup(ctx, "t-default", "up-"+sfx, pgbiz.Group{Name: "原名", Module: "opm"})

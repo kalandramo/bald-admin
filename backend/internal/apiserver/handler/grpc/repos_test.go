@@ -1,4 +1,4 @@
-package grpc
+package grpc_test
 
 // repos_test.go —— ：本包共享的仓储聚合句柄（见 internal/bootstrap
 // 的 Repositories）。各测试 helper 在 InitBridges 后经 LastRepositories() 赋值。

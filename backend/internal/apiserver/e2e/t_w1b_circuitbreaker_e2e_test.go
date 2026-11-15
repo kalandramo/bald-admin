@@ -8,14 +8,14 @@ package e2e
 // 雪崩点在**主链路的 DB 查询**（Login 的 UserStore.Get）：DB 故障会让所有
 // 登录请求卡在超时上。故熔断挂在这里。
 //
-// 断言策略说明（重要）：本测试用 **hystrix** 而非 sres 作为实现。
-// 原因（实测）：sres 是 SRE 概率式熔断，其
+// 断言策略说明（重要）：本测试用 **sentinel 错误比例策略**（hystrix 退役后
+// bald 唯一的熔断实现），不用 sres。原因（实测）：sres 是 SRE 概率式熔断，其
 // accept = (requests - K*errors)/(requests+1) **恒 < 1**，故：
 //   (a) 100 次全成功路径下仍概率拒绝（K=2 时实测拒 12 次）；
 //   (b) State 永不返回 StateClosed（恒 half-open）——违反契约
 //       circuitbreaker.go:22 对 StateClosed 的定义（"all requests are allowed"）。
-// hystrix 是阈值式熔断（默认 Closed 全放行，50% 错误率 + 最少 20 请求才评估），
-// 与契约语义一致，故用它。
+// sentinel 错误比例策略是阈值式（默认 Closed 全放行，50% 错误率 + 最少 20
+// 请求才评估），与契约语义一致。
 //
 // 关键边界：store.ErrNotFound（用户不存在）是**正常业务结果**，绝不能计入
 // 熔断失败——否则攻击者用几个不存在的用户名就能熔断整个登录。
@@ -30,10 +30,22 @@ import (
 	gingonic "github.com/gin-gonic/gin"
 
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
+	authd "github.com/kalandramo/bald-admin/internal/apiserver/domains/authd"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	"github.com/kalandramo/bald/circuitbreaker"
-	"github.com/kalandramo/bald/circuitbreaker/hystrix"
 )
+
+// newTestBreaker 经生产同一构造面（authd.NewLoginBreaker）建熔断器，
+// 每次独占 sentinel 资源名，测试之间的统计槽互不影响。
+func newTestBreaker(t *testing.T, threshold float64, minRequests int, sleepWindow time.Duration) circuitbreaker.CircuitBreaker {
+	t.Helper()
+	cb, err := authd.NewLoginBreaker(threshold, minRequests, sleepWindow)
+	if err != nil {
+		t.Fatalf("authd.NewLoginBreaker: %v", err)
+	}
+	t.Cleanup(func() { _ = cb.Close() })
+	return cb
+}
 
 // startLoginRESTWithBreaker 起真实 gin 引擎 + 注入指定熔断器。
 // 形态对齐 startTenantREST（httptest.NewServer + t.Cleanup）。
@@ -59,12 +71,11 @@ func startLoginRESTWithBreaker(t *testing.T, cb circuitbreaker.CircuitBreaker) s
 // TestLoginBreaker_NotTrippedByNotFound 用户不存在（ErrNotFound）是正常业务
 // 结果，不得计入熔断失败——否则可用不存在的用户名熔断整个登录。
 func TestLoginBreaker_NotTrippedByNotFound(t *testing.T) {
-	cb := hystrix.New()
-	t.Cleanup(func() { _ = cb.Close() })
+	cb := newTestBreaker(t, 0.5, 20, 5*time.Second)
 	base := startLoginRESTWithBreaker(t, cb)
 
 	// 连续用**不存在**的用户名登录（每次都是 ErrNotFound 路径）。
-	// 次数超过 hystrix 的 requestVolumeThreshold（默认 20）以证明：
+	// 次数超过 sentinel 的 MinRequestAmount（默认 20）以证明：
 	// 即便请求量够多，只要没有真故障就不会熔断。
 	for i := 0; i < 25; i++ {
 		code, raw := callRaw(t, base, "", http.MethodPost, "/v1/login",
@@ -103,12 +114,7 @@ func TestLoginBreaker_NilBreakerDoesNotBlock(t *testing.T) {
 // 计入失败并最终 Open；Open 时登录被快速拒绝（503），不再等待 DB 超时。
 func TestLoginBreaker_TripsOnRealDBFailure(t *testing.T) {
 	// 用低阈值 + 低请求量门槛，便于在测试中触发（默认 50% / 20 请求）。
-	cb := hystrix.New(
-		hystrix.WithErrorThreshold(0.5),
-		hystrix.WithRequestVolumeThreshold(5),
-		hystrix.WithSleepWindow(time.Hour), // 测试期间不自动恢复
-	)
-	t.Cleanup(func() { _ = cb.Close() })
+	cb := newTestBreaker(t, 0.5, 5, time.Hour) // 开窗 1h：测试期间不自动恢复
 
 	// 直接驱动熔断器：模拟真实 DB 故障（MarkFailure）。
 	for i := 0; i < 6; i++ {

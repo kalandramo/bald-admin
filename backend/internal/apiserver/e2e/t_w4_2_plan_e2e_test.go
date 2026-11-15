@@ -26,6 +26,7 @@ import (
 	planbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/plan"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald/pkg/contextx"
 )
 
 func startPlanREST(t *testing.T) string {
@@ -57,7 +58,7 @@ func TestWave4_2_CascadeDelete(t *testing.T) {
 	base := startPlanREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 	biz := planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 	sfx := planSuffix()
 
 	// 建套餐 + 2 模块 + 2 配额。
@@ -194,7 +195,7 @@ func TestWave4_2_ModuleAndQuota(t *testing.T) {
 	base := startPlanREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
 	biz := planbiz.New(repos.Plan, repos.PlanModule, repos.PlanQuota)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 	sfx := planSuffix()
 
 	p, err := biz.CreatePlan(ctx, "t-default", "mq-"+sfx, planbiz.Plan{Name: "基础版"})

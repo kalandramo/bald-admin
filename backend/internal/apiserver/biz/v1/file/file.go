@@ -158,7 +158,7 @@ func (b *Biz) Download(ctx context.Context, id string) (*authmodel.File, []byte,
 func (b *Biz) Get(ctx context.Context, id string) (*authmodel.File, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	m, err := b.fileStore.Get(ctx, w.T(ctx))
+	m, err := b.fileStore.Get(ctx, w)
 	if err != nil || m == nil {
 		return nil, berrors.NotFound("file/not_found")
 	}
@@ -174,7 +174,7 @@ func (b *Biz) List(ctx context.Context, fileName, mimeType string) ([]*authmodel
 	if mimeType != "" {
 		w.Filters = append(w.Filters, store.Eq("mime_type", mimeType))
 	}
-	return b.fileStore.List(ctx, w.T(ctx))
+	return b.fileStore.List(ctx, w)
 }
 
 // Delete 删除文件：先删对象，再删元数据。
@@ -191,7 +191,7 @@ func (b *Biz) Delete(ctx context.Context, id string) (string, error) {
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.fileStore.Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.fileStore.Delete(ctx, w); err != nil {
 		return "", fmt.Errorf("file: delete record: %w", err)
 	}
 	return id, nil

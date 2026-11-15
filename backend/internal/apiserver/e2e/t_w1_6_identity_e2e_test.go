@@ -21,6 +21,7 @@ import (
 	gingonic "github.com/gin-gonic/gin"
 
 	"github.com/kalandramo/bald/pkg/authn"
+	"github.com/kalandramo/bald/pkg/contextx"
 
 	authbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auth"
 	identitybiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/identity"
@@ -67,7 +68,7 @@ func TestWave1_6_CredentialCreateHashesPassword(t *testing.T) {
 	}
 
 	// **关键**：直接查 DB 确认落库的是 bcrypt 哈希而非明文。
-	ctx := context.Background()
+	ctx := contextx.WithPlatform(context.Background())
 	m, err := repos.Credential.Get(ctx, mustWhere("id", "EMAIL:"+uid+"@example.com"))
 	if err != nil {
 		t.Fatalf("get credential: %v", err)

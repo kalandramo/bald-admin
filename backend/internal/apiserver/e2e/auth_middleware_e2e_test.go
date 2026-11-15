@@ -17,6 +17,7 @@ import (
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 	appauthz "github.com/kalandramo/bald-admin/internal/security/authz"
+	"github.com/kalandramo/bald/pkg/contextx"
 )
 
 // setup 初始化桥接并构造带完整路由的 gin engine。
@@ -106,7 +107,7 @@ func TestDeleteSecret_RealDelete(t *testing.T) {
 
 	// 自建专属资源（admin 属 t-default，落同租户，受隔离约束可命中）。
 	own := &authmodel.Secret{ID: "s-del-temp", Name: "待删资源", Content: "x", TenantID: "t-default"}
-	if err := repos.Secret.Create(context.Background(), own); err != nil {
+	if err := repos.Secret.Create(contextx.WithTenantID(context.Background(), "t-default"), own); err != nil {
 		t.Fatalf("seed temp secret: %v", err)
 	}
 
@@ -172,7 +173,7 @@ func TestAuthzChain_EvalLogsRecorded(t *testing.T) {
 	bootstrappkg.SetEvalRecorder(func() appauthz.EvaluationRecorder { return pg })
 	t.Cleanup(func() { bootstrappkg.SetEvalRecorder(nil) })
 
-	ctx := context.Background()
+	ctx := contextx.WithPlatform(context.Background())
 	base, err := pg.ListEvalLogs(ctx, "t-default")
 	if err != nil {
 		t.Fatalf("baseline ListEvalLogs: %v", err)

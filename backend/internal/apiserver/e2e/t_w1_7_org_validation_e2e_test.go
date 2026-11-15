@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/kalandramo/bald/pkg/authz"
-	grpcmw "github.com/kalandramo/bald/pkg/middleware/grpc"
+	"github.com/kalandramo/bald/pkg/middleware"
 	grpcserver "github.com/kalandramo/bald/transport/grpc"
 
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
@@ -45,7 +45,7 @@ const annotationErrMarker = "请求参数校验失败"
 // startOrgValidationGRPCServer 起一个**含校验层**的真实 gRPC server。
 //
 // 与 t_w1_7_org_grpc_e2e_test.go 的 startOrgGRPCServer 的差异：链尾多了
-// ValidatorInterceptor——这正是本文件要验证的层。链序与生产
+// middleware.Validator——这正是本文件要验证的层。链序与生产
 // （main.go newGRPCServerOptions）一致：Error → Authn → Authz → Validator。
 func startOrgValidationGRPCServer(t *testing.T) (string, func()) {
 	t.Helper()
@@ -53,20 +53,21 @@ func startOrgValidationGRPCServer(t *testing.T) (string, func()) {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	authnI := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		return grpcmw.AuthnInterceptor(bootstrappkg.Authenticator)(ctx, req, info, handler)
-	}
-	authzI := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		return grpcmw.AuthzInterceptor(bootstrappkg.Authorizer,
-			grpcmw.WithObjectResolver(authz.DefaultGRPCObject),
-			grpcmw.WithActionResolver(authz.DefaultGRPCAction))(ctx, req, info, handler)
-	}
-	validatorI := grpcmw.ValidatorInterceptor(validation.MustNew().Validate)
+	// 统一链（v0.16.0）：认证/授权/校验经一座 UnaryServerInterceptor 桥承载，
+	// 桥在链出口把 berrors 收口成 gRPC status。
+	// 统一链（v0.16.0）：认证/授权经一座 UnaryServerInterceptor 桥承载，
+	// 桥在链出口把 berrors 收口成 gRPC status（故不再需要 ErrorInterceptor）。
+	authChain := middleware.UnaryServerInterceptor(middleware.Chain(
+		middleware.Authn(bootstrappkg.Authenticator),
+		middleware.Authz(bootstrappkg.Authorizer,
+			middleware.WithObjectResolver(authz.DefaultGRPCObject),
+			middleware.WithActionResolver(authz.DefaultGRPCAction)),
+		middleware.Validator(validation.MustNew().Validate),
+	))
 
 	srv := grpcserver.NewGRPCServerWithRegister(
 		&bootstrapv1.Server_Grpc{Addr: ":0"},
-		[]grpc.ServerOption{grpc.ChainUnaryInterceptor(
-			grpcmw.ErrorInterceptor(), authnI, authzI, validatorI)},
+		[]grpc.ServerOption{grpc.ChainUnaryInterceptor(authChain)},
 		func(s *grpc.Server) {
 			identityv1.RegisterOrgUnitServiceServer(s, secretgrpc.NewOrgServer(orgbiz.New(repos.OrgUnit, repos.Position, repos.User)))
 			identityv1.RegisterPositionServiceServer(s, secretgrpc.NewPositionServer(orgbiz.New(repos.OrgUnit, repos.Position, repos.User)))

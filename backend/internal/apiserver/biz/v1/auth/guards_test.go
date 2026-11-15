@@ -3,7 +3,7 @@ package auth
 import (
 	"testing"
 
-	"github.com/kalandramo/bald/circuitbreaker/hystrix"
+	"github.com/kalandramo/bald/circuitbreaker/sentinel"
 	"github.com/kalandramo/bald/ratelimit/tokenbucket"
 	"github.com/kalandramo/bald/retry"
 )
@@ -19,7 +19,8 @@ func TestLoginGuards_SettersAndReplace(t *testing.T) {
 		t.Fatalf("tokenbucket.New: %v", err)
 	}
 	b.SetLoginLimiter(lim)
-	b.SetLoginBreaker(hystrix.New())
+	// 本测试只校验 setter 的非 nil / nil 语义，不驱动熔断，故无需装载规则。
+	b.SetLoginBreaker(sentinel.New("test.login.guards"))
 	b.SetLoginRetrier(retry.New())
 
 	g := b.loginGuards.Load()

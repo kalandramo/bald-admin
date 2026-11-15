@@ -57,7 +57,7 @@ func TestStoreSeed_UsersAndRoles(t *testing.T) {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	ctx := context.Background()
+	ctx := contextx.WithPlatform(context.Background())
 
 	admin, err := repos.User.Get(ctx, mustWhere("username", "admin"))
 	if err != nil {
@@ -82,7 +82,7 @@ func TestStoreSeed_BcryptHash(t *testing.T) {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	ctx := context.Background()
+	ctx := contextx.WithPlatform(context.Background())
 	admin, err := repos.User.Get(ctx, mustWhere("username", "admin"))
 	if err != nil {
 		t.Fatalf("get admin: %v", err)
@@ -136,7 +136,7 @@ func TestStoreWrite_TenantInjection(t *testing.T) {
 	}
 
 	// 3) 读路径隔离：t-other ctx 看不到 t-default 的已建用户（闭环验证）。
-	others, _, err := repos.User.List(ctx, (&store.Where{}).T(ctx))
+	others, _, err := repos.User.List(ctx, &store.Where{})
 	if err != nil {
 		t.Fatalf("list t-other: %v", err)
 	}

@@ -73,13 +73,17 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      # 域清单是 appspec.json 的投影：改了 domains[] 却忘跑 task gen:domain，
-      # 或生成物被手改，都在这里失败。
-      - name: Domain manifest in sync
-        run: >-
-          go run github.com/kalandramo/bald/cli/cmd/bald gen domain
-          --spec appspec.json --manifest internal/domainset/domains.gen.go
-          --apiserver-dir - --no-bind --check
+      # 生成树三重门禁（D-1）：appspec 声明是唯一真源，生成物与手写层漂移
+      # 都在这里失败。convention check 默认退出码 0（MCP 取完整结果用），
+      # CI 拦截必须显式 --fail-on-findings。
+      - name: Gen app tree in sync
+        run: go run github.com/kalandramo/bald/cli/cmd/bald gen app --spec appspec.json --check
+
+      - name: Gen domain tree in sync
+        run: go run github.com/kalandramo/bald/cli/cmd/bald gen domain --spec appspec.json --check
+
+      - name: Convention check
+        run: go run github.com/kalandramo/bald/cli/cmd/bald convention check --dir . --fail-on-findings
 
       - name: Test
         env:

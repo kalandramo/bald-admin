@@ -37,6 +37,7 @@ import (
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald/pkg/contextx"
 )
 
 // startPortalREST 起真实 gin 引擎 + 真实 SQLite（portal biz 注入）。
@@ -89,7 +90,7 @@ func TestWave6_2_GetMyPermissionCode(t *testing.T) {
 // 自造可控数据：新角色 + 关联「非按钮菜单」的权限码，验证聚合链。
 func TestWave6_2_GetNavigation(t *testing.T) {
 	base := startPortalREST(t)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 
 	// 造数据：角色 r-nav 的 Perms 含 nav:list；权限点 nav:list 关联 menu-system + menu-tenant。
 	// （直接写 store 保证测试隔离；store 是包级桥接，InitBridges 后可用。）

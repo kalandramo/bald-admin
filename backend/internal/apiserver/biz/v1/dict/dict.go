@@ -93,7 +93,7 @@ func (b *Biz) loadEntries(ctx context.Context, key string) ([]byte, error) {
 
 // ListTypes 列出调用方租户的字典类型，SortOrder 升序稳定排序。
 func (b *Biz) ListTypes(ctx context.Context) ([]*authmodel.DictType, int, error) {
-	ts, total, err := b.typeStore.List(ctx, (&store.Where{}).T(ctx))
+	ts, total, err := b.typeStore.List(ctx, &store.Where{})
 	if err != nil {
 		return nil, 0, fmt.Errorf("dict.ListTypes: %w", err)
 	}
@@ -105,7 +105,7 @@ func (b *Biz) ListTypes(ctx context.Context) ([]*authmodel.DictType, int, error)
 func (b *Biz) GetType(ctx context.Context, id string) (*authmodel.DictType, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	t, err := b.typeStore.Get(ctx, w.T(ctx))
+	t, err := b.typeStore.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("dict.GetType(%s): %w", id, err)
 	}
@@ -165,13 +165,13 @@ func (b *Biz) DeleteType(ctx context.Context, id string) (int, error) {
 	for _, e := range entries {
 		w := &store.Where{}
 		w.Filters = append(w.Filters, store.Eq("id", e.ID))
-		if _, err := b.entryStore.Delete(ctx, w.T(ctx)); err != nil {
+		if _, err := b.entryStore.Delete(ctx, w); err != nil {
 			return 0, fmt.Errorf("dict.DeleteType(%s): cascade entry %s: %w", id, e.ID, err)
 		}
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.typeStore.Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.typeStore.Delete(ctx, w); err != nil {
 		return 0, fmt.Errorf("dict.DeleteType(%s): %w", id, err)
 	}
 	b.invalidate(ctx, id)
@@ -185,7 +185,7 @@ func (b *Biz) DeleteType(ctx context.Context, id string) (int, error) {
 // 故障降级）经 loader 读 store 回填。typeCode 为空全量直连（跨类型聚合不缓存）。
 func (b *Biz) ListEntries(ctx context.Context, typeCode string) ([]*authmodel.DictEntry, int, error) {
 	if typeCode == "" {
-		es, total, err := b.entryStore.List(ctx, (&store.Where{}).T(ctx))
+		es, total, err := b.entryStore.List(ctx, &store.Where{})
 		if err != nil {
 			return nil, 0, fmt.Errorf("dict.ListEntries: %w", err)
 		}
@@ -220,7 +220,7 @@ func (b *Biz) ListEntries(ctx context.Context, typeCode string) ([]*authmodel.Di
 func (b *Biz) GetEntry(ctx context.Context, id string) (*authmodel.DictEntry, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	e, err := b.entryStore.Get(ctx, w.T(ctx))
+	e, err := b.entryStore.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("dict.GetEntry(%s): %w", id, err)
 	}
@@ -285,7 +285,7 @@ func (b *Biz) DeleteEntry(ctx context.Context, id string) (bool, error) {
 	}
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.entryStore.Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.entryStore.Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("dict.DeleteEntry(%s): %w", id, err)
 	}
 	b.invalidate(ctx, e.TypeCode)
@@ -296,7 +296,7 @@ func (b *Biz) DeleteEntry(ctx context.Context, id string) (bool, error) {
 func (b *Biz) listEntriesDirect(ctx context.Context, typeCode string) ([]*authmodel.DictEntry, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("type_code", typeCode))
-	es, _, err := b.entryStore.List(ctx, w.T(ctx))
+	es, _, err := b.entryStore.List(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("dict.listEntriesDirect(%s): %w", typeCode, err)
 	}

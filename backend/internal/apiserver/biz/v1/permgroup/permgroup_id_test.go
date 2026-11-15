@@ -1,4 +1,4 @@
-package permgroup
+package permgroup_test
 
 // permgroup_id_test.go —— 策略评估日志 ID 唯一性回归（Windows 时钟粒度缺陷）。
 //
@@ -23,7 +23,9 @@ import (
 	"context"
 	"testing"
 
+	permgroup "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/permgroup"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald/pkg/contextx"
 )
 
 // TestRecordEvaluation_ConsecutiveIDsUnique —— 连续调用必须产生不同 ID。
@@ -35,8 +37,8 @@ func TestRecordEvaluation_ConsecutiveIDsUnique(t *testing.T) {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	biz := New(repos.PermGroup, repos.PolicyEvalLog)
-	ctx := context.Background()
+	biz := permgroup.New(repos.PermGroup, repos.PolicyEvalLog)
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 
 	// 连续写 20 条（远超任何时钟粒度下的撞键概率窗口）。
 	// 修复前：Windows 上第 2 条起即 conflict。

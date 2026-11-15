@@ -1,10 +1,12 @@
-package secret
+package secret_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/kalandramo/bald/pkg/contextx"
+
+	secret "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
@@ -16,7 +18,7 @@ func TestSecretBiz_TenantIsolation(t *testing.T) {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	biz := New(repos.Secret, nil) // 构造期注入仓储；缓存禁用（直连 store）。
+	biz := secret.New(repos.Secret, nil) // 构造期注入仓储；缓存禁用（直连 store）。
 
 	ctxDefault := contextx.WithTenantID(context.Background(), "t-default")
 	ctxOther := contextx.WithTenantID(context.Background(), "t-other")

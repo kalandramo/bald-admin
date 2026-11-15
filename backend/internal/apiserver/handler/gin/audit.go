@@ -12,7 +12,7 @@ import (
 
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 
 	auditv1 "github.com/kalandramo/bald-admin/api/gen/go/audit/v1"
 	auditbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/auditlog"
@@ -30,10 +30,11 @@ func RegisterAudit(
 ) {
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(authz.DefaultHTTPObject),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authed.Use(auditMiddleware())
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 
 	authed.GET("/audit", authzMW, func(c *gingonic.Context) {
 		// GET 无 body，分页参数从 query 读（pagingFromQuery 定义在同包的
