@@ -1,4 +1,4 @@
-package grpc
+package grpc_test
 
 import (
 	"context"
@@ -15,10 +15,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/kalandramo/bald/pkg/authz"
+	"github.com/kalandramo/bald/pkg/contextx"
 
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	"github.com/kalandramo/bald/pkg/authn"
-	grpcmw "github.com/kalandramo/bald/pkg/middleware/grpc"
+	"github.com/kalandramo/bald/pkg/middleware"
 	gateway "github.com/kalandramo/bald/transport/gateway"
 	grpcserver "github.com/kalandramo/bald/transport/grpc"
 
@@ -26,6 +27,7 @@ import (
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
 	secretbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/secret"
 	userbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/user"
+	handlergrpc "github.com/kalandramo/bald-admin/internal/apiserver/handler/grpc"
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
@@ -47,23 +49,25 @@ func startServer(t *testing.T) (*grpcserver.GRPCServer, string) {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	authnI := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		return grpcmw.AuthnInterceptor(bootstrappkg.Authenticator)(ctx, req, info, handler)
-	}
-	authzI := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		return grpcmw.AuthzInterceptor(bootstrappkg.Authorizer,
-			grpcmw.WithObjectResolver(authz.DefaultGRPCObject),
-			grpcmw.WithActionResolver(authz.DefaultGRPCAction))(ctx, req, info, handler)
-	}
+	// 统一链（v0.16.0）：认证/授权/校验经一座 UnaryServerInterceptor 桥承载，
+	// 桥在链出口把 berrors 收口成 gRPC status。
+	// 统一链（v0.16.0）：认证/授权经一座 UnaryServerInterceptor 桥承载，
+	// 桥在链出口把 berrors 收口成 gRPC status（故不再需要 ErrorInterceptor）。
+	authChain := middleware.UnaryServerInterceptor(middleware.Chain(
+		middleware.Authn(bootstrappkg.Authenticator),
+		middleware.Authz(bootstrappkg.Authorizer,
+			middleware.WithObjectResolver(authz.DefaultGRPCObject),
+			middleware.WithActionResolver(authz.DefaultGRPCAction)),
+	))
 	srv := grpcserver.NewGRPCServerWithRegister(
 		&bootstrapv1.Server_Grpc{Addr: ":0"},
 		[]grpc.ServerOption{
 			// ErrorInterceptor 必须最外层，收口 authn/authz 返回的 berrors -> gRPC status。
-			grpc.ChainUnaryInterceptor(grpcmw.ErrorInterceptor(), authnI, authzI),
+			grpc.ChainUnaryInterceptor(authChain),
 		},
 		func(s *grpc.Server) {
-			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(repos.Secret, nil)))
-			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New(repos.User)))
+			adminv1.RegisterSecretServiceServer(s, handlergrpc.NewServer(secretbiz.New(repos.Secret, nil)))
+			userv1.RegisterUserServiceServer(s, handlergrpc.NewUserServer(userbiz.New(repos.User)))
 		},
 	)
 	lis, err := listenLocal()
@@ -136,7 +140,7 @@ func TestGRPCTransport_Admin_OK(t *testing.T) {
 	defer conn.Close()
 
 	own := &authmodel.Secret{ID: "s-grpc-del-temp", Name: "待删资源", Content: "x", TenantID: "t-default"}
-	if err := repos.Secret.Create(context.Background(), own); err != nil {
+	if err := repos.Secret.Create(contextx.WithTenantID(context.Background(), "t-default"), own); err != nil {
 		t.Fatalf("seed temp secret: %v", err)
 	}
 
@@ -245,20 +249,22 @@ func TestRESTGateway_MultiTenant_Isolation(t *testing.T) {
 		t.Fatalf("grpc listen: %v", err)
 	}
 	grpcAddr := grpcLis.Addr().String()
-	authnI := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		return grpcmw.AuthnInterceptor(bootstrappkg.Authenticator)(ctx, req, info, handler)
-	}
-	authzI := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		return grpcmw.AuthzInterceptor(bootstrappkg.Authorizer,
-			grpcmw.WithObjectResolver(authz.DefaultGRPCObject),
-			grpcmw.WithActionResolver(authz.DefaultGRPCAction))(ctx, req, info, handler)
-	}
+	// 统一链（v0.16.0）：认证/授权/校验经一座 UnaryServerInterceptor 桥承载，
+	// 桥在链出口把 berrors 收口成 gRPC status。
+	// 统一链（v0.16.0）：认证/授权经一座 UnaryServerInterceptor 桥承载，
+	// 桥在链出口把 berrors 收口成 gRPC status（故不再需要 ErrorInterceptor）。
+	authChain := middleware.UnaryServerInterceptor(middleware.Chain(
+		middleware.Authn(bootstrappkg.Authenticator),
+		middleware.Authz(bootstrappkg.Authorizer,
+			middleware.WithObjectResolver(authz.DefaultGRPCObject),
+			middleware.WithActionResolver(authz.DefaultGRPCAction)),
+	))
 	grpcSrv := grpcserver.NewGRPCServerWithRegister(
 		&bootstrapv1.Server_Grpc{Addr: grpcAddr},
-		[]grpc.ServerOption{grpc.ChainUnaryInterceptor(grpcmw.ErrorInterceptor(), authnI, authzI)},
+		[]grpc.ServerOption{grpc.ChainUnaryInterceptor(authChain)},
 		func(s *grpc.Server) {
-			adminv1.RegisterSecretServiceServer(s, NewServer(secretbiz.New(repos.Secret, nil)))
-			userv1.RegisterUserServiceServer(s, NewUserServer(userbiz.New(repos.User)))
+			adminv1.RegisterSecretServiceServer(s, handlergrpc.NewServer(secretbiz.New(repos.Secret, nil)))
+			userv1.RegisterUserServiceServer(s, handlergrpc.NewUserServer(userbiz.New(repos.User)))
 		},
 	)
 	go func() { _ = grpcSrv.Serve(grpcLis) }()

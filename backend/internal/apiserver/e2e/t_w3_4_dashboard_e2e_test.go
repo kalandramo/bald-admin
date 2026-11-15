@@ -23,6 +23,7 @@ import (
 	gingonic "github.com/gin-gonic/gin"
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/pkg/audit"
+	"github.com/kalandramo/bald/pkg/contextx"
 	"github.com/kalandramo/bald/pkg/store"
 
 	securityaudit "github.com/kalandramo/bald-admin/internal/security/audit"
@@ -75,7 +76,7 @@ func seedAudit(t *testing.T, tenantID, category, action, result string, at time.
 		Result:   result,
 		Category: category,
 	}
-	if err := repos.Audit.Create(context.Background(), rec); err != nil {
+	if err := repos.Audit.Create(contextx.WithTenantID(context.Background(), tenantID), rec); err != nil {
 		t.Fatalf("seed audit: %v", err)
 	}
 }
@@ -84,7 +85,7 @@ func seedAudit(t *testing.T, tenantID, category, action, result string, at time.
 func TestWave3_4_Overview(t *testing.T) {
 	base := startDashboardREST(t)
 	admin := loginAs(t, base, "admin", "admin123")
-	ctx := context.Background()
+	ctx := contextx.WithPlatform(context.Background())
 
 	// 独立算出期望值（不用被测代码算期望——避免自证）。
 	//
@@ -131,7 +132,7 @@ func TestWave3_4_LoginTrendPadsMissingDays(t *testing.T) {
 	base := startDashboardREST(t)
 	_ = loginAs(t, base, "admin", "admin123") // 确保路由与鉴权已装配
 	biz := dashbiz.New(repos.Audit, repos.Role, repos.User)
-	ctx := context.Background()
+	ctx := contextx.WithPlatform(context.Background())
 
 	// 造一个唯一的租户，隔离本测试的数据（避免其他测试的审计记录干扰）。
 	tenant := "trend-" + time.Now().Format("150405.000000")
@@ -191,7 +192,7 @@ func TestWave3_4_OperationActionDistribution(t *testing.T) {
 	base := startDashboardREST(t)
 	_ = loginAs(t, base, "admin", "admin123") // 确保路由与鉴权已装配
 	biz := dashbiz.New(repos.Audit, repos.Role, repos.User)
-	ctx := context.Background()
+	ctx := contextx.WithPlatform(context.Background())
 	tenant := "act-" + time.Now().Format("150405.000000")
 
 	now := time.Now()
@@ -228,7 +229,7 @@ func TestWave3_4_LoginStatusDistribution(t *testing.T) {
 	base := startDashboardREST(t)
 	_ = loginAs(t, base, "admin", "admin123") // 确保路由与鉴权已装配
 	biz := dashbiz.New(repos.Audit, repos.Role, repos.User)
-	ctx := context.Background()
+	ctx := contextx.WithPlatform(context.Background())
 	tenant := "st-" + time.Now().Format("150405.000000")
 
 	now := time.Now()
@@ -311,7 +312,7 @@ func TestWave3_4_HTTPEndpoints(t *testing.T) {
 func TestWave3_4_FullChainLoginToDashboard(t *testing.T) {
 	base := startDashboardREST(t)
 	biz := dashbiz.New(repos.Audit, repos.Role, repos.User)
-	ctx := context.Background()
+	ctx := contextx.WithPlatform(context.Background())
 	tenant := "t-default" // admin 的租户
 
 	// 先取基线（本测试可能与同包其他测试共享 DB，故用增量而非绝对值）。

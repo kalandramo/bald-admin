@@ -11,7 +11,7 @@ import (
 
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 
 	adminv1 "github.com/kalandramo/bald-admin/api/gen/go/admin/v1"
 	portalbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/portal"
@@ -29,16 +29,17 @@ func RegisterAdminPortal(
 ) {
 	authed := e.Group("/admin/v1")
 	authed.Use(authnMiddleware(authenticator))
+	authed.Use(auditMiddleware())
 	// **自定义 ObjectResolver**：本组路由的 object 固定为 "admin_portal"。
 	//
 	// 为何不用 DefaultHTTPObject：它取路径首段 → /admin/v1/routes 得 "admin"，
 	// 与 /admin/components（管理面组件目录，admin 专属）**撞名**——给 viewer
 	// 开 "admin" 只读会连带放开组件目录（实测回归 TestAdmin_Forbidden 由 403
 	// 变 200）。用独立 object 隔离两者。
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(func(string) string { return "admin_portal" }),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(func(string) string { return "admin_portal" }),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 
 	authed.GET("/routes", authzMW, func(c *gingonic.Context) {
 		uid, err := portalbiz.CurrentUserID(c.Request.Context())

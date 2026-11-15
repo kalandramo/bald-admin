@@ -17,7 +17,7 @@ import (
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 	web "github.com/kalandramo/bald/transport/web"
 
 	filev1 "github.com/kalandramo/bald-admin/api/gen/go/file/v1"
@@ -40,10 +40,11 @@ func RegisterFile(
 ) {
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(authz.DefaultHTTPObject),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authed.Use(auditMiddleware())
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 
 	authed.POST("/file/upload", authzMW, func(c *gingonic.Context) {
 		// 请求体硬上限（含 chunked 传输）：biz 的 MaxUploadSize 校验在整包读入

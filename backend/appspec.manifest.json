@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "tool": "bald gen app",
+  "spec": "7bae80b2ed3111fabfdc7cc7262734228cfc1457064c465294f02e6cf869b2c5",
+  "files": [
+    {
+      "path": "api/buf.gen.yaml",
+      "ownership": "seeded",
+      "hash": "seeded"
+    },
+    {
+      "path": "api/buf.yaml",
+      "ownership": "seeded",
+      "hash": "seeded"
+    },
+    {
+      "path": "cmd/bald-admin/app/command.go",
+      "ownership": "owned",
+      "hash": "4596507fea89abda262886ff34b1945de316d7ce1f1678cc13cf3481de22fa30"
+    },
+    {
+      "path": "cmd/bald-admin/app/custom.go",
+      "ownership": "seeded",
+      "hash": "seeded"
+    },
+    {
+      "path": "cmd/bald-admin/main.go",
+      "ownership": "owned",
+      "hash": "ce865b40a8e975f0eafbaee76e5e7f186ee0a47bf23fda08d605a3675719ddc0"
+    },
+    {
+      "path": "configs/bald-admin.yaml",
+      "ownership": "owned",
+      "hash": "ff95095ff3259f00f77521fb497bfa3c88bfb36c8891141e968ef3695c29768e"
+    },
+    {
+      "path": "internal/apiserver/layering_invariant_test.go",
+      "ownership": "owned",
+      "hash": "55d24ecb9409475db64240420969de751755c367d5f084a37281306457ae6a35"
+    },
+    {
+      "path": "internal/bootstrap/assemble.gen.go",
+      "ownership": "owned",
+      "hash": "b64c63351356139f92de17d4930ba095358a90e99adf5cb28e452d82356b9d2e"
+    },
+    {
+      "path": "internal/bootstrap/custom.go",
+      "ownership": "seeded",
+      "hash": "seeded"
+    },
+    {
+      "path": "internal/bootstrap/domains.gen.go",
+      "ownership": "owned",
+      "hash": "d35544e1c3f4291b1ab85c64f8b6bcdbb7761b2ecc8b81f213d6537aa8386c3a"
+    },
+    {
+      "path": "internal/bootstrap/seed/policies.go",
+      "ownership": "seeded",
+      "hash": "seeded"
+    },
+    {
+      "path": "internal/bootstrap/seed/seed.go",
+      "ownership": "seeded",
+      "hash": "seeded"
+    },
+    {
+      "path": "taskfile.yml",
+      "ownership": "owned",
+      "hash": "4db8ab5911ee6c2c1a78d22fa2edbc1f761753da02c24cbbf494734ae7e1ca0c"
+    }
+  ]
+}

@@ -24,9 +24,9 @@ bald 中间件/桥接实现，业务不直连引擎。
 2. 在 `appspec.json` 的 `domains[]` 登记 name / goPackage，并按域形态三选一：
    `service`（单 proto service）、`services[]`（多 service 聚合，如 dict/org）、
    `httpOnly: true`（无 proto 产物）；
-3. `task gen:domain` 重写 `internal/domainset/domains.gen.go`，并在
-   `cmd/bald-admin/app/assembly.go` 的 Setup 段注入该域依赖（生成物只列清单，
-   依赖接线仍是显式的）。
+3. `bald gen domain` 重写 `internal/apiserver` 侧生成物（convert/bind/routes），
+   并在 `internal/bootstrap/assembly.go` 的 appOptionsCore 段注入该域依赖
+   （生成物只列清单，依赖接线仍是显式的）。
 
 没有 proto service 的域以 `httpOnly` 声明（mfa / identity / task / message /
 dashboard / permgroup / plan）。唯一例外是 authd：它不在 `appspec.json` 内，
@@ -138,7 +138,7 @@ curl -i http://127.0.0.1:8080/v1/secret/secret-1 \
   -X DELETE -H "Authorization: Bearer $TOKEN"
 ```
 
-测试账号：`admin/admin123`(角色 admin)、`alice/alice123`(viewer)、`bob/bob`(t-other 租户)。
+测试账号：`admin/admin123`(角色 admin)、`alice/alice123`(viewer)、`bob/alice123`(t-other 租户，与 alice 同密码)。
 viewer 删机密 → 403；跨租户查 `bob` 的机密 → 404（租户隔离）。
 
 ## 测试
@@ -179,7 +179,8 @@ Redis 测试按 **DB 12-15** 隔离（各测试用不同 DB，互不污染）。
 backend/                                (独立 go module)
 ├── appspec.json                    AppSpec 声明：19 个业务域的清单真相源
 ├── cmd/bald-admin/main.go          入口：appkit.Run + 拦截器链序 + metrics/audit/nacos 接线
-├── cmd/bald-admin/app/             装配层：assembly/servers/providers/audit/后端子模块
+├── cmd/bald-admin/app/             命令层：main 入口 + options（装配在 internal/bootstrap）
+├── internal/bootstrap/             装配层：assemble.gen.go 骨架 + assembly/servers/audit/后端子模块
 ├── configs/bald-admin.yaml.example 契约驱动配置模板（bconf proto 为唯一真相源）
 ├── api/
 │   ├── protos/<域>/v1/*.proto      业务契约（buf 模块根）

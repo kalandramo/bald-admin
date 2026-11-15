@@ -28,6 +28,7 @@ import (
 	taskbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/task"
 	hgin "github.com/kalandramo/bald-admin/internal/apiserver/handler/gin"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
+	"github.com/kalandramo/bald/pkg/contextx"
 )
 
 func startMessageREST(t *testing.T) string {
@@ -132,7 +133,7 @@ func TestWave2_5_SendIdempotent(t *testing.T) {
 	_ = base
 
 	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 	tenant := "t-default"
 
 	// 单收件人发送。
@@ -254,7 +255,7 @@ func TestWave2_5_InboxLifecycle(t *testing.T) {
 	admin := loginAs(t, base, "admin", "admin123")
 
 	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 	uid := "u-lifecycle-" + msgSuffix()
 
 	res, err := biz.SendMessage(ctx, "t-default", "u-sender", "s", msgbiz.SendRequest{
@@ -314,7 +315,7 @@ func TestWave2_5_Revoke(t *testing.T) {
 	admin := loginAs(t, base, "admin", "admin123")
 
 	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 	suffix := msgSuffix()
 	u1, u2 := "u-rv1-"+suffix, "u-rv2-"+suffix
 
@@ -365,7 +366,7 @@ func TestWave2_5_MessageCRUD(t *testing.T) {
 	admin := loginAs(t, base, "admin", "admin123")
 
 	biz := msgbiz.New(repos.Message, repos.MessageCategory, repos.Recipient, repos.User)
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 
 	// 创建草稿。
 	m, err := biz.CreateMessage(ctx, "t-default", "u-1", "n", msgbiz.Message{

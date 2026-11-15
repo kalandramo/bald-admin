@@ -36,7 +36,7 @@ func New(st *store.Store[authmodel.User]) *Biz { return &Biz{store: st} }
 func (b *Biz) Get(ctx context.Context, id string) (*authmodel.User, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	u, err := b.store.Get(ctx, w.T(ctx))
+	u, err := b.store.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("user.Get(%s): %w", id, err)
 	}
@@ -45,7 +45,7 @@ func (b *Biz) Get(ctx context.Context, id string) (*authmodel.User, error) {
 
 // List 列出当前租户用户。
 func (b *Biz) List(ctx context.Context) ([]*authmodel.User, error) {
-	users, _, err := b.store.List(ctx, (&store.Where{}).T(ctx))
+	users, _, err := b.store.List(ctx, &store.Where{})
 	if err != nil {
 		return nil, fmt.Errorf("user.List: %w", err)
 	}
@@ -83,7 +83,7 @@ func (b *Biz) Create(ctx context.Context, id, username string, roles []string, p
 func (b *Biz) Update(ctx context.Context, id, username string, roles []string, password string) (*authmodel.User, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	u, err := b.store.Get(ctx, w.T(ctx))
+	u, err := b.store.Get(ctx, w)
 	if err != nil {
 		return nil, fmt.Errorf("user.Update(%s): %w", id, err)
 	}
@@ -114,10 +114,10 @@ func (b *Biz) Update(ctx context.Context, id, username string, roles []string, p
 func (b *Biz) Delete(ctx context.Context, id string) (bool, error) {
 	w := &store.Where{}
 	w.Filters = append(w.Filters, store.Eq("id", id))
-	if _, err := b.store.Get(ctx, w.T(ctx)); err != nil {
+	if _, err := b.store.Get(ctx, w); err != nil {
 		return false, fmt.Errorf("user.Delete(%s): %w", id, err)
 	}
-	if _, err := b.store.Delete(ctx, w.T(ctx)); err != nil {
+	if _, err := b.store.Delete(ctx, w); err != nil {
 		return false, fmt.Errorf("user.Delete(%s): %w", id, err)
 	}
 	return true, nil

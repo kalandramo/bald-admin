@@ -22,6 +22,7 @@ import (
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
+	"github.com/kalandramo/bald/pkg/contextx"
 	"github.com/kalandramo/bald/pkg/store"
 	goredis "github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
@@ -139,6 +140,10 @@ func SetEvalRecorder(fn func() appauthz.EvaluationRecorder) { evalRecorder = fn 
 // repos 由调用方显式传入——本函数不再读包级仓储变量。装配根的 reloadable
 // 闭包捕获首次 InitBridges 返回的 repos（见 InitBridges），故重载读的是同一套仓储。
 func buildAuthorizer(ctx context.Context, repos *Repositories) (authz.Authorizer, error) {
+	// 系统级装载：策略/用户全量读取是跨租户视图（启动与热重载均无请求身份）。
+	// v0.16.0 起 store 租户隔离 fail-closed（ctx 无租户值即 ErrMissingTenant），
+	// 装载路径须显式声明平台级豁免——不是隐式回退，是明确的系统行为。
+	ctx = contextx.WithPlatform(ctx)
 	csv, err := loadPolicyCSV(ctx, repos)
 	if err != nil {
 		return nil, err
@@ -288,16 +293,25 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bootstrap: generate RSA key: %w", err)
 	}
-	Signer = authnjwt.NewAuthenticator(
+	// v0.3.2 起 NewAuthenticator 构造期即校验密钥（fail-fast），返回 error。
+	signer, err := authnjwt.NewAuthenticator(
 		authnjwt.WithRSAKeys(priv, &priv.PublicKey),
 		authnjwt.WithIssuer("bald-admin"),
 		authnjwt.WithLeeway(0),
 	)
-	Authenticator = authnjwt.NewAuthenticator(
+	if err != nil {
+		return nil, fmt.Errorf("bootstrap: build signer authenticator: %w", err)
+	}
+	Signer = signer
+	verifier, err := authnjwt.NewAuthenticator(
 		authnjwt.WithRSAKeys(nil, &priv.PublicKey), // 仅公钥：验签方无法伪造
 		authnjwt.WithIssuer("bald-admin"),
 		authnjwt.WithLeeway(0),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("bootstrap: build verifier authenticator: %w", err)
+	}
+	Authenticator = verifier
 
 	// 2) Store（bald-store-gorm，DSN 由配置注入）。
 	// DB/Redis/MinIO 优先消费注入实例（WireDatabase/WireCache/WireStorage，
@@ -439,7 +453,9 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 	//    bald-authz-casbin，内嵌通用 RBAC 模型）。策略数据化装载：p 行读
 	//    RolePolicy 表、g 行读 User.Roles——静态 rbac_policy.csv 已删除，策略单一真源
 	//    收敛到 DB（改库重启即生效；无策略行时 casbin 默认拒绝，fail-closed）。
-	policyCSV, err := loadPolicyCSV(ctx, repos)
+	// 系统级装载（同 buildAuthorizer）：注册租户维度之后的全量读，
+	// 显式平台豁免（v0.16.0 store fail-closed）。
+	policyCSV, err := loadPolicyCSV(contextx.WithPlatform(ctx), repos)
 	if err != nil {
 		return nil, err
 	}
@@ -875,7 +891,25 @@ func openDB(sqlCfg *bootstrapv1.Database_SQL) (*gorm.DB, error) {
 	if sqlCfg != nil && sqlCfg.GetSource() != "" {
 		opts = append(opts, baldgorm.WithConfig(sqlCfg))
 	}
-	return baldgorm.Open(opts...)
+	db, err := baldgorm.Open(opts...)
+	if err != nil {
+		return nil, err
+	}
+	// SQLite 内存库（缺省 DSN，env/配置均未指定）：必须单连接。
+	// 共享缓存内存库（file::memory:?cache=shared）在**最后一个连接关闭时
+	// 销毁**——database/sql 的空闲连接回收在多次开停之间可能把池清空，
+	// 复用的 gorm 句柄随后在全新空库上执行查询，产生偶发
+	// "no such table"。单连接彻底消除该竞态（测试/缺省场景串行查询，
+	// 无吞吐代价）；生产一律显式 DSN（PostgreSQL/MySQL），不受影响。
+	if sqlCfg == nil || sqlCfg.GetSource() == "" {
+		if os.Getenv("BALD_ADMIN_DB_DSN") == "" {
+			if sqlDB, derr := db.DB(); derr == nil {
+				sqlDB.SetMaxOpenConns(1)
+				sqlDB.SetMaxIdleConns(1)
+			}
+		}
+	}
+	return db, nil
 }
 
 // resolveRedis 解析 Redis 连接参数：env BALD_ADMIN_REDIS_ADDR 优先（覆盖手段），

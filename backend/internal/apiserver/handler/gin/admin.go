@@ -9,7 +9,7 @@ import (
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 	web "github.com/kalandramo/bald/transport/web"
 )
 
@@ -38,10 +38,11 @@ func RegisterAdmin(
 ) {
 	authed := e.Group("/admin")
 	authed.Use(authnMiddleware(authenticator))
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(authz.DefaultHTTPObject),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authed.Use(auditMiddleware())
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 
 	// GET /admin/components：观测当前组件序列（含启动期静态组件与运行期挂载的）。
 	authed.GET("/components", authzMW, func(c *gingonic.Context) {

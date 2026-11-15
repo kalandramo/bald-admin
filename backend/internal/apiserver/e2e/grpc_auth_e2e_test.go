@@ -10,7 +10,7 @@ import (
 
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	grpcmw "github.com/kalandramo/bald/pkg/middleware/grpc"
+	"github.com/kalandramo/bald/pkg/middleware"
 
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
@@ -34,13 +34,16 @@ func invoke(t *testing.T, token, fullMethod string) error {
 	repos = bootstrappkg.LastRepositories()
 	info := &grpc.UnaryServerInfo{FullMethod: fullMethod}
 	handler := func(c context.Context, _ any) (any, error) { return "ok", nil }
-	authzWrapped := grpcmw.AuthzInterceptor(bootstrappkg.Authorizer,
-		grpcmw.WithObjectResolver(authz.DefaultGRPCObject),
-		grpcmw.WithActionResolver(authz.DefaultGRPCAction))
-	authnWrapped := grpcmw.AuthnInterceptor(bootstrappkg.Authenticator)
-	_, err := authnWrapped(grpcAuthCtx(token), nil, info, func(c context.Context, r any) (any, error) {
-		return authzWrapped(c, r, info, handler)
-	})
+	// 统一链：一座 UnaryServerInterceptor 桥承载整条 Chain（Authn 外→Authz 内）。
+	// 每个中间件共享同一个 Transporter；桥在链出口一次性把 berrors 收口成
+	// gRPC status（故不再需要 grpcmw.ErrorInterceptor）。
+	chain := middleware.UnaryServerInterceptor(middleware.Chain(
+		middleware.Authn(bootstrappkg.Authenticator),
+		middleware.Authz(bootstrappkg.Authorizer,
+			middleware.WithObjectResolver(authz.DefaultGRPCObject),
+			middleware.WithActionResolver(authz.DefaultGRPCAction)),
+	))
+	_, err := chain(grpcAuthCtx(token), nil, info, handler)
 	return err
 }
 

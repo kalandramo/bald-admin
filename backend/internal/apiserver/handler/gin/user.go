@@ -12,7 +12,7 @@ import (
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 	web "github.com/kalandramo/bald/transport/web"
 
 	userv1 "github.com/kalandramo/bald-admin/api/gen/go/user/v1"
@@ -34,10 +34,11 @@ func RegisterUser(
 ) {
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(authz.DefaultHTTPObject),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authed.Use(auditMiddleware())
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 
 	authed.GET("/user", authzMW, func(c *gingonic.Context) {
 		users, err := biz.List(c.Request.Context())

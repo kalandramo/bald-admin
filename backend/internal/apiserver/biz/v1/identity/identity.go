@@ -15,6 +15,7 @@ import (
 	"time"
 
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
+	"github.com/kalandramo/bald/pkg/contextx"
 	"github.com/kalandramo/bald/pkg/store"
 	"golang.org/x/crypto/bcrypt"
 
@@ -132,6 +133,10 @@ func (b *Biz) GetCredential(ctx context.Context, id string) (*Credential, error)
 // GetCredentialByIdentifier 按身份类型 + 标识查询。
 // 这是登录流程的核心查询：用「邮箱+密码」登录时先按 identifier 找到凭证。
 func (b *Biz) GetCredentialByIdentifier(ctx context.Context, identityType, identifier string) (*Credential, error) {
+	// 凭证 identifier 全局唯一（EMAIL:xxx / PHONE:xxx），查证是跨租户语义
+	//（公开端点 /v1/credentials/verify 无 token、无租户身份）。v0.16.0 起
+	// store 租户隔离 fail-closed，系统查询显式声明平台级豁免。
+	ctx = contextx.WithPlatform(ctx)
 	m, err := b.credentialStore.Get(ctx, &store.Where{
 		Filters: []*storev1.FilterCondition{
 			store.Eq("identity_type", identityType),
@@ -174,7 +179,8 @@ func (b *Biz) VerifyCredential(ctx context.Context, identityType, identifier, pl
 	if c.Status != "ENABLED" {
 		return false, c.UserID, nil // 状态不允许认证
 	}
-	m, err := b.credentialStore.Get(ctx, &store.Where{
+	// 同上：identifier 定位是全局语义，按 ID 复查同为跨租户视图。
+	m, err := b.credentialStore.Get(contextx.WithPlatform(ctx), &store.Where{
 		Filters: []*storev1.FilterCondition{store.Eq("id", c.ID)},
 	})
 	if err != nil {
@@ -208,6 +214,9 @@ func (b *Biz) ResetCredential(ctx context.Context, identityType, identifier, new
 }
 
 func (b *Biz) setCredential(ctx context.Context, identityType, identifier, newPassword string) error {
+	// 按全局 identifier 定位行（同 GetCredentialByIdentifier，平台视图读）。
+	// 后续 Update 保持外层 ctx（携带请求租户）——写路径租户注入不做平台豁免。
+	readCtx := contextx.WithPlatform(ctx)
 	if len(newPassword) < 8 {
 		return fmt.Errorf("%w: password too short (min 8)", ErrValidation)
 	}
@@ -215,7 +224,7 @@ func (b *Biz) setCredential(ctx context.Context, identityType, identifier, newPa
 	if err != nil {
 		return fmt.Errorf("identity: hash password: %w", err)
 	}
-	m, err := b.credentialStore.Get(ctx, &store.Where{
+	m, err := b.credentialStore.Get(readCtx, &store.Where{
 		Filters: []*storev1.FilterCondition{
 			store.Eq("identity_type", identityType),
 			store.Eq("identifier", identifier),

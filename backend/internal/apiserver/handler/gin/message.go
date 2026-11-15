@@ -10,7 +10,7 @@ import (
 	"github.com/kalandramo/bald/berrors"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 	web "github.com/kalandramo/bald/transport/web"
 
 	msgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/message"
@@ -30,10 +30,11 @@ func RegisterMessage(
 ) {
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(authz.DefaultHTTPObject),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authed.Use(auditMiddleware())
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 	op := func(c *gingonic.Context) (tenantID, userID, name string) {
 		if claims := authn.AuthClaimsFromContext(c.Request.Context()); claims != nil {
 			return claims.TenantID, claims.Subject, claims.Name

@@ -29,6 +29,7 @@ import (
 
 	auditgorm "github.com/kalandramo/bald/contrib/audit-gorm"
 	"github.com/kalandramo/bald/pkg/audit"
+	"github.com/kalandramo/bald/pkg/contextx"
 	"github.com/kalandramo/bald/pkg/store"
 
 	authmodel "github.com/kalandramo/bald-admin/internal/apiserver/model"
@@ -64,7 +65,7 @@ func TestAuditStore_RealDBRecordsAudit(t *testing.T) {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	ctx := context.Background()
+	ctx := contextx.WithTenantID(context.Background(), "t-default")
 
 	before, err := repos.Audit.Count(ctx, &store.Where{})
 	if err != nil {

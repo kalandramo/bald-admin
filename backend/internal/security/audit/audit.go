@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/kalandramo/bald/pkg/audit"
+	"github.com/kalandramo/bald/pkg/middleware"
 )
 
 // ---- 当前生效审计器（生效集由本包自持） ----
@@ -59,5 +60,43 @@ func Global() audit.Auditor { return GlobalAuditor{} }
 
 // Record 实现 audit.Auditor：转发当前生效审计器（指针语义切换，无撕裂）。
 func (GlobalAuditor) Record(ctx context.Context, ev audit.AuditEvent) {
-	Current().Record(ctx, ev)
+	Current().Record(ctx, enrichClientInfo(ctx, ev))
+}
+
+// ---- 客户端信息汇聚 ----
+//
+// 统一审计件（bald pkg/middleware.Audit）的 Meta 只含 request_id/trace_id/
+// operation——ip/ua 明确留给落库汇聚点补齐（见其注释「协议丰富的外围……
+// 待 semconv 收拢统一后并入」）。gin 侧中间件在请求 ctx 注入客户端信息，
+// 本汇聚点读取并合并进 Meta；事件已携带时以事件为准（不覆盖）。
+
+type ctxKeyClientInfo struct{}
+
+// 客户端信息键（ctx 值为 [2]string{ip, userAgent}）。
+func WithClientInfo(ctx context.Context, ip, userAgent string) context.Context {
+	return context.WithValue(ctx, ctxKeyClientInfo{}, [2]string{ip, userAgent})
+}
+
+func enrichClientInfo(ctx context.Context, ev audit.AuditEvent) audit.AuditEvent {
+	if ev.Meta == nil {
+		ev.Meta = map[string]any{}
+	}
+	if v, ok := ctx.Value(ctxKeyClientInfo{}).([2]string); ok {
+		if _, exists := ev.Meta["client_ip"]; !exists && v[0] != "" {
+			ev.Meta["client_ip"] = v[0]
+		}
+		if _, exists := ev.Meta["user_agent"]; !exists && v[1] != "" {
+			ev.Meta["user_agent"] = v[1]
+		}
+	}
+	// 无 gin 侧注入（gRPC 面等）：回落到 Transporter 请求头（代理场景
+	// X-Forwarded-For / X-Real-Ip 可用；UA 两协议均在标准头里）。
+	if _, exists := ev.Meta["user_agent"]; !exists {
+		if tr, ok := middleware.FromServerContext(ctx); ok {
+			if ua := tr.RequestHeader().Get("user-agent"); ua != "" {
+				ev.Meta["user_agent"] = ua
+			}
+		}
+	}
+	return ev
 }

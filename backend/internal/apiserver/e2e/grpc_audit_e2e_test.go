@@ -9,7 +9,7 @@ import (
 
 	"github.com/kalandramo/bald/pkg/audit"
 	"github.com/kalandramo/bald/pkg/authz"
-	grpcmw "github.com/kalandramo/bald/pkg/middleware/grpc"
+	"github.com/kalandramo/bald/pkg/middleware"
 
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
 )
@@ -43,22 +43,23 @@ func invokeWithAudit(t *testing.T, a *memAuditor, token, fullMethod string) erro
 	repos = bootstrappkg.LastRepositories()
 	info := &grpc.UnaryServerInfo{FullMethod: fullMethod}
 	handler := func(c context.Context, _ any) (any, error) { return "ok", nil }
-	authzWrapped := grpcmw.AuthzInterceptor(bootstrappkg.Authorizer,
-		grpcmw.WithObjectResolver(authz.DefaultGRPCObject),
-		grpcmw.WithActionResolver(authz.DefaultGRPCAction))
-	authnWrapped := grpcmw.AuthnInterceptor(bootstrappkg.Authenticator)
-	auditWrapped := grpcmw.AuditInterceptor(grpcmw.AuditWithAuditor(a),
-		grpcmw.AuditWithObjectResolver(authz.DefaultGRPCObject),
-		grpcmw.AuditWithActionResolver(authz.DefaultGRPCAction))
 	ctx := grpcAuthCtx(token)
 	// 链路顺序：Authn(外层) → Audit → Authz → handler(内层)。
 	//  - Audit 在 Authn 内侧：能读取认证注入的 subject/tenant；
-	//  - Audit 在 Authz 外侧：能捕获授权允许/拒绝的最终 result（旁路不阻断）。
-	_, err := authnWrapped(ctx, nil, info, func(c context.Context, r any) (any, error) {
-		return auditWrapped(c, r, info, func(c context.Context, r any) (any, error) {
-			return authzWrapped(c, r, info, handler)
-		})
-	})
+	//  - Audit 在 Authz 外侧：持有 **未收口** 的 berrors，故能识别
+	//    PermissionDenied → ResultDeny（若各层各自过桥，错误已被转成
+	//    status error，统一 Audit 将无法判定 deny）。
+	chain := middleware.UnaryServerInterceptor(middleware.Chain(
+		middleware.Authn(bootstrappkg.Authenticator),
+		middleware.Audit(
+			middleware.AuditWithAuditor(a),
+			middleware.AuditWithObjectResolver(authz.DefaultGRPCObject),
+			middleware.AuditWithActionResolver(authz.DefaultGRPCAction)),
+		middleware.Authz(bootstrappkg.Authorizer,
+			middleware.WithObjectResolver(authz.DefaultGRPCObject),
+			middleware.WithActionResolver(authz.DefaultGRPCAction)),
+	))
+	_, err := chain(ctx, nil, info, handler)
 	return err
 }
 

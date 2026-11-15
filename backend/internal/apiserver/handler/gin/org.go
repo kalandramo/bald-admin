@@ -20,7 +20,7 @@ import (
 	storev1 "github.com/kalandramo/bald/bconf/gen/go/bald/store/v1"
 	"github.com/kalandramo/bald/pkg/authn"
 	"github.com/kalandramo/bald/pkg/authz"
-	mid "github.com/kalandramo/bald/pkg/middleware/gin"
+	mw "github.com/kalandramo/bald/pkg/middleware"
 
 	identityv1 "github.com/kalandramo/bald-admin/api/gen/go/identity/v1"
 	orgbiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/org"
@@ -47,10 +47,11 @@ func RegisterOrg(
 ) {
 	authed := e.Group("/v1")
 	authed.Use(authnMiddleware(authenticator))
-	authzMW := mid.AuthzMiddleware(authorizer,
-		mid.WithObjectResolver(authz.DefaultHTTPObject),
-		mid.WithActionResolver(authz.DefaultHTTPAction),
-	)
+	authed.Use(auditMiddleware())
+	authzMW := mw.GinHandler(mw.Authz(authorizer,
+		mw.WithObjectResolver(authz.DefaultHTTPObjectFromOperation),
+		mw.WithActionResolver(authz.DefaultHTTPActionFromOperation),
+	))
 	tid := func(c *gingonic.Context) string {
 		if claims := authn.AuthClaimsFromContext(c.Request.Context()); claims != nil {
 			return claims.TenantID
