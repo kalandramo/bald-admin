@@ -32,7 +32,6 @@ import (
 
 	bootstrapv1 "github.com/kalandramo/bald/bconf/gen/go/bootstrap/v1"
 	"github.com/kalandramo/bald/cache"
-	miniooss "github.com/kalandramo/bald/oss/minio"
 	s3oss "github.com/kalandramo/bald/oss/s3"
 
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
@@ -165,12 +164,8 @@ var RedisClient goredis.UniversalClient
 // 调用方（缓存直连 store / 审计流降级）应降级。
 var RedisCache cache.Cache
 
-// MinioStorage 是可选 MinIO 对象存储后端（由 storage.minio 配置段构造，
+// S3Storage 是可选 S3 兼容对象存储后端（storage.s3 配置段构造，
 // 文件模块消费）。SDK() 为 nil 表示未配置或构造失败，调用方应降级。
-var MinioStorage *miniooss.Storage
-
-// S3Storage 是可选 S3 兼容对象存储后端（，storage.s3 配置段）。
-// 与 MinioStorage 并列：二者按配置择一装配。
 var S3Storage *s3oss.Storage
 
 // ObjectStorageBridge 是文件模块实际消费的对象存储抽象。
@@ -360,26 +355,6 @@ func InitBridges(ctx context.Context) (*Repositories, error) {
 		}
 	}
 
-	// MinIO 对象存储后端（storage.minio 配置段）。minio.New 仅本地构造不联网，
-	// 失败时 SDK() 为 nil + 日志；真实可达性与建桶由文件模块 EnsureBucket 兜底，
-	// 此处失败不阻断启动（与 Redis 同构的"真实但可选"）。同款注入优先。
-	if MinioStorage == nil {
-		if mc := depsBootstrap.GetStorage().GetMinio(); mc != nil && mc.GetEndpoint() != "" {
-			MinioStorage = miniooss.NewStorage(&miniooss.Config{
-				Endpoint:  mc.GetEndpoint(),
-				AccessKey: mc.GetAccessKey(),
-				SecretKey: mc.GetSecretKey(),
-				Token:     mc.GetToken(),
-				UseSsl:    mc.GetUseSsl(),
-			})
-			if MinioStorage == nil || MinioStorage.SDK() == nil {
-				MinioStorage = nil
-				log.Warn(ctx, "minio init failed, file module degraded", "endpoint", mc.GetEndpoint())
-			} else {
-				log.Info(ctx, "minio storage constructed", "endpoint", mc.GetEndpoint())
-			}
-		}
-	}
 	// （建议二）：仓储聚合为**显式返回值**，不再写入包级变量。
 	repos := &Repositories{
 		User:       store.NewStore[authmodel.User](baldgorm.NewGormProvider(db, func(u *authmodel.User) string { return u.ID })),

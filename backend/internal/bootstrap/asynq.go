@@ -19,7 +19,6 @@ import (
 
 	"github.com/kalandramo/bald/encoding"
 	"github.com/kalandramo/bald/encoding/json"
-	"github.com/kalandramo/bald/encoding/msgpack"
 	"github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/transport"
 	"github.com/kalandramo/bald/transport/asynq"
@@ -35,14 +34,13 @@ var asynqCodecRegistered bool
 
 // registerAsynqCodecs 注册 asynq 可用的全部 codec（幂等）。
 //
-// 注册 json 与 msgpack 两个：json 是缺省（`server.go:122` 默认 GetCodec("json")），
-// msgpack 供 `asynq.codec: msgpack` 配置切换。两者都注册使配置切换无需额外装配。
+// json 是缺省（`server.go:122` 默认 GetCodec("json")）。encoding/msgpack 已随
+// bald 模块精简下线（2026-11），codec 面收敛为 json 单编解码。
 func registerAsynqCodecs() {
 	if asynqCodecRegistered {
 		return
 	}
 	encoding.MustRegister(json.New())
-	encoding.MustRegister(msgpack.New())
 	asynqCodecRegistered = true
 }
 

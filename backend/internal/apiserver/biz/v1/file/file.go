@@ -21,7 +21,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/kalandramo/bald/berrors"
-	miniooss "github.com/kalandramo/bald/oss/minio"
+	s3oss "github.com/kalandramo/bald/oss/s3"
 	"github.com/kalandramo/bald/pkg/contextx"
 	"github.com/kalandramo/bald/pkg/store"
 
@@ -36,10 +36,10 @@ const (
 
 // Biz 文件业务：对象存储抽象 + 兜底桶名。FileStore 经 bootstrap 包级引用。
 //
-// `store` 字段由具体 `*miniooss.Storage` 改为 `filestore.ObjectStorage`
-// 抽象——吸收 minio/s3 的**签名差异**（minio 逐调用传 bucket，s3 构造期固定
-// bucket）。构造入口保留 `New(mc *miniooss.Storage, ...)` 以零回归既有调用方
-// （10+ e2e + wire），内部自动包成 MinioAdapter；s3 路径经 SetObjectStorage 注入。
+// `store` 字段是 `filestore.ObjectStorage` 抽象——吸收不同对象存储的签名差异
+// （s3 构造期固定 bucket，适配器落 SDK 逐调用传 bucket 支持按 MIME 分桶）。
+// 构造入口 `New(sc *s3oss.Storage, ...)` 把 s3 实例自动包成 S3Adapter；
+// 其它后端经 SetObjectStorage 注入抽象接口。
 type Biz struct {
 	// fileStore 是文件元数据仓储（构造期注入，替代请求期读包级变量）。
 	fileStore     *store.Store[authmodel.File]
@@ -50,19 +50,13 @@ type Biz struct {
 // New 构造 File biz。st 是文件元数据仓储（构造期注入——域 Wire 执行时 InitBridges 已在业务 BeforeStart 先行，FileStore 已就绪）；mc 由 bootstrap 桥接装配；defaultBucket
 // 为 file.bucket 配置，空 = 沿用默认 "files"。
 //
-// 注意（对象存储仍为运行期接线）：storage.minio / storage.s3 段经契约 provider 在
-// Serve 装配的阶段 B 构造，故构造期值拷贝 mc 可能为 nil——此处构造后仍须在
-// BeforeStart（InitBridges 之后）调用 SetStorage / SetObjectStorage 补注
+// 注意（对象存储仍为运行期接线）：storage.s3 段经契约 provider 在
+// Serve 装配的阶段 B 构造，故构造期值拷贝 sc 可能为 nil——此处构造后仍须在
+// BeforeStart（InitBridges 之后）调用 SetObjectStorage 补注
 // （对齐 appkit.SetRegistrar 的「构造期 nil + 运行期接线」模式）。**仓储**已不再
-// 有此问题（起构造期注入），仅对象存储实例保留该约定。
-func New(st *store.Store[authmodel.File], mc *miniooss.Storage, defaultBucket string) *Biz {
-	return &Biz{fileStore: st, store: filestore.NewMinioAdapter(mc), defaultBucket: defaultBucket}
-}
-
-// SetStorage 运行期注入 MinIO 存储依赖（main.go BeforeStart 在 InitBridges 之后调用）。
-func (b *Biz) SetStorage(mc *miniooss.Storage, defaultBucket string) {
-	b.store = filestore.NewMinioAdapter(mc)
-	b.defaultBucket = defaultBucket
+// 有此问题（起构造期注入）。
+func New(st *store.Store[authmodel.File], sc *s3oss.Storage, defaultBucket string) *Biz {
+	return &Biz{fileStore: st, store: filestore.NewS3Adapter(sc), defaultBucket: defaultBucket}
 }
 
 // SetObjectStorage 注入任意对象存储后端（s3 路径）。

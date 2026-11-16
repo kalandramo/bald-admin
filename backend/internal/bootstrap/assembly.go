@@ -54,8 +54,7 @@ import (
 	"github.com/kalandramo/bald/health"
 	baldlog "github.com/kalandramo/bald/log"
 	"github.com/kalandramo/bald/log/bslog"
-	miniooss "github.com/kalandramo/bald/oss/minio"
-	miniocontract "github.com/kalandramo/bald/oss/minio/contract"
+	s3oss "github.com/kalandramo/bald/oss/s3"
 	s3contract "github.com/kalandramo/bald/oss/s3/contract"
 	"github.com/kalandramo/bald/pkg/appkit"
 	"github.com/kalandramo/bald/pkg/appkit/mech"
@@ -192,7 +191,7 @@ func appOptionsCore(svrOpts *options.ServerOptions) []appkit.Option {
 	filed.Setup(filed.Deps{
 		Store:         func() *store.Store[authmodel.File] { return repos.File },
 		ObjectStorage: func() filestore.ObjectStorage { return ObjectStorageBridge },
-		Minio:         func() *miniooss.Storage { return MinioStorage },
+		S3Storage:     func() *s3oss.Storage { return S3Storage },
 		Bucket:        func() string { return FileBucket },
 		Authn:         func() authn.Authenticator { return authenticator },
 		Authz:         func() authz.Authorizer { return authorizer },
@@ -295,7 +294,6 @@ func appOptionsCore(svrOpts *options.ServerOptions) []appkit.Option {
 		// providers.go 的取舍说明）。cache 段未配置时引擎跳过（合法）。
 		cacheRedisProvider{},
 		// 对象存储两后端（storage.minio / storage.s3 段，互斥择一）。
-		miniocontract.AppProvider(),
 		s3contract.AppProvider(),
 		// 可观测性：tracer/metrics 段由 observability-otlp 官方 Provider 分派，
 		// serviceName 绑定 OTLP resource。
@@ -487,11 +485,8 @@ func appOptionsCore(svrOpts *options.ServerOptions) []appkit.Option {
 			if c, ok := CacheRedis.Resource(app); ok {
 				WireCache(c)
 			}
-			if st, ok := miniocontract.MinIO.Resource(app); ok {
-				WireStorage(st)
-			}
-			// storage.type=s3 时装配 s3 后端（与 minio 互斥择一）。
-			// WireStorage 按实际类型分派，两者共用 ObjectStorageBridge。
+			// storage.s3 段装配 s3 后端；WireStorage 记入 S3Storage 与
+			// ObjectStorageBridge（桥接）双面。
 			if st, ok := s3contract.S3.Resource(app); ok {
 				WireStorage(st)
 			}

@@ -9,7 +9,6 @@ import (
 
 	"github.com/kalandramo/bald/cache"
 
-	miniooss "github.com/kalandramo/bald/oss/minio"
 	s3oss "github.com/kalandramo/bald/oss/s3"
 
 	"github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file/filestore"
@@ -33,18 +32,12 @@ func WireCache(v any) {
 
 // WireStorage 注入契约装配的对象存储实例（app.Storage(...) 的结果）。
 //
-// 支持两个后端——minio（既有）与 s3（新增）。两者的门面类型不同
-// （*miniooss.Storage / *s3oss.Storage），故分别记入 MinioStorage 与
-// ObjectStorageBridge；main 侧按实际注入的后端调 file biz 的对应 setter。
+// 支持 s3 后端。门面类型 *s3oss.Storage 记入 S3Storage 与
+// ObjectStorageBridge（桥接）；main 侧按实际注入的后端调 file biz 的 setter。
 //
 // nil 透传为 no-op（与 WireDatabase/WireCache 同约定）。
 func WireStorage(v any) {
 	switch st := v.(type) {
-	case *miniooss.Storage:
-		if st != nil {
-			MinioStorage = st
-			ObjectStorageBridge = filestore.NewMinioAdapter(st)
-		}
 	case *s3oss.Storage:
 		if st != nil {
 			S3Storage = st

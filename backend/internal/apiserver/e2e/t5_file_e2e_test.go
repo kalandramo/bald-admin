@@ -1,13 +1,13 @@
 package e2e
 
 // t5_file_e2e_test.go 文件管理 REST e2e（验收）：真实 gin 引擎 + httptest +
-// 真实 MinIO（外部依赖禁止 fake/mock/stub）。MinIO 连接经 env 注入：
+// 真实 S3 兼容存储（外部依赖禁止 fake/mock/stub）。连接经 env 注入：
 //
-//	MINIO_TEST_ENDPOINT   host:port（必填，缺省则整组 Skip）
-//	MINIO_TEST_ACCESS_KEY （必填）
-//	MINIO_TEST_SECRET_KEY （必填）
-//	MINIO_TEST_USE_SSL    "true"/"false"（默认 false）
-//	MINIO_TEST_BUCKET     files 类兜底桶（默认 go-bald-admin-test）
+//	S3_TEST_ENDPOINT   host:port（必填，缺省则整组 Skip）
+//	S3_TEST_ACCESS_KEY （必填）
+//	S3_TEST_SECRET_KEY （必填）
+//	S3_TEST_USE_SSL    "true"/"false"（默认 false）
+//	S3_TEST_BUCKET     files 类兜底桶（默认 go-bald-admin-test）
 //
 // 命名空间教训：测试夹具 env 不得用 BALD_ADMIN_ 前缀——那是 app name 派生的
 // 配置覆盖命名空间（environMap 按前缀注入契约合并），CI 曾因此把装配测试
@@ -33,14 +33,15 @@ import (
 	"strings"
 	"testing"
 
-	miniov7 "github.com/minio/minio-go/v7"
-
 	gingonic "github.com/gin-gonic/gin"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	filev1 "github.com/kalandramo/bald-admin/api/gen/go/file/v1"
 	filebiz "github.com/kalandramo/bald-admin/internal/apiserver/biz/v1/file"
 	bootstrappkg "github.com/kalandramo/bald-admin/internal/bootstrap"
-	miniooss "github.com/kalandramo/bald/oss/minio"
+
+	s3oss "github.com/kalandramo/bald/oss/s3"
 )
 
 // png1x1 标准 1x1 透明 PNG（真实 PNG 字节流，嗅探必得 image/png）。
@@ -56,17 +57,17 @@ var png1x1 = []byte{
 	0x42, 0x60, 0x82,
 }
 
-// startFileREST 起真实 gin 引擎 + 真实 MinIO（env 注入；无 env 整组 Skip，
-// 不引入任何 fake）。返回 base URL、file biz 与 MinIO Storage（落桶断言用）。
-func startFileREST(t *testing.T) (string, *filebiz.Biz, *miniooss.Storage) {
+// startFileREST 起真实 gin 引擎 + 真实 S3 兼容存储（env 注入；无 env 整组
+// Skip，不引入任何 fake）。返回 base URL、file biz 与 s3 Storage（落桶断言用）。
+func startFileREST(t *testing.T) (string, *filebiz.Biz, *s3oss.Storage) {
 	t.Helper()
-	endpoint := os.Getenv("MINIO_TEST_ENDPOINT")
-	accessKey := os.Getenv("MINIO_TEST_ACCESS_KEY")
-	secretKey := os.Getenv("MINIO_TEST_SECRET_KEY")
+	endpoint := os.Getenv("S3_TEST_ENDPOINT")
+	accessKey := os.Getenv("S3_TEST_ACCESS_KEY")
+	secretKey := os.Getenv("S3_TEST_SECRET_KEY")
 	if endpoint == "" || accessKey == "" || secretKey == "" {
-		t.Skip("MINIO_TEST_* not set: skip real-MinIO e2e (no fake allowed)")
+		t.Skip("S3_TEST_* not set: skip real-S3 e2e (no fake allowed)")
 	}
-	bucket := os.Getenv("MINIO_TEST_BUCKET")
+	bucket := os.Getenv("S3_TEST_BUCKET")
 	if bucket == "" {
 		bucket = "go-bald-admin-test"
 	}
@@ -75,25 +76,28 @@ func startFileREST(t *testing.T) (string, *filebiz.Biz, *miniooss.Storage) {
 		t.Fatalf("InitBridges: %v", err)
 	}
 	repos = bootstrappkg.LastRepositories()
-	mc := miniooss.NewStorage(&miniooss.Config{
-		Endpoint:  endpoint,
-		AccessKey: accessKey,
-		SecretKey: secretKey,
-		UseSsl:    os.Getenv("MINIO_TEST_USE_SSL") == "true",
+	sc := s3oss.NewStorage(&s3oss.Config{
+		Endpoint:       endpoint,
+		Region:         "us-east-1",
+		AccessKey:      accessKey,
+		SecretKey:      secretKey,
+		UseSsl:         os.Getenv("S3_TEST_USE_SSL") == "true",
+		ForcePathStyle: true,
+		Bucket:         bucket,
 	})
-	// 连通性预检：MinIO 不可达即失败（快速失败优于半途 panic）
-	if _, err := mc.SDK().ListBuckets(context.Background()); err != nil {
-		t.Fatalf("minio unreachable: %v", err)
+	// 连通性预检：存储不可达即失败（快速失败优于半途 panic）
+	if _, err := sc.SDK().HeadBucket(context.Background(), &awss3.HeadBucketInput{Bucket: aws.String(bucket)}); err != nil {
+		t.Fatalf("s3 unreachable: %v", err)
 	}
 
-	fb := filebiz.New(repos.File, mc, bucket)
+	fb := filebiz.New(repos.File, sc, bucket)
 	e := gingonic.New()
 	// 域路径形态——共面挂载 + 逐域 Register*，
 	// biz 仍由本测试当场直构（隔离价值不变）。
 	registerCoreFaces(t, e, nil, nil, nil, fb)
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
-	return srv.URL, fb, mc
+	return srv.URL, fb, sc
 }
 
 // multipartUpload multipart form 上传（file + directory），返回状态码与原始响应。
@@ -136,16 +140,16 @@ func multipartUpload(t *testing.T, base, tok, fileName, directory string, conten
 }
 
 // statObject 断言辅助：对象是否存在（true=存在）。
-func statObject(t *testing.T, mc *miniooss.Storage, bucket, key string) bool {
+func statObject(t *testing.T, sc *s3oss.Storage, bucket, key string) bool {
 	t.Helper()
-	_, err := mc.SDK().StatObject(context.Background(), bucket, key, miniov7.StatObjectOptions{})
+	_, err := sc.SDK().HeadObject(context.Background(), &awss3.HeadObjectInput{Bucket: aws.String(bucket), Key: aws.String(key)})
 	return err == nil
 }
 
 // TestFileREST_UploadDownloadLifecycle 上传 → 落桶可查 → 下载内容一致 →
 // 删除 → 对象与元数据一并消失（核心验收）。
 func TestFileREST_UploadDownloadLifecycle(t *testing.T) {
-	base, fb, mc := startFileREST(t)
+	base, fb, sc := startFileREST(t)
 	tok := tenantToken(t, "admin", "u-admin", "admin", "t-default")
 
 	// 1. 上传 PNG（无目录）→ 201 + 嗅探元数据（images 桶 / image/png / sha256）。
@@ -172,8 +176,8 @@ func TestFileREST_UploadDownloadLifecycle(t *testing.T) {
 	}
 
 	// 2. 对象落桶可查（真实 MinIO StatObject）。
-	if !statObject(t, mc, f.GetBucketName(), f.GetFileDirectory()+"/"+f.GetSaveFileName()) {
-		if !statObject(t, mc, f.GetBucketName(), f.GetSaveFileName()) {
+	if !statObject(t, sc, f.GetBucketName(), f.GetFileDirectory()+"/"+f.GetSaveFileName()) {
+		if !statObject(t, sc, f.GetBucketName(), f.GetSaveFileName()) {
 			t.Fatalf("object %s/%s not found in bucket", f.GetBucketName(), f.GetSaveFileName())
 		}
 	}
@@ -207,7 +211,7 @@ func TestFileREST_UploadDownloadLifecycle(t *testing.T) {
 	if code, _ = callRaw(t, base, tok, http.MethodGet, "/v1/file/"+f.GetId(), nil); code != http.StatusNotFound {
 		t.Fatalf("get after delete must 404, got %d", code)
 	}
-	if statObject(t, mc, f.GetBucketName(), f.GetSaveFileName()) {
+	if statObject(t, sc, f.GetBucketName(), f.GetSaveFileName()) {
 		t.Fatalf("object still exists after delete")
 	}
 	_ = fb // biz 引用保持（供后续扩展断言）
