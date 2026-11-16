@@ -85,8 +85,9 @@ func startFileREST(t *testing.T) (string, *filebiz.Biz, *s3oss.Storage) {
 		ForcePathStyle: true,
 		Bucket:         bucket,
 	})
-	// 连通性预检：存储不可达即失败（快速失败优于半途 panic）
-	if _, err := sc.SDK().HeadBucket(context.Background(), &awss3.HeadBucketInput{Bucket: aws.String(bucket)}); err != nil {
+	// 连通性预检：ListBuckets 只验端点可达，不针对具体桶（桶由 file biz 的
+	// ensureBucket 兜底创建，首跑时并不存在——HeadBucket 会 404 误判为不可达）
+	if _, err := sc.SDK().ListBuckets(context.Background(), &awss3.ListBucketsInput{}); err != nil {
 		t.Fatalf("s3 unreachable: %v", err)
 	}
 
