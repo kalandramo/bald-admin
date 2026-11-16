@@ -1,8 +1,8 @@
-# backend CI：build + vet + 全量测试（含文件域 e2e 真跑 MinIO）。
+# backend CI：build + vet + 全量测试（含文件域 e2e 真跑 S3 兼容存储 MinIO）。
 # 触发面仅 backend/**（monorepo 路径过滤，前端改动不触发）。
 # 说明：
 # - go 版本读 backend/go.mod 的 go directive（go-version-file），永不漂移。
-# - t5_file_e2e_test.go 经 MINIO_TEST_* env 注入真实 MinIO（勿用 BALD_ADMIN_ 前缀：
+# - t5_file_e2e_test.go 经 S3_TEST_* env 注入真实 S3 兼容存储（MinIO 充当；勿用 BALD_ADMIN_ 前缀：
 #   那是 app name 派生的配置覆盖命名空间，会被 env 层注入契约校验，把 cmd/app
 #   的装配测试连红过八场——unknown contract keys: .test）。本地无 env 则该组 Skip；
 #   CI 起容器全量跑，桶由 file biz ensureBucket 兜底创建。SQLite/miniredis 组天然离线。
@@ -87,8 +87,8 @@ jobs:
 
       - name: Test
         env:
-          MINIO_TEST_ENDPOINT: localhost:9000
-          MINIO_TEST_ACCESS_KEY: minioadmin
-          MINIO_TEST_SECRET_KEY: minioadmin
-          MINIO_TEST_USE_SSL: "false"
+          S3_TEST_ENDPOINT: localhost:9000
+          S3_TEST_ACCESS_KEY: minioadmin
+          S3_TEST_SECRET_KEY: minioadmin
+          S3_TEST_USE_SSL: "false"
         run: go test ./...

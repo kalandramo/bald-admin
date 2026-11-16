@@ -1,9 +1,9 @@
 # monorepo 根忽略（backend/frontend 各自还有局部 .gitignore）
 
 # ---- backend（Go）----
-# 真实运行配置含云端凭证，不入库（模板见 backend/configs/bald-admin.yaml.example）
-/backend/configs/bald-admin.yaml
-/backend/configs/bald-admin.yaml
+# backend/configs/bald-admin.yaml 由 bald gen app 生成并纳入版本库（owned，
+# 最小配置只含 app.name，不含凭证）；真实凭证走 env / 外部注入。
+# 完整契约说明仍见 backend/configs/bald-admin.yaml.example。
 
 # bald 装配计划缓存（appkit.WithPlanCache 的本地基线，非生成物）
 .bald/
